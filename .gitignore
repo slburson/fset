@@ -1,3 +1,10 @@
+.boring
+_darcs
+C++-Code
+Java-Code
+Tinaa-Doc
+WWW
 *~
 *.fasl
 *fsl
+*.tgz

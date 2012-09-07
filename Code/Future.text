@@ -1,0 +1,7 @@
+Examples of expressions we'd like to be able to optimize:
+
+  (plusp (size (filter fn coll)))   -->   (find-if fn coll)
+
+  (< (size (convert 'set seq)) (size seq))   -->   [can stop on the first duplicate]
+    [left side is an elegant way to test uniqueness; right side requires a loop (gmap?)]
+
