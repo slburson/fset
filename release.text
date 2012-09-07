@@ -1,0 +1,14 @@
+To make Tinaa docs, in SBCL on Saraswati:
+
+  (require :fset)
+  (require :tinaa)
+  (tinaa:document-system :asdf-system :fset "/home/gyro/Common-Lisp.net/FSet/Tinaa-Doc/")
+
+
+Still to do:
+
+( ) Finish release notes, add to WWW dir, and upload
+( ) At least test in LispWorks, CLISP, and ECL
+( ) Update home page and upload
+(x) One bug fix (at least) is in darcs but not svn yet
+( ) Make tarball, sign, and upload

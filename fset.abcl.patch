@@ -1,0 +1,81 @@
+diff -ur quicklisp/dists/quicklisp/software//fset-20101006-svn/Code/port.lisp ql-software//fset-20101006-svn/Code/port.lisp
+--- quicklisp/dists/quicklisp/software//fset-20101006-svn/Code/port.lisp	2011-10-26 01:24:53.000000000 +0200
++++ ql-software//fset-20101006-svn/Code/port.lisp	2011-10-24 20:45:53.000000000 +0200
+@@ -113,6 +113,25 @@
+     '(sb-thread:with-mutex (*Memory-Barrier-Lock*)
+        nil)))
+ 
++#+abcl
++(progn
++  (defun make-lock (&optional name)
++    (declare (ignore name))
++    (threads:make-mutex))
++  (defmacro with-lock ((lock &key (wait? t)) &body body)
++    (declare (ignore wait?))
++    `(threads:with-mutex (,lock)
++       . ,body))
++  ;; For those implementations that support SMP but don't give us direct ways
++  ;; to generate memory barriers, we assume that grabbing a lock suffices.
++  (deflex *Memory-Barrier-Lock*
++    (threads:make-mutex))
++  (defmacro read-memory-barrier ()
++    '(threads:with-mutex (*Memory-Barrier-Lock*)
++       nil))
++  (defmacro write-memory-barrier ()
++    '(threads:with-mutex (*Memory-Barrier-Lock*)
++       nil)))
+ 
+ #+scl
+ (progn
+diff -ur quicklisp/dists/quicklisp/software//misc-extensions-20101006-cvs/src/contexts.lisp ql-software//misc-extensions-20101006-cvs/src/contexts.lisp
+--- quicklisp/dists/quicklisp/software//misc-extensions-20101006-cvs/src/contexts.lisp	2011-10-26 01:24:47.000000000 +0200
++++ ql-software//misc-extensions-20101006-cvs/src/contexts.lisp	2011-10-26 00:04:20.000000000 +0200
+@@ -289,13 +289,17 @@
+   #+scl
+   `(ext:defgvar ,var ,@(and val? `(,val)) ,@(and doc `(,doc)))
+   #-scl
+-  `(progn
+-     (eval-when (:load-toplevel :execute)
+-       ,@(and doc `((setf (documentation ',var 'variable) ',doc)))
+-       ,@(and val? `((unless (boundp ',var)
+-		       (setf (symbol-value ',var) ,val)))))
+-     (eval-when (:compile-toplevel :load-toplevel :execute)
+-       (define-symbol-macro ,var (symbol-value ',var)))))
++  (let* ((s0 (symbol-name '#:*storage-for-deflex-var-))
++         (s1 (symbol-name var))
++         (s2 (symbol-name '#:*))
++         (s3 (symbol-package var))
++         (the-var (intern (concatenate 'string s0 s1 s2) s3)))
++    `(progn
++       (defvar ,the-var ,val)
++       (eval-when (:load-toplevel :execute)
++         ,@(and doc `((setf (documentation ',var 'variable) ',doc))))
++       (eval-when (:compile-toplevel :load-toplevel :execute)
++         (define-symbol-macro ,var ,the-var)))))
+ 
+ ;;; This one reinitializes the variable even if it is already bound.
+ (defmacro deflex-reinit (var val &optional doc)
+@@ -310,12 +314,17 @@
+      (ext:defgvar ,var nil ,@(and doc `(,doc)))
+      (setq ,var ,val))
+   #-scl
+-  `(progn
+-     (eval-when (:load-toplevel :execute)
+-       ,@(and doc `((setf (documentation ',var 'variable) ',doc)))
+-       (setf (symbol-value ',var) ,val))
+-     (eval-when (:compile-toplevel :load-toplevel :execute)
+-       (define-symbol-macro ,var (symbol-value ',var)))))
++  (let* ((s0 (symbol-name '#:*storage-for-deflex-var-))
++         (s1 (symbol-name var))
++         (s2 (symbol-name '#:*))
++         (s3 (symbol-package var))
++         (the-var (intern (concatenate 'string s0 s1 s2) s3)))
++    `(progn
++       (defparameter ,the-var ,val)
++       (eval-when (:load-toplevel :execute)
++         ,@(and doc `((setf (documentation ',var 'variable) ',doc))))
++       (eval-when (:compile-toplevel :load-toplevel :execute)
++         (define-symbol-macro ,var ,the-var)))))
+ 
+ ;;; Also related only tangentially... but I want to put it somewhere.
+ (defmacro isetq (var val)

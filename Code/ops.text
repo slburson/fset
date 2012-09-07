@@ -1,0 +1,625 @@
+
+COMMON-LISP:UNION :  (list1 list2 &key key test test-not)
+COMMON-LISP:INTERSECTION :  (list1 list2 &key key test test-not)
+COMMON-LISP:SET-DIFFERENCE :  (list1 list2 &key key test test-not)
+-- on two F-Sets, error if any of the keyword args are given
+-- no definitions for other F-types or combinations of lists and F-types
+
+COMMON-LISP:REDUCE : (function sequence &key from-end start end key initial-value)
+-- on an F-Sequence, all keyword arguments work
+-- on an F-Set, `:from-end', `:start', and `:end' give error
+
+COMMON-LISP:SUBSEQ : (sequence start &optional end)
+COMMON-LISP:REVERSE : (sequence)
+-- on an F-Sequence, works
+-- no defs on other F-types
+
+COMMON-LISP:FIND : (item sequence &key from-end test test-not start end key)
+-- on an F-Sequence, all keyword arguments work
+-- on an F-Set, `:from-end', `:start', and `:end' give errors
+
+COMMON-LISP:FIND-IF : (predicate sequence &key from-end start end key)
+COMMON-LISP:FIND-IF-NOT : (predicate sequence &key from-end start end key)
+-- on an F-Sequence, all keyword arguments work
+-- on an F-Set, `:from-end', `:start', and `:end' give errors
+-- on an F-Map, `predicate' takes two args, and `Find-If[-Not]' returns two
+   values; `:from-end', `:start', `:end', and `:key' give errors
+
+COMMON-LISP:POSITION : (item sequence &key from-end test test-not start end key)
+COMMON-LISP:POSITION-IF : (predicate sequence &key from-end start key end)
+COMMON-LISP:POSITION-IF-NOT : (predicate sequence &key from-end start key end)
+-- on an F-Sequence, all keyword args work
+
+COMMON-LISP:REMOVE : (item sequence &key key from-end test test-not start end count)
+-- on an F-Sequence, all keyword args work
+-- on an F-Set (defined for consistency, but `Less' is preferred),
+   `:from-end', `:start', and `:end' give errors
+
+COMMON-LISP:REMOVE-IF : (predicate sequence &key from-end start end count key)
+COMMON-LISP:REMOVE-IF-NOT : (predicate sequence &key from-end start end count key)
+-- on an F-Sequence, all keyword args work
+-- on an F-Set, `:from-end', `:start', and `:end' give errors
+-- on an F-Map, `predicate' takes two args; `:from-end', `:start', `:end',
+   and `:key' give errors
+
+
+COMMON-LISP:COUNT : (item sequence &key from-end test test-not start end key)
+-- on an F-Sequence, all keyword arguments work
+-- on an F-Set, `:from-end', `:start', and `:end' give errors
+
+COMMON-LISP:COUNT-IF : (predicate sequence &key from-end start end key)
+COMMON-LISP:COUNT-IF-NOT : (predicate sequence &key from-end start end key)
+-- on an F-Sequence, all keyword arguments work
+-- on an F-Set, `:from-end', `:start', and `:end' give errors
+-- on an F-Map, `predicate' takes two args; `:from-end', `:start', and `:end'
+   give errors
+
+
+SORT : (sequence order &key key)
+STABLE-SORT : (sequence order &key key)
+ELT : (sequence index)
+-- work on F-Sequences
+
+MERGE : (result-type sequence1 sequence2 predicate &key key)
+-- use `Seq-Merge'
+
+CONCATENATE : (result-type &rest sequences)
+-- if the result type is `F-Sequence', converts all the args to F-Sequences,
+   and does `concat' (this can be improved later)
+-- otherwise, converts all the F-Sequences to vectors and calls `lisp:concatenate'
+
+COPY-SEQ
+-- superfluous, can be identity
+
+DELETE and friends
+NSUBSTITUTE and friends
+FILL
+MAP-INTO
+NREVERSE
+REPLACE
+-- destructive, inapplicable
+
+EVERY
+SOME
+NOTANY
+NOTEVERY
+MISMATCH
+SEARCH
+SUBSTITUTE and friends
+-- probably want these to work
+
+LENGTH
+-- I don't want to put this through CLOS, because of the dispatch overhead
+   and because it will inhibit optimization, but it could look like
+   (cond ((vectorp x) (lisp:length x))
+         ((F-Sequence? x) (size x))
+         (t (lisp:length x)))
+-- recommend `Size' when the argument is known to be an F-Sequence
+
+MAP
+-- might want this to work since `Image' takes only one sequence
+
+REMOVE-DUPLICATES
+-- use `Seq-to-Set' if possible
+
+GMAP
+-- finish adding defs
+
+
+Rationale:
+
+() Sequence operations (all but `union', `intersection', `set-difference')
+work on F-Sequences completely compatibly
+
+() Some of these operations work on sets as well, but insist on treating
+them as unordered, even though they're sorted; this is to leave the door
+open for other functional datatype packages that work differently
+
+() In the `-if' cases we extend them to maps by adding an argument to the
+predicate
+
+() For set operations on F-Sets, can only use the equivalence relation
+defined by `Compare', as that's the only one they are built to use
+
+() For other operations on sets, we allow `:test' and let it default to
+`eql' as usual, just to avoid confusion.  `Lookup' on an F-Set is like `find
+:test #'equal?', and is preferred in that case.
+
+() `Merge' and `Concatenate' are too hard (the full integration demands
+`Coerce' also, and that `F-Sequence' be a subtype of `Sequence').
+
+[2006.06.28]  When I was last working on this, I came to a point of feeling
+that while it would be nice if this genericity worked, it doesn't, and I
+should abandon it.  I didn't write down exactly why I came to that feeling,
+but you can see some of the messiness in the rules above.  The number of new
+rules one has to learn is troubling.
+
+A particularly bad problem concerns `(setf (elt ...) ...)'.  The semantics
+of setting an element of an F-Sequence are quite different from those of
+setting an element of a Lisp sequence (the latter updates the sequence
+object, while the former only updates the place holding the sequence).
+While the setf expansion could be done in such a way that the "right thing"
+would happen in each case, this would be completely insane -- that the very
+semantics of the setf operation would depend on the class of the sequence!
+And the thing is, if we support `elt', someone will expect to be able to
+setf it, and if we don't support it but we do support all this other stuff,
+people will wonder why.
+
+So while I'm keenly aware of how nice it would be if the Lisp generic
+sequence operations would extend to the FSet classes, I think in the end
+it's too problematic.  It's too bad, because most of the problems are around
+the edges, but I think it's inescapable.
+
+A bit of counterpoint is that in many cases, one would tend to use the FSet
+types somewhat differently anyway.  For instance, where Lisp just provides
+two kinds of low-level mutable sequence and then has operations that treat
+these as sets or maps with the relevant equivalence relation supplied to the
+operation, FSet encourages a style of attaching the set-ness or map-ness to
+the collection as it's created, and globally declaring the equivalence
+relations.  It's a higher-level style to begin with, and so it isn't clearly
+the case that one would frequently want to apply the Lisp sequence
+operations in a truly runtime-generic way to objects that could be either
+Lisp or FSet sequences.  What we have seems more just a fight over some
+desirable name territory -- who gets to use "union" etc.
+
+So the question is what, exactly, to do.  One option is to prefix all FSet
+operations with "F-".  Another -- the one I started with -- is to use the
+"F-" prefix only when there's an actual name collision with Lisp.  A third
+is to just go ahead and use the names I want to use, and let users decide,
+potentially for each such name, whether to use an explicit package prefix or
+to shadowing-import it (thus requiring an explicit package on the Lisp
+names).
+
+Tough call.  It really depends on how one wants to use FSet.  If one just
+needs a sprinkling of FSet collections in code that uses mostly lists, one
+would probably prefer the first choice ("F-" everywhere).  But at the other
+extreme, FSet has the potential to replace most uses of lists, letting one
+write very Refine-like code in Lisp.  In this picture, FSet is so pervasive
+that one would want to just forget about the CL operations.
+
+I guess I really need to do both: to provide an F-prefixed package one can
+import easily into existing packages, and also to make a "Lisp-FSet" package
+for those (myself, anyway) who want to write new code in this Refine-like
+style -- a new dialect, really, though it heavily overlaps CL.  The new
+reader macros are another step in this direction (see below).
+
+... No, I think I won't actually add the "F-" prefixes; providing two
+versions of each name is too much of a hassle.  I'll just export the names
+from `FSet:', and users can choose whether to use them like that, alias
+`FSet:' as `F:' or maybe `FS:', or import them (shadowing if needed).
+(For convenience I might also define a `Lisp-Sequences:' package, which
+users could alias as `LS:', which exports all the Lisp sequence operations,
+so that someone writing mixed code can make all references thereto clear.)
+
+Another question: what about the names of the types themselves?  If the
+operations don't have "F-" prefixes, why should the types?  But `set' and
+`map' are well-known Lisp builtins, and `sequence' is a builtin type.  Hmm.
+Well, `set' is archaic; I surely don't mind shadowing that.  I've never used
+`map' either, as it's pretty much a subset of `gmap'.  And the Lisp sequence
+type goes along with the builtins defined on it -- it can be referred to via
+`LS:'; I don't recall ever having used it either.  Of course, all this
+applies only in the fully imported case.  [Update: I've decided to go back
+to `seq' for the FSet type anyway.]
+
+Ah yes, there's also `last'.  But we all know it should be `lastcons'.
+
+Oh, yeah, while I'm thinking of all this: case-sensitive compatibility.
+Damn; I like my mixed-case style.  Oh well, lower case it is.  (If case-
+sensitive-lower were the standard, I might use capitalization as a way to
+distinguish the names, but maybe it's just as well I'm not tempted.)
+
+Oh, let's revisit this conversion situation also.  The Refine-style
+conversion operators are going to seem clunky to some users, I think, who
+are used to more genericity.  -- It's really astounding, now that I stop to
+think about it, that there's no portable interface for extending `coerce'.
+Foo.  How about a `convert' generic function that dispatches on the class of
+its first operand and the identity of its second -- I like "convert" better
+than "coerce" anyway because the latter sounds like a mere change of type,
+but converting a sequence to a set (e.g.) is certainly more than that.
+
+I started to change `map-merge' to just `merge', but reflected that the
+reason for the longer name is not just collision avoidance but clarity --
+the term `merge' is vague and probably not the standard name for this
+operation (what is??).  Anyway the functionality is easily accessible via
+the `map' constructor macro.
+
+Stray thought: instead of maps having a default value, they should have a
+function that computes the default value.  Well, I don't know -- Refine has
+had this feature for years and I'm not aware that anyone ever used it.  But
+it does seem like the "right thing". ... Er, well, it screws up the
+semantics of `domain' and 'range', making the former infinite and the latter
+uncomputable.  That is, when the default is just a value I can argue that it
+is just a way to select what value is used to indicate that the key was not
+in the map, but when it's a function that no longer works.  Okay, seeing
+that, plus the messiness of `compose' in the presence of these defaults,
+I've decided to get rid of even the default value.  [I eventually brought it
+back; it's too useful to scrap.]
+
+Getting even farther afield, let me record some thoughts I had about
+functional graphs.  Doing these the obvious way with functional maps will
+keep all nodes and edges around until they're explicitly removed from the
+graph.  If reachability-based GC is desired, either it will have to be
+implemented explicitly, or we will have to use weak functional maps to
+provide it.  -- Uhh, wait.  Does that really work?  What I was thinking was
+that the graph's rootset would be held strongly, and the remaining nodes
+would be held weakly as map keys, and somehow that would cause the right
+thing to happen.  But clearly it's not that simple.  Ouch, I was pretty
+confused.
+
+What we want is for the pairs of the mapping themselves to be collectible
+based on their reachability from some specified rootset.  But this requires
+that the GC understand a kind of reference other than a pointer.  Heh -- I
+have a vision of turning the functional graph into a pointer graph prior to
+GC, and then converting it back.  Seriously, though, I don't know if there's
+any other way to explain to the GC what we're doing.  Hmm, a very
+interesting little problem.  Don't forget that the whole point of functional
+graphs is that there will likely be multiple versions of a graph extant,
+which will share many of their edges.
+
+Well, no obvious solution for that, but let me anyway record an idea I had
+for weak functional maps.  The GC will from time to time erase (nil out) a
+key of such a map.  How do we deal with this in the WB-trees?  Losing a key
+in a leaf vector is no big deal, but losing a tree node key means we don't
+know which way to go when we get there.  It seems to me that when we
+encounter a missing node key during a lookup, we could replace it with the
+adjacent higher or lower key (probably picking from the side with the larger
+weight, if any), and its value.  The replacement can easily be thread-safe
+without locking.  Probably we will need to set a bit on the node saying this
+happened, so any update operation that comes through will know it needs to
+do a full restructuring.  In fact, maybe we should set the bit on the way up
+from any lookkup that found an erased key, so (a) we know, at the top of the
+tree, that there's an erased key in it somewhere, and (b) during the
+restructuring we know what subtrees have no erased keys.  -- Whoops, heh, we
+don't know either of those things, as parts of the tree may be shared -- the
+nodes form a polytree in general (my term for a DAG in which there is at most
+one directed path between any two nodes).  Sigh :-/
+
+That leaves the harder problem (and one related to the previous question) of
+how to detach the value when the key is erased.  Detaching it only when one
+encounters the erased key on a lookup is workable but not very satisfactory.
+Well, there would have to be some kind of GC primitive to support this.
+Wonder if anyone provides one.
+
+You know, these reader macros are cute but rather outside the spirit of
+Lisp.  It might be better to just use the constructor macros.
+
+[2006.07.06]
+
+Should I be signaling exceptions for things like a lookup of a key not in a
+map?  Hmm, I see that for some of these things I'm using a second or third
+value, but for maps (as discussed above) I had the map take a default, which
+at one point I thought should be computed.  Now I think it would be more
+consistent and Lispy to use an extra value -- and it would be faster than
+signalling an exception (oops -- I mean a condition :-), which seems a bit
+heavyweight for this purpose.
+
+
+concatenate        length              remove             
+copy-seq           map                 remove-duplicates  
+count              map-into            remove-if          
+count-if           merge               remove-if-not      
+count-if-not       mismatch            replace            
+delete             notany              reverse            
+delete-duplicates  notevery            search             
+delete-if          nreverse            some               
+delete-if-not      nsubstitute         sort               
+elt                nsubstitute-if      stable-sort        
+every              nsubstitute-if-not  subseq             
+fill               position            substitute         
+find               position-if         substitute-if      
+find-if            position-if-not     substitute-if-not  
+find-if-not        reduce                                 
+
+
+Reader macros!
+
+#{ a b #$c } ==> (F-Set a b ($ c))
+#[ a b #$c ] ==> (F-Seq a b ($ c))
+#{| #$m (a x) (b y) |} ==> (F-Map ($ m) (a x) (b y))
+#< #$tup (a x) (b y) > ==> tuple
+#{@ ... } ==> bag
+
+There is *no implicit quoting*!
+
+To use a vertical-bar-quoted variable name within a set expression without
+it being confused with the map syntax, leave a space between the open brace
+and the vertical bar.
+
+Shadowing order for map and tuple expressions is oldest-to-newest (entries
+shadow those to their left).  Only one `$' entry is allowed in a tuple
+expression, and it must be leftmost (well, maybe I'll implement tuple
+merging).
+
+Do we need `#$', or should we just say `($ x)'?
+
+And of course you can use the `Make-...' macros if you prefer.
+
+And then there's pattern matching...
+
+[2006.06.28]  Hmm, CL has left us some characters to redefine if we like:
+[]{}!$%~  So we don't necessarily have to use the # dispatch thing.  Well,
+as with the function names, I think there will be two cases -- for
+relatively peripheral uses of FSet, one will probably want to use the #
+dispatch, so as to leave the other characters available; for the "Lisp-FSet"
+package, it might be worth defining them instead.  Let's see...
+
+{ a b $c } ==> (F-Set a b ($ c))
+[ a b $c ] ==> (F-Seq a b ($ c))
+{| $m (a x) (b y) |} ==> (F-Map ($ m) (a x) (b y))
+#< $tup (a x) (b y) > ==> tuple
+or: <| $tup (a x) (b y) |> ==> tuple
+{% ... %} ==> bag
+
+Can we do any better for tuples?  The bare angle brackets are not available,
+and none of the other available bare characters make sense.  Well, come to
+think of it, I'm tempted to rename `<' etc. out of the way -- it in
+particular can be a little hard to see anyway, depending on the font --
+maybe by prepending `$'.  (Heh -- the minimalist approach is just to wrap it
+in vertical bars, or backslash it.)
+
+[2006.08.19]
+
+A couple thoughts for future extensions:
+
+() A complement operator for sets.  The result could be represented with
+just a bit in the `set' structure.  Huh, what about `size'?  I guess it
+would have to return a negative number!  Funny, this was already reminding
+me of the Zeta-C interpretation of arbitrary-precision unsigned integers.
+Anyway, it's a thought.  I don't know, though, if e.g. a complement set
+could be converted to a bag.
+
+() Fuzzy sets.  The implementation is so much like bags it would be almost
+trivial.
+
+
+[2006.08.21]
+
+Oboy, here's a tough one: overload `first'?  Presumably this would entail
+doing likewise with `second' etc.  Hmm...
+
+As noted above I have much less compunction about overloading `last', which
+was always misnamed, though it does get used nevertheless.
+
+So back to `first' etc.  I see CL also defines `rest', though I've never
+used it.  Of course these are all just list operations, not sequence generic
+(triple sigh).  They're also quite common.  Ouch.
+
+Still, this is the course I've set out on, and I should stick to it.
+Clients can still decide which names to shadowing-import.  Okay, here
+goes...  Well, just `first', `last', and `rest'.  `Second' etc. mostly come
+into play when one is using lists as tuples, and since we have another way
+of representing tuples, I think they're superfluous.
+
+[2006.08.26]
+
+Just had an interesting thought about iterators.  I had concluded I had
+made a mistake in making the Lisp FSet iterators functional; and then
+something hit me: a functional iterator could behave like a subset/seq/etc.
+That is, `first' and `rest' could be defined on all these collection
+classes, with `rest' returning an iterator rather than an updated tree.  Is
+there any point to this??  Well, `rest' on an iterator is asymptotic
+constant time, isn't it?  Yes.  Also, the constant factor is quite a bit
+smaller than you would get on a tree rebuild.
+
+This is a little bit of a Pandora's box, because more operations than `rest'
+could be implemented something like this.  Still, iteration is so common
+it's easy to justify this as a special case.  The big downside is defining
+new instances of every method, and sometimes more than one.  Hmm...  Well,
+one nice thing about this plan is that the only new operations it requires
+are `first' and `rest' -- the iterator is initially constructed when `rest'
+is called on the collection.
+
+Adding stateful iterators still seems like a good idea too -- will be almost
+as fast as the iterator macros.  On the other hand, we do have the iterator
+macros, and they suffice for everything except the same-fringe problem.
+(Digression: I understand that Python has added CLU-like iterators.  There
+ought to be a portable CLU-like iterator package for CL, too, that uses
+stack groups or threads.)
+
+Thought: once a tuple reaches a certain size, it could simply convert itself
+to a map -- the tuple interface being a subset of the map interface.  (Well,
+except for `do-tuple'; but it's easily extended.)
+
+
+[2006.09.13]
+
+The operations `with', `insert', and `less' on sequences are problematic.
+Currently, `with' overrides without inserting, and `insert' and `less' are
+inverses.  But the naming suggests that `less' should be the inverse of
+`with'; one could argue that the overriding operation is the one with no
+inverse, and thus `with' should do insertion.  I previously used `remove'
+for deletion, so the triple was `with', `insert', and `remove', which makes
+more sense -- but I _really_ don't want to shadow `remove', particularly as
+it would now be the only Lisp generic sequence operation I would be
+shadowing [whoops, except `reduce']; and besides, it seems like `less' on a
+sequence should do something, and deletion is the only thing it could do.
+So, why not make `with' do insertion, and have another name for overriding?
+Partly because I'm having trouble coming up with a good name -- `replace' is
+actually a Lisp generic sequence operation too, though I had forgotten about
+it, suggesting that it may not be an important one -- but mostly because I
+think replacement is more common and mentally primitive than insertion and
+thus it deserves the short name.  Also, note that `with' and `less' are
+inverses for sets and maps only if the element/key was not already present.
+So it's far from an absolute that those two are inverses anyway.  The
+difference is really that when you're doing `with' on a sequence, you're
+normally replacing an existing element (though appending is possible), but
+on a set or map, one tends to think of the case as normal where the
+element/key is new.
+
+Whoops, haven't implemented `sort' yet.  Should do `stable-sort' too.
+
+
+[2007.01.16]
+
+CL's `first' is too handy to shadow.  Recommend `head' and `tail' for the
+FSet sequence ops -- maybe even toss `first' and `rest'.  (I know, it makes
+me want to genericize again too.)
+
+And `find-if' is just too common an operation not to have a good name.  (For
+me, `gmap :or' will work -- what will others think?)  Having given up on
+genericization, I now think the best thing is just to provide `fset:find-if'
+etc. -- don't try to import them, just use the explicit prefix.
+
+BTW, it finally dawned on me that the pure iterators are completely
+pointless.  Much faster to just convert the collection to a list and use the
+ordinary Lisp iteration techniques (unless it's likely that you will only be
+enumerating a short prefix of the collection's element sequence).
+
+Need an interface for binary search on sequences.
+
+
+[2007.01.19]
+
+Well, after all this, I'm working myself up again to take another shot at
+genericization.  I know it can't be done perfectly, but it's just nuts to be
+writing mixed code (and it takes some doing to avoid lists in Lisp!) and to
+have to use different names for some operations for what seems like no good
+reason.
+
+And, you know, unfortunately, the imperfection is not so strange for CL.
+Operations like `first', `second', etc. apply only to lists; we have `nth',
+`elt', `aref', and `svref', of which only one is generic, and it actually
+doesn't get used that much.  (Too bad CL doesn't say that redefining `elt'
+is sufficient to make the other non-mutating generic operations work.  Of
+course, CL doesn't condone redefining any builtins.)
+
+And this is all on top of the fact that what genericity there is in the
+sequence operations was not implemented with CLOS.  Alas, CL is a bit of a
+mess already in this regard.  Maybe I shouldn't be so fussy about the
+integration being imperfect.
+
+And, finally, there's the fact that I didn't understand that different
+methods of a generic function could take different sets of keyword
+parameters.  This will help some.
+
+So, let's take it from the top.  First, let's try to enunciate simply what
+we're supporting.  Well, to a first approximation:
+
+() the three set-as-list operations work on sets or lists (but not mixed);
+but we don't bother with `remove-duplicates' (if you really want to setify
+using some equivalence relation other than the one implemented by `compare',
+just convert to a list first)
+
+() most of the non-mutating generic sequence operations work on seqs as well
+as Lisp sequences: `find', `find-if[-not]', `position', `position-if[-not]',
+`count', `count-if[-not]', `remove', `remove-if[-not]', `substitute',
+`substitute-if[-not]'; `subseq' and `reverse'; `sort' and `stable-sort'
+(nondestructive, obviously, on seqs); and `reduce'.
+
+() major exceptions: `elt', because of the `(setf elt)' problem; `length',
+because of compiler optimizations; (others?) (provide generic versions under
+other names? genericizing `lookup' runs into the `setf' problem too, but
+`size' could be genericized)
+
+() the operations that take types -- `concatenate', `merge', and `coerce' --
+are problematic.  I think (at least for now) I'll stick with `concat' on
+seqs only, and `convert'.  I think `merge' is superfluous given sets.
+(`concat' could take sequences and always return a seq; or we could add a
+keyword parameter.)
+
+() let's also make more of an effort not to collide with Lisp builtins.  I
+think I'll stick with `set' and `map', though.  Ouch, what about `first',
+`second' etc., `rest', and `last'??  The problem with `head' and `tail' is
+that they are actually more appropriate to lists than to seqs; and there's
+no obvious equivalent for `last'.  Actually, know what?  It's really `first'
+and `last' I care about; and given that, seems like I might as well bring
+back good old 'butfirst' and `butlast' -- "but" ugly, but serviceable.  And,
+come to think of it, instead of `prepend' and `append' (the latter of which
+we really don't want to shadow), might as well go with `with-first' and
+`with-last', and then maybe `add-first' and `add-last' for the modify
+macros.  (Hmm, how about `less-first' and `less-last'?  Even more
+consistent, but getting kinda long (but then `with-first' is already this
+long)).  Anyway, the point is, if there is a structure containing multiple
+"first"/"last" pairs, that might make it easy enough to remember that
+"rest", "second", etc. aren't included.
+
+It will be important to make the point in the docs that the purpose of the
+genericization is _not_ to encourage people to try to write code that will
+actually be called with both Lisp sequences and FSet seqs.  Our goal is more
+modest: to make familiar functionality accessible by familiar names.
+
+What about the default equivalence relation for `find', `position', and
+`count'?  Can we really make it depend on the collection class?  Well, given
+the previous paragraph, I guess so.
+
+(Side note: extend CL-PPCRE to work on seqs.)
+
+[2007.03.08]
+
+The treatment of bags is not consistent.  `size' returns the total
+multiplicity of all members, but `least' returns a pair, and `less-least'
+returns the bag less the least pair.  I guess I'm somewhat of two minds how
+these things are going to be used.  Certainly I expect there to be uses
+where the multiplicities stay small and one normally wants to do set-style
+iteration -- that is, simply returning a repeated member multiple times.
+But I also thought there might be uses for large counts and map-style
+iteration.
+
+Well, I do want to support both models, but I should be consistent about
+which is the default.  `least' (e.g.) may as well return a pair because you
+can easily ignore the second value anyway, but I think `less-least' should
+just remove one instance of the selected least member, and there should be
+something else like `set-size' that gives the number of unique members, and
+`less-all-least' which removes all instances of the selected least member.
+
+[2007.03.19]
+
+Let's use `fold' instead of `reduce' -- it seems to be the more popular term
+among functional language mavens, and saves us another shadowed symbol.
+
+[2007.04.04]
+
+Tossing `less-least'.  Yes, it's fractionally more efficient than passing
+the least value to `less', but only fractionally, and I don't think it's
+pulling its weight (_now_ you tell me, now that I've implemented it :-/).
+Besides, as noted above, it complicates the bag interface.
+
+Speaking of which, I'm leaning a little towards tossing the bag-pair
+interfaces and declaring the multiplicities to be fixnums.  I think the
+pair-style functionality is easy enough to get by wrapping a map.
+... Naaah, leave it.
+
+
+[2008.03.07]
+
+Using `fold' instead of `reduce' was a bad idea -- Lispers (and Refiners)
+are used to `reduce'.  Well fine, we'll support both; use whichever one you
+want.
+
+Considering renaming the constructor macros to `set$', `bag$', etc.  This
+would allow me to add `list$', `vector$', and `string$', and to remove the
+shadowing of `cl:map' (I don't think _anyone_ cares about `cl:set').
+
+
+[2008.04.03]
+
+Stray thought I had a few weeks ago -- maybe rename the constructor macros
+to `set$' etc. -- then I could add `list$' and `vector$'.  The `$' echoes
+the splice indicator, of course, as well as giving some indication to the
+unwary that there's something strange going on.
+
+Also, `overlap?' should be `disjoint?' with the opposite sense.
+
+
+[2008.04.04]
+
+So I'm writing some sexp-manipulation code (Impala), and I'm noticing that
+`head' and `tail' don't work well in this kind of code -- it's nice to be
+able to use `first', `second', etc, which `tail' doesn't go with.  Well,
+there never has been a variation of `rest' that goes with `second'
+etc. either, so this isn't my creation.  Still, there's something to be said
+for solving it... or just going back to `c__r'.
+
+[2008.09.23]
+
+Should define compiler macros for (at least) the functions that the
+constructor macros expand into, that if given constant arguments, construct
+the collection at load time.
+
+[2009.02.15]
+
+Would be nice to have a less garbagy set-to-seq conversion in the common
+case (no Equivalent-Sets in the nodes).  Wouldn't be the end of the world if
+some of the leaf vectors came out nominally too long.  Don't bother with the
+character stuff.
+

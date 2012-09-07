@@ -949,10 +949,18 @@ Okay, this is a start, but:
 () Don't we want to do better meta-indexing, so adding a tuple doesn't require
 iterating through all the indices?
 
+() I want to use the same indexing system for the sprites.  One thought is to
+provide a call to register callbacks with the relation.  Is this a functional
+operation or a side-effect?  The latter doesn't seem completely unreasonable
+since it doesn't affect the value of the relation.
+
 () I'm not creating composite indices yet.  The plan is straightforward -- create
 one when the size of the final result set is <= the square root of the size of
 the smallest index set.  This is easy, but how do subsequent queries find the
 composite index?
+
+The answers to these questions seem likely to be related.  (Well, I'm not
+really sure what to do about the sprites.)
 
 [Later]  I think that for now, the single-value index feature is an unnecessary
 complication.  Without it, there either exists an index on a column, or not.

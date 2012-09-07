@@ -1,0 +1,37 @@
+[2008.03.19]
+
+Here's a good example -- intersecting the results of multiple index lookups:
+
+  (reduce #'intersection (sort result-sets #'< :key #'size))
+
+Here's the package conflict finder, which I thought I wrote down somewhere
+else but can't find:
+
+  (defun pkg-bound-local-symbols (pkg)
+    (let ((result (set)))
+      (do-symbols (sym pkg)
+	(when (and (eq pkg (symbol-package sym))
+		   (or (boundp sym) (fboundp sym)))
+	  (adjoinf result sym))
+	result)))
+
+  (defun package-conflicts (pkg-names)
+    (conflicts (reduce #'union
+		       (mapcar (lambda (pkg-name)
+				 (gmap :bin-rel
+				       (lambda (s)
+					 (values (symbol-name s) s))
+				       (:set (pkg-bound-local-symbols
+					       (find-package pkg-name)))))
+			       pkg-names))))
+
+
+Stray thought:  (gmap :map ...)  should choke if the map is not functional.
+
+Use `image' instead of `mapcar'?
+
+Recursive algorithms can be a good motivating case for functional
+collections -- the recursive call needs to pass a modified collection, but
+you don't want to have a single mutable collection object whose state you
+have to restore upon return.
+
