@@ -56,7 +56,8 @@
 	   #:lastcons #:head #:tail
 	   #:with-first #:less-first #:push-first #:pop-first
 	   #:with-last #:less-last #:push-last #:pop-last #:appendf #:prependf
-	   #:insert #:splice #:subseq #:concat #:reverse #:sort #:stable-sort
+	   #:insert #:less-subseq
+	   #:splice #:subseq #:concat #:reverse #:sort #:stable-sort
 	   #:find #:find-if #:find-if-not
 	   #:count #:count-if #:count-if-not
 	   #:position #:position-if #:position-if-not

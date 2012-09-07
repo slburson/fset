@@ -414,11 +414,17 @@ of the result."))
     "Returns the subsequence of `seq' from element 0 through the next-to-last
 element."))
 
+;;; Ugh, misnamed -- should be `with-subseq'.
 (defgeneric insert (seq idx val)
   (:documentation
     "Returns a new sequence like `seq' but with `val' inserted at `idx' (the seq
 is extended in either direction if needed prior to the insertion; previously
 uninitialized indices are filled with the seq's default)."))
+
+(defgeneric less-subseq (seq idx1 idx2)
+  (:documentation
+    "Returns a new sequence like `seq' but with the subsequence [idx1, idx2)
+removed."))
 
 (defgeneric splice (seq idx subseq)
   (:documentation
@@ -2158,6 +2164,19 @@ When done, returns `value'."
   (make-wb-map (WB-Map-Tree-Compose (wb-map-contents m) fn)
 	       (funcall fn (map-default m))))
 
+;;; Convenience methods.
+(defmethod compose ((f1 function) (f2 function))
+  (fn (x) (funcall f2 (funcall f1 x))))
+
+(defmethod compose ((f1 function) (f2 symbol))
+  (fn (x) (funcall f2 (funcall f1 x))))
+
+(defmethod compose ((f1 symbol) (f2 function))
+  (fn (x) (funcall f2 (funcall f1 x))))
+
+(defmethod compose ((f1 symbol) (f2 symbol))
+  (fn (x) (funcall f2 (funcall f1 x))))
+
 (defmethod convert ((to-type (eql 'map)) (m map) &key)
   m)
 
@@ -2474,6 +2493,12 @@ This is the default implementation of seqs in FSet."
 			  (make-array (- idx size) :initial-element (seq-default s)))))
       (setq size idx))
     (make-wb-seq (WB-Seq-Tree-Insert tree idx val)
+		 (seq-default s))))
+
+(defmethod less-subseq ((s wb-seq) idx1 idx2)
+  (let ((tree (wb-seq-contents s)))
+    (make-wb-seq (WB-Seq-Tree-Concat (WB-Seq-Tree-Subseq tree 0 idx1)
+				     (WB-Seq-Tree-Subseq tree idx2 (WB-Seq-Tree-Size tree)))
 		 (seq-default s))))
 
 (defmethod splice ((s wb-seq) idx subseq)
@@ -3016,8 +3041,8 @@ iteration to the index of the current element of `seq'.  When done, returns
       (pprint-pop)
       (write-char #\Space stream)
       (pprint-newline :linear stream)
-      (write x :stream stream))
-    (format stream " ]~:[~;/~:*~S~]" (seq-default seq))))
+      (write x :stream stream)))
+  (format stream " ]~:[~;/~:*~S~]" (seq-default seq)))
 
 (def-gmap-arg-type :seq (seq)
   "Yields the elements of `seq'."
