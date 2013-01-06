@@ -18,8 +18,7 @@ See: http://common-lisp.net/project/fset/
   :depends-on (:misc-extensions)
   :serial t
   :components
-  ((:system :misc-extensions)
-   (:module "Code"
+  ((:module "Code"
 	    :serial t
 	    :components
 	    ((:file "defs")
