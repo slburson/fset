@@ -937,13 +937,17 @@ between equal trees."
 		   ((= n 1) (vector (car lst)))
 		   ;; Reduces consing about 12%, improves speed.
 		   ((= n 2)
-		    (let ((v (make-array 2)))
-		      (if (Less-Than? (car lst) (cadr lst))
-			  (setf (svref v 0) (car lst)
-				(svref v 1) (cadr lst))
-			(setf (svref v 0) (cadr lst)
-			      (svref v 1) (car lst)))
-		      v))
+		    (ecase (Compare (car lst) (cadr lst))
+		      (:equal (vector (car lst)))
+		      (:less (let ((v (make-array 2)))
+			       (setf (svref v 0) (car lst)
+				     (svref v 1) (cadr lst))
+			       v))
+		      (:greater (let ((v (make-array 2)))
+				  (setf (svref v 0) (cadr lst)
+					(svref v 1) (car lst))
+				  v))
+		      (:unequal (WB-Set-Tree-With (vector (car lst)) (cadr lst)))))
 		   (t
 		    (let ((n2 (floor n 2)))
 		      (WB-Set-Tree-Union (recur lst n2)
@@ -1645,7 +1649,7 @@ to those members above `lo' and below `hi'."
 (defun WB-Tree-True-Max-Depth (size nodes-have-values?)
   (cond ((= size 0) 1)		; not really, but this is convenient
 	((= size 1) 1)
-	((= size 2) 1)
+	((= size 2) 2)
 	(t
 	 (let ((size (if nodes-have-values? (1- size) size))
 	       ((subtree-max (min (1- size)
