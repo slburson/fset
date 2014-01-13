@@ -1,0 +1,189 @@
+() Need to test `PureTree{Set,Map}' with null element more thoroughly --
+there was a bug the current suite didn't catch.
+
+() `TreeString'
+
+======== Performance enhancements only
+
+() Iterators should reuse `IteratorNode's
+
+() `PureTreeList.containsAll' could convert to sets and call `subset', if
+the arguments are above a threshold size
+
+() Some of these recursions -- `contains', `containsKey', `get' -- could be
+rewritten as iterations.  Don't know how much this would help.
+
+() All the set operations should figure out whether they really need to
+create new nodes.
+
+======== Under consideration
+
+() Hand-instantiate (er, probably with a preprocessor) the most interesting
+combinations of these classes with primitives types.  A proposed list:
+
+  PureTreeIntSet
+  PureHashMap2Int
+  PureHashMap2Long
+  PureHashMap2Float
+  PureHashMap2Double
+  PureTreeIntMap
+  PureTreeIntMap2Int
+
+() Provide some generic map-pair and map-map algorithms.  The map-pair
+algorithm would take a map m, a pair (x, y), and a function f, and return a
+new map mapping x to f(m(x), y).  The map-map algorithms would take two maps
+and a function to combine values of corresponding keys with; there could be
+a union-like algorithm in which the function is called on every key in
+either map, an intersection-like one that calls it only for keys in both
+maps, and a difference-like one that calls it for keys in one of the maps.
+A static field `NO_VALUE' could hold a special object that would indicate
+that one of the maps had no value for this key, or the result should have no
+value for this key.
+
+() Given the previous two, bags are very easy.  Of course they can be
+implemented directly as well, as I've already largely done for Lisp, but I
+don't know that they deserve that much effort.
+
+() `PureBitSubSet' that would do bitwise operations on subsets of a
+specified set.
+
+() `PureIndexedTreeList'.  The way to do this is to include, for each
+element, a list of leaves containing it, and then a map that provides, for
+each node and leaf, its parent.
+
+() Binary and general relations, labelled graphs.
+
+() A "bijection" class consisting of two linked maps, with uniqueness
+maintained both ways (variation on a binary relation, I suppose).
+
+() Might as well go ahead and have the hash classes implement `SortedSet/Map'
+also.  Then as with `PureTreeSet', document how `arb', `headSet', and `tailSet'
+can be used to write high-performance set-on-set algorithms.  I suppose we
+should export some form of `trim' as well?  -- Postponed indefinitely.
+
+================================================================================
+
+Benchmark results
+
+Set size 20, selected from [0 .. 50)
+
+`contains', 100M iterations, client VM:
+
+   [none]		14.5	14.0
+   HashSet		17.8	18.0
+   TreeSet		25.0	25.0
+   PureCachedHashSet	25.9	29.0	23.5	24.2	24.4
+   PureHashSet		31.1	30.6	30.5
+   PureTreeSet		34.5	34.8
+
+   [baseline]		12.7	12.7
+
+--- New results ---
+
+`contains', 100M iterations, client VM:
+
+   [baseline]		12.3	13.0
+   HashSet		17.9	18.7	18.6
+   TreeSet		25.2	25.8	24.8
+   PureCachedHashSet	24.5	25.8	26.9
+   PureHashSet		29.6	31.5	31.6
+   PureTreeSet		34.6	33.3	35.3
+
+`contains', 100M iterations, client VM, 16MB nursery:
+
+   [baseline]		14.8	15.3
+   HashSet		21.5	21.3	21.3
+   TreeSet		27.9	27.8	27.6
+   PureCachedHashSet	27.1	26.7	26.0
+   PureHashSet		33.2	34.0	34.2
+   PureTreeSet		34.8	34.6	37.3
+
+`contains', 100M iterations, server VM:
+
+   [baseline]		11.4	11.7			 9.4	10.0
+   HashSet		14.8	13.4	12.5		13.1	12.7	13.0
+   TreeSet		14.8	17.7	17.3		15.3	14.9	15.8
+   PureCachedHashSet	16.5	17.7	16.1		16.9	15.5	16.1
+   PureHashSet		26.3	23.4	21.2		25.6	24.6	25.6
+   PureTreeSet		23.7	31.1	27.2		25.7	27.7	26.2
+
+`contains', 100M iterations, server VM, 16MB nursery:
+
+   [baseline]		11.8	12.2
+   HashSet		13.8	14.6	14.6
+   TreeSet		17.4	17.5	17.6
+   PureCachedHashSet	20.0	17.9	18.6
+   PureHashSet		25.0	27.0	26.5
+   PureTreeSet		29.4	25.3	24.9
+
+`add/remove', 100M iterations, client VM:
+
+   [baseline]		21.1	20.5
+   HashSet		44.0	45.0	41.8
+   TreeSet		50.5	48.0	51.8
+   PureCachedHashSet	148.7	151.6	148.3
+   PureHashSet		121.3	112.2	123.5
+   PureTreeSet		114.7	126.4	117.5
+
+`add/remove', 100M iterations, client VM, 16MB nursery:
+
+   [baseline]		21.0	20.9
+   HashSet		43.5	43.9	43.3
+   TreeSet		49.7	49.8	45.9
+   PureCachedHashSet	152.9	175.3	173.1
+   PureHashSet		118.5	115.9	125.1
+   PureTreeSet		125.3	115.4	119.6
+
+`add/remove', 100M iterations, server VM:
+
+   [baseline]		13.1	14.3
+   HashSet		31.1	30.0	34.0
+   TreeSet		35.7	34.6	38.2
+   PureCachedHashSet	109.2	123.7	99.7
+   PureHashSet		101.6	100.3	84.0
+   PureTreeSet		94.6	104.0	108.2
+
+`add/remove', 100M iterations, server VM, 16MB nursery:
+
+   [baseline]		15.4	14.3
+   HashSet		33.2	30.9	32.9
+   TreeSet		35.7	36.1	36.0
+   PureCachedHashSet	126.9	130.8	124.8
+   PureHashSet		92.9	109.5	108.0
+   PureTreeSet		112.5	103.7	102.0
+
+`copy', 10M iterations, client VM:
+
+   [baseline]		0.1	0.1
+   HashSet		56.0	45.5	54.1
+   TreeSet		46.5	36.6	42.9
+
+`copy', 100M iterations, client VM, 16MB nursery:
+
+   HashSet		571.0	557.1	558.0
+   TreeSet		439.2	365.0	434.5
+
+`copy', 100M iterations, server VM:
+
+   HashSet		361.5	441.9	389.2
+   TreeSet		298.3	385.6	334.6
+
+`copy', 100M iterations, server VM, 16MB nursery:
+
+   HashSet		376.4	400.5	428.4
+   TreeSet		401.8	387.4	382.2
+=======
+
+`union', 10M iterations, server VM:  (baseline is ~0)
+
+   HashSet		67.8	71.2	66.4	68.0	70.3	70.0	71.8	69.1	65.7
+   TreeSet		59.9	58.0	59.1	57.6	59.0	55.4	68.5	59.7	55.5
+   PureCachedHashSet	44.9	44.8	29.8	54.1	57.1	65.2	54.6	45.0	56.0
+   PureHashSet		60.9	39.3	57.8	46.5	46.4	43.4	48.9	47.5	43.0
+   PureTreeSet		44.2	48.9	42.9	52.9	48.6	32.1	58.7	49.1	45.6
+   -- Averages of above:
+   HashSet		68.9
+   TreeSet		59.2
+   PureCachedHashSet	50.2
+   PureHashSet		48.2
+   PureTreeSet		47.0
