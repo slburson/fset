@@ -11,8 +11,8 @@ package com.ergy.fset;
 import java.util.*;
 
 /**
- * This class provides a skeletal implementation of the PureMap interface.  It exists
- * to provide methods for all the mutating operations which throw
+ * This class provides a skeletal implementation of the PureMap interface.
+ * It exists to provide methods for all the mutating operations which throw
  * <code>UnsupportedOperationException</code>, and to provide a method for
  * <code>clone</code> which simply returns <code>this</code>.
  *

@@ -52,6 +52,7 @@ public class TestSuite {
 	    //testPureCachedHashMap(rand, i, pchs);
 	    testPureTreeList(rand, i);
 	}
+	println("All tests passed.");
     }
 
     static PureTreeSet<MyInteger> testPureTreeSet(Random rand, int i) {
