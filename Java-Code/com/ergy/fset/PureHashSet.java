@@ -1,9 +1,9 @@
 /*
  * PureHashSet.java
  *
- * Copyright (c) 2013 Scott L. Burson.
+ * Copyright (c) 2013, 2014 Scott L. Burson.
  *
- * This file is licensed under the Library GNU Public License (LGPL).
+ * This file is licensed under the Library GNU Public License (LGPL), v. 2.1.
  */
 
 
@@ -135,7 +135,7 @@ public final class PureHashSet<Elt>
     }
 
     public Elt arb() {
-	if (tree == null) return null;
+	if (tree == null) throw new NoSuchElementException();
 	else if (!(tree instanceof Node)) {
 	    Object[] ary = (Object[])tree;
 	    int len = ary.length;
@@ -457,7 +457,7 @@ public final class PureHashSet<Elt>
 	    int bin_srch_res = binarySearch(ary, ehash);
 	    if ((bin_srch_res & BIN_SEARCH_FOUND_MASK) == BIN_SEARCH_FOUND) {
 		Object e = ary[bin_srch_res >> BIN_SEARCH_INDEX_SHIFT];
-		return elt == null ? e == null : elt.equals(e);
+		return eql(elt, e);
 	    } else return false;
 	} else {
 	    Node node = (Node)subtree;
@@ -466,7 +466,7 @@ public final class PureHashSet<Elt>
 	    if (ehash == nhash) {
 		if (nelt instanceof EquivalentSet)
 		    return ((EquivalentSet)nelt).contents.contains(elt);
-		else return elt == null ? nelt == null : elt.equals(nelt);
+		else return eql(elt, nelt);
 	    } else if (ehash < nhash) return contains(node.left, elt, ehash);
 	    else return contains(node.right, elt, ehash);
 	}
@@ -486,8 +486,7 @@ public final class PureHashSet<Elt>
 	    int bin_srch_res = binarySearch(ary, ehash);
 	    int found = bin_srch_res & BIN_SEARCH_FOUND_MASK;
 	    int idx = bin_srch_res >> BIN_SEARCH_INDEX_SHIFT;
-	    if (found == BIN_SEARCH_FOUND && !(elt instanceof EquivalentSet) &&
-		(elt == null ? ary[idx] == null : elt.equals(ary[idx])))
+	    if (found == BIN_SEARCH_FOUND && !(elt instanceof EquivalentSet) && eql(elt, ary[idx]))
 		return subtree;
 	    else if (found == BIN_SEARCH_NOT_FOUND  && ary.length < MAX_LEAF_ARRAY_LENGTH  &&
 		     !(elt instanceof EquivalentSet))
@@ -501,9 +500,8 @@ public final class PureHashSet<Elt>
 	    Object nelt = node.element;
 	    int nhash = hashCode(nelt);
 	    if (ehash == nhash) {
-		if (!(elt instanceof EquivalentSet) &&
-		    !(nelt instanceof EquivalentSet) &&
-		    (elt == null ? nelt == null : elt.equals(nelt)))
+		if (!(elt instanceof EquivalentSet) && !(nelt instanceof EquivalentSet)
+		    && eql(elt, nelt))
 		    return subtree;
 		else return makeNode(equivUnion(elt, nelt), node.left, node.right);
 	    } else if (ehash < nhash) {
@@ -527,7 +525,7 @@ public final class PureHashSet<Elt>
 	    int idx = bin_srch_res >> BIN_SEARCH_INDEX_SHIFT;
 	    if (found == BIN_SEARCH_FOUND) {
 		Object e = ary[idx];
-		if (elt == null ? e == null : elt.equals(e)) return remove(ary, idx);
+		if (eql(elt, e)) return remove(ary, idx);
 		else return subtree;
 	    } else return subtree;
 	} else {
@@ -536,7 +534,7 @@ public final class PureHashSet<Elt>
 	    int nhash = hashCode(nelt);
 	    if (ehash == nhash) {
 		if (!(nelt instanceof EquivalentSet)) {
-		    if (elt == null ? nelt != null : !elt.equals(nelt)) return subtree;
+		    if (!eql(elt, nelt)) return subtree;
 		    else return join(node.left, node.right);
 		} else {
 		    Object diff = equivDiff(nelt, elt);
@@ -1153,7 +1151,7 @@ public final class PureHashSet<Elt>
 		al.trimToSize();
 		return new EquivalentSet(al);
 	    }
-	} else if (elt1 == null ? elt2 == null : elt1.equals(elt2)) return elt1;
+	} else if (eql(elt1, elt2)) return elt1;
 	else {
 	    ArrayList<Object> al = new ArrayList<Object>(2);
 	    al.add(elt1);
@@ -1189,7 +1187,7 @@ public final class PureHashSet<Elt>
 	    ArrayList<Object> al2 = ((EquivalentSet)elt2).contents;
 	    if (al2.contains(elt1)) return elt1;
 	    else return NO_ELEMENT;
-	} else if (elt1 == null ? elt2 == null : elt1.equals(elt2)) return elt1;
+	} else if (eql(elt1, elt2)) return elt1;
 	else return NO_ELEMENT;
     }
 
@@ -1205,9 +1203,7 @@ public final class PureHashSet<Elt>
 	    int size1 = al1.size();
 	    for (int i = 0; i < size1; ++i) {
 		Object e1 = al1.get(i);
-		if (al2 == null ?
-		    (e1 == null ? elt2 != null : !e1.equals(elt2)) :
-		    (!al2.contains(e1)))
+		if (al2 == null ? !eql(e1, elt2) : !al2.contains(e1))
 		    al.add(e1);
 	    }
 	    if (al.size() == 0) return NO_ELEMENT;
@@ -1220,7 +1216,7 @@ public final class PureHashSet<Elt>
 	    if (!((EquivalentSet)elt2).contents.contains(elt1))
 		return elt1;
 	    else return NO_ELEMENT;
-	} else if (elt1 == null ? elt2 != null : !elt1.equals(elt2))
+	} else if (!eql(elt1, elt2))
 	    return elt1;
 	else return NO_ELEMENT;
     }
@@ -1348,7 +1344,7 @@ public final class PureHashSet<Elt>
 		    ++i2;
 		    if (i2 < len2) hash2 = hashCode(e2 = ary2[i2]);
 		} else {
-		    if (e1 == null ? e2 == null : e1.equals(e2)) res[nres++] = e1;
+		    if (eql(e1, e2)) res[nres++] = e1;
 		    else {
 			res[nres++] = equivUnion(e1, e2);
 			any_equiv = true;
@@ -1415,7 +1411,7 @@ public final class PureHashSet<Elt>
 		    ++i2;
 		    if (i2 < len2) hash2 = hashCode(e2 = ary2[i2]);
 		} else {
-		    if (e1 == null ? e2 == null : e1.equals(e2)) res.add(e1);
+		    if (eql(e1, e2)) res.add(e1);
 		    else {
 			res.add(equivUnion(e1, e2));
 			any_equiv = true;
@@ -1464,7 +1460,7 @@ public final class PureHashSet<Elt>
 		++i2;
 		if (i2 < len2) hash2 = hashCode(e2 = ary2[i2]);
 	    } else {
-		if (e1 == null ? e2 == null : e1.equals(e2)) res.add(e1);
+		if (eql(e1, e2)) res.add(e1);
 		++i1;
 		++i2;
 		if (i1 < len1) hash1 = hashCode(e1 = ary1[i1]);
@@ -1495,7 +1491,7 @@ public final class PureHashSet<Elt>
 		++i2;
 		if (i2 < len2) hash2 = hashCode(e2 = ary2[i2]);
 	    } else {
-		if (e1 == null ? e2 != null : !e1.equals(e2)) res.add(e1);
+		if (!eql(e1, e2)) res.add(e1);
 		++i1;
 		++i2;
 		if (i1 < len1) hash1 = hashCode(e1 = ary1[i1]);
@@ -1524,7 +1520,7 @@ public final class PureHashSet<Elt>
 		++i2;
 		if (i2 < len2) hash2 = hashCode(e2 = ary2[i2]);
 	    } else {
-		if (e1 == null ? e2 != null : !e1.equals(e2)) return false;
+		if (!eql(e1, e2)) return false;
 		++i1;
 		++i2;
 		if (i1 < len1) hash1 = hashCode(e1 = ary1[i1]);
@@ -1575,6 +1571,10 @@ public final class PureHashSet<Elt>
     private static int binarySearchHi(Object[] ary, int hi) {
 	int bin_srch_res = binarySearch(ary, hi);
 	return bin_srch_res >> BIN_SEARCH_INDEX_SHIFT;
+    }
+
+    private static boolean eql(Object x, Object y) {
+	return x == null ? y == null : x.equals(y);
     }
 
     /****************/

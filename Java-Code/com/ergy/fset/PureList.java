@@ -1,9 +1,9 @@
 /*
  * PureList.java
  *
- * Copyright (c) 2013 Scott L. Burson.
+ * Copyright (c) 2013, 2014 Scott L. Burson.
  *
- * This file is licensed under the Library GNU Public License (LGPL).
+ * This file is licensed under the Library GNU Public License (LGPL), v. 2.1.
  */
 
 
@@ -109,11 +109,6 @@ public interface PureList<Elt> extends List<Elt> {
     /**
      * Returns the portion of this list between position <code>fromIndex</code>,
      * inclusive, to position <code>toIndex</code>, exclusive.
-     *
-     * <p>The list returned is a <code>PureList</code>, though it can't be declared
-     * as such because this method is overriding <code>List.SubList</code>, which is
-     * declared to return a <code>List</code> (and Java does not (yet) allow
-     * covariant return types on methods).
      *
      * @throws IndexOutOfBoundsException
      */

@@ -1,9 +1,9 @@
 /*
  * PureTreeSet.java
  *
- * Copyright (c) 2013 Scott L. Burson.
+ * Copyright (c) 2013, 2014 Scott L. Burson.
  *
- * This file is licensed under the Library GNU Public License (LGPL).
+ * This file is licensed under the Library GNU Public License (LGPL), v. 2.1.
  */
 
 
@@ -142,9 +142,7 @@ public final class PureTreeSet<Elt>
 
     private void initialize(Collection<? extends Elt> coll, Comparator<? super Elt> c) {
 	comp = (Comparator<Elt>)c;
-	if (coll instanceof PureTreeSet &&
-	    (comp == null ? ((PureTreeSet)coll).comp == null
-			  : comp.equals(((PureTreeSet)coll).comp)))
+	if (coll instanceof PureTreeSet && eql(comp, ((PureTreeSet)coll).comp))
 	    tree = ((PureTreeSet)coll).tree;
 	else if (coll instanceof RandomAccess)		// entails `List'
 	    tree = fromRandomAccessCollection((List<Object>)coll, 0, coll.size());
@@ -219,7 +217,7 @@ public final class PureTreeSet<Elt>
     }
 
     public Elt arb() {
-	if (tree == null) return null;
+	if (tree == null) throw new NoSuchElementException();
 	else if (!(tree instanceof Node)) {
 	    Object[] ary = (Object[])tree;
 	    int len = ary.length;
@@ -269,9 +267,7 @@ public final class PureTreeSet<Elt>
      */
     public PureTreeSet<Elt> union(Collection<? extends Elt> coll) {
 	if (coll == this) return this;
-	else if (coll instanceof PureTreeSet &&
-	    comp == null ? ((PureTreeSet)coll).comp == null
-			 : comp.equals(((PureTreeSet)coll).comp)) {
+	else if (coll instanceof PureTreeSet && eql(comp, ((PureTreeSet)coll).comp)) {
 	    PureTreeSet<Elt> pts = (PureTreeSet<Elt>)coll;
 	    Object t = union(tree, pts.tree);
 	    return new PureTreeSet<Elt>(t, comp);
@@ -299,9 +295,7 @@ public final class PureTreeSet<Elt>
      */
     public PureTreeSet<Elt> intersection(Collection<? extends Elt> coll) {
 	if (coll == this) return this;
-	else if (coll instanceof PureTreeSet &&
-	    comp == null ? ((PureTreeSet)coll).comp == null
-			 : comp.equals(((PureTreeSet)coll).comp)) {
+	else if (coll instanceof PureTreeSet && eql(comp, ((PureTreeSet)coll).comp)) {
 	    PureTreeSet<Elt> pts = (PureTreeSet<Elt>)coll;
 	    Object t = intersection(tree, pts.tree);
 	    return new PureTreeSet<Elt>(t, comp);
@@ -329,9 +323,7 @@ public final class PureTreeSet<Elt>
      */
     public PureTreeSet<Elt> difference(Collection<? extends Elt> coll) {
 	if (coll == this) return new PureTreeSet<Elt>(comp);
-	else if (coll instanceof PureTreeSet &&
-	    comp == null ? ((PureTreeSet)coll).comp == null
-			 : comp.equals(((PureTreeSet)coll).comp)) {
+	else if (coll instanceof PureTreeSet && eql(comp, ((PureTreeSet)coll).comp)) {
 	    PureTreeSet<Elt> pts = (PureTreeSet<Elt>)coll;
 	    Object t = difference(tree, pts.tree);
 	    return new PureTreeSet<Elt>(t, comp);
@@ -354,9 +346,7 @@ public final class PureTreeSet<Elt>
     public int compareTo(PureTreeSet<Elt> obj) {
 	if (obj == this) return 0;
 	else if (obj == null ||
-		 !(obj instanceof PureTreeSet) ||
-		 comp == null ? ((PureTreeSet)obj).comp != null
-			      : !comp.equals(((PureTreeSet)obj).comp))
+		 !(obj instanceof PureTreeSet && eql(comp, ((PureTreeSet)obj).comp)))
 	    throw new ClassCastException();
 	else return compareTo(tree, ((PureTreeSet)obj).tree);
     }
@@ -366,9 +356,7 @@ public final class PureTreeSet<Elt>
 
     public boolean equals(Object obj) {
 	if (obj == this) return true;
-	else if (obj instanceof PureTreeSet &&
-		 (comp == null ? ((PureTreeSet)obj).comp == null
-			       : comp.equals(((PureTreeSet)obj).comp))) {
+	else if (obj instanceof PureTreeSet && eql(comp, ((PureTreeSet)obj).comp)) {
 	    PureTreeSet<Object> pts = (PureTreeSet<Object>)obj;
 	    return equals(tree, pts.tree);
 	} else if (!(obj instanceof Collection)) return false;
@@ -399,9 +387,7 @@ public final class PureTreeSet<Elt>
     public boolean isSubset(Collection<?> coll) {
 	if (coll == this) return true;
 	else if (size() > coll.size()) return false;
-	else if (coll instanceof PureTreeSet &&
-		 (comp == null ? ((PureTreeSet)coll).comp == null
-			       : comp.equals(((PureTreeSet)coll).comp))) {
+	else if (coll instanceof PureTreeSet && eql(comp, ((PureTreeSet)coll).comp)) {
 	    PureTreeSet<Object> pts = (PureTreeSet)coll;
 	    return isSubset(tree, pts.tree);
 	} else {
@@ -430,9 +416,7 @@ public final class PureTreeSet<Elt>
     public boolean isSuperset(Collection<?> coll) {
 	if (coll == this) return true;
 	else if (size() < coll.size()) return false;
-	else if (coll instanceof PureTreeSet &&
-		 (comp == null ? ((PureTreeSet)coll).comp == null
-			       : comp.equals(((PureTreeSet)coll).comp))) {
+	else if (coll instanceof PureTreeSet && eql(comp, ((PureTreeSet)coll).comp)) {
 	    PureTreeSet<Object> pts = (PureTreeSet)coll;
 	    return isSubset(pts.tree, tree);
 	} else {
@@ -452,11 +436,11 @@ public final class PureTreeSet<Elt>
     }
 
     // For debugging.
-    String dump() {
+    /*package*/ String dump() {
 	return dump(tree);
     }
 
-    boolean verify() {
+    /*package*/ boolean verify() {
 	return verify(tree, NEGATIVE_INFINITY, POSITIVE_INFINITY);
     }
 
@@ -657,7 +641,7 @@ public final class PureTreeSet<Elt>
 	    int bin_srch_res = binarySearch(ary, elt);
 	    if ((bin_srch_res & BIN_SEARCH_FOUND_MASK) == BIN_SEARCH_FOUND) {
 		Object e = ary[bin_srch_res >> BIN_SEARCH_INDEX_SHIFT];
-		return elt == null ? e == null : elt.equals(e);
+		return eql(elt, e);
 	    } else return false;
 	} else {
 	    Node node = (Node)subtree;
@@ -666,7 +650,7 @@ public final class PureTreeSet<Elt>
 	    if (comp_res == 0) {
 		if (nelt instanceof EquivalentSet)
 		    return ((EquivalentSet)nelt).contents.contains(elt);
-		else return elt == null ? nelt == null : elt.equals(nelt);
+		else return eql(elt, nelt);
 	    } else if (comp_res < 0) return contains(node.left, elt);
 	    else return contains(node.right, elt);
 	}
@@ -686,8 +670,7 @@ public final class PureTreeSet<Elt>
 	    int bin_srch_res = binarySearch(ary, elt);
 	    int found = bin_srch_res & BIN_SEARCH_FOUND_MASK;
 	    int idx = bin_srch_res >> BIN_SEARCH_INDEX_SHIFT;
-	    if (found == BIN_SEARCH_FOUND && !(elt instanceof EquivalentSet) &&
-		(elt == null ? ary[idx] == null : elt.equals(ary[idx])))
+	    if (found == BIN_SEARCH_FOUND && !(elt instanceof EquivalentSet) && eql(elt, ary[idx]))
 		return subtree;
 	    else if (found == BIN_SEARCH_NOT_FOUND  &&
 		     ary.length < MAX_LEAF_ARRAY_LENGTH  &&
@@ -705,9 +688,8 @@ public final class PureTreeSet<Elt>
 	    Object nelt = node.element;
 	    int comp_res = compare(elt, nelt);
 	    if (comp_res == 0) {
-		if (!(elt instanceof EquivalentSet) &&
-		    !(nelt instanceof EquivalentSet) &&
-		    (elt == null ? nelt == null : elt.equals(nelt)))
+		if (!(elt instanceof EquivalentSet) && !(nelt instanceof EquivalentSet)
+		    && eql(elt, nelt))
 		    return subtree;
 		else return makeNode(equivUnion(elt, nelt), node.left, node.right);
 	    } else if (comp_res < 0) {
@@ -731,8 +713,7 @@ public final class PureTreeSet<Elt>
 	    int idx = bin_srch_res >> BIN_SEARCH_INDEX_SHIFT;
 	    if (found == BIN_SEARCH_FOUND) {
 		Object e = ary[idx];
-		if (elt == null ? e == null : elt.equals(e))
-		    return remove(ary, idx);
+		if (eql(elt, e)) return remove(ary, idx);
 		else return subtree;
 	    } else return subtree;
 	} else {
@@ -940,7 +921,7 @@ public final class PureTreeSet<Elt>
 		Object[] ary1 = (Object[])subtree1, ary2 = (Object[])subtree2;
 		for (int i = lo; i < hi; ++i) {
 		    Object elt1 = ary1[i - base1], elt2 = ary2[i - base2];
-		    if (elt1 == null ? elt2 != null : !elt1.equals(elt2)) return false;
+		    if (!eql(elt1, elt2)) return false;
 		}
 		return true;
 	    } else return equals(subtree2, base2, subtree1, base1, lo, hi);
@@ -956,7 +937,7 @@ public final class PureTreeSet<Elt>
 	    else {
 		Object elt1 = node1.element;
 		Object elt2 = rankElement(subtree2, new_hi - base2);
-		if (elt1 == null ? elt2 != null : !equivEquals(elt1, elt2)) return false;
+		if (!equivEquals(elt1, elt2)) return false;
 		else {
 		    int elt1_size = elementSize(elt1);
 		    int new_lo = base1 + l1size + elt1_size;
@@ -1364,7 +1345,7 @@ public final class PureTreeSet<Elt>
 		al.trimToSize();
 		return new EquivalentSet(al);
 	    }
-	} else if (elt1 == null ? elt2 == null : elt1.equals(elt2)) return elt1;
+	} else if (eql(elt1, elt2)) return elt1;
 	else {
 	    ArrayList al = new ArrayList(2);
 	    al.add(elt1);
@@ -1400,7 +1381,7 @@ public final class PureTreeSet<Elt>
 	    ArrayList<Object> al2 = ((EquivalentSet)elt2).contents;
 	    if (al2.contains(elt1)) return elt1;
 	    else return NO_ELEMENT;
-	} else if (elt1 == null ? elt2 == null : elt1.equals(elt2)) return elt1;
+	} else if (eql(elt1, elt2)) return elt1;
 	else return NO_ELEMENT;
     }
 
@@ -1416,10 +1397,7 @@ public final class PureTreeSet<Elt>
 	    int size1 = al1.size();
 	    for (int i = 0; i < size1; ++i) {
 		Object e1 = al1.get(i);
-		if (al2 == null ?
-		    (e1 == null ? elt2 != null : !e1.equals(elt2)) :
-		    (!al2.contains(e1)))
-		    al.add(e1);
+		if (al2 == null ? !eql(e1, elt2) : !al2.contains(e1)) al.add(e1);
 	    }
 	    if (al.size() == 0) return NO_ELEMENT;
 	    else if (al.size() == 1) return al.get(0);
@@ -1428,11 +1406,9 @@ public final class PureTreeSet<Elt>
 		return new EquivalentSet(al);
 	    }
 	} else if (elt2 instanceof EquivalentSet) {
-	    if (!((EquivalentSet)elt2).contents.contains(elt1))
-		return elt1;
+	    if (!((EquivalentSet)elt2).contents.contains(elt1)) return elt1;
 	    else return NO_ELEMENT;
-	} else if (elt1 == null ? elt2 != null : !elt1.equals(elt2))
-	    return elt1;
+	} else if (!eql(elt1, elt2)) return elt1;
 	else return NO_ELEMENT;
     }
 
@@ -1554,7 +1530,7 @@ public final class PureTreeSet<Elt>
 		    res.add(e2);
 		    ++i2;
 		} else {
-		    if (e1 == null ? e2 == null : e1.equals(e2)) res.add(e1);
+		    if (eql(e1, e2)) res.add(e1);
 		    else {
 			res.add(equivUnion(e1, e2));
 			any_equiv = true;
@@ -1594,7 +1570,7 @@ public final class PureTreeSet<Elt>
 	    if (comp_res < 0) ++i1;
 	    else if (comp_res > 0) ++i2;
 	    else {
-		if (e1 == null ? e2 == null : e1.equals(e2)) res.add(e1);
+		if (eql(e1, e2)) res.add(e1);
 		++i1;
 		++i2;
 	    }
@@ -1619,7 +1595,7 @@ public final class PureTreeSet<Elt>
 		++i1;
 	    } else if (comp_res > 0) ++i2;
 	    else {
-		if (e1 == null ? e2 != null : !e1.equals(e2)) res.add(e1);
+		if (!eql(e1, e2)) res.add(e1);
 		++i1;
 		++i2;
 	    }
@@ -1643,7 +1619,7 @@ public final class PureTreeSet<Elt>
 	    if (comp_res < 0) return false;
 	    else if (comp_res > 0) ++i2;
 	    else {
-		if (e1 == null ? e2 != null : !e1.equals(e2)) return false;
+		if (!eql(e1, e2)) return false;
 		++i1;
 		++i2;
 	    }
@@ -1691,6 +1667,10 @@ public final class PureTreeSet<Elt>
     private int binarySearchHi(Object[] ary, Object hi) {
 	int bin_srch_res = binarySearch(ary, hi);
 	return bin_srch_res >> BIN_SEARCH_INDEX_SHIFT;
+    }
+
+    private static boolean eql(Object x, Object y) {
+	return x == null ? y == null : x.equals(y);
     }
 
     /****************/

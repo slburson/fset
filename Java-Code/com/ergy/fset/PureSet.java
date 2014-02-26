@@ -1,9 +1,9 @@
 /*
  * PureSet.java
  *
- * Copyright (c) 2013 Scott L. Burson.
+ * Copyright (c) 2013, 2014 Scott L. Burson.
  *
- * This file is licensed under the Library GNU Public License (LGPL).
+ * This file is licensed under the Library GNU Public License (LGPL), v. 2.1.
  */
 
 
@@ -25,7 +25,8 @@ import java.util.*;
  * @author Scott L. Burson
  */
 
-public interface PureSet<Elt> extends Set<Elt> {
+public interface PureSet<Elt> extends Set<Elt>
+{
 
     /**
      * Returns an arbitrary element of the set, if the set is nonempty.  <i>All</i>
@@ -139,4 +140,3 @@ public interface PureSet<Elt> extends Set<Elt> {
     boolean isSuperset(Collection<?> coll);
 
 }
-

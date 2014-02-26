@@ -8,20 +8,15 @@ that define the same object.
 I want to use this in SCA, so I'm (finally!) generifying it and giving it a thorough
 once-over.
 
-( ) Let's make 'with' able to extend the list by one element forward.
+(x) Let's make 'with' able to extend the list by one element forward.
 
-( ) Let's rename 'insert' to 'withInserted'; 'prepend' to 'withFirst'; 'append' to
+(x) Let's rename 'insert' to 'withInserted'; 'prepend' to 'withFirst'; 'append' to
 'withLast'; 'delete' to 'less'.
 
-( ) Let's let 'subList' throw 'IndexOutOfBoundsException' the same way 'List.subList'
+(x) Let's let 'subList' throw 'IndexOutOfBoundsException' the same way 'List.subList'
 does.
 
-( ) 'subseq' is no longer needed.
-
-( ) Push 'clone' down to the 'Pure{Set,Map,List}' level to take advantage of
-covariance.
-
-( ) Make sure the map types implement 'keySet' as well as 'domain'; they're now
+(x) Make sure the map types implement 'keySet' as well as 'domain'; they're now
 synonyms, but I greatly prefer the set-theoretic term.  Similarly for 'values' and
 'range'.
 
@@ -31,14 +26,14 @@ comparator instance?  Also 'toSet', er, 'entrySet'.
 ( ) Add a 'PureMap.union' that takes a function to combine range values.  Also add
 'PureMap.intersection' and 'PureMap.difference'.
 
-( ) I think 'PureSet.arb' should throw an exception on the empty set -- it's more
+(x) I think 'PureSet.arb' should throw an exception on the empty set -- it's more
 Java-ish and consistent with the fact that sets can contain 'null'.
 
 ( ) Dumping the whole 'cacheEqual' thing.  Interesting idea, but I don't think I've
 come across many algorithms that it would help on.
 
-( ) Should introduce a static 'equals' function into each class that handles null,
-and go through and un-beta-expand it.
+( ) Should introduce a static 'eql' function into each class that handles null,
+and go through and un-beta-expand it.  [WIP: Pure{Tree,Hash}Set, PureTreeList done.]
 
 ( ) I have the opportunity to fix the partial/total map confusion that CL-FSet has,
 though I'm not sure exactly how.  Well, in Java it makes a little sense for a partial
@@ -66,4 +61,14 @@ this.
 to -- since I have 'subseq' anyway, which doesn't -- but I still have 'subSet' and
 'subMap' not throwing.  Not sure if I want to change this.
 
+( ) Should port the iterator stack preallocation code from the CL version.
+
+( ) Make sure we're doing the historically-related-trees optimization everywhere
+appropriate.
+
+( ) I've quickly come across use cases for 'image' and 'reduce' in SCA.
+
+( ) The construct-then-use pattern is very common in SCA code.  My idea for mutating
+the tree during construction, then doing functional updates after that, seems very
+viable.
 

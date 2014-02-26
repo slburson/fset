@@ -1,9 +1,9 @@
 /*
  * PureMap.java
  *
- * Copyright (c) 2013 Scott L. Burson.
+ * Copyright (c) 2013, 2014 Scott L. Burson.
  *
- * This file is licensed under the Library GNU Public License (LGPL).
+ * This file is licensed under the Library GNU Public License (LGPL) v. 2.1.
  */
 
 
@@ -65,7 +65,7 @@ public interface PureMap<Key, Val>
      * <code>NoSuchElementException</code>.)
      *
      * @return some pair of the map, or null if none */
-    public Map.Entry<Key, Val> arb();
+    Map.Entry<Key, Val> arb();
 
     /**
      * Returns a new map which maps <code>key</code> to <code>value</code>, and
@@ -85,7 +85,7 @@ public interface PureMap<Key, Val>
      * @throws IllegalArgumentException if some aspect of the specified key or value
      * makes it incompatible with the map
      */
-    public PureMap<Key, Val> with(Key key, Val value);
+    PureMap<Key, Val> with(Key key, Val value);
 
     /**
      * Returns a new map which contains no mapping for <code>key</code>, and which
@@ -106,7 +106,7 @@ public interface PureMap<Key, Val>
      * @throws IllegalArgumentException if some aspect of the specified key or value
      * makes it incompatible with the map
      */
-    public PureMap<Key, Val> less(Key key);
+    PureMap<Key, Val> less(Key key);
 
     /**
      * Returns the domain of this map (the set of keys it contains).  A synonym for
@@ -114,18 +114,18 @@ public interface PureMap<Key, Val>
      *
      * @return the domain set of this map
      */
-    public PureSet<Key> domain();
+    PureSet<Key> domain();
 
     /**
      * Returns the range of the map (the set of values it contains).  A synonym for
      * <code>values</code>.
-	 *
+     *
      * The class and comparator of the returned set depend on those of this map; but
      * see the second form of <code>range</code> below.
      *
      * @return the range set of this map
      */
-    public PureSet<Val> range();
+    PureSet<Val> range();
 
     /**
      * Returns the range of the map (the set of values it contains).  This version
@@ -137,7 +137,7 @@ public interface PureMap<Key, Val>
      * result
      * @return the range set of this map
      */
-    public PureSet<Val> range(PureSet<Val> initialSet);
+    PureSet<Val> range(PureSet<Val> initialSet);
 
     /**
      * Returns the map as a set of pairs, each pair being a <code>Map.Entry</code>.
@@ -146,7 +146,7 @@ public interface PureMap<Key, Val>
      *
      * @return the set of entries this map contains
      */
-    public PureSet<Map.Entry<Key, Val>> toSet();
+    PureSet<Map.Entry<Key, Val>> toSet();
 
     /**
      * Returns the map as a set of pairs, each pair being a <code>Map.Entry</code>.
@@ -159,7 +159,7 @@ public interface PureMap<Key, Val>
      * result
      * @return the set of entries this map contains
      */
-    public PureSet<Map.Entry<Key, Val>> toSet(PureSet<Map.Entry<Key, Val>> initialSet);
+    PureSet<Map.Entry<Key, Val>> toSet(PureSet<Map.Entry<Key, Val>> initialSet);
 
     /**
      * Adds the pairs of <code>withMap</code> to this map, returning the result.
@@ -174,7 +174,7 @@ public interface PureMap<Key, Val>
      * @param with_map the map to merge with
      * @return the result of the merge
      */
-    public PureMap<Key, Val> union(PureMap<? extends Key, ? extends Val> withMap);
+    PureMap<Key, Val> union(PureMap<? extends Key, ? extends Val> withMap);
 
     /**
      * Returns a new map whose domain is the intersection of the domain of this
@@ -188,7 +188,7 @@ public interface PureMap<Key, Val>
      * @param set the set of keys to appear in the result
      * @return the restricted map
      */
-    public PureMap<Key, Val> restrictedTo(PureSet<Key> set);
+    PureMap<Key, Val> restrictedTo(PureSet<Key> set);
 
     /**
      * Returns a new map whose domain is the difference of the domain of this map
@@ -202,7 +202,7 @@ public interface PureMap<Key, Val>
      * @param set the set of keys to appear in the result
      * @return the restricted map
      */
-    public PureMap<Key, Val> restrictedFrom(PureSet<Key> set);
+    PureMap<Key, Val> restrictedFrom(PureSet<Key> set);
 
     /**
      * Returns the default value for the map.
@@ -214,7 +214,7 @@ public interface PureMap<Key, Val>
      *
      * @return the default value for the map
      */
-    public Val getDefault();
+    Val getDefault();
 
     /**
      * Returns an iterator that enumerates the pairs of this map.
@@ -227,6 +227,6 @@ public interface PureMap<Key, Val>
      *
      * @return the iterator
      */
-    public Iterator<Map.Entry<Key, Val>> iterator();
+    Iterator<Map.Entry<Key, Val>> iterator();
 
 }

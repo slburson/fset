@@ -1,9 +1,9 @@
 /*
  * PureHashMap.java
  *
- * Copyright (c) 2013 Scott L. Burson.
+ * Copyright (c) 2013, 2014 Scott L. Burson.
  *
- * This file is licensed under the Library GNU Public License (LGPL).
+ * This file is licensed under the Library GNU Public License (LGPL), v. 2.1.
  */
 
 
@@ -316,10 +316,8 @@ public class PureHashMap<Key, Val>
 		Key ekey = ent.getKey();
 		Val eval = ent.getValue();
 		// This could be improved, but I don't think it's important...
-		if (containsKey(ekey)) {
-		    Val mval = get(ekey);
-		    return mval == null ? eval == null : mval.equals(eval);
-		} else return false;
+		if (containsKey(ekey)) return eql(eval, get(ekey));
+		else return false;
 	    }
 	};
     }
@@ -338,6 +336,10 @@ public class PureHashMap<Key, Val>
 	// Gives us an empty set of the right class and comparator.
 	initial_set = initial_set.difference(initial_set);
 	return (PureSet<Val>)range(tree, initial_set);
+    }
+
+    public PureSet<Val> values() {
+	return range();
     }
 
     public PureHashMap<Key, Val> union(PureMap<? extends Key, ? extends Val> with_map) {
@@ -387,8 +389,7 @@ public class PureHashMap<Key, Val>
 		Object eval = ent.getValue();
 		int ekhash = hashCode(ekey);
 		if (!containsKey(tree, ekey, ekhash)) return false;
-		if (eval == null ? get(tree, ekey, ekhash) != null
-		    : !eval.equals(get(tree, ekey, ekhash))) return false;
+		if (!eql(eval, get(tree, ekey, ekhash))) return false;
 	    }
 	    return true;
 	}
@@ -472,9 +473,7 @@ public class PureHashMap<Key, Val>
 	    else if (!(obj instanceof Map.Entry)) return false;
 	    else {
 		Map.Entry<Object, Object> ent = (Map.Entry<Object, Object>)obj;
-		return ((key == null ? ent.getKey() == null : key.equals(ent.getKey())) &&
-			(value == null ? ent.getValue() == null :
-			 value.equals(ent.getValue())));
+		return eql(key, ent.getKey()) && eql(value, ent.getValue());
 	    }
 	}
     }
@@ -556,10 +555,9 @@ public class PureHashMap<Key, Val>
 	else if (!(subtree instanceof Node)) {
 	    Object[] ary = (Object[])subtree;
 	    int bin_srch_res = binarySearch(ary, khash);
-	    if ((bin_srch_res & BIN_SEARCH_FOUND_MASK) == BIN_SEARCH_FOUND) {
-		Key k = (Key)ary[bin_srch_res >> BIN_SEARCH_INDEX_SHIFT];
-		return key == null ? k == null : key.equals(k);
-	    } else return false;
+	    if ((bin_srch_res & BIN_SEARCH_FOUND_MASK) == BIN_SEARCH_FOUND)
+		return eql(key, ary[bin_srch_res >> BIN_SEARCH_INDEX_SHIFT]);
+	    else return false;
 	} else {
 	    Node node = (Node)subtree;
 	    Object nkey = node.key;
@@ -569,10 +567,10 @@ public class PureHashMap<Key, Val>
 		    ArrayList<Entry> al = ((EquivalentMap)nkey).contents;
 		    for (int i = 0, len = al.size(); i < len; ++i) {
 			Object ekey = (al.get(i)).key;
-			if (key == null ? ekey == null : key.equals(ekey)) return true;
+			if (eql(key, ekey)) return true;
 		    }
 		    return false;
-		} else return key == null ? nkey == null : key.equals(nkey);
+		} else return eql(key, nkey);
 	    } else if (khash < nhash) return containsKey(node.left, key, khash);
 	    else return containsKey(node.right, key, khash);
 	}
@@ -584,9 +582,8 @@ public class PureHashMap<Key, Val>
 	    Object[] ary = (Object[])subtree;
 	    int bin_srch_res = binarySearch(ary, khash);
 	    int idx = bin_srch_res >> BIN_SEARCH_INDEX_SHIFT;
-	    if ((bin_srch_res & BIN_SEARCH_FOUND_MASK) == BIN_SEARCH_FOUND &&
-		(key == null ? ary[idx] == null : key.equals(ary[idx])))
-		return (Val)ary[idx + (ary.length >> 1)];
+	    if ((bin_srch_res & BIN_SEARCH_FOUND_MASK) == BIN_SEARCH_FOUND && eql(key, ary[idx]))
+		return ary[idx + (ary.length >> 1)];
 	    else return dflt;
 	} else {
 	    Node node = (Node)subtree;
@@ -597,12 +594,10 @@ public class PureHashMap<Key, Val>
 		    ArrayList<Entry> al = ((EquivalentMap)nkey).contents;
 		    for (int i = 0, len = al.size(); i < len; ++i) {
 			Entry ent = al.get(i);
-			if (key == null ? ent.key == null : key.equals(ent.key))
-			    return ent.value;
+			if (eql(key, ent.key)) return ent.value;
 		    }
 		    return dflt;
-		} else if (key == null ? nkey == null : key.equals(nkey))
-		    return node.value;
+		} else if (eql(key, nkey)) return node.value;
 		else return dflt;
 	    } else if (khash < nhash) return get(node.left, key, khash);
 	    else return get(node.right, key, khash);
@@ -624,8 +619,7 @@ public class PureHashMap<Key, Val>
 	    int bin_srch_res = binarySearch(ary, khash);
 	    int found = bin_srch_res & BIN_SEARCH_FOUND_MASK;
 	    int idx = bin_srch_res >> BIN_SEARCH_INDEX_SHIFT;
-	    if (found == BIN_SEARCH_FOUND && !(key instanceof EquivalentMap) &&
-		(key == null ? ary[idx] == null : key.equals(ary[idx])))
+	    if (found == BIN_SEARCH_FOUND && !(key instanceof EquivalentMap) && eql(key, ary[idx]))
 		return update2(ary, idx, value);
 	    else if (found == BIN_SEARCH_NOT_FOUND  &&
 		     len + 1 < MAX_LEAF_ARRAY_LENGTH  &&
@@ -642,10 +636,8 @@ public class PureHashMap<Key, Val>
 	    Object nkey = node.key;
 	    int nhash = hashCode(nkey);
 	    if (khash == nhash) {
-		if (!(key instanceof EquivalentMap) &&
-		    !(nkey instanceof EquivalentMap) &&
-		    (key == null ? nkey == null : key.equals(nkey)) &&
-		    (value == null ? node.value == null : value.equals(node.value)))
+		if (!(key instanceof EquivalentMap) && !(nkey instanceof EquivalentMap) &&
+		    eql(key, nkey) && eql(value, node.value))
 		    return subtree;
 		else return makeNode(equivUnion(nkey, node.value, key, value), value,
 				     node.left, node.right);
@@ -669,9 +661,7 @@ public class PureHashMap<Key, Val>
 	    int found = bin_srch_res & BIN_SEARCH_FOUND_MASK;
 	    int idx = bin_srch_res >> BIN_SEARCH_INDEX_SHIFT;
 	    if (found == BIN_SEARCH_FOUND) {
-		Object k = ary[idx];
-		if (key == null ? k == null : key.equals(k))
-		    return remove2(ary, idx);
+		if (eql(key, ary[idx])) return remove2(ary, idx);
 		else return subtree;
 	    } else return subtree;
 	} else {
@@ -680,8 +670,7 @@ public class PureHashMap<Key, Val>
 	    int nhash = hashCode(nkey);
 	    if (khash == nhash) {
 		if (!(nkey instanceof EquivalentMap)) {
-		    if (key == null ? nkey != null : !key.equals(nkey))
-			return subtree;
+		    if (!eql(key, nkey)) return subtree;
 		    else return join(node.left, node.right);
 		} else return buildNode(equivLess(nkey, key), null,
 					node.left, node.right);
@@ -1008,14 +997,11 @@ public class PureHashMap<Key, Val>
 		Object[] ary1 = (Object[])subtree1, ary2 = (Object[])subtree2;
 		for (int i = lo; i < hi; ++i) {
 		    Object key1 = ary1[i - base1], key2 = ary2[i - base2];
-		    if (key1 == null ? key2 != null :
-			!(hashCode(key1) == hashCode(key2) && key1.equals(key2)))
-			return false;
+		    if (!eql(key1, key2)) return false;
 		    int nkeys1 = ary1.length >> 1, nkeys2 = ary2.length >> 1;
 		    Object val1 = ary1[i - base1 + nkeys1];
 		    Object val2 = ary2[i - base2 + nkeys2];
-		    if (hashCode(val1) != hashCode(val2) ||
-			val1 == null ? val2 != null : !val1.equals(val2)) return false;
+		    if (!eql(val1, val2)) return false;
 		}
 		return true;
 	    } else return equals(subtree2, base2, subtree1, base1, lo, hi);
@@ -1035,10 +1021,7 @@ public class PureHashMap<Key, Val>
 		Object val2 = ent2.value;
 		if (!equivEquals(key1, ent2.key))
 		    return false;
-		else if (!(key1 instanceof EquivalentMap) &&
-			 (val1 == null ? val2 != null :
-			  !(hashCode(val1) == hashCode(val2) && val1.equals(val2))))
-		    return false;
+		else if (!(key1 instanceof EquivalentMap) && !eql(val1, val2)) return false;
 		else {
 		    int key1_size = keySize(key1);
 		    int new_lo = base1 + l1size + key1_size;
@@ -1421,8 +1404,7 @@ public class PureHashMap<Key, Val>
 		    boolean found = false;
 		    for (int i = 0, siz = al.size(); i < siz && !found; ++i) {
 			Entry e = (Entry)al.get(i);
-			if (e.key == null ? ent1.key == null : e.key.equals(ent1.key))
-			    found = true;
+			if (eql(e.key, ent1.key)) found = true;
 		    }
 		    if (!found) al.add(ent1);
 		}
@@ -1433,8 +1415,7 @@ public class PureHashMap<Key, Val>
 		int found_at = -1;
 		for (int i = 0, siz = al.size(); i < siz && found_at < 0; ++i) {
 		    Entry e = (Entry)al.get(i);
-		    if (key2 == null ? e.key == null : key2.equals(e.key))
-			found_at = i;
+		    if (eql(key2, e.key)) found_at = i;
 		}
 		if (found_at >= 0) al.set(found_at, new Entry(key2, value2));
 		else al.add(new Entry(key2, value2));
@@ -1446,8 +1427,7 @@ public class PureHashMap<Key, Val>
 	    boolean found = false;
 	    for (int i = 0, siz = al2.size(); i < siz && !found; ++i) {
 		Entry e = (Entry)al2.get(i);
-		if (key1 == null ? e.key == null : key1.equals(e.key))
-		    found = true;
+		if (eql(key1, e.key)) found = true;
 	    }
 	    if (!found) {
 		ArrayList<Entry> al = (ArrayList<Entry>)al2.clone();
@@ -1455,8 +1435,7 @@ public class PureHashMap<Key, Val>
 		al.trimToSize();
 		return new EquivalentMap(al);
 	    } else return new EquivalentMap(al2);
-	} else if (key1 == null ? key2 == null : key1.equals(key2))
-	    return new Entry(key2, value2);
+	} else if (eql(key1, key2)) return new Entry(key2, value2);
 	else {
 	    ArrayList<Entry> al = new ArrayList<Entry>(2);
 	    al.add(new Entry(key1, value1));
@@ -1485,8 +1464,7 @@ public class PureHashMap<Key, Val>
 	    } else {
 		for (int i = 0, siz = map_al.size(); i < siz; ++i) {
 		    Entry e = (Entry)map_al.get(i);
-		    if (set_elt == null ? e.key == null : set_elt.equals(e.key))
-			return e;
+		    if (eql(set_elt, e.key)) return e;
 		}
 		return null;
 	    }
@@ -1497,8 +1475,7 @@ public class PureHashMap<Key, Val>
 		    return new Entry(map_key, map_val);
 		else return null;
 	    } else {
-		if (map_key == null ? set_elt == null : map_key.equals(set_elt))
-		    return new Entry(map_key, map_val);
+		if (eql(map_key, set_elt)) return new Entry(map_key, map_val);
 		else return null;
 	    }
 	}
@@ -1518,8 +1495,7 @@ public class PureHashMap<Key, Val>
 	    } else {
 		for (int i = 0, siz = map_al.size(); i < siz; ++i) {
 		    Entry e = (Entry)map_al.get(i);
-		    if (set_elt == null ? e.key != null : !set_elt.equals(e.key))
-			al.add(e);
+		    if (!eql(set_elt, e.key)) al.add(e);
 		}
 	    }
 	    if (al.size() == 0) return null;
@@ -1535,7 +1511,7 @@ public class PureHashMap<Key, Val>
 		    return new Entry(map_key, map_val);
 		else return null;
 	    } else {
-		if (map_key == null ? set_elt != null : !map_key.equals(set_elt))
+		if (!eql(map_key, set_elt))
 		    return new Entry(map_key, map_val);
 		else return null;
 	    }
@@ -1547,8 +1523,7 @@ public class PureHashMap<Key, Val>
 	int found_at = -1;
 	for (int i = 0, siz = al.size(); i < siz && found_at < 0; ++i) {
 	    Entry e = (Entry)al.get(i);
-	    if (key == null ? e.key == null : key.equals(e.key))
-		found_at = i;
+	    if (eql(key, e.key)) found_at = i;
 	}
 	if (found_at >= 0) {
 	    al = (ArrayList<Entry>)al.clone();
@@ -1594,10 +1569,8 @@ public class PureHashMap<Key, Val>
 			Entry ent1 = (Entry)al1.get(i1);
 			for (int i2 = 0; i2 < siz2 && !found; ++i2) {
 			    Entry ent2 = (Entry)al2.get(i2);
-			    if ((ent1.key == null ? ent2.key == null
-				 : ent1.key.equals(ent2.key)) &&
-				(ent1.value == null ? ent2.value == null
-				 : ent1.value.equals(ent2.value))) found = true;
+			    if (eql(ent1.key, ent2.key) && eql(ent1.value, ent2.value))
+				found = true;
 			}
 			if (!found) return false;
 		    }
@@ -1605,7 +1578,7 @@ public class PureHashMap<Key, Val>
 		}
 	    } else return false;
 	} else if (key2 instanceof EquivalentMap) return false;
-	else return key1 == null ? key2 == null : key1.equals(key2);
+	else return eql(key1, key2);
     }
 
 
@@ -1741,7 +1714,7 @@ public class PureHashMap<Key, Val>
 		    ++i2;
 		    if (i2 < len2) hash2 = hashCode(k2 = ary2[i2]);
 		} else {
-		    if (k1 == null ? k2 == null : k1.equals(k2)) {
+		    if (eql(k1, k2)) {
 			keys.add(k2);
 			vals.add(ary2[i2 + nkeys2]);
 		    } else {
@@ -1805,7 +1778,7 @@ public class PureHashMap<Key, Val>
 		++i2;
 		if (i2 < len2) ehash = hashCode(e = set_ary[i2]);
 	    } else {
-		if (k == null ? e == null : k.equals(e)) {
+		if (eql(k, e)) {
 		    keys.add(k);
 		    vals.add(map_ary[i1 + nkeys]);
 		}
@@ -1851,7 +1824,7 @@ public class PureHashMap<Key, Val>
 		++i2;
 		if (i2 < len2) ehash = hashCode(e = set_ary[i2]);
 	    } else {
-		if (k == null ? e != null : !k.equals(e)) {
+		if (!eql(k, e)) {
 		    keys.add(k);
 		    vals.add(map_ary[i1 + nkeys]);
 		}
@@ -1913,6 +1886,10 @@ public class PureHashMap<Key, Val>
     private static int binarySearchHi(Object[] ary, int hi) {
 	int bin_srch_res = binarySearch(ary, hi);
 	return bin_srch_res >> BIN_SEARCH_INDEX_SHIFT;
+    }
+
+    private static boolean eql(Object x, Object y) {
+	return x == null ? y == null : x.equals(y);
     }
 
     /****************/

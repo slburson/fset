@@ -1,9 +1,9 @@
 /*
  * AbstractPureSet.java
  *
- * Copyright (c) 2013 Scott L. Burson.
+ * Copyright (c) 2013, 2014 Scott L. Burson.
  *
- * This file is licensed under the Library GNU Public License (LGPL).
+ * This file is licensed under the Library GNU Public License (LGPL), v. 2.1.
  */
 
 
@@ -23,7 +23,7 @@ import java.util.*;
 
 public abstract class AbstractPureSet<Elt>
     extends AbstractSet<Elt>
-    implements PureSet<Elt>, Cloneable
+    implements PureSet<Elt>
 {
 
     /**
@@ -45,15 +45,6 @@ public abstract class AbstractPureSet<Elt>
      */
     public final void clear() {
 	throw new UnsupportedOperationException();
-    }
-
-    /**
-     * Returns this map.
-     * &&& No, we want to push this method down at least to PureSet etc., so we can
-     * take advantage of the covariant return type.
-     */
-    public final AbstractPureSet<Elt> clone() {
-	return this;
     }
 
     /**

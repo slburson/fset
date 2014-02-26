@@ -1,9 +1,9 @@
 /*
  * PureTreeList.java
  *
- * Copyright (c) 2013 Scott L. Burson.
+ * Copyright (c) 2013, 2014 Scott L. Burson.
  *
- * This file is licensed under the Library GNU Public License (LGPL).
+ * This file is licensed under the Library GNU Public License (LGPL), v. 2.1.
  */
 
 
@@ -299,8 +299,11 @@ public class PureTreeList<Elt>
     }
 
     public PureTreeList<Elt> with(int index, Elt elt) {
-	if (index < 0 || index >= treeSize(tree))
+	int size = treeSize(tree);
+	if (index < 0 || index > size)
 	    throw new IndexOutOfBoundsException();
+	else if (index == size)
+	    return new PureTreeList<Elt>(insert(tree, index, elt), elt_comp);
 	else return new PureTreeList<Elt>(with(tree, index, elt), elt_comp);
     }
 
@@ -376,8 +379,7 @@ public class PureTreeList<Elt>
 	if (obj == this) return 0;
 	else if (obj == null ||
 		 !(obj instanceof PureTreeList) ||
-		 (elt_comp == null ? ((PureTreeList)obj).elt_comp != null
-				   : !elt_comp.equals(((PureTreeList)obj).elt_comp)))
+		 !eql(elt_comp, ((PureTreeList)obj).elt_comp))
 	    throw new ClassCastException();
 	else return compareTo(tree, ((PureTreeList)obj).tree);
     }
@@ -395,7 +397,7 @@ public class PureTreeList<Elt>
 	    Iterator<Object> it2 = list.iterator();
 	    while (it1.hasNext()) {
 		Object elt1 = it1.next(), elt2 = it2.next();
-		if (elt1 == null ? elt2 != null : !elt1.equals(elt2)) return false;
+		if (!eql(elt1, elt2)) return false;
 	    }
 	    return true;
 	}
@@ -583,7 +585,7 @@ public class PureTreeList<Elt>
 		Object[] ary1 = (Object[])subtree1, ary2 = (Object[])subtree2;
 		for (int i = lo; i < hi; ++i) {
 		    Object elt1 = ary1[i - base1], elt2 = ary2[i - base2];
-		    if (elt1 == null ? elt2 != null : !elt1.equals(elt2)) return false;
+		    if (!eql(elt1, elt2)) return false;
 		}
 		return true;
 	    } else return equals(subtree2, base2, subtree1, base1, lo, hi);
@@ -717,8 +719,7 @@ public class PureTreeList<Elt>
 	else if (!(subtree instanceof Node)) {
 	    Object[] ary = (Object[])subtree;
 	    for (int i = 0, len = ary.length; i < len; ++i) {
-		if (elt == null ? ary[i] == null : elt.equals(ary[i]))
-		    return i;
+		if (eql(elt, ary[i])) return i;
 	    }
 	    return -1;
 	} else {
@@ -738,8 +739,7 @@ public class PureTreeList<Elt>
 	else if (!(subtree instanceof Node)) {
 	    Object[] ary = (Object[])subtree;
 	    for (int i = ary.length; --i >= 0; ) {
-		if (elt == null ? ary[i] == null : elt.equals(ary[i]))
-		    return i;
+		if (eql(elt, ary[i])) return i;
 	    }
 	    return -1;
 	} else {
@@ -888,6 +888,10 @@ public class PureTreeList<Elt>
 	    return verify(node.left) && verify(node.right);
 	}
 	return true;
+    }
+
+    private static boolean eql(Object x, Object y) {
+	return x == null ? y == null : x.equals(y);
     }
 
     /****************/
