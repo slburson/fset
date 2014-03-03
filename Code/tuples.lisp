@@ -511,7 +511,7 @@ When done, returns `value'."
       (write-char #\Space stream)
       (pprint-newline :linear stream)
       (write (list (tuple-key-name key) val) :stream stream))
-    (format stream ">")))
+    (format stream " >")))
 
 (defmethod compare ((tup1 tuple) (tup2 tuple))
   (let ((key-set-1 (Tuple-Desc-Key-Set (dyn-tuple-descriptor tup1)))
