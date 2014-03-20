@@ -46,13 +46,13 @@ in FSet.  The inverse is constructed lazily, and maintained thereafter."
 
 (defparameter *empty-wb-2-relation* (make-wb-2-relation 0 nil nil))
 
+(declaim (inline empty-2-relation))
 (defun empty-2-relation ()
   *empty-wb-2-relation*)
-(declaim (inline empty-2-relation))
 
+(declaim (inline empty-wb-2-relation))
 (defun empty-wb-2-relation ()
   *empty-wb-2-relation*)
-(declaim (inline empty-wb-2-relation))
 
 (defmethod empty? ((br wb-2-relation))
   (zerop (wb-2-relation-size br)))
