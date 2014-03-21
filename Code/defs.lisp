@@ -43,7 +43,7 @@
 	   #:empty-set #:empty-bag #:empty-map #:empty-seq #:empty-tuple
 	   #:empty-wb-set #:empty-wb-bag #:empty-wb-map #:empty-wb-seq
 	   #:empty-dyn-tuple
-	   #:least #:greatest #:lookup #:@
+	   #:least #:greatest #:lookup #:rank #:at-rank #:@
 	   #:with #:less #:split-from #:split-above #:split-through #:split-below
 	   #:union #:bag-sum #:intersection #:bag-product #:complement
 	   #:set-difference #:set-difference-2 #:bag-difference

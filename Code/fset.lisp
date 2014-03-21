@@ -107,17 +107,17 @@ as two values, else false and `nil'; this is useful for canonicalization."))
 
 (defgeneric rank (collection value)
   (:documentation
-    "If `collection' is a set or bag that contains `value', returns the rank of
-`value' in the ordering defined by `compare', and a true second value.  If
-`collection' is a map whose domain contains `value', returns the rank of
-`value' in the domain of the map, and a true second value.  If `value' is not
-in the collection, the second value is false, and the first value is the rank
-of the least member of the collection greater than `value' (if any; otherwise
-the size (for a bag, the set-size) of the collection).  Note that if there are
-values/keys that are unequal but equivalent to `value', an arbitrary order
-will be imposed on them for this purpose; but another collection that is
-`equal?' but not `eq' to this one will in general order them differently.
-Also, on a bag, multiplicities are ignored for this purpose."))
+    "If `collection' is a set or bag that contains `value', returns the rank
+of `value' in the ordering defined by `compare', and a true second value.
+If `collection' is a map whose domain contains `value', returns the rank of
+`value' in the domain of the map, and a true second value.  If `value' is
+not in the collection, the second value is false, and the first value is the
+rank of the greatest member of the collection less than `value' (if any;
+otherwise zero).  Note that if there are values/keys that are unequal but
+equivalent to `value', an arbitrary order will be imposed on them for this
+purpose; but another collection that is `equal?' but not `eq' to this one
+will in general order them differently.  Also, on a bag, multiplicities are
+ignored for this purpose."))
 
 (defgeneric at-rank (collection rank)
   (:documentation
@@ -1043,7 +1043,7 @@ the default implementation of sets in FSet."
 
 (defmethod rank ((s wb-set) x)
   (let ((found? rank (WB-Set-Tree-Rank (wb-set-contents s) x)))
-    (values rank found?)))
+    (values (if found? rank (1- rank)) found?)))
 
 (defmethod at-rank ((s wb-set) rank)
   (let ((contents (wb-set-contents s))
@@ -1468,7 +1468,7 @@ trees.  This is the default implementation of bags in FSet."
 
 (defmethod rank ((s wb-bag) x)
   (let ((found? rank (WB-Bag-Tree-Rank (wb-bag-contents s) x)))
-    (values rank found?)))
+    (values (if found? rank (1- rank)) found?)))
 
 (defmethod at-rank ((s wb-bag) rank)
   (let ((contents (wb-bag-contents s))
@@ -1987,7 +1987,7 @@ the default implementation of maps in FSet."
 
 (defmethod rank ((s wb-map) x)
   (let ((found? rank (WB-Map-Tree-Rank (wb-map-contents s) x)))
-    (values rank found?)))
+    (values (if found? rank (1- rank)) found?)))
 
 (defmethod at-rank ((s wb-map) rank)
   (let ((contents (wb-map-contents s))
