@@ -32,4 +32,6 @@ See: http://common-lisp.net/project/fset/
 	     (:file "interval")
 	     (:file "relations")
 	     (:file "complement-sets")
-	     (:file "bounded-sets")))))
+	     (:file "bounded-sets")
+             #+lispworks
+             (:file "lispworks-inspect")))))
