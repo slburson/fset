@@ -21,11 +21,10 @@
   (:documentation "Returns true iff the collection is empty."))
 
 ;;; Wish I could think of a shorter name that would still be easy to remember.
+(declaim (inline nonempty?))
 (defun nonempty? (collection)
   "Returns true iff the collection is not empty."
   (not (empty? collection)))
-
-(declaim (inline nonempty?))
 
 (defgeneric size (collection)
   (:documentation
@@ -815,6 +814,8 @@ Also works on an FSet seq."))
 ;;; ================================================================================
 ;;; New names for a few existing CL functions
 
+(declaim (inline lastcons head tail))
+
 ;;; The CL function is poorly (albeit traditionally) named, and we shadow the name.
 (defun lastcons (list)
   "Returns the last cons of `list'.  This is a renaming of the CL function `last'."
@@ -827,8 +828,6 @@ Also works on an FSet seq."))
 (defun tail (list)
   "Another name for the `cdr' operation on lists."
   (cdr list))
-
-(declaim (inline lastcons head tail))
 
 
 ;;; ================================================================================
@@ -1011,15 +1010,15 @@ the default implementation of sets in FSet."
 
 (defparameter *empty-wb-set* (make-wb-set nil))
 
+(declaim (inline empty-set))
 (defun empty-set ()
   "Returns an empty set of the default implementation."
   *empty-wb-set*)
-(declaim (inline empty-set))
 
+(declaim (inline empty-wb-set))
 (defun empty-wb-set ()
   "Returns an empty wb-set."
   *empty-wb-set*)
-(declaim (inline empty-wb-set))
 
 (defmethod empty? ((s wb-set))
   (null (wb-set-contents s)))
@@ -1438,15 +1437,15 @@ trees.  This is the default implementation of bags in FSet."
 
 (defparameter *empty-wb-bag* (make-wb-bag nil))
 
+(declaim (inline empty-bag))
 (defun empty-bag ()
   "Returns an empty bag of the default implementation."
   *empty-wb-bag*)
-(declaim (inline empty-bag))
 
+(declaim (inline empty-wb-bag))
 (defun empty-wb-bag ()
   "Returns an empty wb-bag."
   *empty-wb-bag*)
-(declaim (inline empty-wb-bag))
 
 (defmethod empty? ((b wb-bag))
   (null (wb-bag-contents b)))
@@ -1936,17 +1935,17 @@ the default implementation of maps in FSet."
 
 (defparameter *empty-wb-map* (make-wb-map nil))
 
+(declaim (inline empty-map))
 (defun empty-map (&optional default)
   "Returns an empty map of the default implementation."
   (if default (make-wb-map nil default)
     *empty-wb-map*))
-(declaim (inline empty-map))
 
+(declaim (inline empty-wb-map))
 (defun empty-wb-map (&optional default)
   "Returns an empty wb-map."
   (if default (make-wb-map nil default)
     *empty-wb-map*))
-(declaim (inline empty-wb-map))
 
 (defmethod default ((m map))
   (map-default m))
@@ -2382,16 +2381,16 @@ This is the default implementation of seqs in FSet."
 
 (defparameter *empty-wb-seq* (make-wb-seq nil))
 
+(declaim (inline empty-seq))
 (defun empty-seq (&optional default)
   "Returns an empty seq of the default implementation."
   (if default (make-wb-seq nil default)
     *empty-wb-seq*))
-(declaim (inline empty-seq))
 
+(declaim (inline empty-wb-seq))
 (defun empty-wb-seq ()
   "Returns an empty wb-seq."
   *empty-wb-seq*)
-(declaim (inline empty-wb-seq))
 
 (defmethod empty? ((s wb-seq))
   (null (wb-seq-contents s)))

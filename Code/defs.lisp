@@ -38,7 +38,7 @@
 	   #:equal? #:compare #:compare-slots #:identity-ordering-mixin
 	   #:define-cross-type-compare-methods
 	   #:compare-lexicographically
-	   #:empty? nonempty? #:size #:set-size #:arb
+	   #:empty? #:nonempty? #:size #:set-size #:arb
 	   #:contains? #:domain-contains? #:range-contains? #:member? #:multiplicity
 	   #:empty-set #:empty-bag #:empty-map #:empty-seq #:empty-tuple
 	   #:empty-wb-set #:empty-wb-bag #:empty-wb-map #:empty-wb-seq
