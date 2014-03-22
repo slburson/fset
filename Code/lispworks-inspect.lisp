@@ -19,7 +19,7 @@
 
 (defmethod lw:get-inspector-values ((object map) mode)
   (values (convert 'list (domain object))
-	  (convert 'list (range object))
+	  (gmap :list (fn (_x y) y) (:map object))
 	  nil
 	  nil
 	  "MAP"))
