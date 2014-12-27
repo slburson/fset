@@ -11,11 +11,11 @@
 
 (asdf:defsystem FSet
   :description "A functional set-theoretic collections library.
-See: http://common-lisp.net/project/fset/
+See: http://www.ergy.com/FSet.html
 "
-  :version "1.3.0"
+  :version "1.3.1"
   :licence "LLGPL"
-  :depends-on (:misc-extensions)
+  :depends-on (:misc-extensions :mt19937)
   :serial t
   :components
   ((:module "Code"

@@ -289,34 +289,6 @@
 
 ;;; ----------------
 
-;;; Unfortunately, CL doesn't specify that `make-random-state' should be able
-;;; to accept an integer seed.  We want to be able to supply it one, so that
-;;; (for testing) we can have multiple reproducible sequences of pseudorandom
-;;; numbers.  (May not be possible on all implementations.)
-(defun make-seeded-random-state (seed)
-  (if (null seed)
-      (make-random-state)
-    #+(or cmu scl)
-    (progn
-      (assert (plusp seed))
-      (kernel::make-random-object :state
-				  (kernel::init-random-state (logand seed #xFFFFFFFF))))
-    #+sbcl
-    (progn
-      (assert (plusp seed))
-      (sb-kernel::%make-random-state
-	:state (sb-kernel::init-random-state (logand seed #xFFFFFFFF))))
-    #+openmcl
-    (ccl::initialize-random-state (ash (logand seed #xFFFFFFFF) -16)
-				  (logand seed #xFFFF))
-    #+genera
-    (fcli::make-random-state-internal 71 35 seed)
-    #-(or cmu scl sbcl openmcl genera)
-    (error "Implementation-specific code needed in `make-seeded-random-state'")))
-
-
-;;; ----------------
-
 #-lispworks
 (defun base-char-p (x)
   (typep x 'base-char))

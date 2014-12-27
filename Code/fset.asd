@@ -12,7 +12,7 @@
 ;;; This license provides NO WARRANTY.
 
 (defsystem FSet
-  :depends-on (:gmap)
+  :depends-on (:gmap :mt19937)
   :components
   ((:file "defs")
    (:file "port" :depends-on ("defs"))

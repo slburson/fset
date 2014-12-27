@@ -113,7 +113,7 @@ If `collection' is a map whose domain contains `value', returns the rank of
 `value' in the domain of the map, and a true second value.  If `value' is
 not in the collection, the second value is false, and the first value is the
 rank of the greatest member of the collection less than `value' (if any;
-otherwise zero).  Note that if there are values/keys that are unequal but
+otherwise -1).  Note that if there are values/keys that are unequal but
 equivalent to `value', an arbitrary order will be imposed on them for this
 purpose; but another collection that is `equal?' but not `eq' to this one
 will in general order them differently.  Also, on a bag, multiplicities are
