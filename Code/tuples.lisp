@@ -535,11 +535,18 @@ When done, returns `value'."
   (check-three-arguments value? 'with 'tuple)
   (Tuple-With tuple key value))
 
+(defmethod with ((tuple tuple) (key symbol) &optional (value nil value?))
+  (check-three-arguments value? 'with 'tuple)
+  (Tuple-With tuple (get-tuple-key key) value))
+
 (defmethod lookup ((tuple tuple) (key tuple-key))
   (let ((val? val (Tuple-Lookup tuple key)))
     (if val? (values val t)
       (let ((default-fn (tuple-key-default-fn key)))
 	(values (and default-fn (funcall default-fn tuple)) nil)))))
+
+(defmethod lookup ((tuple tuple) (key symbol))
+  (lookup tuple (get-symbol-key key)))
 
 (defgeneric tuple-merge (tuple1 tuple2 &optional val-fn)
   (:documentation "Returns a new tuple containing all the keys of `tuple1' and `tuple2',
@@ -580,5 +587,11 @@ of calling `val-fn' on the value from `tuple1' and the value from `tuple2'.
 (defmethod image ((key tuple-key) (s set))
   (set-image #'(lambda (x) (lookup x key)) s))
 
+(defmethod image ((key symbol) (s set))
+  (set-image #'(lambda (x) (lookup x (get-tuple-key key))) s))
+
 (defmethod image ((key tuple-key) (s seq))
   (seq-image #'(lambda (x) (lookup x key)) s))
+
+(defmethod image ((key symbol) (s seq))
+  (seq-image #'(lambda (x) (lookup x (get-tuple-key key))) s))
