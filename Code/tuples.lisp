@@ -546,7 +546,7 @@ When done, returns `value'."
 	(values (and default-fn (funcall default-fn tuple)) nil)))))
 
 (defmethod lookup ((tuple tuple) (key symbol))
-  (lookup tuple (get-symbol-key key)))
+  (lookup tuple (get-tuple-key key)))
 
 (defgeneric tuple-merge (tuple1 tuple2 &optional val-fn)
   (:documentation "Returns a new tuple containing all the keys of `tuple1' and `tuple2',
