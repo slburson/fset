@@ -812,6 +812,27 @@ Also works on an FSet seq."))
 
 
 ;;; ================================================================================
+;;; FSet methods for CL sequences
+
+(defmethod partition ((pred symbol) (ls list))
+  (list-partition (coerce pred 'function) ls))
+
+(defmethod partition ((pred function) (ls list))
+  (list-partition pred ls))
+
+(defun list-partition (pred ls)
+  (declare (optimize (speed 3) (safety 0))
+	   (type function pred))
+  (let ((res1 nil)
+	(res2 nil))
+    (dolist (x ls)
+      (if (funcall pred x)
+	  (push x res1)
+	(push x res2)))
+    (values (nreverse res1) (nreverse res2))))
+
+
+;;; ================================================================================
 ;;; New names for a few existing CL functions
 
 (declaim (inline lastcons head tail))
@@ -828,6 +849,8 @@ Also works on an FSet seq."))
 (defun tail (list)
   "Another name for the `cdr' operation on lists."
   (cdr list))
+
+(declaim (inline lastcons head tail))
 
 
 ;;; ================================================================================
@@ -2031,6 +2054,17 @@ When done, returns `value'."
 		      #'(lambda (,key-var ,value-var) . ,body)
 		      #'(lambda () ,value))))
 
+(defmacro do-map-domain ((key-var map &optional value) &body body)
+  "For each pair of `map', binds `key-var' and executes `body'.  When done,
+returns `value'."
+  (let ((value-var (gensym "VAL-")))
+    `(block nil
+       (internal-do-map ,map
+			#'(lambda (,key-var ,value-var)
+			    (declare (ignore ,value-var))
+			    . ,body)
+			#'(lambda () ,value)))))
+
 (defmethod internal-do-map ((m wb-map) elt-fn value-fn)
   (declare (optimize (speed 3) (safety 0))
 	   (type function elt-fn value-fn))
@@ -2405,8 +2439,10 @@ This is the default implementation of seqs in FSet."
   (WB-Seq-Tree-Size (wb-seq-contents s)))
 
 (defmethod lookup ((s wb-seq) key)
-  (let ((val? val (WB-Seq-Tree-Subscript (wb-seq-contents s) key)))
-    (values (if val? val (seq-default s)) val?)))
+  (if (typep key 'fixnum)
+      (let ((val? val (WB-Seq-Tree-Subscript (wb-seq-contents s) key)))
+	(values (if val? val (seq-default s)) val?))
+    (values nil nil)))
 
 (defmethod first ((s wb-seq))
   (let ((val? val (WB-Seq-Tree-Subscript (wb-seq-contents s) 0)))

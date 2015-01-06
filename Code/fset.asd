@@ -23,6 +23,6 @@
    (:file "reader" :depends-on ("tuples"))
    (:file "testing" :depends-on ("reader"))
    (:file "interval" :depends-on ("fset"))
-   (:file "relations" :depends-on ("fset"))
+   (:file "relations" :depends-on ("fset" "reader"))
    (:file "complement-sets" :depends-on ("fset"))
    (:file "bounded-sets" :depends-on ("complement-sets"))))

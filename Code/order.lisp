@@ -152,7 +152,9 @@ name to avoid confusion with `cl:sequence').  It is a structure class."
 
 (defclass identity-ordering-mixin ()
     ((serial-number :accessor serial-number)
-     (next-serial-number :initform '0 :allocation :class))
+     (next-serial-number :initform 0 :allocation :class)
+     (next-serial-number-lock :initform (make-lock "serial number lock")
+			      :allocation :class))
   (:documentation
     "A mixin class for classes whose instances will be used in FSet collections,
 and for which the appropriate equivalence relation is identity (`eq').
@@ -160,8 +162,9 @@ This is the right choice for the vast majority of mutable classes."))
 
 (defmethod initialize-instance :before ((obj identity-ordering-mixin)
 					&key &allow-other-keys)
-  (setf (serial-number obj) (slot-value obj 'next-serial-number))
-  (incf (slot-value obj 'next-serial-number)))
+  (with-lock ((slot-value obj 'next-serial-number-lock))
+    (setf (serial-number obj) (slot-value obj 'next-serial-number))
+    (incf (slot-value obj 'next-serial-number))))
 
 (defmethod compare ((obj1 identity-ordering-mixin) (obj2 identity-ordering-mixin))
   (compare-slots obj1 obj2 #'serial-number))

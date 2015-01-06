@@ -457,23 +457,13 @@ is mapped to multiple range values."))
     (make-wb-2-relation size m0 nil)))
 
 (defun print-wb-2-relation (br stream level)
-  (if (and *print-level* (>= level *print-level*))
-      (format stream "#")
-    (progn
-      (format stream "#{+ ")
-      (let ((i 0))
-	(do-2-relation (x y br)
-	  (when (> i 0)
-	    (format stream " "))
-	  (when (and *print-length* (>= i *print-length*))
-	    (format stream "...")
-	    (return))
-	  (incf i)
-	  (let ((*print-level* (and *print-level* (1- *print-level*))))
-	    (write (list x y) :stream stream)))
-	(when (> i 0)
-	  (format stream " ")))
-      (format stream "+}"))))
+  (declare (ignore level))
+  (pprint-logical-block (stream nil :prefix "#{+" :suffix " +}")
+    (do-2-relation (x y br)
+      (pprint-pop)
+      (write-char #\Space stream)
+      (pprint-newline :linear stream)
+      (write (list x y) :stream stream))))
 
 (defmethod iterator ((rel wb-2-relation) &key)
   (let ((outer (Make-WB-Map-Tree-Iterator-Internal (wb-2-relation-map0 rel)))
@@ -694,19 +684,19 @@ the first tuple added, or the first query."
 
 (defgeneric query (relation pattern metapattern)
   (:documentation
-    "Along with the relation, takes two lists, each of length equal to the
-arity, called the `pattern' and `metapattern'; returns a set of tuples
-satisfying the query.  For each position, if the metapattern contains `nil',
-the query is not constrained by that position (the corresponding position in
-the pattern is ignored); if the metapattern contains `t' or `:single', then
-the result set contains only those tuples with the same value in that
-position as the pattern has.  The difference between `t' and `:single' has
-to do with indexing.  For each metapattern that is actually used, an index
-is constructed if not previously present, and then is maintained
-incrementally.  If the metapattern has `t' in a location, the resulting
-index will contain all values for that location; if it has `:single', the
-resulting index will contain only those values that have actually appeared
-in a query pattern with this metapattern."))
+    "Along with the relation, takes two lists, of equal length less than
+or equal to the arity, called the `pattern' and `metapattern'; returns a set
+of tuples satisfying the query.  For each position, if the metapattern
+contains `nil', the query is not constrained by that position (the
+corresponding position in the pattern is ignored); if the metapattern
+contains `t' or `:single', then the result set contains only those tuples
+with the same value in that position as the pattern has.  The difference
+between `t' and `:single' has to do with indexing.  For each metapattern
+that is actually used, an index is constructed if not previously present,
+and then is maintained incrementally.  If the metapattern has `t' in a
+location, the resulting index will contain all values for that location; if
+it has `:single', the resulting index will contain only those values that
+have actually appeared in a query pattern with this metapattern."))
 
 ;;; `:single' is implemented, but not necessarily well enough that you'd want to
 ;;; use it.
@@ -716,32 +706,39 @@ in a query pattern with this metapattern."))
 	;; We don't know the arity yet, which means there are no tuples.
 	(set)
       (progn
-	(unless (and (= (length pattern) arity)
-		     (= (length metapattern) arity))
+	(unless (and (<= (length pattern) arity)
+		     (= (length pattern) (length metapattern)))
 	  (error "Pattern or metapattern is of the wrong length"))
-	(if (every #'identity metapattern)
-	    (if (contains? rel pattern) (set pattern) (set))
-	  (let ((augmented-mp (augmented-mp pattern metapattern))
-		((reduced-tuple (reduced-tuple pattern augmented-mp))
-		 (index (@ (wb-list-relation-indices rel) augmented-mp))))
-	    (if index
-		(@ index reduced-tuple)
-	      (progn
-		
-		(let ((index-results
-			(remove nil (mapcar (lambda (index mp-elt pat-elt)
-					      (and index
-						   (@ index (and (eq mp-elt t)
-								 (list pat-elt)))))
-					    (get-indices rel augmented-mp)
-					    augmented-mp pattern))))
-		  ;; &&& We also want to build composite indices under some
-		  ;; circumstances -- e.g. if the result set is much smaller
-		  ;; than the smallest of `index-results'.
-		  (if index-results
-		      (reduce #'intersection
-			      (sort index-results #'> :key #'size))
-		    (wb-list-relation-tuples rel)))))))))))
+	(let ((pattern metapattern (handle-var-arity arity pattern metapattern)))
+	  (if (every #'identity metapattern)
+	      (if (contains? rel pattern) (set pattern) (set))
+	    (let ((augmented-mp (augmented-mp pattern metapattern))
+		  ((reduced-tuple (reduced-tuple pattern augmented-mp))
+		   (index (@ (wb-list-relation-indices rel) augmented-mp))))
+	      (if index
+		  (@ index reduced-tuple)
+		(progn
+
+		  (let ((index-results
+			  (remove nil (mapcar (lambda (index mp-elt pat-elt)
+						(and index
+						     (@ index (and (eq mp-elt t)
+								   (list pat-elt)))))
+					      (get-indices rel augmented-mp)
+					      augmented-mp pattern))))
+		    ;; &&& We also want to build composite indices under some
+		    ;; circumstances -- e.g. if the result set is much smaller
+		    ;; than the smallest of `index-results'.
+		    (if index-results
+			(reduce #'intersection
+				(sort index-results #'< :key #'size))
+		      (wb-list-relation-tuples rel))))))))))))
+
+(defun handle-var-arity (rel-arity pattern metapattern)
+  (if (< (length metapattern) rel-arity)
+      (let ((nils (make-list (- rel-arity (length metapattern)))))
+	(values (append pattern nils) (append metapattern nils)))
+    (values pattern metapattern)))
 
 ;;; &&& Another nail in the coffin of `:single'... should just rip it out...
 (defgeneric query-multi (rel pattern metapattern)
@@ -757,28 +754,30 @@ in the metapattern is not accepted."))
 	;; We don't know the arity yet, which means there are no tuples.
 	(set)
       (progn
-	(unless (and (= (length pattern) arity)
-		     (= (length metapattern) arity))
+	(unless (and (<= (length pattern) arity)
+		     (= (length pattern) (length metapattern)))
 	  (error "Pattern or metapattern is of the wrong length"))
 	;; Without :single, the augmented-mp is just the metapattern.
 	(when (member ':single metapattern)
 	  (error "~S doesn't take ~S" 'query-multi ':single))
-	(if (every (fn (s) (= (size s) 1)) pattern)
-	    (query rel (mapcar #'arb pattern) metapattern)
-	  (let ((index-results
-		  (remove nil
-			  (mapcar (lambda (index pat-elt)
-				    (and index
-					 (gmap :union
-					       (fn (pat-elt-elt)
-						 (@ index (list pat-elt-elt)))
-					       (:set pat-elt))))
-				  (get-indices rel metapattern)
-				  pattern))))
-	    (if index-results
-		(reduce #'intersection
-			(sort index-results #'> :key #'size))
-	      (wb-list-relation-tuples rel))))))))
+	(let ((pattern metapattern (handle-var-arity arity pattern metapattern)))
+	  (if (every (fn (s m) (and m (= (size s) 1)))
+		     pattern metapattern)
+	      (query rel (mapcar #'arb pattern) metapattern)
+	    (let ((index-results
+		    (remove nil
+			    (mapcar (lambda (index pat-elt)
+				      (and index
+					   (gmap :union
+						 (fn (pat-elt-elt)
+						   (@ index (list pat-elt-elt)))
+						 (:set pat-elt))))
+				    (get-indices rel metapattern)
+				    pattern))))
+	      (if index-results
+		  (reduce #'intersection
+			  (sort index-results #'< :key #'size))
+		(wb-list-relation-tuples rel)))))))))
 
 (defun get-indices (rel augmented-mp)
   "Returns a list giving the index to use for each element of `augmented-mp'."
@@ -988,17 +987,19 @@ discrimination tree (or DAG), but I'm not going to bother with them yet either.
 (defmethod arity ((reg query-registry))
   (query-registry-arity reg))
 
-(defmethod with-query ((reg query-registry) (pattern list) (metapattern list) query)
-  (let ((arity (or (query-registry-arity reg)
-		   (length pattern))))
-    (unless (and (= (length pattern) arity)
-		 (= (length metapattern) arity))
+(defmethod with-query ((reg query-registry) (pattern list) (metapattern list) query
+		       ;; If you're using the variable-arity feature, supply the arity explicitly.
+		       &optional arity)
+  (let ((arity (or (query-registry-arity reg) arity (length pattern))))
+    (unless (and (<= (length pattern) arity)
+		 (= (length pattern) (length metapattern)))
       (error "Pattern or metapattern is of the wrong length"))
-    (let ((augmented-mp (augmented-mp pattern metapattern))
-	  ((reduced-tuple (reduced-tuple pattern augmented-mp))
-	   ((prev-1 (@ (query-registry-indices reg) augmented-mp))
-	    ((prev-2 (@ prev-1 reduced-tuple)))
-	    (aug->red (map (augmented-mp (set reduced-tuple)) :default (set))))))
+    (let ((pattern metapattern (handle-var-arity arity pattern metapattern))
+	  ((augmented-mp (augmented-mp pattern metapattern))
+	   ((reduced-tuple (reduced-tuple pattern augmented-mp))
+	    ((prev-1 (@ (query-registry-indices reg) augmented-mp))
+	     ((prev-2 (@ prev-1 reduced-tuple)))
+	     (aug->red (map (augmented-mp (set reduced-tuple)) :default (set)))))))
       (make-query-registry arity
 			   (with (query-registry-indices reg) augmented-mp
 				 (with prev-1 reduced-tuple
@@ -1010,21 +1011,23 @@ discrimination tree (or DAG), but I'm not going to bother with them yet either.
 				      (lambda (x y) (map-union x y #'union)))))))
 
 (defmethod less-query ((reg query-registry) (pattern list) (metapattern list) query)
-  (let ((arity (or (query-registry-arity reg)
-		   (length pattern))))
-    (unless (and (= (length pattern) arity)
-		 (= (length metapattern) arity))
-      (error "Pattern or metapattern is of the wrong length"))
-    (let ((augmented-mp (augmented-mp pattern metapattern))
-	  ((reduced-tuple (reduced-tuple pattern augmented-mp))
-	   ((prev-1 (@ (query-registry-indices reg) augmented-mp))
-	    ((prev-2 (@ prev-1 reduced-tuple))))))
-      (make-query-registry arity
-			   (with (query-registry-indices reg) augmented-mp
-				 (with prev-1 reduced-tuple
-				       (less prev-2 query)))
-			   ;; &&& For now.
-			   (query-registry-key-index reg)))))
+  (if (empty? (query-registry-indices reg))
+      reg
+    (let ((arity (query-registry-arity reg)))
+      (unless (and (<= (length pattern) arity)
+		   (= (length pattern) (length metapattern)))
+	(error "Pattern or metapattern is of the wrong length"))
+      (let ((pattern metapattern (handle-var-arity arity pattern metapattern))
+	    ((augmented-mp (augmented-mp pattern metapattern))
+	     ((reduced-tuple (reduced-tuple pattern augmented-mp))
+	      ((prev-1 (@ (query-registry-indices reg) augmented-mp))
+	       ((prev-2 (@ prev-1 reduced-tuple)))))))
+	(make-query-registry arity
+			     (with (query-registry-indices reg) augmented-mp
+				   (with prev-1 reduced-tuple
+					 (less prev-2 query)))
+			     ;; &&& For now.
+			     (query-registry-key-index reg))))))
 
 (defmethod all-queries ((reg query-registry))
   (gmap :union (fn (_aug-mp submap)
@@ -1037,7 +1040,7 @@ discrimination tree (or DAG), but I'm not going to bother with them yet either.
   "Returns all queries in `reg' whose patterns match `tuple'."
   (let ((arity (or (query-registry-arity reg)
 		   (length tuple))))
-    (unless (and (listp tuple) (= (length tuple) arity))
+    (unless (and (listp tuple) (>= (length tuple) arity))
       (error "Length of tuple, ~D, does not match arity, ~D"
 	     (length tuple) arity))
     (gmap :union (lambda (aug-mp rt-map)
@@ -1050,7 +1053,7 @@ all queries in `reg' whose patterns match any member of the cartesian
 product of the sets."
   (let ((arity (or (query-registry-arity reg)
 		   (length set-tuple))))
-    (unless (and (listp set-tuple) (= (length set-tuple) arity))
+    (unless (and (listp set-tuple) (>= (length set-tuple) arity))
       (error "Length of tuple, ~D, does not match arity, ~D"
 	     (length set-tuple) arity))
     ;; Ugh.  At least, computing the cartesian product of the reduced set-tuple

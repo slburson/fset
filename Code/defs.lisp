@@ -64,7 +64,7 @@
 	   #:remove #:remove-if #:remove-if-not
 	   #:substitute #:substitute-if #:substitute-if-not
 	   #:convert #:iterator 
-	   #:do-set #:do-bag #:do-bag-pairs #:do-map #:do-seq #:do-tuple
+	   #:do-set #:do-bag #:do-bag-pairs #:do-map #:do-map-domain #:do-seq #:do-tuple
 	   #:adjoinf #:removef #:includef #:excludef
 	   #:unionf #:intersectf #:imagef #:composef
 	   #:define-tuple-key #:def-tuple-key #:get-tuple-key #:tuple-key-name
