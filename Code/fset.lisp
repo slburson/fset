@@ -814,6 +814,12 @@ Also works on an FSet seq."))
 ;;; ================================================================================
 ;;; FSet methods for CL sequences
 
+(defmethod concat ((a list) &rest seqs)
+  (append a (reduce #'append seqs :key (fn (x) (convert 'list x)) :from-end t)))
+
+(defmethod convert ((to-type (eql 'list)) (ls list) &key)
+  ls)
+
 (defmethod partition ((pred symbol) (ls list))
   (list-partition (coerce pred 'function) ls))
 
