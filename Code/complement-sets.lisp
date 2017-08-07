@@ -29,7 +29,9 @@ complement set."
 (defmethod complement ((cs complement-set))
   (complement-set-complement cs))
 
-(defmethod contains? ((cs complement-set) x)
+(defmethod contains? ((cs complement-set) x &optional (y nil y?))
+  (declare (ignore y))
+  (check-two-arguments y? 'contains? 'complement-set)
   (not (contains? (complement-set-complement cs) x)))
 
 (defmethod arb ((cs complement-set))

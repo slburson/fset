@@ -56,9 +56,10 @@ is a member of the collection."))
 is preferred over `member?'."
   (contains? collection x))
 
-(defgeneric contains? (collection x)
+(defgeneric contains? (collection x &optional y)
   (:documentation
-    "Returns true iff the set or bag contains `x'."))
+    "Returns true iff the set or bag contains `x', or the map or relation contains
+the pair <x, y>."))
 
 (defgeneric domain-contains? (collection x)
   (:documentation
@@ -444,6 +445,19 @@ take additional keyword arguments to further specify the kind of conversion."))
 ;;; that are accepted by some methods of `convert'.
 (declaim (ftype (function (t t &key &allow-other-keys) t) convert))
 
+
+(defmacro check-two-arguments (arg2? op type)
+  `(when ,arg2?
+     (error 'simple-program-error
+	    :format-control "~A on a ~A takes only two arguments"
+	    :format-arguments (list ,op ,type))))
+
+(defmacro check-three-arguments (arg2? op type)
+  `(unless ,arg2?
+     (error 'simple-program-error
+	    :format-control "~A on a ~A takes three arguments"
+	    :format-arguments (list ,op ,type))))
+
 ;;; ================================================================================
 ;;; Iterators
 
@@ -579,6 +593,12 @@ The method for CL sequences copies the sequence first, unlike `cl:stable-sort'."
 
 (defmethod stable-sort ((s sequence) pred &key key)
   (cl:stable-sort (cl:copy-seq s) pred :key key))
+
+(defgeneric sort-and-group (seq pred &key key)
+  (:documentation
+    "Like 'stable-sort', but additionally groups the result, returning a seq of seqs,
+where the elements of each inner seq are equal according to `pred' and, optionally,
+`key'."))
 
 (defgeneric find (item collection &key key test)
   (:documentation
@@ -819,6 +839,9 @@ Also works on an FSet seq."))
 
 (defmethod convert ((to-type (eql 'list)) (ls list) &key)
   ls)
+
+(defmethod convert ((to-type (eql 'vector)) (v vector) &key)
+  v)
 
 (defmethod partition ((pred symbol) (ls list))
   (list-partition (coerce pred 'function) ls))
@@ -1063,7 +1086,9 @@ the default implementation of sets in FSet."
     (if tree (values (WB-Set-Tree-Arb tree) t)
       (values nil nil))))
 
-(defmethod contains? ((s wb-set) x)
+(defmethod contains? ((s wb-set) x &optional (y nil y?))
+  (declare (ignore y))
+  (check-two-arguments y? 'contains? 'wb-set)
   (WB-Set-Tree-Member? (wb-set-contents s) x))
 
 ;;; Note, first value is `t' or `nil'.
@@ -1091,18 +1116,6 @@ the default implementation of sets in FSet."
 (defmethod greatest ((s wb-set))
   (let ((tree (wb-set-contents s)))
     (and tree (values (WB-Set-Tree-Greatest tree) t))))
-
-(defmacro check-two-arguments (arg2? op type)
-  `(when ,arg2?
-     (error 'simple-program-error
-	    :format-control "~A on a ~A takes only two arguments"
-	    :format-arguments (list ,op ,type))))
-
-(defmacro check-three-arguments (arg2? op type)
-  `(unless ,arg2?
-     (error 'simple-program-error
-	    :format-control "~A on a ~A takes three arguments"
-	    :format-arguments (list ,op ,type))))
 
 (defmethod with ((s wb-set) value &optional (arg2 nil arg2?))
   (declare (ignore arg2))
@@ -1486,7 +1499,9 @@ trees.  This is the default implementation of bags in FSet."
 	  (values val mult t))
       (values nil nil nil))))
 
-(defmethod contains? ((b wb-bag) x)
+(defmethod contains? ((b wb-bag) x &optional (y nil y?))
+  (declare (ignore y))
+  (check-two-arguments y? 'contains? 'wb-bag)
   (plusp (WB-Bag-Tree-Multiplicity (wb-bag-contents b) x)))
 
 (defmethod lookup ((b wb-bag) x)
@@ -2008,6 +2023,11 @@ the default implementation of maps in FSet."
 
 (defmethod size ((m wb-map))
   (WB-Map-Tree-Size (wb-map-contents m)))
+
+(defmethod contains? ((m wb-map) x &optional (y nil y?))
+  (check-three-arguments y? 'contains? 'wb-map)
+  (let ((val? val (WB-Map-Tree-Lookup (wb-map-contents m) x)))
+    (and val? (equal? val y))))
 
 (defmethod lookup ((m wb-map) key)
   (let ((val? val (WB-Map-Tree-Lookup (wb-map-contents m) key)))
@@ -2557,8 +2577,10 @@ This is the default implementation of seqs in FSet."
 	((size (WB-Seq-Tree-Size tree))
 	 ((start (max 0 start))
 	  (end (if end (min end size) size)))))
-    (make-wb-seq (WB-Seq-Tree-Subseq tree start end)
-		 (seq-default s))))
+    (if (and (= start 0) (= end size))
+	s
+      (make-wb-seq (WB-Seq-Tree-Subseq tree start end)
+		   (seq-default s)))))
 
 (defmethod reverse ((s wb-seq))
   (make-wb-seq (WB-Seq-Tree-Reverse (wb-seq-contents s))
@@ -2571,6 +2593,23 @@ This is the default implementation of seqs in FSet."
 (defmethod stable-sort ((s wb-seq) pred &key key)
   (with-default (convert 'seq (cl:stable-sort (convert 'vector s) pred :key key))
 		(seq-default s)))
+
+(defmethod sort-and-group ((s seq) pred &key key)
+  (if (empty? s) s
+    (let ((sorted (stable-sort s pred :key key))
+	  (result (seq))
+	  (group (seq)))
+      (do-seq (x sorted)
+	(if (or (empty? group)
+		(not (if key (funcall pred (funcall key (last group))
+				      (funcall key x))
+		       (funcall pred (last group) x))))
+	    (push-last group x)
+	  (progn
+	    (push-last result group)
+	    (setq group (with-first (empty-seq) x)))))
+      ;; 'group' can't be empty if 's' was nonempty.
+      (with-last result group))))
 
 (defmethod domain ((s wb-seq))
   (let ((result nil))
@@ -2866,24 +2905,21 @@ iteration to the index of the current element of `seq'.  When done, returns
 	(let ((key (coerce key 'function)))
 	  (if test
 	      (let ((test (coerce test 'function)))
-		(do-seq (x s :start start :end end :from-end? from-end
-			   :value total)
+		(do-seq (x s :start start :end end :from-end? from-end)
 		  (when (funcall test item (funcall key x))
 		    (incf total))))
-	    (do-seq (x s :start start :end end :from-end? from-end
-		       :value total)
+	    (do-seq (x s :start start :end end :from-end? from-end)
 	      (when (equal? item (funcall key x))
 		(incf total)))))
       (if (and test (not (or (eq test 'equal?) (eq test #'equal?))))
 	  (let ((test (coerce test 'function)))
-	    (do-seq (x s :start start :end end :from-end? from-end
-		       :value total)
+	    (do-seq (x s :start start :end end :from-end? from-end)
 	      (when (funcall test item x)
 		(incf total))))
-	(do-seq (x s :start start :end end :from-end? from-end
-		   :value total)
+	(do-seq (x s :start start :end end :from-end? from-end)
 	  (when (equal? item x)
-	    (incf total)))))))
+	    (incf total)))))
+    total))
 
 (defmethod count-if (pred (s seq) &key key start end from-end)
   (declare (optimize (speed 3) (safety 0)))
@@ -2896,12 +2932,11 @@ iteration to the index of the current element of `seq'.  When done, returns
 	(let ((key (coerce key 'function)))
 	  (do-seq (x s :start start :end end :from-end? from-end)
 	    (when (funcall pred (funcall key x))
-	      (incf n))
-	    n))
+	      (incf n))))
       (do-seq (x s :start start :end end :from-end? from-end)
 	(when (funcall pred x)
-	  (incf n))
-	n))))
+	  (incf n))))
+    n))
 
 (defmethod count-if-not (pred (s seq) &key key start end from-end)
   (declare (optimize (speed 3) (safety 0)))
