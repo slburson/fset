@@ -14,7 +14,7 @@
 (defpackage :fset
   (:use :cl :gmap :new-let :lexical-contexts)
   (:shadowing-import-from :new-let #:let #:cond)
-  (:shadowing-import-from :mt19937 #:make-random-state #:random)
+  (:shadowing-import-from :mt19937 #:make-random-state #:random #:*random-state*)
   ;; For each of these shadowed symbols, using packages must either shadowing-
   ;; import it or shadowing-import the original Lisp symbol.
   (:shadow ;; Shadowed type/constructor names
