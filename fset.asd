@@ -13,7 +13,8 @@
   :description "A functional set-theoretic collections library.
 See: http://www.ergy.com/FSet.html
 "
-  :version "1.3.1"
+  :author "Scott L. Burson <Scott@ergy.com>"
+  :version "1.3.2"
   :licence "LLGPL"
   :depends-on (:misc-extensions :mt19937)
   :serial t
