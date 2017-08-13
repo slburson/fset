@@ -2946,8 +2946,8 @@ iteration to the index of the current element of `seq'.  When done, returns
 
 (defmethod position (item (s seq) &key key test start end from-end)
   (declare (optimize (speed 3) (safety 0)))
-  (let ((pos 0)
-	(start (or start 0))
+  (let ((start (or start 0))
+	((pos start))
 	(end (or end (size s))))
     (declare (fixnum pos))
     (if key
@@ -2976,8 +2976,8 @@ iteration to the index of the current element of `seq'.  When done, returns
 (defmethod position-if (pred (s seq) &key key start end from-end)
   (declare (optimize (speed 3) (safety 0)))
   (let ((pred (coerce pred 'function))
-	(pos 0)
 	(start (or start 0))
+	((pos start))
 	(end (or end (size s))))
     (declare (fixnum pos))
     (if key
