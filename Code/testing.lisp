@@ -370,6 +370,12 @@
 		       ((contains? fs0 r2)
 			(1- (rank fs0 r2))))))
 	(error "Set rank of non-member failed")))
+    (unless (and (= (count-if #'identity fs0)
+                    (size fs0))
+                 (= (count-if #'oddp fs0 :key #'My-Integer-Value)
+                    (cl:count-if #'oddp (convert 'list fs0) :key #'My-Integer-Value))
+                 (zerop (count-if (lambda (x) (declare (ignore x)) nil) fs0)))
+      (error "Set count-if failed"))
     fs0))
 
 
@@ -517,7 +523,13 @@
 		   (do ((r2 r (1+ r2)))
 		       ((contains? fm0 r2)
 			(1- (rank fm0 r2))))))
-	(error "Map rank of non-member failed")))))
+	(error "Map rank of non-member failed")))
+    (unless (and (= (count-if #'identity fm0)
+                    (size fm0))
+                 (= (count-if #'oddp fm0 :key (lambda (k) (@ fm0 k)) )
+                    (cl:count-if #'oddp (convert 'list fm0) :key #'cdr))
+                 (zerop (count-if (lambda (x) (declare (ignore x)) nil) fm0)))
+      (error "Map count-if failed"))))
 
 
 (defun Test-Bag-Operations (i)
@@ -663,6 +675,12 @@
 		       ((contains? fb0 r2)
 			(1- (rank fb0 r2))))))
 	(error "Bag rank of non-member failed")))
+    (unless (and (= (count-if #'identity fb0)
+                    (size fb0))
+                 (= (count-if #'oddp fb0 :key #'My-Integer-Value)
+                    (cl:count-if #'oddp (convert 'list fb0) :key #'My-Integer-Value))
+                 (zerop (count-if (lambda (x) (declare (ignore x)) nil) fb0)))
+      (error "Bag count-if failed"))
     fb0))
 
 
@@ -764,7 +782,13 @@
       (let ((fs0b (less fs0 (random (size fs0)))))
 	(unless (eq (compare fs0a fs0b)
 		    (Seq-Compare (convert 'list fs0a) (convert 'list fs0b)))
-	  (error "Seq compare failed on iteration ~D" i))))))
+	  (error "Seq compare failed on iteration ~D" i))))
+    (unless (and (= (count-if #'identity fs0 :key #'identity)
+                    (size fs0))
+                 (= (count-if #'numberp fs0)
+                    (cl:count-if #'numberp (convert 'list fs0)))
+                 (zerop (count-if (lambda (x) (declare (ignore x)) nil) fs0)))
+      (error "Seq count-if failed"))))
 
 (defun Test-CL-Generic-Sequence-Ops (i fs0 s0 fs1 s1)
   (declare (ignore fs0 s0))		; for now
@@ -1061,4 +1085,3 @@
   (time (dotimes (i n)
 	  (dotimes (j (size seq))
 	    (WB-Seq-Tree-Subscript (wb-seq-contents seq) i)))))
-
