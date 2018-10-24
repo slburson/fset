@@ -16,7 +16,7 @@ See: http://www.ergy.com/FSet.html
   :author "Scott L. Burson <Scott@ergy.com>"
   :version "1.3.2"
   :licence "LLGPL"
-  :depends-on (:misc-extensions :mt19937)
+  :depends-on (:misc-extensions :mt19937 :named-readtables)
   :serial t
   :components
   ((:module "Code"

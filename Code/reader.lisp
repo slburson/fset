@@ -499,3 +499,13 @@ will correctly read structure printed by the FSet print functions.  Returns
   "A copy of the standard readtable with the rereading FSet reader macros
 installed.  This readtable can be used to read structure printed by the FSet
 print functions.")
+
+(named-readtables:defreadtable fset-readtable
+  (:merge :standard)
+  (:dispatch-macro-char #\# #\{ #'|#{-reader|)
+  (:macro-char #\} (get-macro-character #\)) nil)
+  (:dispatch-macro-char #\# #\[ #'|#[-reader|)
+  (:macro-char #\] (get-macro-character #\)) nil)
+  (:dispatch-macro-char #\# #\~ #'|#~-reader|)
+  (:dispatch-macro-char #\# #\$ #'|#$-reader|)
+  (:dispatch-macro-char #\# #\% #'|#%-reader|))
