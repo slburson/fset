@@ -29,6 +29,7 @@ See: http://www.ergy.com/FSet.html
 	     (:file "fset")
 	     (:file "tuples")
 	     (:file "reader")
+             (:file "group")
 	     (:file "testing")
 	     (:file "interval")
 	     (:file "relations")

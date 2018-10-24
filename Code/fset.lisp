@@ -437,7 +437,7 @@ previously uninitialized indices are filled with the seq's default)."))
 ;;; think the calls are easier to read with the type first.  It's also consistent
 ;;; with `cl:concatenate' -- the inconsistency between `coerce' and `concatenate'
 ;;; has long bugged me.
-(defgeneric convert (to-type collection &key)
+(defgeneric convert (to-type collection &key &allow-other-keys)
   (:documentation "Converts the collection to the specified type.  Some methods may
 take additional keyword arguments to further specify the kind of conversion."))
 
@@ -470,7 +470,7 @@ take additional keyword arguments to further specify the kind of conversion."))
 ;;; if you are going for maximum speed, you can just use `:get'; if you know
 ;;; your collection doesn't contain `nil', you can just look at the first value
 ;;; to check termination; if it might contain `nil', you can use the extra value.
-(defgeneric iterator (collection &key)
+(defgeneric iterator (collection &key &allow-other-keys)
   (:documentation
     "Returns an iterator for the collection.  (These are stateful iterators and
 are not thread-safe; if you want a pure iterator, your best bet is to `convert'
@@ -593,12 +593,6 @@ The method for CL sequences copies the sequence first, unlike `cl:stable-sort'."
 
 (defmethod stable-sort ((s sequence) pred &key key)
   (cl:stable-sort (cl:copy-seq s) pred :key key))
-
-(defgeneric sort-and-group (seq pred &key key)
-  (:documentation
-    "Like 'stable-sort', but additionally groups the result, returning a seq of seqs,
-where the elements of each inner seq are equal according to `pred' and, optionally,
-`key'."))
 
 (defgeneric find (item collection &key key test)
   (:documentation
@@ -2593,23 +2587,6 @@ This is the default implementation of seqs in FSet."
 (defmethod stable-sort ((s wb-seq) pred &key key)
   (with-default (convert 'seq (cl:stable-sort (convert 'vector s) pred :key key))
 		(seq-default s)))
-
-(defmethod sort-and-group ((s seq) pred &key key)
-  (if (empty? s) s
-    (let ((sorted (stable-sort s pred :key key))
-	  (result (seq))
-	  (group (seq)))
-      (do-seq (x sorted)
-	(if (or (empty? group)
-		(not (if key (funcall pred (funcall key (last group))
-				      (funcall key x))
-		       (funcall pred (last group) x))))
-	    (push-last group x)
-	  (progn
-	    (push-last result group)
-	    (setq group (with-first (empty-seq) x)))))
-      ;; 'group' can't be empty if 's' was nonempty.
-      (with-last result group))))
 
 (defmethod domain ((s wb-seq))
   (let ((result nil))
