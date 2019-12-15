@@ -254,6 +254,7 @@ However, the implementation tries very hard to prevent this."
 ;;; CL types
 (define-cross-type-compare-methods null)
 (define-cross-type-compare-methods real)
+(define-cross-type-compare-methods complex)
 (define-cross-type-compare-methods character)
 (define-cross-type-compare-methods symbol)
 (define-cross-type-compare-methods string)
@@ -289,6 +290,17 @@ However, the implementation tries very hard to prevent this."
 	;; value (within the precision of the float), or two equal floats
 	;; of different precisions.
 	(t ':unequal)))
+
+
+;;; Complex Numbers
+
+(defmethod compare ((a complex) (b complex))
+  (cond ((< (realpart a) (realpart b)) ':less)
+        ((> (realpart a) (realpart b)) ':greater)
+        ((< (imagpart a) (imagpart b)) ':less)
+        ((> (imagpart a) (imagpart b)) ':greater)
+        ((eql a b) ':equal)
+        (t ':unequal)))
 
 
 ;;; Characters

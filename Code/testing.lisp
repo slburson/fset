@@ -228,7 +228,10 @@
       ;; Good start, but &&& more to do here.
       (test (equal (reduce (lambda (x y) (cons y x)) (seq 3 7 9 13)
 			   :initial-value nil :from-end t :start 1 :end 3)
-		   '(7 9))))))
+		   '(7 9)))
+      (test (eql (lookup (map (#C(5 16) 41) (#C(-4 15) 43) (-8 52) (-9 53) (#C(14 8) 42))
+                         -9)
+                 53)))))
 
 
 (defun Test-Set-Operations (i)
