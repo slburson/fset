@@ -36,3 +36,14 @@ See: http://www.ergy.com/FSet.html
 	     (:file "bounded-sets")
              #+lispworks
              (:file "lispworks-inspect")))))
+
+(asdf:defsystem :Fset/test
+  :description "Test system for FSet"
+  :depends-on (:fset)
+  :components
+  ((:module "Code"
+	    :components ((:file "testing")))))
+
+(defmethod perform ((o test-op) (c (eql (find-system :fset))))
+  (load-system :fset/test)
+  (funcall (intern "RUN-TEST-SUITE" :fset) 1000))
