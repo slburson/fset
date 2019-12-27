@@ -26,9 +26,19 @@
 (def-tuple-key +K8+)
 (def-tuple-key +K9+)
 
+(defclass My-Unhandled-Obj ()
+  ((value :initarg :value :initform nil
+	  :accessor My-Unhandled-Obj-Value))
+  (:documentation "Object on which we have defined no FSET methods."))
+
+(defclass My-Identity-Ordered-Obj (identity-ordering-mixin)
+  ((value :initarg :value :initform nil
+	  :accessor My-Identity-Ordered-Obj-Value))
+  (:documentation "Object that has identity ordering"))
 
 (defun run-test-suite (n-iterations &optional random-seed)
   (Test-Misc)
+  (Test-Compare-Lexicographically)
   (let ((*random-state* (make-random-state random-seed))) ; for repeatability.
     (dotimes (i n-iterations)
       (Test-Map-Operations i (Test-Set-Operations i))
@@ -68,9 +78,62 @@
       (test (less-than? "A" "B"))
       (test (less-than? "x" "12"))
       (test (equal? "This is a text." "This is a text."))
+      (test (less-than? (make-array '(1)
+				    :element-type 'base-char
+				    :initial-element #\A
+				    :adjustable t)
+			"B"))
+      (test (less-than? "A"
+			(make-array '(1)
+				    :element-type 'base-char
+				    :initial-element #\B
+				    :adjustable t)))
+      (test (equal? (make-array '(5)
+				:initial-contents '(#\a #\b #\c #\d #\e)
+				:element-type 'base-char
+				:adjustable t)
+		    "abcde"))
       (test (less-than? "x" #(#\x)))
       (test (less-than? #(1) #(#\y)))
+      (test (let ((v #(1 2))) (equal? v v)))
       (test (equal? #(1 2) #(1 2)))
+      (test (less-than? #(1) #(1 2)))
+      (test (equal? #(1 2) (make-array '(2) :initial-contents '(1 2)
+				       :adjustable t)))
+      (test (equal? (make-array '(2) :initial-contents '(1 2)
+				:adjustable t)
+		    (make-array '(2) :initial-contents '(1 2)
+				:adjustable t)))
+      (test (less-than? (make-array '(1) :initial-contents '(1)
+				    :adjustable t)
+			(make-array '(2) :initial-contents '(1 2)
+				    :adjustable t)))
+      (test (less-than? (make-array '(1) :initial-contents '(1)
+				    :adjustable t)
+			(make-array '(1) :initial-contents '(2)
+				    :adjustable t)))
+      (test (less-than? (make-my-integer 0) ""))
+      (test (less-than? (make-my-integer 0) 0))
+      (test (less-than? (make-my-integer 0) #()))
+      (test (equal? (make-my-integer 0) (make-my-integer 0)))
+      (test (unequal? (make-my-integer 0) (make-my-integer 1)))
+      (test (let ((obj (make-instance 'my-unhandled-obj)))
+	      (equal? obj obj)))
+      (test (unequal? (make-instance 'my-unhandled-obj)
+		      (make-instance 'my-unhandled-obj)))
+      (test (unequal? (make-array '(2 2) :initial-element nil)
+		      (make-array '(2 2) :initial-element nil)))
+      (test (unequal? (make-array '(2 2) :initial-element nil)
+		      #(nil nil nil nil)))
+      (test (unequal? (make-array '(1) :initial-element '#:foo)
+		      (make-array '(1) :initial-element '#:foo)))
+      (test (unequal? (make-array '(1) :initial-element '#:foo)
+		      (make-array '(1) :initial-element '#:foo
+				  :adjustable t)))
+      (test (less-than? (make-instance 'my-identity-ordered-obj)
+			(make-instance 'my-identity-ordered-obj)))
+      (test (let ((obj (make-instance 'my-identity-ordered-obj)))
+	      (equal? obj obj)))
       ;; Anyone hacking the guts of FSet should be sure they understand the next
       ;; two examples.
       (test (unequal? #(1 2) #(1.0 2)))
@@ -80,6 +143,7 @@
       (test (less-than? '(0 1) '(a)))
       (test (unequal? '(1 2) '(1.0 2)))
       (test (less-than? '(1 2) '(1.0 3)))
+      (test (let ((v (vector 1))) (equal? v v)))
       (test (less-than? '(x) (find-package :fset)))
       (test (less-than? (find-package :fset) #p"/"))
       (test (equal? #p"/foo/bar" #p"/foo/bar"))
@@ -230,6 +294,72 @@
 			   :initial-value nil :from-end t :start 1 :end 3)
 		   '(7 9))))))
 
+(defun Test-Compare-Lexicographically ()
+  (macrolet ((test (form)
+	       `(unless ,form
+		  (error "Test failed: ~S" ',form))))
+    (flet ((equal? (a b)
+	     (and (eql (compare-lexicographically a b) :equal)
+		  (eql (compare-lexicographically b a) :equal)))
+	   (less-than? (a b)
+	     (and (eql (compare-lexicographically a b) :less)
+		  (eql (compare-lexicographically b a) :greater)))
+	   (unequal? (a b)
+	     (and (eql (compare-lexicographically a b) :unequal)
+		  (eql (compare-lexicographically b a) :unequal))))
+      (test (equal? "a" "a"))
+      (test (equal? "a" (make-array '(1) :element-type 'base-char
+				    :initial-element #\a)))
+      (test (less-than? "a" "b"))
+      (test (less-than? "a" "ab"))
+      (test (less-than? "ab" "b"))
+
+      (test (equal? "a" (make-array '(1) :element-type 'character
+				 :adjustable t :initial-element #\a)))
+      (test (less-than? "a" (make-array '(1) :element-type 'character
+					:adjustable t :initial-element #\b)))
+      (test (less-than? "a" (make-array '(2) :element-type 'character
+					:adjustable t
+					:initial-contents '(#\a #\b))))
+      (test (less-than? "ab" (make-array '(1) :element-type 'character
+					 :adjustable t :initial-element #\b)))
+
+      (test (equal? nil nil))
+      (test (equal? (list 1) (list 1)))
+      (test (less-than? nil '(1)))
+      (test (less-than? '(1) '(1 2)))
+      (test (less-than? '(1 2) '(3)))
+      (test (less-than? '(1 2) '(1 3)))
+
+      (test (equal? #() #()))
+      (test (equal? (vector) (vector)))
+      (test (equal? (vector 1) (vector 1)))
+      (test (less-than? #() #(1)))
+      (test (less-than? #(1) #(2)))
+      (test (less-than? #(1) #(1 2)))
+      (test (less-than? #(1 2) #(3)))
+      (test (less-than? #(1 2) #(1 3)))
+
+      (test (equal? #() (make-array '(0) :adjustable t)))
+      (test (equal? #(1) (make-array '(1) :adjustable t
+				     :initial-contents '(1))))
+      (test (equal? #(#\a) "a"))
+      (test (equal? "a" #(#\a)))
+      (test (less-than? "a" #(#\a #\b)))
+      (test (less-than? #(#\a) "ab"))
+      (test (less-than? "ab" (make-array '(1) :initial-contents '(#\c))))
+      (test (less-than? "ab" (make-array '(2) :initial-contents '(#\a #\c))))
+
+      (test (unequal? (list (make-instance 'my-unhandled-obj))
+		      (list (make-instance 'my-unhandled-obj))))
+      (test (unequal? (vector (make-instance 'my-unhandled-obj))
+		      (vector (make-instance 'my-unhandled-obj))))
+      (test (unequal?
+	     (make-array '(1)
+			 :initial-element (make-instance 'my-unhandled-obj)
+			 :adjustable t)
+	     (vector (make-instance 'my-unhandled-obj))))
+      )))
 
 (defun Test-Set-Operations (i)
   (declare (optimize (speed 0) (safety 3) (debug 3)))
