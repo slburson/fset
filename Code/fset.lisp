@@ -1408,14 +1408,12 @@ returns `value'."
     (declare (fixnum n))
     (if key
 	(let ((key (coerce key 'function)))
-	  (do-set (x s)
+	  (do-set (x s n)
 	    (when (funcall pred (funcall key x))
-	      (incf n))
-	    n))
-      (do-set (x s)
+	      (incf n))))
+      (do-set (x s n)
 	(when (funcall pred x)
-	  (incf n))
-	n))))
+	  (incf n))))))
 
 (defmethod count-if-not (pred (s set) &key key)
   (declare (optimize (speed 3) (safety 0)))
