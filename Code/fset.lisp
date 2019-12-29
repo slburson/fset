@@ -1684,7 +1684,7 @@ number of times equal to the member's multiplicity.  When done, returns `value'.
     (make-wb-bag result)))
 
 (defmethod filter ((pred set) (b bag))
-  (bag-product (convert pred 'bag) b))
+  (bag-product (convert 'bag pred) b))
 
 (defmethod filter ((pred bag) (b bag))
   (bag-filter pred b))
