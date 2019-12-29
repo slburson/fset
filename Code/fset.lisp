@@ -1882,7 +1882,7 @@ of which may be repeated."
 	    (do-bag-pairs (x n b total)
 	      (when (funcall test item x)
 		(setq total (gen + total n)))))
-	(multiplicity item b)))))
+	(multiplicity b item)))))
 
 (defmethod count-if (pred (b bag) &key key)
   (declare (optimize (speed 3) (safety 0)))
@@ -1890,14 +1890,12 @@ of which may be repeated."
 	(total 0))
     (if key
 	(let ((key (coerce key 'function)))
-	  (do-bag-pairs (x n b nil)
+	  (do-bag-pairs (x n b total)
 	    (when (funcall pred (funcall key x))
-	      (setq total (gen + total n)))
-	    total))
-      (do-bag-pairs (x n b nil)
+	      (setq total (gen + total n)))))
+      (do-bag-pairs (x n b total)
 	(when (funcall pred x)
-	  (setq total (gen + total n)))
-	total))))
+	  (setq total (gen + total n)))))))
 
 (defmethod count-if-not (pred (s bag) &key key)
   (declare (optimize (speed 3) (safety 0)))
