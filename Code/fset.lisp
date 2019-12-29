@@ -1357,7 +1357,7 @@ returns `value'."
 	  (do-set (x s)
 	    (when (funcall test item x)
 	      (return x))))
-      (let ((val? val (lookup item s)))
+      (let ((val? val (lookup s item)))
 	(declare (ignore val?))
 	val))))
 
