@@ -2314,7 +2314,7 @@ returns `value'."
 	  (do-map (x y m nil)
 	    (when (funcall test item x)
 	      (return (values x y)))))
-      (let ((val? val (lookup m item)))
+      (let ((val val? (lookup m item)))
 	(if val? (values item val)
 	  (values nil nil))))))
 
