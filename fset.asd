@@ -46,4 +46,4 @@ See: http://www.ergy.com/FSet.html
 
 (defmethod perform ((o test-op) (c (eql (find-system :fset))))
   (load-system :fset/test)
-  (funcall (intern "RUN-TEST-SUITE" :fset) 1000))
+  (funcall (intern "RUN-TEST-SUITE" :fset) 20))
