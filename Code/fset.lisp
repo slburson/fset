@@ -2196,7 +2196,7 @@ returns `value'."
 					  (let ((val2? val2
 						  (WB-Map-Tree-Lookup tree2 x)))
 					    (if val2? val2 (map-default map2)))))
-		 (let ((new-default new-default?
+		 (let ((new-default? new-default
 			 (WB-Map-Tree-Lookup tree2 (map-default map1))))
 		   (if new-default? new-default (map-default map2))))))
 
