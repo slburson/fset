@@ -2588,23 +2588,6 @@ This is the default implementation of seqs in FSet."
   (with-default (convert 'seq (cl:stable-sort (convert 'vector s) pred :key key))
 		(seq-default s)))
 
-(defmethod sort-and-group ((s seq) pred &key key)
-  (if (empty? s) s
-    (let ((sorted (stable-sort s pred :key key))
-	  (result (seq))
-	  (group (seq)))
-      (do-seq (x sorted)
-	(if (or (empty? group)
-		(not (if key (funcall pred (funcall key (last group))
-				      (funcall key x))
-		       (funcall pred (last group) x))))
-	    (push-last group x)
-	  (progn
-	    (push-last result group)
-	    (setq group (with-first (empty-seq) x)))))
-      ;; 'group' can't be empty if 's' was nonempty.
-      (with-last result group))))
-
 (defmethod domain ((s wb-seq))
   (let ((result nil))
     (dotimes (i (size s))
@@ -2715,6 +2698,23 @@ iteration to the index of the current element of `seq'.  When done, returns
     (Do-WB-Seq-Tree-Members-Gen (x (wb-seq-contents s) start end from-end?
 				     (funcall value-fn))
 	(funcall elt-fn x))))
+
+(defmethod sort-and-group ((s seq) pred &key key)
+  (if (empty? s) s
+    (let ((sorted (stable-sort s pred :key key))
+	  (result (seq))
+	  (group (seq)))
+      (do-seq (x sorted)
+	(if (or (empty? group)
+		(not (if key (funcall pred (funcall key (last group))
+				      (funcall key x))
+		       (funcall pred (last group) x))))
+	    (push-last group x)
+	  (progn
+	    (push-last result group)
+	    (setq group (with-first (empty-seq) x)))))
+      ;; 'group' can't be empty if 's' was nonempty.
+      (with-last result group))))
 
 (defmethod iterator ((s wb-seq) &key)
   (Make-WB-Seq-Tree-Iterator (wb-seq-contents s)))
