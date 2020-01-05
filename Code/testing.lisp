@@ -248,7 +248,6 @@
 	     (s2 (set (cadr objs)))
 	     (s3 (set (caddr objs)))
 	     (s12 (set (car objs) (cadr objs)))
-	     (s13 (set (car objs) (caddr objs)))
 	     (s23 (set (cadr objs) (caddr objs))))
 	(test (subset? s1 s12))
 	(test (subset? s2 s12))
@@ -1282,8 +1281,8 @@
 	     (all (convert 'set objs)))
 	(flet ((%rset ()
 		 (let ((max (random (1+ size))))
-		   (convert 'set (loop for x in objs repeat max when (= (random 2) 0) collect x))))
-	       (%m (s) (image #'my-unhandled-obj-value s)))
+		   (convert 'set (loop for x in objs repeat max
+				    when (= (random 2) 0) collect x)))))
 	  (let* ((o (elt objs (random size)))
 		 (s0 (set o))
 		 (s1 (%rset))
@@ -1320,8 +1319,6 @@
 	    (test (subset? sd1 s1))
 	    (test (subset? sd2 s2))
 	    (test (empty? (intersection sd1 s2)))
-	    (format t "S1 = ~a~%SD1 = ~a~%S2 = ~a~%SD2 = ~a~%"
-		    (%m s1) (%m sd1) (%m s2) (%m sd2))
 	    (test (disjoint? sd1 s2))
 	    (test (empty? (intersection sd2 s1)))
 	    (test (disjoint? sd2 s1))
