@@ -25,6 +25,7 @@ See: http://www.ergy.com/FSet.html
 	    ((:file "defs")
 	     (:file "port")
 	     (:file "macros")
+	     (:file "order-macros")
 	     (:file "order")
 	     (:file "wb-trees")
 	     (:file "reader")
