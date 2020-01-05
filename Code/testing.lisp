@@ -124,6 +124,9 @@
       (test (less-than? "x" #(#\x)))
       (test (less-than? #(1) #(#\y)))
       (test (let ((v #(1 2))) (equal? v v)))
+      (let ((x #(1 2)))
+	(test (equal? x x))
+	(test (not (unequal? x x))))
       (test (equal? #(1 2) #(1 2)))
       (test (less-than? #(1) #(1 2)))
       (test (equal? #(1 2) (make-array '(2) :initial-contents '(1 2)
@@ -178,6 +181,22 @@
       (test (less-than? #p"/foo/bar" #p"/foo/baz"))
       (test (less-than? #p"/bar" #p"/foo/bar"))
       (test (less-than? #p"/" (set)))
+
+      ;; Test subtle code in compare on renamed packages
+      (let ((name1 "FSET-TESTING-PACKAGE-1")
+	    (name2 "FSET-TESTING-PACKAGE-2"))
+	(flet ((%clean ()
+		 (when (find-package name1) (delete-package name1))
+		 (when (find-package name2) (delete-package name2))))
+	  (%clean)
+	  (unwind-protect
+	       (let ((p1 (make-package name1 :use nil)))
+		 (test (not (equal? p1 (find-package :fset))))
+		 (rename-package p1 name2)
+		 (let ((p2 (make-package name1 :use nil)))
+		   (test (unequal? p1 p2))))
+	    (%clean))))
+
       ;; We use `eval' to force the macro to be expanded during the test.
       (test (equal (convert 'list
 			    (eval '(set 1 ($ (set 1 2)) ($ (set 3 4)))))
@@ -305,6 +324,7 @@
       (test (equal? (image #'1+ (set 9 3 17)) (set 4 10 18)))
       (test (equal? (image (map (1 4) (2 8) (3 10) :default 0) (set 1 2 7))
 		    (set 0 4 8)))
+      (test (equal? (image (map (1 2) (3 4)) '(1 2 3)) '(2 nil 4)))
       (test (equal? (image (set 1) (set 1)) (set t)))
       (test (equal? (image (set 1) (set 2)) (set nil)))
       (test (equal? (image (set 1) (set 1 2)) (set nil t)))
@@ -591,6 +611,10 @@
       (test (empty? (empty-map)))
       (test (empty? (empty-map t)))
       (test (not (empty? (map (1 2)))))
+
+      (let ((m (map (1 3) (2 4))))
+	(setf (lookup m 10) 17)
+	(test (equal? m (map (1 3) (2 4) (10 17)))))
 
       (test (equal? (filter #'eql (map (1 2) (2 3) (3 3) (4 5)))
 		    (map (3 3))))
@@ -1000,6 +1024,14 @@
       (test (equal? (image (bag 1 3 3 10) (seq 0 1 2 3 4 5))
 		    (seq nil t nil t nil nil)))
 
+      (with-standard-io-syntax
+	(let ((*package* (find-package :fset))
+	      (*readtable* *fset-readtable*)
+	      (*print-readably* nil))
+	  (test (equal? (prin1-to-string (bag 1)) "#{% 1 %}"))
+	  (test (equal? (prin1-to-string (bag 1 2)) "#{% 1 2 %}"))
+	  (test (equal? (prin1-to-string (bag 1 1)) "#{% (1 2) %}"))))
+
       (test (equal? (reduce #'+ (seq)) 0))
       (test (equal? (reduce '+ (seq)) 0))
       (test (equal? (reduce #'+ (seq 1 2 3) :key #'1+) 9))
@@ -1280,8 +1312,7 @@
 			   (tuple (+K0+ 1))
 			   (bag 1)
 			   (bag 1 2)
-			   ;; Failing on bags with repeated elements:
-			   ;; (bag 1 1)
+			   (bag 1 1)
 			   )
 	 do (let ((str (prin1-to-string x)))
 	      ;; (let ((*print-readably* nil)) (format t "str = ~s~%"str))

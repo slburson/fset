@@ -1767,8 +1767,7 @@ of which may be repeated."
         (pprint-newline :linear stream)
         (incf i)
         (if (> n 1)
-            (progn
-              (write `(,x ,n) :stream stream))
+	    (write (if *print-readably* `(% ,x ,n) `(,x ,n)) :stream stream)
             (write x :stream stream))))))
 
 (def-gmap-arg-type :bag (bag)
