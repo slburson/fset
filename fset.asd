@@ -24,9 +24,11 @@ See: http://www.ergy.com/FSet.html
 	    :components
 	    ((:file "defs")
 	     (:file "port")
+	     (:file "macros")
 	     (:file "order")
 	     (:file "wb-trees")
 	     (:file "reader")
+	     (:file "fset-macros")
 	     (:file "fset")
 	     (:file "tuples")
 	     (:file "testing")
