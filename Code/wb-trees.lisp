@@ -1782,7 +1782,7 @@ true, else false."
   (declare (optimize (speed 3) (safety 0)))
   (if (Equivalent-Set? val1)
       (if (Equivalent-Set? val2)
-	  (dolist (m1 (Equivalent-Set-Members val1) nil)
+	  (dolist (m1 (Equivalent-Set-Members val1) t)
 	    (when (member m1 (Equivalent-Set-Members val2) :test #'equal?)
 	      (return nil)))
 	(not (member val2 (Equivalent-Set-Members val1) :test #'equal?)))

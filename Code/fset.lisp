@@ -129,32 +129,6 @@ that are unequal but equivalent in the collection, an arbitrary order will be
 imposed on them for this purpose; but another collection that is `equal?'
 but not `eq' to this one will in general order them differently."))
 
-(defmacro @ (fn-or-collection &rest args)
-  "A little hack with two purposes: (1) to make it easy to make FSet maps
-behave like Lisp functions in certain contexts; and (2) to somewhat lessen the
-pain of writing higher-order code in a two-namespace Lisp like Common Lisp.
-The idea is that you can write `(@ fn arg)', and if `fn' is a Lisp function,
-it will be funcalled on the argument; otherwise `lookup' (q.v.) will be called
-on `fn' and `arg'.  To allow for `@' to be used in more contexts, it actually
-can take any number of `args', though `lookup' always takes exactly two.  Thus
-you can write `(@ fn arg1 arg2 ...)' when you just want a shorter name for
-`funcall'.  As a matter of style, it is suggested that `@' be used only for
-side-effect-free functions.  Also, though this doc string has spoken only of
-FSet maps, `@' can be used with any type that `lookup' works on.  Can be used
-with `setf', but only on collections, not functions, of course."
-  (if (> (length args) 1)
-      ;; Hmm.  We _could_ listify `args' and use that as the map key.
-      `(funcall ,fn-or-collection . ,args)
-    (let ((fn-var (gensym "FN-")))
-      `(let ((,fn-var ,fn-or-collection))
-	 (if (functionp ,fn-var)
-	     (funcall ,fn-var . ,args)
-	   ;; We do it this way rather than just `(lookup fn-or-collection (car args))'
-	   ;; so that we get the right error when `args' is not of length 1.  If this
-	   ;; doesn't get compiled well everyplace we care about, we could test the
-	   ;; length and issue the error ourselves (if that helps).
-	   (lookup ,fn-var . ,args))))))
-
 (defgeneric with (collection value1 &optional value2)
   (:documentation
     "On a set, adds `value1' to it, returning the updated set.  On a bag, adds
@@ -445,18 +419,6 @@ take additional keyword arguments to further specify the kind of conversion."))
 ;;; that are accepted by some methods of `convert'.
 (declaim (ftype (function (t t &key &allow-other-keys) t) convert))
 
-
-(defmacro check-two-arguments (arg2? op type)
-  `(when ,arg2?
-     (error 'simple-program-error
-	    :format-control "~A on a ~A takes only two arguments"
-	    :format-arguments (list ,op ,type))))
-
-(defmacro check-three-arguments (arg2? op type)
-  `(unless ,arg2?
-     (error 'simple-program-error
-	    :format-control "~A on a ~A takes three arguments"
-	    :format-arguments (list ,op ,type))))
 
 ;;; ================================================================================
 ;;; Iterators
@@ -929,82 +891,6 @@ must be `setf'able itself."
 	       ,val-temp)
 	    `(lookup ,access-form ,key-temp))))
 
-
-;;; `adjoinf' / `removef', which don't form a good pair, are now deprecated
-;;; in favor of `includef' / `excludef'.
-(define-modify-macro adjoinf (&rest item-or-tuple)
-  with
-  "(adjoinf coll . args) --> (setf coll (with coll . args))")
-
-(define-modify-macro removef (&rest item-or-tuple)
-  less
-  "(removef coll . args) --> (setf coll (less coll . args))")
-
-(define-modify-macro includef (&rest item-or-tuple)
-  with
-  "(includef coll . args) --> (setf coll (with coll . args))")
-
-(define-modify-macro excludef (&rest item-or-tuple)
-  less
-  "(excludef coll . args) --> (setf coll (less coll . args))")
-
-(define-modify-macro unionf (set)
-  union)
-
-(define-modify-macro intersectf (set)
-  intersection)
-
-(define-modify-macro imagef (fn)
-  ximage)
-
-(defun ximage (coll fn)
-  (image fn coll))
-
-(define-modify-macro composef (fn)
-  compose)
-
-(define-modify-macro push-first (val)
-  with-first
-  "(push-first seq val) --> (setf seq (with-first seq val))")
-
-(define-modify-macro push-last (val)
-  with-last
-  "(push-last seq val) --> (setf seq (with-last seq val))")
-
-(defmacro pop-first (seq &environment env)
-  "Removes the first element from `seq' and returns it."
-  (let ((vars vals new setter getter (get-setf-expansion seq env)))
-    (unless (= 1 (length new))
-      (error "Nonsensical `~A' form: ~S" 'pop-first `(pop-first ,seq)))
-    `(let* (,@(mapcar #'list vars vals)
-	    (,(car new) ,getter))
-       (prog1
-	 (first ,(car new))
-	 (setq ,(car new) (less-first ,(car new)))
-	 ,setter))))
-
-(defmacro pop-last (seq &environment env)
-  "Removes the last element from `seq' and returns it."
-  (let ((vars vals new setter getter (get-setf-expansion seq env)))
-    (unless (= 1 (length new))
-      (error "Nonsensical `~A' form: ~S" 'pop-last `(pop-last ,seq)))
-    `(let* (,@(mapcar #'list vars vals)
-	    (,(car new) ,getter))
-       (prog1
-	 (last ,(car new))
-	 (setq ,(car new) (less-last ,(car new)))
-	 ,setter))))
-
-(define-modify-macro appendf (seq)
-  concat)
-
-(define-modify-macro prependf (seq)
-  xconcat)
-
-(defun xconcat (seq1 seq2)
-  (concat seq2 seq1))
-
-
 ;;; ================================================================================
 ;;; Functional deep update
 
@@ -1182,15 +1068,6 @@ on no arguments and returns the result(s).  This is called by `do-set' to provid
 for the possibility of different set implementations; it is not for public use.
 `elt-fn' and `value-fn' must be function objects, not symbols."))
 
-(defmacro do-set ((var set &optional value) &body body)
-  "For each member of `set', binds `var' to it and executes `body'.  When done,
-returns `value'."
-  `(block nil		; in case `body' contains `(return ...)'
-     ;; &&& Here and in similar cases below, `dynamic-extent' declarations could
-     ;; be helpful.  (The closures will have to be bound to variables.)
-     (internal-do-set ,set #'(lambda (,var) . ,body)
-			   #'(lambda () ,value))))
-
 (defmethod internal-do-set ((s wb-set) elt-fn value-fn)
   (declare (optimize (speed 3) (safety 0))
 	   (type function elt-fn value-fn))
@@ -1357,7 +1234,7 @@ returns `value'."
 	  (do-set (x s)
 	    (when (funcall test item x)
 	      (return x))))
-      (let ((val? val (lookup item s)))
+      (let ((val? val (lookup s item)))
 	(declare (ignore val?))
 	val))))
 
@@ -1408,14 +1285,12 @@ returns `value'."
     (declare (fixnum n))
     (if key
 	(let ((key (coerce key 'function)))
-	  (do-set (x s)
+	  (do-set (x s n)
 	    (when (funcall pred (funcall key x))
-	      (incf n))
-	    n))
-      (do-set (x s)
+	      (incf n))))
+      (do-set (x s n)
 	(when (funcall pred x)
-	  (incf n))
-	n))))
+	  (incf n))))))
 
 (defmethod count-if-not (pred (s set) &key key)
   (declare (optimize (speed 3) (safety 0)))
@@ -1634,28 +1509,6 @@ result(s).  This is called by `do-bag' to provide for the possibility of
 different bag implementations; it is not for public use.  `elt-fn' and
 `value-fn' must be function objects, not symbols."))
 
-(defmacro do-bag-pairs ((value-var mult-var bag &optional value)
-			&body body)
-  "For each member of `bag', binds `value-var' and `mult-var' to the member and
-its multiplicity respectively, and executes `body'.  When done, returns `value'."
-  `(block nil
-     (internal-do-bag-pairs ,bag #'(lambda (,value-var ,mult-var) . ,body)
-			    #'(lambda () ,value))))
-
-(defmacro do-bag ((value-var bag &optional value)
-		  &body body)
-  "For each member of `bag', binds `value-var' to it and and executes `body' a
-number of times equal to the member's multiplicity.  When done, returns `value'."
-  (let ((mult-var (gensym "MULT-"))
-	(idx-var (gensym "IDX-")))
-    `(block nil
-       (internal-do-bag-pairs ,bag #'(lambda (,value-var ,mult-var)
-				       ;; Seems safe to assume it's a fixnum here.
-				       (declare (type fixnum ,mult-var))
-				       (dotimes (,idx-var ,mult-var)
-					 (declare (type fixnum ,idx-var))
-					 . ,body))
-			      #'(lambda () ,value)))))
 
 (defmethod internal-do-bag-pairs ((b wb-bag) elt-fn value-fn)
   (declare (optimize (speed 3) (safety 0))
@@ -1686,7 +1539,7 @@ number of times equal to the member's multiplicity.  When done, returns `value'.
     (make-wb-bag result)))
 
 (defmethod filter ((pred set) (b bag))
-  (bag-product (convert pred 'bag) b))
+  (bag-product (convert 'bag pred) b))
 
 (defmethod filter ((pred bag) (b bag))
   (bag-filter pred b))
@@ -1884,7 +1737,7 @@ of which may be repeated."
 	    (do-bag-pairs (x n b total)
 	      (when (funcall test item x)
 		(setq total (gen + total n)))))
-	(multiplicity item b)))))
+	(multiplicity b item)))))
 
 (defmethod count-if (pred (b bag) &key key)
   (declare (optimize (speed 3) (safety 0)))
@@ -1892,14 +1745,12 @@ of which may be repeated."
 	(total 0))
     (if key
 	(let ((key (coerce key 'function)))
-	  (do-bag-pairs (x n b nil)
+	  (do-bag-pairs (x n b total)
 	    (when (funcall pred (funcall key x))
-	      (setq total (gen + total n)))
-	    total))
-      (do-bag-pairs (x n b nil)
+	      (setq total (gen + total n)))))
+      (do-bag-pairs (x n b total)
 	(when (funcall pred x)
-	  (setq total (gen + total n)))
-	total))))
+	  (setq total (gen + total n)))))))
 
 (defmethod count-if-not (pred (s bag) &key key)
   (declare (optimize (speed 3) (safety 0)))
@@ -1916,8 +1767,7 @@ of which may be repeated."
         (pprint-newline :linear stream)
         (incf i)
         (if (> n 1)
-            (progn
-              (write `(,x ,n) :stream stream))
+	    (write (if *print-readably* `(% ,x ,n) `(,x ,n)) :stream stream)
             (write x :stream stream))))))
 
 (def-gmap-arg-type :bag (bag)
@@ -2072,25 +1922,6 @@ calls `value-fn' on no arguments and returns the result(s).  This is called by
 is not for public use.  `elt-fn' and `value-fn' must be function objects, not
 symbols."))
 
-(defmacro do-map ((key-var value-var map &optional value) &body body)
-  "For each pair of `map', binds `key-var' and `value-var' and executes `body'.
-When done, returns `value'."
-  `(block nil
-     (internal-do-map ,map
-		      #'(lambda (,key-var ,value-var) . ,body)
-		      #'(lambda () ,value))))
-
-(defmacro do-map-domain ((key-var map &optional value) &body body)
-  "For each pair of `map', binds `key-var' and executes `body'.  When done,
-returns `value'."
-  (let ((value-var (gensym "VAL-")))
-    `(block nil
-       (internal-do-map ,map
-			#'(lambda (,key-var ,value-var)
-			    (declare (ignore ,value-var))
-			    . ,body)
-			#'(lambda () ,value)))))
-
 (defmethod internal-do-map ((m wb-map) elt-fn value-fn)
   (declare (optimize (speed 3) (safety 0))
 	   (type function elt-fn value-fn))
@@ -2200,7 +2031,7 @@ returns `value'."
 					  (let ((val2? val2
 						  (WB-Map-Tree-Lookup tree2 x)))
 					    (if val2? val2 (map-default map2)))))
-		 (let ((new-default new-default?
+		 (let ((new-default? new-default
 			 (WB-Map-Tree-Lookup tree2 (map-default map1))))
 		   (if new-default? new-default (map-default map2))))))
 
@@ -2318,7 +2149,7 @@ returns `value'."
 	  (do-map (x y m nil)
 	    (when (funcall test item x)
 	      (return (values x y)))))
-      (let ((val? val (lookup m item)))
+      (let ((val val? (lookup m item)))
 	(if val? (values item val)
 	  (values nil nil))))))
 
@@ -2373,16 +2204,14 @@ returns `value'."
     (declare (fixnum n))
     (if key
 	(let ((key (coerce key 'function)))
-	  (do-map (x y m)
+	  (do-map (x y m n)
 	    (declare (ignore y))
 	    (when (funcall pred (funcall key x))
-	      (incf n))
-	    n))
-      (do-map (x y m)
+	      (incf n))))
+      (do-map (x y m n)
 	(declare (ignore y))
 	(when (funcall pred x)
-	  (incf n))
-	n))))
+	  (incf n))))))
 
 (defmethod count-if-not (pred (m map) &key key)
   (declare (optimize (speed 3) (safety 0)))
@@ -2594,23 +2423,6 @@ This is the default implementation of seqs in FSet."
   (with-default (convert 'seq (cl:stable-sort (convert 'vector s) pred :key key))
 		(seq-default s)))
 
-(defmethod sort-and-group ((s seq) pred &key key)
-  (if (empty? s) s
-    (let ((sorted (stable-sort s pred :key key))
-	  (result (seq))
-	  (group (seq)))
-      (do-seq (x sorted)
-	(if (or (empty? group)
-		(not (if key (funcall pred (funcall key (last group))
-				      (funcall key x))
-		       (funcall pred (last group) x))))
-	    (push-last group x)
-	  (progn
-	    (push-last result group)
-	    (setq group (with-first (empty-seq) x)))))
-      ;; 'group' can't be empty if 's' was nonempty.
-      (with-last result group))))
-
 (defmethod domain ((s wb-seq))
   (let ((result nil))
     (dotimes (i (size s))
@@ -2684,23 +2496,6 @@ by `do-seq' to provide for the possibility of different seq implementations;
 it is not for public use.  `elt-fn' and `value-fn' must be function objects,
 not symbols."))
 
-(defmacro do-seq ((var seq
-		   &key (start nil start?) (end nil end?) (from-end? nil from-end??)
-		   (index nil index?) (value nil))
-		  &body body)
-  "For each element of `seq', possibly restricted by `start' and `end', and in
-reverse order if `from-end?' is true, binds `var' to it and executes `body'.
-If `index' is supplied, it names a variable that will be bound at each
-iteration to the index of the current element of `seq'.  When done, returns
-`value'."
-  `(block nil
-     (internal-do-seq ,seq
-		      #'(lambda (,var . ,(and index? `(,index))) . ,body)
-		      #'(lambda () ,value)
-		      ,index?
-		      ,@(and start? `(:start ,start))
-		      ,@(and end? `(:end ,end))
-		      ,@(and from-end?? `(:from-end? ,from-end?)))))
 
 (defmethod internal-do-seq ((s wb-seq) elt-fn value-fn index?
 			    &key (start 0)
@@ -2721,6 +2516,23 @@ iteration to the index of the current element of `seq'.  When done, returns
     (Do-WB-Seq-Tree-Members-Gen (x (wb-seq-contents s) start end from-end?
 				     (funcall value-fn))
 	(funcall elt-fn x))))
+
+(defmethod sort-and-group ((s seq) pred &key key)
+  (if (empty? s) s
+    (let ((sorted (stable-sort s pred :key key))
+	  (result (seq))
+	  (group (seq)))
+      (do-seq (x sorted)
+	(if (or (empty? group)
+		(not (if key (funcall pred (funcall key (last group))
+				      (funcall key x))
+		       (funcall pred (last group) x))))
+	    (push-last group x)
+	  (progn
+	    (push-last result group)
+	    (setq group (with-first (empty-seq) x)))))
+      ;; 'group' can't be empty if 's' was nonempty.
+      (with-last result group))))
 
 (defmethod iterator ((s wb-seq) &key)
   (Make-WB-Seq-Tree-Iterator (wb-seq-contents s)))
@@ -2950,28 +2762,29 @@ iteration to the index of the current element of `seq'.  When done, returns
 	((pos start))
 	(end (or end (size s))))
     (declare (fixnum pos))
-    (if key
-	(let ((key (coerce key 'function)))
-	  (if test
+    (macrolet ((done () '(return (if from-end (- end pos 1) pos))))
+      (if key
+	  (let ((key (coerce key 'function)))
+	    (if test
+		(let ((test (coerce test 'function)))
+		  (do-seq (x s :start start :end end :from-end? from-end)
+		    (when (funcall test item (funcall key x))
+		      (done))
+		    (incf pos)))
+		(do-seq (x s :start start :end end :from-end? from-end)
+		  (when (equal? item (funcall key x))
+		    (done))
+		  (incf pos))))
+	  (if (and test (not (or (eq test 'equal?) (eq test #'equal?))))
 	      (let ((test (coerce test 'function)))
 		(do-seq (x s :start start :end end :from-end? from-end)
-		  (when (funcall test item (funcall key x))
-		    (return pos))
+		  (when (funcall test item x)
+		    (done))
 		  (incf pos)))
-	    (do-seq (x s :start start :end end :from-end? from-end)
-	      (when (equal? item (funcall key x))
-		(return pos))
-	      (incf pos))))
-      (if (and test (not (or (eq test 'equal?) (eq test #'equal?))))
-	  (let ((test (coerce test 'function)))
-	    (do-seq (x s :start start :end end :from-end? from-end)
-	      (when (funcall test item x)
-		(return pos))
-	      (incf pos)))
-	(do-seq (x s :start start :end end :from-end? from-end)
-	  (when (equal? item x)
-	    (return pos))
-	  (incf pos))))))
+	      (do-seq (x s :start start :end end :from-end? from-end)
+		(when (equal? item x)
+		  (done))
+		(incf pos)))))))
 
 (defmethod position-if (pred (s seq) &key key start end from-end)
   (declare (optimize (speed 3) (safety 0)))
@@ -2980,16 +2793,17 @@ iteration to the index of the current element of `seq'.  When done, returns
 	((pos start))
 	(end (or end (size s))))
     (declare (fixnum pos))
-    (if key
-	(let ((key (coerce key 'function)))
+    (macrolet ((done () '(return (if from-end (- end pos 1) pos))))
+      (if key
+	  (let ((key (coerce key 'function)))
+	    (do-seq (x s :start start :end end :from-end? from-end)
+	      (when (funcall pred (funcall key x))
+		(done))
+	      (incf pos)))
 	  (do-seq (x s :start start :end end :from-end? from-end)
-	    (when (funcall pred (funcall key x))
-	      (return pos))
-	    (incf pos)))
-      (do-seq (x s :start start :end end :from-end? from-end)
-	(when (funcall pred x)
-	  (return pos))
-	(incf pos)))))
+	    (when (funcall pred x)
+	      (done))
+	    (incf pos))))))
 
 (defmethod position-if-not (pred (s seq) &key key start end from-end)
   (declare (optimize (speed 3) (safety 0)))
