@@ -22,7 +22,7 @@
 (def-tuple-key +K4+)
 (def-tuple-key +K5+)
 (def-tuple-key +K6+)
-	
+
 
 (def-tuple-key +K7+)
 (def-tuple-key +K8+)
@@ -59,7 +59,7 @@
 	   (apply #'sb-sequence:make-sequence-like (my-sequence-actual obj) len args)))
       (make-instance 'my-sequence :actual new-contents)))
   )
-   
+
 (defun run-test-suite (n-iterations &optional random-seed)
   (Test-Misc)
   (Test-Reader)
@@ -67,6 +67,7 @@
   (Test-Compare-Lexicographically)
   (Test-Modify-Macros)
   (Test-Functional-Deep-Update)
+  (Test-Bounded-Sets)
   (let ((*random-state* (make-random-state random-seed))) ; for repeatability.
     (dotimes (i n-iterations)
       (Test-Map-Operations i (Test-Set-Operations i))
@@ -257,7 +258,7 @@
       (test (equal? (restrict-not (tuple (+K0+ 1)) (set)) (tuple (+K0+ 1))))
       (test (equal? (restrict-not (tuple (+K0+ 1) (+K1+ 2) (+K3+ 5)) (set +K1+))
 		    (tuple (+K0+ 1) (+K3+ 5))))
-      
+
       (test (empty? (set)))
       (test (empty? (map)))
       (test (empty? (bag)))
@@ -825,7 +826,7 @@
 				   (if (eql v :get) (list x y) (not (not x)))))
 			       '(:done? :more? :get :done? :more? :get :done? :more? :get))
 		       '(nil t (#\a t) nil t (#\b t) t nil (nil nil))))))
-      
+
       (test (equal (find-if #'evenp '(1 2 3)) 2))
       (test (equal (find-if-not #'evenp '(1 2 3)) 1))
       (test (equal (count 1 '(1 2 3 1 4 2 1 0)) 3))
@@ -990,7 +991,7 @@
       (test (not (domain-contains? (seq 1) 'x)))
 
       (test (not (range-contains? (seq) 0)))
-      (test (range-contains? (seq 'a) 'a))      
+      (test (range-contains? (seq 'a) 'a))
       (test (range-contains? (seq 'a 'b 'c) 'b))
       (test (not (range-contains? (seq 'a 'b 'c) 'd)))
 
@@ -1147,7 +1148,7 @@
 	(test (equal? (size (make-instance 'my-sequence)) 0))
 	(test (equal? (lookup (make-instance 'my-sequence :actual '(a b c)) 1) 'b))
 	)
-      
+
       (test (= (size (empty-set)) 0))
       (locally (declare (notinline empty-set))
 	(test (= (size (empty-set)) 0)))
@@ -1270,7 +1271,7 @@
 		       (read-from-string str)
 		     (error () (return t)))
 		   (error "Reading ~s did not cause an error" str))))))
-		     
+
       (test "#[1]" (seq 1))
       (error-test "#[")
       (let ((x (seq 3 4)))
@@ -2321,6 +2322,164 @@
       (intersection s0 s1)
       (set-difference s0 s1))))
 
+(defun Test-Bounded-Sets ()
+  "Simple tests on the Bounded Sets operations"
+  (macrolet ((test (form)
+               `(unless ,form
+                  (error "Test failed: ~S" ',form))))
+    (let ((u (convert 'set (loop for i from 1 to 10 collect i))))
+      (test (equal? (make-bounded-set u (set 1 2)) (set 1 2)))
+      (test (equal? (make-bounded-set u (set 1 2 3 4 5 6)) (set 1 2 3 4 5 6)))
+      (test (equal? (complement (make-bounded-set u (set 1 3 5 7)))
+                    (set 2 4 6 8 9 10)))
+      (test (equal? (make-bounded-set u (set 1 3 5 7) t)
+                    (set 2 4 6 8 9 10)))
+      (test (equal? (make-bounded-set u (set 1 3 5 7 9 10) t)
+                    (set 2 4 6 8)))
+      (test (equal? (complement (complement (make-bounded-set u (set 3 9 2 1))))
+                    (set 1 2 3 9)))
+      (test (equal? (complement (make-bounded-set u (set 3 9 2 1) t))
+                    (set 1 2 3 9)))
+      (test (empty? (make-bounded-set (set) (set))))
+      (test (empty? (make-bounded-set u (set))))
+      (test (handler-case (progn (make-bounded-set u (set 11)) nil)
+              (error () t)))
+
+      (test (contains? (make-bounded-set u (set 1 2 3)) 1))
+      (test (not (contains? (make-bounded-set u (set 1 2 3)) 4)))
+      (test (not (contains? (make-bounded-set u (set 1 2 3) t) 1)))
+      (test (contains? (make-bounded-set u (set 1 2 3) t) 4))
+
+      (test (member (arb (make-bounded-set u (set 1 2 3))) '(1 2 3)))
+      (test (member (arb (make-bounded-set u (set 1 2 3) t)) '(4 5 6 7 8 9 10)))
+
+      (test (eql (size (make-bounded-set (set) (set))) 0))
+      (test (eql (size (make-bounded-set u (set))) 0))
+      (test (eql (size (make-bounded-set u (set 1 2 3))) 3))
+      (test (eql (size (make-bounded-set u (set) t)) 10))
+      (test (eql (size (make-bounded-set u (set 1 2 3) t)) 7))
+
+      (test (equal? (make-bounded-set u (set 1))
+                    (with (make-bounded-set u (set)) 1)))
+      (test (equal? (with (make-bounded-set u (set 1 2 3) t) 2)
+                    (make-bounded-set u (set 1 3) t)))
+      (test (handler-case
+                (progn (with (make-bounded-set u (set)) 11) nil)
+              (error () t)))
+
+      (test (equal? (less (make-bounded-set u (set 1 2 3)) 2)
+                    (set 1 3)))
+      (test (equal? (less (make-bounded-set u (set 1 2 3) t) 2)
+                    (set 4 5 6 7 8 9 10)))
+      (test (equal? (less (make-bounded-set u (set 1 2 3)) 4)
+                    (set 1 2 3)))
+      (test (equal? (less (make-bounded-set u (set 1 2 3) t) 4)
+                    (set 5 6 7 8 9 10)))
+      (test (handler-case
+                (progn (less (make-bounded-set u (set)) 11) nil)
+              (error () t)))
+
+      (test (equal? (union (make-bounded-set u (set 1 5))
+                           (make-bounded-set u (set 2 8 9)))
+                    (set 1 2 5 8 9)))
+      (test (equal? (union (make-bounded-set u (set 1 5))
+                           (make-bounded-set u (set 2 8 9) t))
+                    (set 1 3 4 5 6 7 10)))
+      (test (equal? (union (make-bounded-set u (set 1 5) t)
+                           (make-bounded-set u (set 2 8 9)))
+                    (set 2 3 4 6 7 8 9 10)))
+      (test (equal? (union (make-bounded-set u (set 1 4 5 9) t)
+                           (make-bounded-set u (set 2 4 8 9) t))
+                    (set 1 2 3 5 6 7 8 10)))
+      (test (handler-case (progn
+                            (union (make-bounded-set (set 1 2 3) (set 1))
+                                   (make-bounded-set (set 1 2 3 4) (set 2)))
+                            nil)
+              (error () t)))
+
+      (test (equal? (intersection (make-bounded-set u (set 1 3 5 7 8 10))
+                                  (make-bounded-set u (set 2 5 7 9 10)))
+                    (set 5 7 10)))
+      (test (equal? (intersection (make-bounded-set u (set 1 3 5 7 8 10) t)
+                                  (make-bounded-set u (set 2 5 7 9 10)))
+                    (set 2 9)))
+      (test (equal? (intersection (make-bounded-set u (set 1 3 8 10) t)
+                                  (make-bounded-set u (set 2 5 7 9 10)))
+                    (set 2 5 7 9)))
+      (test (equal? (intersection (make-bounded-set u (set 1 3 5 7 8 10))
+                                  (make-bounded-set u (set 2 5 7 9 10) t))
+                    (set 1 3 8)))
+      (test (equal? (intersection (make-bounded-set u (set 1 3 5 7 8 10))
+                                  (make-bounded-set u (set 2 5 7 9) t))
+                    (set 1 3 8 10)))
+      (test (equal? (intersection (make-bounded-set u (set 1 3 5 7))
+                                  (make-bounded-set u (set 2 5 7 9) t))
+                    (set 1 3)))
+      (test (equal? (intersection (make-bounded-set u (set 1 3 5 7 8 10) t)
+                                  (make-bounded-set u (set 2 5 7 9 10) t))
+                    (set 4 6)))
+      (test (equal? (intersection (make-bounded-set u (set 1 3 8 10) t)
+                                  (make-bounded-set u (set 2 5 7 9) t))
+                    (set 4 6)))
+      (test (handler-case
+                (progn
+                  (intersection (make-bounded-set (set 1 2 3) (set 1))
+                                (make-bounded-set (set 1 2 3 4) (set 2)))
+                  nil)
+              (error () t)))
+
+      (test (equal? (set-difference (make-bounded-set u (set 1 2 3 4 5))
+                                    (make-bounded-set u (set 2 5)))
+                    (set 1 3 4)))
+      (test (equal? (set-difference (make-bounded-set u (set 1 2 3 4 5))
+                                    (make-bounded-set u (set 2 5) t))
+                    (set 2 5)))
+      (test (equal? (set-difference (make-bounded-set u (set 1 2 3 4) t)
+                                    (make-bounded-set u (set 2 5)))
+                    (set 6 7 8 9 10)))
+      (test (equal? (set-difference (make-bounded-set u (set 1 2 3 4) t)
+                                    (make-bounded-set u (set 2 5) t))
+                    (set 5)))
+      (test (handler-case
+                (progn
+                  (set-difference (make-bounded-set (set 1 2 3) (set 1))
+                                  (make-bounded-set (set 1 2 3 4) (set 2)))
+                  nil)
+              (error () t)))
+
+      (test (subset? (make-bounded-set u (set 1 2 3))
+                     (make-bounded-set u (set 1 2 3 4 5))))
+      (test (not (subset? (make-bounded-set u (set 1 2 3) t)
+                          (make-bounded-set u (set 1 2 3 4 5)))))
+      (test (subset? (make-bounded-set u (set 1 2 3) t)
+                     (make-bounded-set u (set 1 2) t)))
+      (test (not (subset? (make-bounded-set u (set 1))
+                          (make-bounded-set u (set 1 2) t))))
+      (test (handler-case
+                (progn
+                  (subset? (make-bounded-set (set 1 2 3) (set 1))
+                           (make-bounded-set (set 1 2 3 4) (set 2)))
+                  nil)
+              (error () t)))
+
+      (test (disjoint? (make-bounded-set u (set)) (make-bounded-set u u)))
+      (test (not (disjoint? (make-bounded-set u (set 1))
+                            (make-bounded-set u u))))
+      (test (disjoint? (make-bounded-set u (set 1))
+                       (make-bounded-set u (set 1) t)))
+      (test (disjoint? (make-bounded-set u (set 1))
+                       (make-bounded-set u (set 1 2 3 4 5 6) t)))
+      (test (disjoint? (make-bounded-set u (set 1) t)
+                       (make-bounded-set u (set 1))))
+      (test (not (disjoint? (make-bounded-set u (set 1) t)
+                            (make-bounded-set u (set 1) t))))
+      (test (handler-case
+                (progn
+                  (disjoint? (make-bounded-set (set 1 2 3) (set 1))
+                             (make-bounded-set (set 1 2 3 4) (set 2)))
+                  nil)
+              (error () t)))
+      )))
 
 ;;; Internal.
 (defgeneric verify (coll))
