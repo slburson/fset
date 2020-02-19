@@ -65,7 +65,7 @@ constructed."
   (let ((tree (wb-2-relation-map0 br)))
     (if tree
 	(let ((key val (WB-Map-Tree-Arb-Pair tree)))
-	  (values key (WB-Set-Tree-Arb val)) t)
+	  (values key (WB-Set-Tree-Arb val) t))
       (values nil nil nil))))
 
 (defmethod contains? ((br wb-2-relation) x &optional (y nil y?))
@@ -215,8 +215,8 @@ constructed."
   (let ((new-size 0)
 	((new-map0 (WB-Map-Tree-Intersect (wb-2-relation-map0 br1)
 					  (wb-2-relation-map0 br2)
-					  (lambda (ignore s1 s2)
-					    (declare (ignore ignore))
+					  (lambda (s1 s2)
+					    ;; (declare (ignore ignore))
 					    (let ((s (WB-Set-Tree-Intersect s1 s2)))
 					      (incf new-size (WB-Set-Tree-Size s))
 					      s))))
