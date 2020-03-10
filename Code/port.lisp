@@ -113,6 +113,20 @@
     '(sb-thread:with-mutex (*Memory-Barrier-Lock*)
        nil)))
 
+#+(and clasp threads)
+(progn
+  (defun make-lock (&optional name)
+    (mp:make-lock :name (or name :anonymous)))
+  (defmacro with-lock ((lock &key (wait? t)) &body body)
+    (declare (ignore wait?))
+    `(mp:with-lock (,lock) ,@body))
+  (defvar *Memory-Barrier-Lock*
+    (mp:make-lock :name "Memory Barrier Lock"))
+  (defmacro read-memory-barrier ()
+    '(mp:with-lock (*Memory-Barrier-Lock*) nil))
+  (defmacro write-memory-barrier ()
+    '(mp:with-lock (*Memory-Barrier-Lock*) nil))
+  )
 
 #+scl
 (progn
@@ -314,6 +328,9 @@
   (declare (ignore bits))
   (code-char code))
 
+#+clasp
+(defun make-char (code bits)
+  (code-char (+ code (ash bits 8))))
 
 ;;; I'm one of these weird people who detests `loop' (except in its CLtL1 form).
 (defmacro while (pred &body body)
