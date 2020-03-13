@@ -33,13 +33,13 @@ with `setf', but only on collections, not functions, of course."
   `(when ,arg2?
      (error 'simple-program-error
 	    :format-control "~A on a ~A takes only two arguments"
-	    :format-arguments (list ,op ,type))))
+	    :format-arguments (list ,(copy-tree op) ,(copy-tree type)))))
 
 (defmacro check-three-arguments (arg2? op type)
   `(unless ,arg2?
      (error 'simple-program-error
 	    :format-control "~A on a ~A takes three arguments"
-	    :format-arguments (list ,op ,type))))
+	    :format-arguments (list ,(copy-tree op) ,(copy-tree type)))))
 
 (defmacro do-set ((var set &optional value) &body body)
   "For each member of `set', binds `var' to it and executes `body'.  When done,
