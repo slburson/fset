@@ -40,7 +40,7 @@
 
 #+sbcl
 (progn
-  (defclass my-sequence (sequence)
+  (defclass my-sequence (standard-object sequence)
     ((actual :type list :initarg :actual :initform nil
 	     :accessor my-sequence-actual))
     (:documentation "An example of an SBCL user-defined sequence class"))
