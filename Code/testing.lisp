@@ -512,6 +512,9 @@
 		    (bag 1 1 1 3)))
       (test (equal? (filter (bag 1 1 3) (bag 0 1 1 1 2 3 4 4 4 5))
 		    (bag 1 1 1 3)))
+      (test (equal? (filter #'evenp '(1 2 3 4)) '(2 4)))
+      (test (equal? (filter #'zerop #*01101110) #*000))
+      (test (equal? (filter #'symbolp #(:a 1 :b (:x) 10.0)) #(:a :b)))
 
       (let ((e (lambda (x c) (declare (ignore c)) (evenp x))))
 	(test (equal? (filter-pairs e (bag)) (bag)))
