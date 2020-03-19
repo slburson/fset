@@ -208,6 +208,9 @@ and the value (the map-default of the result is that of `collection').  As well
 as a Lisp function, `fn' can be a map, or a set (which is treated as mapping
 its members to true and everything else to false)."))
 
+(defmethod filter (fn (s sequence))
+  (cl:remove-if-not fn s))
+
 (defgeneric partition (pred collection)
   (:documentation
     "Returns two values, (filter fn collection) and
