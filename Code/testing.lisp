@@ -360,6 +360,11 @@
       (test (equal? (convert 'wb-set (vector 3 10 4 20 7)) (wb-set 3 4 7 10 20)))
       (test (equal? (convert 'set '(1 1)) (set 1)))
 
+      (test (handler-case (progn (convert 'bag '((1 . 0)) :from-type 'alist) nil)
+              (simple-type-error (e) e)))
+      (test (handler-case (progn (convert 'bag '((1 . :x)) :from-type 'alist) nil)
+              (simple-type-error (e) e)))
+
       (dolist (n '(0 2 5 7 10))
 	(let* ((vals (loop for i from 1 to n collect i))
 	       #+sbcl
@@ -644,9 +649,16 @@
 			   :key (lambda (x y) (declare (ignore x)) (values 0 y))
 			   :initial-value 1)
 		   21))
+      (test (handler-case (progn (reduce #'cons (map (1 2) (2 4))) nil)
+              (simple-program-error (e) e)))
       (test (equal? (range (map (1 3) (2 12))) (set 3 12)))
       (test (range-contains? (map (4 8) (3 12) (6 7)) 7))
       (test (not (range-contains? (map (4 8) (3 12) (6 7)) 4)))
+
+      (test (contains? (map (1 2)) 1 2))
+      (test (not (contains? (map (1 2)) 1 3)))
+      (test (not (contains? (map (1 2)) 1 nil)))
+      (test (not (contains? (map (1 2)) 2 2)))
 
       (test (equal? (compose (map (1 2)) (map (2 3)))
 		    (map (1 3))))
@@ -1247,6 +1259,18 @@
 	      (and (= rank -1) (not val?))))
       (test (eql (at-rank (set 4 8 2 3 6) 3) 6))
       (test (eql (at-rank (bag 4 8 2 4 3 2 6) 3) 6))
+      (test (handler-case (progn (at-rank (set 0) -1) nil)
+              (simple-type-error (e) e)))
+      (test (handler-case (progn (at-rank (set 0) 1) nil)
+              (simple-type-error (e) e)))
+      (test (handler-case (progn (at-rank (bag 0) -1) nil)
+              (simple-type-error (e) e)))
+      (test (handler-case (progn (at-rank (bag 0) 1) nil)
+              (simple-type-error (e) e)))
+      (test (handler-case (progn (at-rank (map (1 3) (2 10)) -1) nil)
+              (simple-type-error (e) e)))
+      (test (handler-case (progn (at-rank (map (1 3) (2 10)) 2) nil)
+              (simple-type-error (e) e)))
       (test (let ((key val (at-rank (map ('a 3) ('d 7) ('c 3) ('g 1) ('e 6)) 3)))
 	      (and (eq key 'e) (eql val 6))))
       ;; Good start, but &&& more to do here.
