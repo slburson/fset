@@ -2958,7 +2958,7 @@ not symbols."))
   (length s))
 
 (defmethod lookup ((s sequence) (idx integer))
-  (elt s idx))
+  (values (elt s idx) t))
 
 
 ;;; ================================================================================
