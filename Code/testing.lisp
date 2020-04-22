@@ -652,13 +652,16 @@
       (test (handler-case (progn (reduce #'cons (map (1 2) (2 4))) nil)
               (simple-program-error (e) e)))
       (test (equal? (range (map (1 3) (2 12))) (set 3 12)))
-      (test (range-contains? (map (4 8) (3 12) (6 7)) 7))
+      (test (eql (range-contains? (map (4 8) (3 12) (6 7)) 7) t))
       (test (not (range-contains? (map (4 8) (3 12) (6 7)) 4)))
 
       (test (contains? (map (1 2)) 1 2))
       (test (not (contains? (map (1 2)) 1 3)))
-      (test (not (contains? (map (1 2)) 1 nil)))
+      (test (contains? (map (1 nil)) 1 nil))
+      (test (not (contains? (map (2 3)) 1 nil)))
       (test (not (contains? (map (1 2)) 2 2)))
+      (test (handler-case (progn (contains? (map (1 2)) 1) nil)
+              (simple-program-error () t)))
 
       (test (equal? (compose (map (1 2)) (map (2 3)))
 		    (map (1 3))))
@@ -1003,13 +1006,14 @@
       (test (equal? (convert 'wb-seq (map (1 2))) (wb-seq '(1 . 2))))
 
       (test (domain-contains? (seq 1) 0))
+      (test (not (domain-contains? (seq 1) 1)))
       (test (not (domain-contains? (seq 1) -1)))
       (test (not (domain-contains? (seq 1) 2)))
       (test (not (domain-contains? (seq 1) 'x)))
 
       (test (not (range-contains? (seq) 0)))
-      (test (range-contains? (seq 'a) 'a))
-      (test (range-contains? (seq 'a 'b 'c) 'b))
+      (test (eql (range-contains? (seq 'a) 'a) t))
+      (test (eql (range-contains? (seq 'a 'b 'c) 'b) t))
       (test (not (range-contains? (seq 'a 'b 'c) 'd)))
 
       (test (equal? (filter #'evenp (seq 1 2 3 4 5)) (seq 2 4)))
@@ -1162,6 +1166,7 @@
       #+sbcl
       (progn
 	(test (empty? (make-instance 'my-sequence)))
+	(test (not (empty? (make-instance 'my-sequence :actual '(3 5)))))
 	(test (equal? (size (make-instance 'my-sequence)) 0))
 	(test (equal? (lookup (make-instance 'my-sequence :actual '(a b c)) 1) 'b))
 	)
@@ -1183,6 +1188,10 @@
       (test (let ((s (set 1 4 8))
 		  ((val val? (arb s))))
 	      (and val? (contains? s val))))
+      (test (handler-case (progn (contains? (set 1) 1 nil) nil)
+              (simple-program-error () t)))
+      (test (handler-case (progn (contains? (wb-set 1) 1 nil) nil)
+              (simple-program-error () t)))
       (test (let ((val mult val? (arb (bag))))
 	      (and (null val) (null mult) (not val?))))
       (test (let ((b (bag 1 4 8))
@@ -1195,6 +1204,8 @@
 	      (and pr? (equal? val (lookup m key)))))
       (test (contains? (set 1 2 1) 1))
       (test (contains? (bag 1 2 1) 2))
+      (test (handler-case (progn (contains? (bag 1) 1 nil) nil)
+              (simple-program-error () t)))
       (test (domain-contains? (map ('x 0) ('y 1)) 'y))
       (test (domain-contains? (seq 'a 'e 'g 'x) 3))
       (test (= (multiplicity (bag 1 2 1) 1) 2))
@@ -1382,6 +1393,7 @@
       (test (less-than? "a" "ab"))
       (test (less-than? "ab" "b"))
 
+      (test (let ((v #(1))) (equal? v v)))
       (test (equal? "a" (make-array '(1) :element-type 'character
 				 :adjustable t :initial-element #\a)))
       (test (less-than? "a" (make-array '(1) :element-type 'character
@@ -1391,6 +1403,15 @@
 					:initial-contents '(#\a #\b))))
       (test (less-than? "ab" (make-array '(1) :element-type 'character
 					 :adjustable t :initial-element #\b)))
+
+      (test (less-than? #(1 2 3) (make-array '(3) :initial-contents '(1 3 3) :adjustable t)))
+      (test (less-than? #(1 2) (make-array '(3) :initial-contents '(1 2 3) :adjustable t)))
+      (test (less-than? #(1) (make-array '(3) :initial-contents '(1 2 3) :adjustable t)))
+      (test (less-than? (make-array '(2) :initial-contents '(1 3) :adjustable t) #(1 3 5)))
+      (test (less-than? (make-array '(1) :initial-contents '(1) :adjustable t) #(1 3 5)))
+      (test (less-than? (make-array '(0) :adjustable t) #(1)))
+      (test (less-than? (make-array '(1) :initial-element 1 :adjustable t)
+                        (make-array '(1) :initial-element 2 :adjustable t)))
 
       (test (equal? nil nil))
       (test (equal? (list 1) (list 1)))
