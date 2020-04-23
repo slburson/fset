@@ -245,13 +245,13 @@ result is that of `collection'); also see `compose'."))
   (mapcar fn l))
 
 (defmethod image ((fn symbol) (l list))
-  (mapcar (coerce fn 'function) l))
+  (mapcar fn l))
 
 (defmethod image ((fn map) (l list))
-  (mapcar (lambda (x) (@ fn x)) l))
+  (mapcar (lambda (x) (lookup fn x)) l))
 
 (defmethod image ((fn set) (l list))
-  (mapcar (lambda (x) (@ fn x)) l))
+  (mapcar (lambda (x) (lookup fn x)) l))
 
 (defgeneric reduce (fn collection &key key initial-value)
   (:documentation
@@ -1956,6 +1956,7 @@ symbols."))
   (map-image (coerce fn 'function) m))
 
 (defun map-image (fn m)
+  (declare (type function fn))
   (let ((result nil))
     (do-map (x y m)
       (let ((new-x new-y (funcall fn x y)))
