@@ -1004,7 +1004,8 @@ the default implementation of sets in FSet."
 
 (defmethod greatest ((s wb-set))
   (let ((tree (wb-set-contents s)))
-    (and tree (values (WB-Set-Tree-Greatest tree) t))))
+    (if tree (values (WB-Set-Tree-Greatest tree) t)
+        (values nil nil))))
 
 (defmethod with ((s wb-set) value &optional (arg2 nil arg2?))
   (declare (ignore arg2))
