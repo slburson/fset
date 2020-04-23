@@ -782,17 +782,17 @@ Also works on an FSet seq."))
 
 (defmethod union ((ls1 list) (ls2 list) &rest keyword-args &key test test-not)
   (declare (dynamic-extent keyword-args)
-	   (ignore test test-not))
+	   (ignorable test test-not))
   (apply #'cl:union ls1 ls2 keyword-args))
 
 (defmethod intersection ((ls1 list) (ls2 list) &rest keyword-args &key test test-not)
   (declare (dynamic-extent keyword-args)
-	   (ignore test test-not))
+	   (ignorable test test-not))
   (apply #'cl:intersection ls1 ls2 keyword-args))
 
 (defmethod set-difference ((ls1 list) (ls2 list) &rest keyword-args &key test test-not)
   (declare (dynamic-extent keyword-args)
-	   (ignore test test-not))
+	   (ignorable test test-not))
   (apply #'cl:set-difference ls1 ls2 keyword-args))
 
 
@@ -2299,8 +2299,9 @@ This is the default implementation of seqs in FSet."
 
 (defmethod lookup ((s wb-seq) key)
   (if (typep key 'fixnum)
-      (let ((val? val (WB-Seq-Tree-Subscript (wb-seq-contents s) key)))
-	(values (if val? val (seq-default s)) val?))
+      (locally (declare (type fixnum key))
+        (let ((val? val (WB-Seq-Tree-Subscript (wb-seq-contents s) key)))
+          (values (if val? val (seq-default s)) val?)))
     (values nil nil)))
 
 (defmethod first ((s wb-seq))
