@@ -1916,7 +1916,11 @@ the default implementation of maps in FSet."
   (make-wb-set (WB-Map-Tree-Domain (wb-map-contents m))))
 
 (defmethod compare ((map1 wb-map) (map2 wb-map))
-  (WB-Map-Tree-Compare (wb-map-contents map1) (wb-map-contents map2)))
+  (let ((ret (WB-Map-Tree-Compare (wb-map-contents map1)
+                                  (wb-map-contents map2))))
+    (if (eql ret :equal)
+        (compare (default map1) (default map2))
+        ret)))
 
 (defgeneric internal-do-map (map elt-fn value-fn)
   (:documentation
@@ -2047,9 +2051,10 @@ symbols."))
   (map-fn-compose m (coerce fn 'function)))
 
 (defmethod compose ((m wb-map) (s seq))
-  (map-fn-compose m (fn (x) (@ s x))))
+  (map-fn-compose m (fn (x) (lookup s x))))
 
 (defun map-fn-compose (m fn)
+  (declare (type function fn))
   (make-wb-map (WB-Map-Tree-Compose (wb-map-contents m) fn)
 	       (funcall fn (map-default m))))
 
