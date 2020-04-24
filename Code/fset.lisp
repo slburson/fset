@@ -1916,11 +1916,8 @@ the default implementation of maps in FSet."
   (make-wb-set (WB-Map-Tree-Domain (wb-map-contents m))))
 
 (defmethod compare ((map1 wb-map) (map2 wb-map))
-  (let ((ret (WB-Map-Tree-Compare (wb-map-contents map1)
-                                  (wb-map-contents map2))))
-    (if (eql ret :equal)
-        (compare (default map1) (default map2))
-        ret)))
+  (WB-Map-Tree-Compare (wb-map-contents map1)
+                       (wb-map-contents map2)))
 
 (defgeneric internal-do-map (map elt-fn value-fn)
   (:documentation
@@ -2391,7 +2388,8 @@ This is the default implementation of seqs in FSet."
       (setq tree (WB-Seq-Tree-Concat
 		   tree (WB-Seq-Tree-From-Vector
 			  (make-array (- idx size) :initial-element (seq-default s)))))
-      (setq size idx))
+      ;; (setq size idx)
+      )
     (make-wb-seq (WB-Seq-Tree-Concat (WB-Seq-Tree-Concat (WB-Seq-Tree-Subseq tree 0 idx)
 							 subseq-tree)
 				     (WB-Seq-Tree-Subseq tree idx (WB-Seq-Tree-Size tree)))
