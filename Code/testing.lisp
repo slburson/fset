@@ -581,10 +581,20 @@
       (test (equal? (convert 'seq (bag 0 1 1 2 3 3 4)) (seq 0 1 1 2 3 3 4)))
       (test (equalp (convert 'vector (bag 0 1 1 2 3 3 4)) #(0 1 1 2 3 3 4)))
 
+      (test (equal (convert 'alist (bag 1 1 2 2 2)) '((1 . 2) (2 . 3))))
+
       (test (equal? (convert 'bag (vector 10 0 8 1 1 2 5 9 9 9))
 		    (bag 0 1 1 2 5 8 9 9 9 10)))
       (test (equal? (convert 'wb-bag (vector 10 0 8 1 1 2 5 9 9 9))
 		    (bag 0 1 1 2 5 8 9 9 9 10)))
+
+      (test (equal? (convert 'wb-bag '(1 1 2 2 2))
+                    (bag 1 1 2 2 2)))
+      (test (equal? (convert 'bag '((1 . 2) (2 . 3)) :from-type 'alist)
+                    (bag 1 1 2 2 2)))
+      (test (equal? (convert 'wb-bag '((1 . 2) (2 . 3)) :from-type 'alist)
+                    (bag 1 1 2 2 2)))
+
 
       (test (equal (find 0 (bag)) nil))
       (test (equal (find 1 (bag 1)) 1))
@@ -762,6 +772,8 @@
 	      (and (eql (gethash 1 ht) 2)
 		   (eql (gethash 3 ht) 4)
 		   (eql (hash-table-count ht) 2))))
+      (test (let ((ht (convert 'hash-table (map (1 2) (3 4)) :test 'equal)))
+              (eql (hash-table-test ht) 'equal)))
 
       (test (equal (multiple-value-list (find 1 (map))) '(nil nil)))
       (test (equal (multiple-value-list (find 1 (map (1 3)))) '(1 3)))
@@ -958,8 +970,15 @@
                    '(1 2 3 5)))
 
       (test (equal (concat '(1 2 3) '(4 5 6)) '(1 2 3 4 5 6)))
+      (test (equal (concat () '(1 2 3) '(4 5 6)) '(1 2 3 4 5 6)))
+      (test (equal (concat () '(1 2) '(3) '(4 5 6)) '(1 2 3 4 5 6)))
+      (test (equal (concat '(1 2 3) (seq 4 5 6)) '(1 2 3 4 5 6)))
       (test (equal (convert 'list '(1 2 3)) '(1 2 3)))
       (test (equalp (convert 'vector #(1 2 3)) #(1 2 3)))
+
+      (test (equal? (default (concat (with-default (seq 'a 'b) 'x)
+                                     (with-default (seq 'c 'd) 'y)))
+                    'x))
 
       (test (equal (multiple-value-list (partition 'evenp '(1 2 3 4 5)))
 		   '((2 4) (1 3 5))))

@@ -48,7 +48,7 @@ returns `value'."
      ;; &&& Here and in similar cases below, `dynamic-extent' declarations could
      ;; be helpful.  (The closures will have to be bound to variables.)
      (internal-do-set ,set #'(lambda (,var) . ,body)
-			   #'(lambda () ,value))))
+			   ,@(when value `(#'(lambda () ,value))))))
 
 
 (defmacro do-bag-pairs ((value-var mult-var bag &optional value)
@@ -57,7 +57,7 @@ returns `value'."
 its multiplicity respectively, and executes `body'.  When done, returns `value'."
   `(block nil
      (internal-do-bag-pairs ,bag #'(lambda (,value-var ,mult-var) . ,body)
-			    #'(lambda () ,value))))
+			    ,@(when value `(#'(lambda () ,value))))))
 
 (defmacro do-bag ((value-var bag &optional value)
 		  &body body)
@@ -72,7 +72,7 @@ number of times equal to the member's multiplicity.  When done, returns `value'.
 				       (dotimes (,idx-var ,mult-var)
 					 (declare (type fixnum ,idx-var))
 					 . ,body))
-			      #'(lambda () ,value)))))
+			      ,@(when value `(#'(lambda () ,value)))))))
 
 (defmacro do-map ((key-var value-var map &optional value) &body body)
   "For each pair of `map', binds `key-var' and `value-var' and executes `body'.
@@ -80,7 +80,7 @@ When done, returns `value'."
   `(block nil
      (internal-do-map ,map
 		      #'(lambda (,key-var ,value-var) . ,body)
-		      #'(lambda () ,value))))
+		      ,@(when value `(#'(lambda () ,value))))))
 
 (defmacro do-map-domain ((key-var map &optional value) &body body)
   "For each pair of `map', binds `key-var' and executes `body'.  When done,
@@ -91,7 +91,7 @@ returns `value'."
 			#'(lambda (,key-var ,value-var)
 			    (declare (ignore ,value-var))
 			    . ,body)
-			#'(lambda () ,value)))))
+			,@(when value `#'(lambda () ,value))))))
 
 (defmacro do-seq ((var seq
 		   &key (start nil start?) (end nil end?) (from-end? nil from-end??)
@@ -105,8 +105,8 @@ iteration to the index of the current element of `seq'.  When done, returns
   `(block nil
      (internal-do-seq ,seq
 		      #'(lambda (,var . ,(and index? `(,index))) . ,body)
-		      #'(lambda () ,value)
-		      ,index?
+		      ,(when value `#'(lambda () ,value))
+                      ,index?
 		      ,@(and start? `(:start ,start))
 		      ,@(and end? `(:end ,end))
 		      ,@(and from-end?? `(:from-end? ,from-end?)))))

@@ -1065,14 +1065,14 @@ the default implementation of sets in FSet."
 (defmethod compare ((s1 wb-set) (s2 wb-set))
   (WB-Set-Tree-Compare (wb-set-contents s1) (wb-set-contents s2)))
 
-(defgeneric internal-do-set (set elt-fn value-fn)
+(defgeneric internal-do-set (set elt-fn &optional value-fn)
   (:documentation
     "Calls `elt-fn' on successive elements of the set; when done, calls `value-fn'
 on no arguments and returns the result(s).  This is called by `do-set' to provide
 for the possibility of different set implementations; it is not for public use.
 `elt-fn' and `value-fn' must be function objects, not symbols."))
 
-(defmethod internal-do-set ((s wb-set) elt-fn value-fn)
+(defmethod internal-do-set ((s wb-set) elt-fn &optional (value-fn (lambda () nil)))
   (declare (optimize (speed 3) (safety 0))
 	   (type function elt-fn value-fn))
   ;; Expect Python note about "can't use known return convention"
@@ -1505,7 +1505,7 @@ trees.  This is the default implementation of bags in FSet."
 (defmethod compare ((b1 wb-bag) (b2 wb-bag))
   (WB-Bag-Tree-Compare (wb-bag-contents b1) (wb-bag-contents b2)))
 
-(defgeneric internal-do-bag-pairs (bag elt-fn value-fn)
+(defgeneric internal-do-bag-pairs (bag elt-fn &optional value-fn)
   (:documentation
     "Calls `elt-fn' on successive pairs of the bag (the second argument is
 the multiplicity); when done, calls `value-fn' on no arguments and returns the
@@ -1514,7 +1514,7 @@ different bag implementations; it is not for public use.  `elt-fn' and
 `value-fn' must be function objects, not symbols."))
 
 
-(defmethod internal-do-bag-pairs ((b wb-bag) elt-fn value-fn)
+(defmethod internal-do-bag-pairs ((b wb-bag) elt-fn &optional (value-fn (lambda () nil)))
   (declare (optimize (speed 3) (safety 0))
 	   (type function elt-fn value-fn))
   ;; Expect Python note about "can't use known return convention"
@@ -1624,7 +1624,7 @@ different bag implementations; it is not for public use.  `elt-fn' and
     (nreverse result)))
 
 (defmethod convert ((to-type (eql 'seq)) (b bag) &key)
-  (convert 'seq (convert 'list b)))
+  (convert to-type (convert 'list b)))
 
 (defmethod convert ((to-type (eql 'vector)) (b bag) &key)
   (coerce (convert 'list b) 'vector))
@@ -1919,7 +1919,7 @@ the default implementation of maps in FSet."
   (WB-Map-Tree-Compare (wb-map-contents map1)
                        (wb-map-contents map2)))
 
-(defgeneric internal-do-map (map elt-fn value-fn)
+(defgeneric internal-do-map (map elt-fn &optional value-fn)
   (:documentation
     "Calls `elt-fn' on successive pairs of the map (as two arguments); when done,
 calls `value-fn' on no arguments and returns the result(s).  This is called by
@@ -1927,7 +1927,7 @@ calls `value-fn' on no arguments and returns the result(s).  This is called by
 is not for public use.  `elt-fn' and `value-fn' must be function objects, not
 symbols."))
 
-(defmethod internal-do-map ((m wb-map) elt-fn value-fn)
+(defmethod internal-do-map ((m wb-map) elt-fn &optional (value-fn (lambda () nil)))
   (declare (optimize (speed 3) (safety 0))
 	   (type function elt-fn value-fn))
   ;; Expect Python note about "can't use known return convention"
@@ -2062,21 +2062,19 @@ symbols."))
   m)
 
 (defmethod convert ((to-type (eql 'list)) (m map) &key (pair-fn #'cons))
-  (let ((result nil)
-	(pair-fn (coerce pair-fn 'function)))
+  (let ((result nil))
     (do-map (key val m)
       (push (funcall pair-fn key val) result))
     (nreverse result)))
 
 (defmethod convert ((to-type (eql 'seq)) (m map) &key (pair-fn #'cons))
-  (convert 'seq (convert 'list m :pair-fn pair-fn)))
+  (convert to-type (convert 'list m :pair-fn pair-fn)))
 
 (defmethod convert ((to-type (eql 'vector)) (m map) &key (pair-fn #'cons))
   (coerce (convert 'list m :pair-fn pair-fn) 'vector))
 
 (defmethod convert ((to-type (eql 'set)) (m map) &key (pair-fn #'cons))
-  (let ((result nil)
-	(pair-fn (coerce pair-fn 'function)))
+  (let ((result nil))
     (do-map (key val m)
       (setq result (WB-Set-Tree-With result (funcall pair-fn key val))))
     (make-wb-set result)))
@@ -2471,11 +2469,11 @@ This is the default implementation of seqs in FSet."
 
 (defmethod convert ((to-type (eql 'seq)) (s set) &key)
   ;; Not sure we can improve on this much.
-  (convert 'seq (convert 'list s)))
+  (convert to-type (convert 'list s)))
 
 (defmethod convert ((to-type (eql 'wb-seq)) (s set) &key)
   ;; Not sure we can improve on this much.
-  (convert 'wb-seq (convert 'list s)))
+  (convert to-type (convert 'list s)))
 
 (defmethod convert ((to-type (eql 'set)) (s wb-seq) &key)
   (make-wb-set (WB-Seq-Tree-To-Set-Tree (wb-seq-contents s))))
@@ -2484,10 +2482,10 @@ This is the default implementation of seqs in FSet."
   (make-wb-set (WB-Seq-Tree-To-Set-Tree (wb-seq-contents s))))
 
 (defmethod convert ((to-type (eql 'wb-seq)) (b bag) &key)
-  (convert 'wb-seq (convert 'list b)))
+  (convert to-type (convert 'list b)))
 
 (defmethod convert ((to-type (eql 'wb-seq)) (m map) &key (pair-fn #'cons))
-  (convert 'wb-seq (convert 'list m :pair-fn pair-fn)))
+  (convert to-type (convert 'list m :pair-fn pair-fn)))
 
 (defmethod compare ((s1 wb-seq) (s2 wb-seq))
   (WB-Seq-Tree-Compare (wb-seq-contents s1) (wb-seq-contents s2)))
@@ -2511,7 +2509,8 @@ not symbols."))
 			         (end (WB-Seq-Tree-Size (wb-seq-contents s)))
 			         from-end?)
   (declare (optimize (speed 3) (safety 0))
-	   (type function elt-fn value-fn))
+	   (type function elt-fn)
+           (type (or null function) value-fn))
   (check-type start fixnum)
   (check-type end fixnum)
   ;; Expect Python notes about "can't use known return convention"
@@ -2519,11 +2518,11 @@ not symbols."))
       (let ((i start))
 	(declare (type fixnum i))
 	(Do-WB-Seq-Tree-Members-Gen (x (wb-seq-contents s) start end from-end?
-				       (funcall value-fn))
+				       (when value-fn (funcall value-fn)))
 	  (funcall elt-fn x i)
 	  (incf i)))
     (Do-WB-Seq-Tree-Members-Gen (x (wb-seq-contents s) start end from-end?
-				     (funcall value-fn))
+				     (when value-fn (funcall value-fn)))
 	(funcall elt-fn x))))
 
 (defmethod sort-and-group ((s seq) pred &key key)
