@@ -361,8 +361,10 @@
 
       (test (equal? (sort (set 4 2 19 14) #'<) (seq 2 4 14 19)))
       (test (equal? (sort (set 4 2 19 14) #'< :key #'-) (seq 19 14 4 2)))
+      (test (equal? (default (sort (with-default (seq 1 2 0) 3) #'<)) 3))
       (test (equal? (stable-sort (set 4 2 19 14) #'<) (seq 2 4 14 19)))
       (test (equal? (stable-sort (set 4 2 19 14) #'< :key #'-) (seq 19 14 4 2)))
+      (test (equal? (default (stable-sort (with-default (seq 1 2 0) 3) #'<)) 3))
 
       (test (equal? (convert 'set (set 1 2 4)) (set 1 2 4)))
       (test (equal? (convert 'wb-set (wb-set 5 8 19)) (wb-set 5 8 19)))
@@ -399,6 +401,12 @@
       (test (equal (find 3 (set 1 2 8) :test #'<) 8))
       (test (equal (find 3 (set 1 2 8) :key '1+ :test #'<=) 2))
       (test (equal (find 1 (set) :key #'1+) nil))
+      (let ((s1 "x") (s2 (copy-seq "x")))
+        (test (eql (find s1 (set s2)) s2))
+        (test (eql (find s1 (set s2) :test #'eql) nil))
+        (test (eql (find s1 (set s2) :key #'identity) s2))
+        (test (eql (find s1 (set s2) :test #'eql :key #'identity) nil)))
+      (test (equal (find nil (set 1) :test (lambda (x y) (not (eql x y)))) 1))
 
       (test (equal (find-if #'evenp (set 1 2 3)) 2))
       (test (equal (find-if 'evenp (set 1 2 3)) 2))
@@ -406,6 +414,7 @@
       (test (equal (find-if #'oddp (set 0 1) :key #'1+) 0))
       (test (equal (find-if-not #'evenp (set 2 3 4)) 3))
       (test (equal (find-if-not 'evenp (set 2 3 4)) 3))
+      (test (equal (find-if-not 'evenp (set 3 4 5) :key #'1+) 4))
 
       (test (equal (count 5 (set 4 5 6)) 1))
       (test (equal (count 1 (set)) 0))
@@ -598,6 +607,7 @@
 
       (test (equal (find 0 (bag)) nil))
       (test (equal (find 1 (bag 1)) 1))
+      (test (equal (find 2 (bag 2)) 2))
       (test (equal (find 1 (bag 0 1 2)) 1))
       (test (equal (find 1 (bag 0 1 2) :test #'equal?) 1))
       (test (equal (find 1 (bag 0 1 2) :test 'equal?) 1))
@@ -606,7 +616,9 @@
       (test (equal (find 1 (bag 0 1 2 2)) 1))
       (test (equal (find 1 (bag 0 0 1 1 2 2)) 1))
       (test (equal (find 1 (bag 0 1 2 3) :key #'1-) 2))
+      (test (equal (find 3 (bag 0 1 2 3) :key '1+) 2))
       (test (equal (find 1 (bag 0 1 2 3) :test '<) 2))
+      (test (equal (find 2 (bag 0 1 2 3) :test '<) 3))
       (test (equal (find 1 (bag 0 1 2 3) :test '< :key #'1-) 3))
 
       (test (equal (find-if #'evenp (bag)) nil))
@@ -777,6 +789,7 @@
 
       (test (equal (multiple-value-list (find 1 (map))) '(nil nil)))
       (test (equal (multiple-value-list (find 1 (map (1 3)))) '(1 3)))
+      (test (equal (multiple-value-list (find 2 (map (2 3)))) '(2 3)))
       (test (equal (multiple-value-list (find 1 (map (1 3) (2 5)) :test #'<)) '(2 5)))
       (test (equal (multiple-value-list (find 10 (map (1 3) (2 5)) :test #'<)) '(nil)))
       (test (equal (multiple-value-list (find 1 (map (1 3) (2 5)) :key #'1-)) '(2 5)))
@@ -784,6 +797,9 @@
       (test (equal (multiple-value-list (find 1 (map (1 3) (2 5) (3 6)) :test #'> :key #'1-)) '(1 3)))
       (test (equal (multiple-value-list (find 10 (map (1 3) (2 5) (3 6)) :test #'= :key #'1-)) '(nil)))
       (test (equal (multiple-value-list (find 1 (map (1 3) (2 5) (3 6)) :test #'< :key #'1-)) '(3 6)))
+
+      (test (equal (multiple-value-list (find 5 (map (5 nil)))) '(5 nil)))
+      (test (equal (multiple-value-list (find 4 (map (5 nil)) :key #'1-)) '(5 nil)))
 
       (test (equal (multiple-value-list (find-if #'evenp (map))) '(nil)))
       (test (equal (multiple-value-list (find-if #'evenp (map (1 2)))) '(nil)))
@@ -793,6 +809,7 @@
 
       (test (equal (multiple-value-list (find-if-not #'evenp (map))) '(nil)))
       (test (equal (multiple-value-list (find-if-not #'evenp (map (0 3) (1 7)))) '(1 7)))
+      (test (equal (multiple-value-list (find-if-not 'evenp (map (1 4) (2 19) (3 21)) :key '1+)) '(2 19)))
 
       (test (equal (count 1 (map)) 0))
       (test (equal (count 2 (map (0 2) (1 3) (2 5) (3 2))) 1))
@@ -834,13 +851,55 @@
       (test (equal (multiple-value-list (last (seq 1 2))) '(2 t)))
 
       (test (equal (find 0 (seq 2 5 0 6 7)) 0))
+      (test (equal (find 'x (seq)) nil))
+      (test (equal (find 'x (with-default (seq) 'x)) nil))
+      (test (equal (find 'x (seq 'x)) 'x))
+      (test (equal (find 5 (seq 2 5 0 6 7)) 5))
+      (test (equal (find 3 (seq 0 2 5 4 8) :test (lambda (a b) (<= (abs (- a b)) 1))) 2))
+      (test (equal (find 3 (seq 0 2 5 4 8) :start 1 :end 4
+                         :test (lambda (a b) (<= (abs (- a b)) 1)))
+                   2))
+      (test (equal (find 3 (seq 0 2 5 4 8) :from-end t
+                         :test (lambda (a b) (<= (abs (- a b)) 1)))
+                   4))
+      (test (equal (find 3 (seq 0 2 5 4 8) :from-end t
+                         :start 1 :end 4
+                         :test (lambda (a b) (<= (abs (- a b)) 1)))
+                   4))
+      (test (equal (find 10 (seq 1 2 3) :from-end t) nil))
+      (test (equal (find 10 (seq 1 2 3) :from-end t :key #'1+) nil))
+      (test (equal (find 5 (seq 5 1 2 3 4 3) :from-end t :key #'1+ :test #'<=) 4))
+      (test (equal (find 10 (seq 1 2 3) :test #'eql) nil))
+      (test (equal (find 10 (seq 1 2 3) :start 0) nil))
+      (test (equal (find 10 (seq 1 2 3) :end 3) nil))
+      (test (equal (find 10 (seq 1 2 3) :key #'1+) nil))
+      (test (equal (find 10 (seq 1 2 3) :key #'1+ :start 0) nil))
+      (test (equal (find 10 (seq 1 2 3) :key #'1+ :end 3) nil))
+      (let* ((s1 "x") (s2 (copy-seq s1)))
+        (test (eql (find s1 (seq s1 s2)) s1))
+        (test (eql (find s1 (seq s1 s2) :start 1) s2))
+        (test (eql (find s1 (seq s1 s2) :from-end t) s2))
+        (test (eql (find s1 (seq s1 s2) :from-end t :end 1) s1)))
+
+      (test (equal (find-if #'evenp (seq 0)) 0))
       (test (equal (find-if #'evenp (seq 1 3 4 7 8)) 4))
       (test (equal (find-if #'evenp (seq 1 3 4 7 8) :from-end t) 8))
       (test (equal (find-if #'evenp (seq 1 3 4 7 8) :start 3) 8))
       (test (equal (find-if #'evenp (seq 1 3 4 7 8) :end 2) nil))
       (test (equal (find-if #'evenp (seq 2 4 5 8 9) :key #'1+) 5))
+      (test (equal (find-if #'evenp (seq 2 4 5 8 9 10) :key '1+ :from-end t) 9))
+      (test (equal (find-if #'evenp (seq 2 4 5 6 7 8) :start 2 :key '1+) 5))
+      (test (equal (find-if #'evenp (seq 2 4 5 6 7 8) :start 3 :key '1+) 7))
 
       (test (equal (find-if-not #'evenp (seq 2 4 5 8 9)) 5))
+      (test (equal (find-if-not #'evenp (seq 2 3 4 5 8 9) :start 2) 5))
+      (test (equal (find-if-not #'evenp (seq 2 4 6 8 9 10) :end 4) nil))
+      (test (equal (find-if-not #'evenp (seq 2 4 6 8 9 10) :start 1 :end 4) nil))
+      (test (equal (find-if-not #'evenp (seq 1 2 3 4 5 6) :from-end t) 5))
+      (test (equal (find-if-not #'evenp (seq 1 2 3 4 5 6) :end 4 :from-end t) 3))
+
+      (test (equal (find-if-not #'evenp (seq 1 2 3 4) :key '1+) 2))
+      (test (equal (find-if-not #'evenp (seq 1 2 3 4) :key '1+ :from-end t) 4))
 
       (test (equal (count 0 (seq 0 1 2 0 3 0 4 5 4)) 3))
       (test (equal (count 0 (seq 0 1 2 0 3 0 4 5 4) :test #'equal?) 3))
@@ -883,11 +942,11 @@
       (test (equal? (reverse '(0 1 2 3)) '(3 2 1 0)))
       (test (equal? (reverse #(0 1 2 3)) #(3 2 1 0)))
       (test (equal? (reverse "abcd") "dcba"))
-      (let ((x '(3 1 2)))
+      (let ((x (list 3 1 2)))
 	(test (equal? (sort x #'<) '(1 2 3)))
 	;; fset::sort is nondestructive
 	(test (equal? x '(3 1 2))))
-      (let ((x '(3 1 2)))
+      (let ((x (list 3 1 2)))
 	(test (equal? (stable-sort x #'<) '(1 2 3)))
 	;; fset::stable-sort is nondestructive
 	(test (equal? x '(3 1 2))))
@@ -916,8 +975,28 @@
 			       '(:done? :more? :get :done? :more? :get :done? :more? :get))
 		       '(nil t (#\a t) nil t (#\b t) t nil (nil nil))))))
 
+      (test (let ((it (iterator (make-array '(0) :element-type t))))
+              (equal (multiple-value-list (funcall it :get)) '(nil nil))))
+      (test (let ((it (iterator (make-array '(0) :element-type 'character))))
+              (equal (multiple-value-list (funcall it :get)) '(nil nil))))
+      (test (let ((it (iterator (make-array '(0) :element-type 'base-char))))
+              (equal (multiple-value-list (funcall it :get)) '(nil nil))))
+
       (test (equal (find-if #'evenp '(1 2 3)) 2))
+      (test (equal (find-if #'evenp '(1 2 3 4 5 6 7) :start 2) 4))
+      (test (equal (find-if #'evenp '(1 2 3 4 5 6 7) :from-end t) 6))
+      (test (equal (find-if #'evenp '(1 2 3 4 5 6 7) :from-end t :end 2) 2))
+      (test (equal (find-if #'evenp '(1 2 3 4 5 6 7)
+                            :from-end t :end 4)
+                   4))
+      (test (equal (find-if #'evenp '(1 2 3 4 5 6 7)
+                            :start 2 :end 3)
+                   nil))
       (test (equal (find-if-not #'evenp '(1 2 3)) 1))
+      (test (equal (find-if-not #'evenp '(1 2 3) :start 1) 3))
+      (test (equal (find-if-not #'evenp '(1 2 3) :from-end t) 3))
+      (test (equal (find-if-not #'evenp '(1 2 3 4 5) :from-end t :end 4) 3))
+      (test (equal (find-if-not #'evenp '(1 2 3) :start 1 :end 1) nil))
       (test (equal (count 1 '(1 2 3 1 4 2 1 0)) 3))
       (test (equal (count-if #'oddp '(1 2 3 4 5)) 3))
       (test (equal (count-if-not #'oddp '(1 2 3 4 5)) 2))
@@ -1064,6 +1143,10 @@
 
       (test (equal? (subseq (seq) 0) (seq)))
       (test (equal? (subseq (seq 'a) 0) (seq 'a)))
+      (test (equal? (subseq (seq 'a) -1) (seq 'a)))
+      (test (let ((s (seq 'a 'b)))
+              (eql s (subseq s 0 2))))
+      (test (equal? (subseq (seq 'a) 0 2) (seq 'a)))
       (test (equal? (subseq (seq 'a) 0 0) (seq)))
       (test (equal? (subseq (seq 'a) 0 1) (seq 'a)))
       (test (equal? (subseq (seq 'a 'b) 0 0) (seq)))
@@ -1073,10 +1156,12 @@
       (test (equal? (subseq (seq 'a 'b) 1 2) (seq 'b)))
       (test (equal? (subseq (with-default (seq 'a 'b) 'c) 0 1)
 		    (with-default (seq 'a) 'c)))
+      (test (equal? (default (subseq (with-default (seq 'a 'b) 'c) 0 1)) 'c))
 
       (test (equal? (reverse (seq)) (seq)))
       (test (equal? (reverse (with-default (seq) 'z))
 		    (with-default (seq) 'z)))
+      (test (equal? (default (reverse (with-default (seq 'a 'b) 'c))) 'c))
       (test (equal? (reverse (seq 'a)) (seq 'a)))
       (test (equal? (reverse (seq 'a 'b)) (seq 'b 'a)))
       (test (equal? (reverse (with-default (seq 'a 'b) 'z))
@@ -1291,6 +1376,12 @@
 	(test (equal? (multiple-value-list
                        (lookup (make-instance 'my-sequence :actual '(a b c)) 1))
                       '(b t)))
+        (test (equal (multiple-value-list
+                      (funcall (iterator (make-instance 'my-sequence)) :get))
+                     '(nil nil)))
+        (test (equal (my-sequence-actual
+                      (subseq (make-instance 'my-sequence :actual '(a b c d e f)) 2 4))
+                     '(c d)))
 	)
 
       (test (= (size (empty-set)) 0))
