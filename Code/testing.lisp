@@ -824,8 +824,10 @@
       (test (equal (count 2 (map (0 2) (1 3) (2 5) (3 2)) :key (constantly 3)) 0))
       (test (equal (count 2 (map (0 2) (1 3) (2 5) (3 2)) :test #'equal?) 1))
       (test (equal (count 2 (map (0 2) (1 3) (2 5) (3 2)) :test 'equal?) 1))
+      (test (equal (count 2 (map (45 2) (12 3) (2 5) (19 2)) :test 'equal?) 1))
       (test (equal (count 2 (map (0 2) (1 3) (2 5) (3 2)) :test #'>=) 3))
       (test (equal (count 2 (map (0 2) (1 3) (2 5) (3 2)) :key #'1+ :test #'>=) 2))
+      (test (equal (count 17 (map (17 23)) :key #'identity) 1))
 
       (test (equal (count-if #'evenp (map (1 5) (2 7) (3 9))) 1))
       (test (equal (count-if #'evenp (map (1 5) (2 7) (3 9)) :key #'1+) 2))
@@ -916,6 +918,47 @@
       (test (equal (count 0 (seq 0 1 2 0 3 0 4 5 4) :start 1 :end 4) 1))
       (test (equal (count 1 (seq 0 1 2 0 3 0 4 5 4) :key #'1+) 3))
       (test (equal (count 2 (seq 0 1 2 0 3 0 4 5 4) :key #'1+ :test #'<) 5))
+      (test (equal (let ((i 0))
+                     (count 5 (seq 0 1 2 1 2 4 5 6 7 8)
+                            :key (lambda (x) (+ x (incf i)))))
+                   2))
+      (test (equal (let ((i 1))
+                     (count 5 (seq 0 1 2 1 2 4 5 6 7 8)
+                            :start 1
+                            :key (lambda (x) (+ x (incf i)))))
+                   2))
+      (test (equal (let ((i 0))
+                     (count 5 (seq 0 1 2 1 2 4 5 6 7 8)
+                            :end 6
+                            :key (lambda (x) (+ x (incf i)))))
+                   2))
+      (test (equal (let ((i 0))
+                     (count 9 (seq 0 1 2 1 2 4 5 6 7 8)
+                            :from-end t
+                            :key (lambda (x) (+ x (incf i)))))
+                   5))
+      (test (equal (let ((i 0))
+                     (count 9 (seq 0 1 2 1 2 4 5 6 7 8)
+                            :start 6 :from-end t
+                            :key (lambda (x) (+ x (incf i)))))
+                   4))
+      (test (equal (let ((i 0))
+                     (count 8 (seq 0 1 2 1 2 4 5 6 7 8)
+                            :end 9 :from-end t
+                            :key (lambda (x) (+ x (incf i)))))
+                   4))
+
+      (test (equal (let ((i 0))
+                     (count 1 (seq 0 1)
+                            :test (lambda (x y)
+                                    (= x (+ (incf i) y)))))
+                   1))
+      (test (equal (let ((i 0))
+                     (count 1 (seq 0 1)
+                            :from-end t
+                            :test (lambda (x y)
+                                    (= x (+ (incf i) y)))))
+                   0))
 
       (test (equal (count-if #'evenp (seq 3 2 1 1 5 4 8 9)) 3))
       (test (equal (count-if #'evenp (seq 3 2 1 1 5 4 8 9) :from-end t) 3))
