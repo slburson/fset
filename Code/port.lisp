@@ -304,16 +304,14 @@
 ;;; ----------------
 
 #-lispworks
+(declaim (inline base-char-p))
+#-lispworks
 (defun base-char-p (x)
   (typep x 'base-char))
 
 ;;; I think this may be faster than `(typep x 'base-char)'.  Maybe not.
 #+lispworks
 (defun base-char-p (x) (lw:base-char-p x))
-
-#-lispworks
-(declaim (inline base-char-p))
-
 
 ;;; SBCL has a distinct `extended-char' type but no `make-char'.
 #+sbcl

@@ -12,6 +12,26 @@
 
 
 ;;; ================================================================================
+;;; New names for a few existing CL functions
+
+(declaim (inline lastcons head tail))
+
+;;; The CL function is poorly (albeit traditionally) named, and we shadow the name.
+(defun lastcons (list)
+  "Returns the last cons of `list'.  This is a renaming of the CL function `last'."
+  (cl:last list))
+
+(defun head (list)
+  "Another name for the `car' operation on lists."
+  (car list))
+
+(defun tail (list)
+  "Another name for the `cdr' operation on lists."
+  (cdr list))
+
+;; (declaim (inline lastcons head tail))
+
+;;; ================================================================================
 ;;; Generic functions
 
 ;;; We make almost all the interface operations generic to support the addition of
@@ -840,25 +860,6 @@ Also works on an FSet seq."))
     (values (nreverse res1) (nreverse res2))))
 
 
-;;; ================================================================================
-;;; New names for a few existing CL functions
-
-(declaim (inline lastcons head tail))
-
-;;; The CL function is poorly (albeit traditionally) named, and we shadow the name.
-(defun lastcons (list)
-  "Returns the last cons of `list'.  This is a renaming of the CL function `last'."
-  (cl:last list))
-
-(defun head (list)
-  "Another name for the `car' operation on lists."
-  (car list))
-
-(defun tail (list)
-  "Another name for the `cdr' operation on lists."
-  (cdr list))
-
-(declaim (inline lastcons head tail))
 
 
 ;;; ================================================================================

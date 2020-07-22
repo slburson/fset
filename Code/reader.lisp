@@ -444,7 +444,8 @@ subform."
 ;;; at read time.  They can therefore be used to read back previously printed
 ;;; structure containing FSet collections.
 (defun |rereading-#{-reader| (stream subchar arg)
-  (declare (ignore subchar arg))
+  (declare (ignore subchar arg)
+           (notinline empty-bag))
   (case (peek-char nil stream t nil t)
     (#\|
      (read-char stream t nil t)
