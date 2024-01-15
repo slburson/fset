@@ -4,3 +4,5 @@
 Tinaa-Doc
 _darcs
 Java-Code
+*.64xfasl
+.DS_Store

@@ -84,7 +84,10 @@
 	   #:empty-wb-list-relation #:arity #:query #:query-multi #:do-list-relation
 	   #:query-registry #:empty-query-registry #:with-query #:less-query
 	   #:all-queries #:lookup-multi #:forward-key #:lookup-restricted
-	   #:lookup-multi-restricted))
+	   #:lookup-multi-restricted
+
+           ;; named-readtable readtable
+           #:fset-readtable))
 
 
 ;;; A convenient package for experimenting with FSet.  Also serves as an example

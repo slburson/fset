@@ -166,7 +166,7 @@ on the universe.)"
 	  (subset? s1 s2)
 	(disjoint? s1 s2)))))
 
-(defmethod internal-do-set ((bs bounded-set) elt-fn value-fn)
+(defmethod internal-do-set ((bs bounded-set) elt-fn &optional (value-fn (lambda () nil)))
   (declare (optimize (speed 3) (safety 0))
 	   (type function elt-fn value-fn))
   (if (bounded-set-complement? bs)
