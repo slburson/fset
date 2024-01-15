@@ -97,6 +97,72 @@ not eql, this returns `:unequal'."
 	(if (eql ,obj1-var ,obj2-var) ':equal
 	  ,(rec accessors))))))
 
+(defmacro compare-slots-no-unequal (obj1 obj2 &rest accessors)
+  "A handy macro for writing the bodies of `compare' methods for user classes,
+in the case when you know the comparison will never need to return `:unequal'
+(a case handled correctly by `compare-slots', but with a slight time cost).
+
+Returns the result of comparing the two objects by comparing the results of
+calling each of `accessors', in order, on the objects, using a nested call to
+`compare'.  Despite the name, an accessor can actually be any function on the
+class in question; it can also be a symbol, which will be used to access the
+slot via `slot-value'.  For example, if class `frob' has accessor `frob-foo' and
+slot `bar':
+
+  (defmethod compare ((f1 frob) (f2 frob))
+    (compare-slots-no-unequal f1 f2 #'frob-foo 'bar))
+
+Additionally, an accessor can be a list of the form `(:compare acc less-fn)', in
+which `acc` is an accessor as defined above, and `less-fn' is a function to be
+used to compare the two values, returning true iff the first is less than the
+second.  This feature allows you to avoid the nested call to `compare'.  For
+example, if your objects have an `id' slot that holds a unique integer:
+
+  (defmethod compare ((f1 frob) (f2 frob))
+    (compare-slots-no-unequal f1 f2 (:compare 'id #'<))"
+  (let ((comp-var (gensym "COMP-"))
+	(obj1-var (gensym "OBJ1-"))
+	(obj2-var (gensym "OBJ2-")))
+    (labels ((rec (accs)
+	       (if (null accs)
+		   ':equal
+		 (if (null (cdr accs))
+		     (comp (car accs))
+		   `(let ((,comp-var ,(comp (car accs))))
+		      (if (or (eq ,comp-var ':less) (eq ,comp-var ':greater))
+			  ,comp-var
+			,(rec (cdr accs)))))))
+	     (comp (acc)
+	       (if (and (listp acc) (eq (car acc) ':compare))
+		   (let ((accval1-var (gensym "ACCVAL1-"))
+			 (accval2-var (gensym "ACCVAL2-")))
+		     `(let ((,accval1-var ,(call (second acc) obj1-var))
+			    (,accval2-var ,(call (second acc) obj2-var)))
+			(if ,(call (third acc) accval1-var accval2-var)
+			    ':less
+			  (if ,(call (third acc) accval2-var accval1-var)
+			      ':greater
+			    ':equal))))
+		 `(compare ,(call acc obj1-var) ,(call acc obj2-var))))
+	     (call (fn &rest args)
+	       ;; Makes the expansion more readable, if nothing else
+	       (cond ((and (listp fn)
+			   (eq (car fn) 'function))
+		      `(,(cadr fn) . ,args))
+		     ((and (listp fn)
+			   (eq (car fn) 'lambda))
+		      `(,fn . ,args))
+		     ((and (null (cdr args))
+			   (listp fn)
+			   (eq (car fn) 'quote)
+			   (symbolp (cadr fn)))
+		      `(slot-value ,(car args) ,fn))
+		     (t `(funcall ,fn . ,args)))))
+      `(let ((,obj1-var ,obj1)
+	     (,obj2-var ,obj2))
+	 (if (eq ,obj1-var ,obj2-var) ':equal
+	   ,(rec accessors))))))
+
 
 ;;; Abstract classes
 

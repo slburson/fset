@@ -14,7 +14,7 @@
 (defpackage :fset
   (:use :cl :gmap :new-let :lexical-contexts)
   (:shadowing-import-from :new-let #:let #:cond)
-  (:shadowing-import-from :mt19937 #:make-random-state #:random)
+  (:shadowing-import-from :mt19937 #:*random-state* #:make-random-state #:random)
   ;; For each of these shadowed symbols, using packages must either shadowing-
   ;; import it or shadowing-import the original Lisp symbol.
   (:shadow ;; Shadowed type/constructor names
@@ -36,7 +36,8 @@
 	   ;; because they may want to extend it; and `Compare-Slots' because it's
 	   ;; useful in extending `Compare'.  But `Less-Than?' and `Greater-Than?'
 	   ;; are unlikely to be useful in user code.
-	   #:equal? #:compare #:compare-slots #:identity-ordering-mixin
+	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal
+	   #:identity-ordering-mixin
 	   #:define-cross-type-compare-methods
 	   #:compare-lexicographically
 	   #:empty? #:nonempty? #:size #:set-size #:arb
