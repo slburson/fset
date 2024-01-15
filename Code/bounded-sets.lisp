@@ -47,7 +47,9 @@ on the universe.)"
   (and (not (bounded-set-complement? bs))
        (empty? (bounded-set-set bs))))
 
-(defmethod contains? ((bs bounded-set) x)
+(defmethod contains? ((bs bounded-set) x &optional (arg2 nil arg2?))
+  (declare (ignore arg2))
+  (check-two-arguments arg2? 'contains? 'bounded-set)
   (if (bounded-set-complement? bs)
       (not (contains? (bounded-set-set bs) x))
     (contains? (bounded-set-set bs) x)))
@@ -70,6 +72,10 @@ on the universe.)"
   (declare (ignore arg2))
   (check-two-arguments arg2? 'with 'bounded-set)
   (unless (contains? (bounded-set-universe bs1) x)
+    ;; Cultural note: this message is a reference to the drawing on the cover of MIT AI Lab Memo
+    ;; AIM-555 (1983), the TWENEX EMACS manual.  In turn, the quote is, as I recall, a play on a
+    ;; commonly encountered TECO error message, "NIB: you have addressed a character not in the
+    ;; buffer".
     (error "NIU: You have addressed a planet not ...~@
 	    er, I mean, you have tried to add an element to a bounded-set~@
 	    that is not in its universe"))
@@ -160,7 +166,7 @@ on the universe.)"
 	  (subset? s1 s2)
 	(disjoint? s1 s2)))))
 
-(defmethod internal-do-set ((bs bounded-set) elt-fn value-fn)
+(defmethod internal-do-set ((bs bounded-set) elt-fn &optional (value-fn (lambda () nil)))
   (declare (optimize (speed 3) (safety 0))
 	   (type function elt-fn value-fn))
   (if (bounded-set-complement? bs)

@@ -29,7 +29,9 @@ complement set."
 (defmethod complement ((cs complement-set))
   (complement-set-complement cs))
 
-(defmethod contains? ((cs complement-set) x)
+(defmethod contains? ((cs complement-set) x &optional (y nil y?))
+  (declare (ignore y))
+  (check-two-arguments y? 'contains? 'complement-set)
   (not (contains? (complement-set-complement cs) x)))
 
 (defmethod arb ((cs complement-set))
@@ -105,7 +107,7 @@ complement set."
 (defmethod disjoint? ((s set) (cs complement-set))
   (subset? s (complement-set-complement cs)))
 
-(defmethod internal-do-set ((cs complement-set) elt-fn value-fn)
+(defmethod internal-do-set ((cs complement-set) elt-fn &optional (value-fn (lambda () nil)))
   (declare (ignore elt-fn value-fn))
   (error "Can't enumerate a complement-set"))
 

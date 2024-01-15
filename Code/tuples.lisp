@@ -486,15 +486,15 @@ When done, returns `value'."
 	 (dotimes (,idx-var (the fixnum (size (Tuple-Desc-Key-Set ,desc-var))))
 	   (declare (fixnum ,idx-var))
 	   (let ((,pr-var (the fixnum (svref ,pairs-var ,idx-var)))
-		 ((,val-idx-var (ash ,pr-var (- Tuple-Key-Number-Size)))))
-	     (let ((,key-var (lookup +Tuple-Key-Seq+
+		 ((,val-idx-var (ash ,pr-var (- Tuple-Key-Number-Size)))
+		  ((,key-var (lookup +Tuple-Key-Seq+
 				     (logand ,pr-var Tuple-Key-Number-Mask)))
 		   (,value-var (svref (svref ,contents-var
 					     (ash ,val-idx-var
 						  (- Tuple-Value-Chunk-Bits)))
 				      (logand ,val-idx-var
-					      (1- Tuple-Value-Chunk-Size)))))
-	       . ,body)))
+					      (1- Tuple-Value-Chunk-Size)))))))
+	     . ,body))
 	 ,value-form))))
 
 (defmethod internal-do-tuple ((tup tuple) elt-fn value-fn)
@@ -535,18 +535,11 @@ When done, returns `value'."
   (check-three-arguments value? 'with 'tuple)
   (Tuple-With tuple key value))
 
-(defmethod with ((tuple tuple) (key symbol) &optional (value nil value?))
-  (check-three-arguments value? 'with 'tuple)
-  (Tuple-With tuple (get-tuple-key key) value))
-
 (defmethod lookup ((tuple tuple) (key tuple-key))
   (let ((val? val (Tuple-Lookup tuple key)))
     (if val? (values val t)
       (let ((default-fn (tuple-key-default-fn key)))
 	(values (and default-fn (funcall default-fn tuple)) nil)))))
-
-(defmethod lookup ((tuple tuple) (key symbol))
-  (lookup tuple (get-tuple-key key)))
 
 (defgeneric tuple-merge (tuple1 tuple2 &optional val-fn)
   (:documentation "Returns a new tuple containing all the keys of `tuple1' and `tuple2',
@@ -581,17 +574,37 @@ of calling `val-fn' on the value from `tuple1' and the value from `tuple2'.
       (push (funcall pair-fn k v) result))
     (nreverse result)))
 
+(def-gmap-arg-type :tuple (tuple)
+  "Yields each pair of `tuple', as two values."
+  `((convert 'list ,tuple)
+    #'null
+    (:values 2 #'(lambda (al) (values (caar al) (cdar al))))
+    #'cdr))
+
+(def-gmap-res-type :tuple (&key filterp)
+  `((empty-dyn-tuple) (:consume 2 #'Tuple-With) nil ,filterp))
+
 
 ;;; ================================================================================
 
 (defmethod image ((key tuple-key) (s set))
   (set-image #'(lambda (x) (lookup x key)) s))
 
-(defmethod image ((key symbol) (s set))
-  (set-image #'(lambda (x) (lookup x (get-tuple-key key))) s))
-
 (defmethod image ((key tuple-key) (s seq))
   (seq-image #'(lambda (x) (lookup x key)) s))
 
-(defmethod image ((key symbol) (s seq))
-  (seq-image #'(lambda (x) (lookup x (get-tuple-key key))) s))
+(defmethod restrict ((tup tuple) (s set))
+  (let ((result (empty-tuple)))
+    (do-tuple (k v tup)
+      (when (contains? s k)
+	(setf (@ result k) v)))
+    result))
+
+(defmethod restrict-not ((tup tuple) (s set))
+  (let ((result (empty-tuple)))
+    (do-tuple (k v tup)
+      (unless (contains? s k)
+	(setf (@ result k) v)))
+    result))
+
+

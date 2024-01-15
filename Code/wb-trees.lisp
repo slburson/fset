@@ -201,7 +201,7 @@ greatest member if there are more than one."
 	  (WB-Set-Tree-Greatest right)
 	(let ((val (WB-Set-Tree-Node-Value tree)))
 	  (if (Equivalent-Set? val)
-	      (car (lastcons (Equivalent-Set-Members val)))
+	      (car (cl:last (Equivalent-Set-Members val)))
 	    val))))))
 
 (defun WB-Set-Tree-Member? (tree value)
@@ -1782,7 +1782,7 @@ true, else false."
   (declare (optimize (speed 3) (safety 0)))
   (if (Equivalent-Set? val1)
       (if (Equivalent-Set? val2)
-	  (dolist (m1 (Equivalent-Set-Members val1) nil)
+	  (dolist (m1 (Equivalent-Set-Members val1) t)
 	    (when (member m1 (Equivalent-Set-Members val2) :test #'equal?)
 	      (return nil)))
 	(not (member val2 (Equivalent-Set-Members val1) :test #'equal?)))
@@ -2024,7 +2024,7 @@ multiplicity."
 	  (WB-Bag-Tree-Greatest-Pair right)
 	(let ((val (WB-Bag-Tree-Node-Value tree)))
 	  (if (Equivalent-Bag? val)
-	      (let ((pr (car (lastcons (Equivalent-Bag-Alist val)))))
+	      (let ((pr (car (cl:last (Equivalent-Bag-Alist val)))))
 		(values (car pr) (cdr pr)))
 	    (values val (WB-Bag-Tree-Node-Count tree))))))))
 
@@ -3803,7 +3803,7 @@ arbitrary greatest key and its value if there are more than one."
 	  (WB-Map-Tree-Greatest-Pair right)
 	(let ((key (WB-Map-Tree-Node-Key tree)))
 	  (if (Equivalent-Map? key)
-	      (let ((pr (car (lastcons (Equivalent-Map-Alist key)))))
+	      (let ((pr (car (cl:last (Equivalent-Map-Alist key)))))
 		(values (car pr) (cdr pr)))
 	    (values key (WB-Map-Tree-Node-Value tree))))))))
 

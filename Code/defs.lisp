@@ -14,7 +14,7 @@
 (defpackage :fset
   (:use :cl :gmap :new-let :lexical-contexts)
   (:shadowing-import-from :new-let #:let #:cond)
-  (:shadowing-import-from :mt19937 #:*random-state* #:make-random-state #:random)
+  (:shadowing-import-from :mt19937 #:make-random-state #:random #:*random-state*)
   ;; For each of these shadowed symbols, using packages must either shadowing-
   ;; import it or shadowing-import the original Lisp symbol.
   (:shadow ;; Shadowed type/constructor names
@@ -22,7 +22,8 @@
 	   ;; Shadowed set operations
 	   #:union #:intersection #:set-difference #:complement
 	   ;; Shadowed sequence operations
-	   #:first #:last #:subseq #:reverse #:sort #:stable-sort #:reduce
+	   #:first #:last #:subseq #:reverse #:sort #:stable-sort #:sort-and-group
+	   #:reduce
 	   #:find #:find-if #:find-if-not
 	   #:count #:count-if #:count-if-not
 	   #:position #:position-if #:position-if-not
@@ -68,22 +69,26 @@
 	   #:do-set #:do-bag #:do-bag-pairs #:do-map #:do-map-domain #:do-seq #:do-tuple
 	   #:adjoinf #:removef #:includef #:excludef
 	   #:unionf #:intersectf #:imagef #:composef
-	   #:define-tuple-key #:def-tuple-key #:get-tuple-key #:tuple-key-name
+	   #:define-tuple-key #:def-tuple-key #:get-tuple-key #:tuple-key-name #:tuple-key?
 	   #:tuple-merge
 	   #:fset-setup-readtable #:*fset-readtable*
-	   #:$
+	   #:$ #:%
 	   ;; Used by the bag methods that convert to and from lists.
 	   #:alist
 	   ;; Bounded sets
 	   #:bounded-set #:make-bounded-set #:bounded-set-contents
 	   ;; Relations
-	   #:relation #:bin-rel #:wb-bin-rel #:empty-bin-rel #:empty-wb-bin-rel
+	   #:relation #:2-relation #:wb-2-relation #:empty-2-relation #:empty-wb-2-relation
+	   #:do-2-relation
 	   #:lookup-inv #:inverse #:join #:conflicts #:map-to-sets
 	   #:list-relation #:wb-list-relation #:empty-list-relation
 	   #:empty-wb-list-relation #:arity #:query #:query-multi #:do-list-relation
 	   #:query-registry #:empty-query-registry #:with-query #:less-query
 	   #:all-queries #:lookup-multi #:forward-key #:lookup-restricted
-	   #:lookup-multi-restricted))
+	   #:lookup-multi-restricted
+
+           ;; named-readtable readtable
+           #:fset-readtable))
 
 
 ;;; A convenient package for experimenting with FSet.  Also serves as an example

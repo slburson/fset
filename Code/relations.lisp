@@ -39,7 +39,8 @@
 	    (:copier nil))
   "A class of functional binary relations represented as pairs of weight-
 balanced binary trees.  This is the default implementation of binary relations
-in FSet.  The inverse is constructed lazily, and maintained thereafter."
+in FSet.  The inverse is constructed lazily, and maintained incrementally once
+constructed."
   size
   map0
   map1)
@@ -64,23 +65,22 @@ in FSet.  The inverse is constructed lazily, and maintained thereafter."
   (let ((tree (wb-2-relation-map0 br)))
     (if tree
 	(let ((key val (WB-Map-Tree-Arb-Pair tree)))
-	  (values key (WB-Set-Tree-Arb val)) t)
+	  (values key (WB-Set-Tree-Arb val) t))
       (values nil nil nil))))
 
-;;; Must pass the pair as a cons -- the generic function doesn't allow us to
-;;; add a parameter.  (&&& Actually we should do the same thing we're doing
-;;; with `with' and `less'.)
-(defmethod contains? ((br wb-2-relation) pr)
-  (let ((found? set-tree (WB-Map-Tree-Lookup (wb-2-relation-map0 br) (car pr))))
-    (and found? (WB-Set-Tree-Member? set-tree (cdr pr)))))
+(defmethod contains? ((br wb-2-relation) x &optional (y nil y?))
+  (check-three-arguments y? 'contains? 'wb-2-relation)
+  (let ((found? set-tree (WB-Map-Tree-Lookup (wb-2-relation-map0 br) x)))
+    (and found? (WB-Set-Tree-Member? set-tree y))))
 
-;;; Returns the range set.
 ;;; &&& Aaagh -- not sure this makes sense -- (setf (lookup rel x) ...) doesn't do
 ;;; the right thing at all, relative to this.  Maybe the setf expander for `lookup'/`@'
 ;;; should call an internal form of `with' that does something different on a
-;;; relation...  Yes, I think this operation should be renamed, and `setf-lookup'
-;;; should not exist on a relation, as `lookup' should not.
+;;; relation...
+;;; [Later] No, I don't think this is a problem.  (setf (lookup ...) ...) just doesn't
+;;; make sense on a relation, any more than it does on a set.
 (defmethod lookup ((br wb-2-relation) x)
+  "Returns the set of values that the relation pairs `x' with."
   (let ((found? set-tree (WB-Map-Tree-Lookup (wb-2-relation-map0 br) x)))
     (if found? (make-wb-set set-tree)
       *empty-wb-set*)))
@@ -110,7 +110,9 @@ in FSet.  The inverse is constructed lazily, and maintained thereafter."
 	  (let ((ignore prev (WB-Map-Tree-Lookup m1 y)))
 	    (declare (ignore ignore))
 	    (setq m1 (WB-Map-Tree-With m1 y (WB-Set-Tree-With prev x))))))
-      ;;; Look Ma, no locking!  Assuming the write is atomic.
+      ;;; Look Ma, no locking!  Assuming the write is atomic.  -- Actually, we're assuming a little
+      ;;; more than that: we're assuming other threads will see a fully initialized map object if
+      ;;; they read the slot shortly after we write it.  Some kind of memory barrier is &&& needed.
       (setf (wb-2-relation-map1 br) m1))
     m1))
 
@@ -150,22 +152,22 @@ in FSet.  The inverse is constructed lazily, and maintained thereafter."
 	  (if (eq new-set-tree set-tree)
 	      br			; `y' was already there
 	    (make-wb-2-relation (1+ (wb-2-relation-size br))
-			     (WB-Map-Tree-With (wb-2-relation-map0 br) x new-set-tree)
-			     (and map1
-				  (let ((ignore set-tree-1
-					  (WB-Map-Tree-Lookup map1 y)))
-				    (declare (ignore ignore))
-				    (WB-Map-Tree-With
-				      map1 y (WB-Set-Tree-With set-tree-1 x)))))))
+				(WB-Map-Tree-With (wb-2-relation-map0 br) x new-set-tree)
+				(and map1
+				     (let ((ignore set-tree-1
+					     (WB-Map-Tree-Lookup map1 y)))
+				       (declare (ignore ignore))
+				       (WB-Map-Tree-With
+					 map1 y (WB-Set-Tree-With set-tree-1 x)))))))
       (make-wb-2-relation (1+ (wb-2-relation-size br))
-		       (WB-Map-Tree-With (wb-2-relation-map0 br) x
-					 (WB-Set-Tree-With nil y))
-		       (and map1
-			    (let ((ignore set-tree-1
-				    (WB-Map-Tree-Lookup map1 y)))
-			      (declare (ignore ignore))
-			      (WB-Map-Tree-With
-				map1 y (WB-Set-Tree-With set-tree-1 x))))))))
+			  (WB-Map-Tree-With (wb-2-relation-map0 br) x
+					    (WB-Set-Tree-With nil y))
+			  (and map1
+			       (let ((ignore set-tree-1
+				       (WB-Map-Tree-Lookup map1 y)))
+				 (declare (ignore ignore))
+				 (WB-Map-Tree-With
+				   map1 y (WB-Set-Tree-With set-tree-1 x))))))))
 
 (defmethod less ((br wb-2-relation) x &optional (y nil y?))
   ;; Try to provide a little support for the cons representation of pairs.
@@ -179,24 +181,26 @@ in FSet.  The inverse is constructed lazily, and maintained thereafter."
 	(if (eq new-set-tree set-tree)
 	    br
 	  (make-wb-2-relation (1- (wb-2-relation-size br))
-			   (if new-set-tree
-			       (WB-Map-Tree-With (wb-2-relation-map0 br) x new-set-tree)
-			     (WB-Map-Tree-Less (wb-2-relation-map0 br) x))
-			   (and map1
-				(let ((ignore set-tree
-					(WB-Map-Tree-Lookup map1 y))
-				      ((new-set-tree (WB-Set-Tree-Less set-tree x))))
-				  (declare (ignore ignore))
-				  (if new-set-tree
-				      (WB-Map-Tree-With map1 y new-set-tree)
-				    (WB-Map-Tree-Less map1 y))))))))))
+			      (if new-set-tree
+				  (WB-Map-Tree-With (wb-2-relation-map0 br) x new-set-tree)
+				(WB-Map-Tree-Less (wb-2-relation-map0 br) x))
+			      (and map1
+				   (let ((ignore set-tree
+					   (WB-Map-Tree-Lookup map1 y))
+					 ((new-set-tree (WB-Set-Tree-Less set-tree x))))
+				     (declare (ignore ignore))
+				     (if new-set-tree
+					 (WB-Map-Tree-With map1 y new-set-tree)
+				       (WB-Map-Tree-Less map1 y))))))))))
 
 (defmethod union ((br1 wb-2-relation) (br2 wb-2-relation) &key)
-  (let ((new-size 0)
+  (let ((new-size (+ (wb-2-relation-size br1) (wb-2-relation-size br2)))
 	((new-map0 (WB-Map-Tree-Union (wb-2-relation-map0 br1) (wb-2-relation-map0 br2)
 				      (lambda (s1 s2)
 					(let ((s (WB-Set-Tree-Union s1 s2)))
-					  (incf new-size (WB-Set-Tree-Size s))
+					  (decf new-size
+						(- (+ (WB-Set-Tree-Size s1) (WB-Set-Tree-Size s2))
+						   (WB-Set-Tree-Size s)))
 					  s))))
 	 (new-map1 (and (or (wb-2-relation-map1 br1) (wb-2-relation-map1 br2))
 			(progn
@@ -211,8 +215,8 @@ in FSet.  The inverse is constructed lazily, and maintained thereafter."
   (let ((new-size 0)
 	((new-map0 (WB-Map-Tree-Intersect (wb-2-relation-map0 br1)
 					  (wb-2-relation-map0 br2)
-					  (lambda (ignore s1 s2)
-					    (declare (ignore ignore))
+					  (lambda (s1 s2)
+					    ;; (declare (ignore ignore))
 					    (let ((s (WB-Set-Tree-Intersect s1 s2)))
 					      (incf new-size (WB-Set-Tree-Size s))
 					      s))))
@@ -305,9 +309,11 @@ in FSet.  The inverse is constructed lazily, and maintained thereafter."
 (defgeneric internal-do-2-relation (br elt-fn value-fn))
 
 (defmacro do-2-relation ((key val br &optional value) &body body)
+  "Enumerates all pairs of the relation `br', binding them successively to `key' and `val'
+and executing `body'."
   `(block nil
      (internal-do-2-relation ,br (lambda (,key ,val) . ,body)
-			      (lambda () ,value))))
+			     (lambda () ,value))))
 
 (defmethod internal-do-2-relation ((br wb-2-relation) elt-fn value-fn)
   (Do-WB-Map-Tree-Pairs (x y-set (wb-2-relation-map0 br) (funcall value-fn))
@@ -513,8 +519,13 @@ Note that `filterp', if supplied, must take two arguments."
 (define-cross-type-compare-methods relation)
 
 (defmethod compare ((a wb-2-relation) (b wb-2-relation))
-  (WB-Map-Tree-Compare (wb-2-relation-map0 a) (wb-2-relation-map0 b)
-		       #'WB-Set-Tree-Compare))
+  (let ((a-size (wb-2-relation-size a))
+	(b-size (wb-2-relation-size b)))
+    (cond ((< a-size b-size) ':less)
+	  ((> a-size b-size) ':greater)
+	  (t
+	   (WB-Map-Tree-Compare (wb-2-relation-map0 a) (wb-2-relation-map0 b)
+				#'WB-Set-Tree-Compare)))))
 
 (defmethod verify ((br wb-2-relation))
   ;; Slow, but thorough.
@@ -576,7 +587,14 @@ argument subforms.  Each argument subform can be a list of the form (`key-expr'
 `value-expr'), denoting a mapping from the value of `key-expr' to the value of
 `value-expr'; or a list of the form ($ `expression'), in which case the
 expression must evaluate to a 2-relation, all of whose mappings will be
-included in the result."
+included in the result.  Also, each of 'key-expr' and 'value-expr' can be of the
+form ($ `expression'), in which case the expression must evaluate to a set, and
+the elements of the set are used individually to form pairs; for example, the
+result of
+
+  (2-relation (($ (set 1 2)) ($ (set 'a 'b))))
+
+contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
   (expand-2-relation-constructor-form '2-relation args))
 
 (defmacro wb-2-relation (&rest args)
@@ -585,27 +603,65 @@ Each argument subform can be a list of the form (`key-expr' `value-expr'),
 denoting a mapping from the value of `key-expr' to the value of `value-expr';
 or a list of the form ($ `expression'), in which case the expression must
 evaluate to a 2-relation, all of whose mappings will be included in the
-result."
-  (expand-2-relation-constructor-form '2-relation args))
+result.  Also, each of 'key-expr' and 'value-expr' can be of the
+form ($ `expression'), in which case the expression must evaluate to a set, and
+the elements of the set are used individually to form pairs; for example, the
+result of
 
-(defun expand-2-relation-constructor-form (type-name args)
+  (wb-2-relation (($ (set 1 2)) ($ (set 'a 'b))))
+
+contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
+  (expand-2-relation-constructor-form 'wb-2-relation args))
+
+(defun expand-2-relation-constructor-form (type-name subforms)
   (let ((empty-form (ecase type-name
 		      (2-relation '(empty-2-relation))
 		      (wb-2-relation '(empty-wb-2-relation)))))
-    (labels ((recur (args result)
-	       (cond ((null args) result)
-		     ((not (and (listp (car args))
-				(= (length (car args)) 2)))
-		      (error "Arguments to ~S must all be pairs expressed as 2-element~@
+    (labels ((recur (subforms result)
+	       (if (null subforms) result
+		 (let ((subform (car subforms)))
+		   (cond ((not (and (listp subform)
+				    (= (length subform) 2)))
+			  (error "Subforms for ~S must all be pairs expressed as 2-element~@
 			      lists, or ($ x) subforms -- not ~S"
-			     type-name (car args)))
-		     ((eq (caar args) '$)
-		      (if (eq result empty-form)
-			  (recur (cdr args) (cadar args))
-			(recur (cdr args) `(union ,result ,(cadar args)))))
-		     (t
-		      (recur (cdr args) `(with ,result ,(caar args) ,(cadar args)))))))
-      (recur args empty-form))))
+				 type-name subform))
+			 ((eq (car subform) '$)
+			  (if (eq result empty-form)
+			      (recur (cdr subforms) (cadr subform))
+			    (recur (cdr subforms) `(union ,result ,(cadr subform)))))
+			 ((and (listp (car subform)) (eq (caar subform) '$)
+			       (listp (cadr subform)) (eq (caadr subform) '$))
+			  (let ((key-var (gensym "KEY-"))
+				(vals-var (gensym "VALS-")))
+			    (recur (cdr subforms)
+				   `(union ,result
+					   (let ((,vals-var ,(cadadr subform)))
+					     (gmap :union
+						   (fn (,key-var)
+						     (convert ',type-name
+							      (map (,key-var ,vals-var))
+							      :from-type 'map-to-sets))
+						   (:set ,(cadar subform))))))))
+			 ((and (listp (car subform)) (eq (caar subform) '$))
+			  (let ((key-var (gensym "KEY-"))
+				(val-var (gensym "VAL-")))
+			    (recur (cdr subforms)
+				   `(union ,result
+					   (let ((,val-var ,(cadr subform)))
+					     (gmap :union
+						   (fn (,key-var)
+						     (,type-name (,key-var ,val-var)))
+						   (:set ,(cadar subform))))))))
+			 ((and (listp (cadr subform)) (eq (caadr subform) '$))
+			  (recur (cdr subforms)
+				 `(union ,result
+					 (convert ',type-name
+						  (map (,(car subform) ,(cadadr subform)))
+						  :from-type 'map-to-sets))))
+			 (t
+			  (recur (cdr subforms)
+				 `(with ,result ,(car subform) ,(cadr subform)))))))))
+      (recur subforms empty-form))))
 
 
 ;;; ================================================================================
@@ -679,7 +735,9 @@ the first tuple added, or the first query."
 (defmethod arb ((rel wb-list-relation))
   (arb (wb-list-relation-tuples rel)))
 
-(defmethod contains? ((rel wb-list-relation) tuple)
+(defmethod contains? ((rel wb-list-relation) tuple &optional (arg2 nil arg2?))
+  (declare (ignore arg2))
+  (check-two-arguments arg2? 'contains? 'wb-list-relation)
   (contains? (wb-list-relation-tuples rel) tuple))
 
 (defgeneric query (relation pattern metapattern)

@@ -444,7 +444,8 @@ subform."
 ;;; at read time.  They can therefore be used to read back previously printed
 ;;; structure containing FSet collections.
 (defun |rereading-#{-reader| (stream subchar arg)
-  (declare (ignore subchar arg))
+  (declare (ignore subchar arg)
+           (notinline empty-bag))
   (case (peek-char nil stream t nil t)
     (#\|
      (read-char stream t nil t)
@@ -499,3 +500,13 @@ will correctly read structure printed by the FSet print functions.  Returns
   "A copy of the standard readtable with the rereading FSet reader macros
 installed.  This readtable can be used to read structure printed by the FSet
 print functions.")
+
+(named-readtables:defreadtable fset-readtable
+  (:merge :standard)
+  (:dispatch-macro-char #\# #\{ #'|#{-reader|)
+  (:macro-char #\} (get-macro-character #\)) nil)
+  (:dispatch-macro-char #\# #\[ #'|#[-reader|)
+  (:macro-char #\] (get-macro-character #\)) nil)
+  (:dispatch-macro-char #\# #\~ #'|#~-reader|)
+  (:dispatch-macro-char #\# #\$ #'|#$-reader|)
+  (:dispatch-macro-char #\# #\% #'|#%-reader|))
