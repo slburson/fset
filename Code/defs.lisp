@@ -22,7 +22,7 @@
 	   ;; Shadowed set operations
 	   #:union #:intersection #:set-difference #:complement
 	   ;; Shadowed sequence operations
-	   #:first #:last #:subseq #:reverse #:sort #:stable-sort #:sort-and-group
+	   #:first #:last #:subseq #:reverse #:sort #:stable-sort
 	   #:reduce
 	   #:find #:find-if #:find-if-not
 	   #:count #:count-if #:count-if-not
@@ -58,7 +58,7 @@
 	   #:lastcons #:head #:tail
 	   #:with-first #:less-first #:push-first #:pop-first
 	   #:with-last #:less-last #:push-last #:pop-last #:appendf #:prependf
-	   #:insert #:splice #:subseq #:concat #:reverse #:sort #:stable-sort
+	   #:insert #:splice #:subseq #:concat #:reverse #:sort #:stable-sort #:sort-and-group
 	   #:find #:find-if #:find-if-not
 	   #:count #:count-if #:count-if-not
 	   #:position #:position-if #:position-if-not

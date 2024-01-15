@@ -1680,10 +1680,10 @@ to those members above `lo' and below `hi'."
 		 +WB-Tree-Max-Depths-With-Values+
 	       +WB-Tree-Max-Depths-Without-Values+)
 	     size)
-    (values (ceiling (* (1- (integer-length size))
-			;; constant:
-			(/ (log 2) (log (/ (+ 1 WB-Tree-Balance-Factor)
-					   WB-Tree-Balance-Factor))))))))
+    (ceiling (* (1- (integer-length size))
+		;; constant:
+		(/ (log 2) (log (/ (+ 1 WB-Tree-Balance-Factor)
+				   WB-Tree-Balance-Factor)))))))
 
 
 ;;; ================================================================================
@@ -4056,7 +4056,7 @@ pair removed."
 	((and (consp tree1) (consp tree2))
 	 (WB-Map-Tree-Vector-Pair-Union tree1 tree2 val-fn lo hi))
 	((consp tree1)
-	 ;; Can't use the swap-trees trick here, as the operation is noncommutative.
+	 ;; Can't use the swap-trees trick here, as the operation is noncommutative if 'val-fn' is.
 	 (let ((key2 (WB-Map-Tree-Node-Key tree2))
 	       (val2 (WB-Map-Tree-Node-Value tree2))
 	       ((eqvk1? eqvk1 eqvv1 (WB-Map-Tree-Find-Equivalent tree1 key2))
@@ -4731,11 +4731,12 @@ between equal trees."
 		   ((comp (compare key1 key2))))
 	       (ecase comp
 		 ((:equal)
-		  (push key1 keys)
-		  (push (funcall val-fn (svref vals1 i1) (svref vals2 i2))
-			vals)
-		  (incf i1)
-		  (incf i2))
+		  (let ((new-val second-val (funcall val-fn (svref vals1 i1) (svref vals2 i2))))
+		    (unless (eq second-val ':no-value)
+		      (push key1 keys)
+		      (push new-val vals)
+		      (incf i1)
+		      (incf i2))))
 		 ((:less)
 		  (push key1 keys)
 		  (push (svref vals1 i1) vals)
@@ -5103,8 +5104,9 @@ otherwise one value is returned, which is an `Equivalent-Map'."
 	    (dolist (pr1 alist1)
 	      (let ((pr2 (find (car pr1) alist2 :test #'equal? :key #'car)))
 		(if pr2
-		    (push (cons (car pr1) (funcall val-fn (cdr pr1) (cdr pr2)))
-			  result)
+		    (let ((new-val second-val (funcall val-fn (cdr pr1) (cdr pr2))))
+		      (unless (eq second-val ':no-value)
+			(push (cons (car pr1) new-val) result)))
 		  (push pr1 result))))
 	    (dolist (pr2 alist2)
 	      (let ((pr1 (find (car pr2) alist1 :test #'equal? :key #'car)))
@@ -5709,23 +5711,24 @@ the result, inserts `val', returning the new vector."
 		 (push (Make-WB-Seq-Tree-Node left right) stack))))))))
 
 (defun WB-Seq-Tree-To-Vector (tree)
-  (let ((result (make-array (WB-Seq-Tree-Size tree))))
-    (labels ((fillr (tree result idx)
-	       (declare (optimize (speed 3) (safety 0))
-			(fixnum idx))
-	       (cond ((stringp tree)
-		      (dotimes (i (length (the simple-string tree)))
-			(setf (svref result (+ idx i)) (schar tree i))))
-		     ((simple-vector-p tree)
-		      (dotimes (i (length tree))
-			(setf (svref result (+ idx i)) (svref tree i))))
-		     (t
-		      (let ((left (WB-Seq-Tree-Node-Left tree)))
-			(fillr left result idx)
-			(fillr (WB-Seq-Tree-Node-Right tree)
-			       result (+ idx (WB-Seq-Tree-Size left))))))))
-      (fillr tree result 0)
-      result)))
+  (if (null tree) #()
+    (let ((result (make-array (WB-Seq-Tree-Size tree))))
+      (labels ((fillr (tree result idx)
+		 (declare (optimize (speed 3) (safety 0))
+			  (fixnum idx))
+		 (cond ((stringp tree)
+			(dotimes (i (length (the simple-string tree)))
+			  (setf (svref result (+ idx i)) (schar tree i))))
+		       ((simple-vector-p tree)
+			(dotimes (i (length tree))
+			  (setf (svref result (+ idx i)) (svref tree i))))
+		       (t
+			(let ((left (WB-Seq-Tree-Node-Left tree)))
+			  (fillr left result idx)
+			  (fillr (WB-Seq-Tree-Node-Right tree)
+				 result (+ idx (WB-Seq-Tree-Size left))))))))
+	(fillr tree result 0)
+	result))))
 
 (defun WB-Seq-Tree-To-String (tree)
   (declare (optimize (speed 3) (safety 0)))

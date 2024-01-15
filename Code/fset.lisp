@@ -318,7 +318,10 @@ the value for each key contained in both maps is the result of calling
 defaults to simply returning its second argument, so the entries in `map2'
 simply shadow those in `map1'.  The default for the new map is the result of
 calling `val-fn' on the defaults for the two maps (so be sure it can take
-these values)."))
+these values).
+
+New feature: if `val-fn' returns `:no-value' as a second value, the result
+will contain no pair with the corresponding key."))
 
 (defgeneric map-intersection (map1 map2 &optional val-fn)
   (:documentation
@@ -2594,23 +2597,6 @@ This is the default implementation of seqs in FSet."
   (with-default (convert 'seq (cl:stable-sort (convert 'vector s) pred :key key))
 		(seq-default s)))
 
-(defmethod sort-and-group ((s seq) pred &key key)
-  (if (empty? s) s
-    (let ((sorted (stable-sort s pred :key key))
-	  (result (seq))
-	  (group (seq)))
-      (do-seq (x sorted)
-	(if (or (empty? group)
-		(not (if key (funcall pred (funcall key (last group))
-				      (funcall key x))
-		       (funcall pred (last group) x))))
-	    (push-last group x)
-	  (progn
-	    (push-last result group)
-	    (setq group (with-first (empty-seq) x)))))
-      ;; 'group' can't be empty if 's' was nonempty.
-      (with-last result group))))
-
 (defmethod domain ((s wb-seq))
   (let ((result nil))
     (dotimes (i (size s))
@@ -2787,6 +2773,23 @@ iteration to the index of the current element of `seq'.  When done, returns
 			 (seq-default s))
 	    (make-wb-seq (WB-Seq-Tree-From-List (nreverse result-2))
 			 (seq-default s)))))
+
+(defmethod sort-and-group ((s seq) pred &key key)
+  (if (empty? s) s
+    (let ((sorted (stable-sort s pred :key key))
+	  (result (empty-seq))
+	  (group (empty-seq)))
+      (do-seq (x sorted)
+	(if (or (empty? group)
+		(not (if key (funcall pred (funcall key (last group))
+				      (funcall key x))
+		       (funcall pred (last group) x))))
+	    (push-last group x)
+	  (progn
+	    (push-last result group)
+	    (setq group (with-first (empty-seq) x)))))
+      ;; 'group' can't be empty if 's' was nonempty.
+      (with-last result group))))
 
 (defmethod image ((fn function) (s seq))
   (seq-image fn s))

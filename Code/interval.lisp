@@ -63,9 +63,11 @@
 
 (defun make-interval (lower upper lower-closed? upper-closed?)
   (let ((comp (compare lower upper)))
+    ;; &&& Do we really need to enforce this?  Maybe we should just ignore empty ("inconsistent")
+    ;; intervals.
     (unless (and (not (eq comp ':greater))
 		 (or (eq comp ':less)
-		     ;; If the interval is null, it had better be closed.
+		     ;; If the interval is null, it must be closed.
 		     (and lower-closed? upper-closed?)))
       (error "Attempt to create inconsistent interval")))
   (make-raw-interval lower upper (interval-kind-symbol lower-closed? upper-closed?)))
@@ -140,6 +142,18 @@
   "The number of intervals in the set."
   (WB-Set-Tree-Size (interval-set-contents s)))
 
+(defmethod with ((s interval-set) (iv interval) &optional (arg2 nil arg2?))
+  (declare (ignore arg2))
+  (check-two-arguments arg2? 'with 'interval-set)
+  (with-interval s (interval-lower iv) (interval-upper iv)
+		 (interval-lower-closed? iv) (interval-upper-closed? iv)))
+
+(defmethod less ((s interval-set) (iv interval) &optional (arg2 nil arg2?))
+  (declare (ignore arg2))
+  (check-two-arguments arg2? 'less 'interval-set)
+  (less-interval s (interval-lower iv) (interval-upper iv)
+		 (interval-lower-closed? iv) (interval-upper-closed? iv)))
+
 ;;; Internal.
 (defgeneric with-interval (interval-set lower upper lower-closed? upper-closed?))
 
@@ -190,13 +204,6 @@
 			  (make-interval new-lower new-upper
 					 new-lower-closed? new-upper-closed?))))))
 
-(defmethod with ((s interval-set) (iv interval) &optional (arg2 nil arg2?))
-  (declare (ignore arg2))
-  (check-two-arguments arg2? 'with 'interval-set)
-  (with-interval s (interval-lower iv) (interval-upper iv)
-		 (interval-lower-closed? iv) (interval-upper-closed? iv)))
-
-
 ;;; Internal.
 (defgeneric less-interval (interval-set lower upper lower-closed? upper-closed?))
 
@@ -239,12 +246,6 @@
       (make-interval-set
 	(WB-Set-Tree-Union (WB-Set-Tree-Diff contents (wb-set-contents removed))
 			   (wb-set-contents new))))))
-
-(defmethod less ((s interval-set) (iv interval) &optional (arg2 nil arg2?))
-  (declare (ignore arg2))
-  (check-two-arguments arg2? 'less 'interval-set)
-  (less-interval s (interval-lower iv) (interval-upper iv)
-		 (interval-lower-closed? iv) (interval-upper-closed? iv)))
 
 (defmethod union ((s0 interval-set) (s1 interval-set) &key)
   ;; Works, but needs to be rewritten to run in linear time and cons less.
@@ -383,19 +384,17 @@
 
 
 ;;; ================================================================================
-;;; Interval set relations
+;;; Interval relations
 
-;;; An "interval set relation" is a binary relation whose left domain is encoded as
+;;; An "interval relation" is a binary relation whose left domain is encoded as
 ;;; an interval set.  It does not cache its inverse (it could, but I have no need
-;;; for this).  Adam Megacz calls it a "topological bag", but that doesn't seem
-;;; right to me (it's certainly not a bag in the sense in which I use the word).
+;;; for this).
 
-#|| Someday
-(defstruct (interval-set-relation
-	    (:constructor make-interval-set-relation (contents))
-	    (:predicate interval-set-relation?)
-	    (:print-function print-interval-set-relation)
+#|| Never implemented...
+(defstruct (interval-relation
+	    (:constructor make-interval-relation (contents))
+	    (:predicate interval-relation?)
+	    (:print-function print-interval-relation)
 	    (:copier nil))
   contents)
 ||#
-
