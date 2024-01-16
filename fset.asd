@@ -3,7 +3,7 @@
 ;;; File: fset.asd
 ;;; Contents: ASDF definitions for FSet
 ;;;
-;;; This file is part of FSet.  Copyright (c) 2007 Sympoiesis, Inc.
+;;; This file is part of FSet.  Copyright (c) 2007-2024 Scott L. Burson.
 ;;; FSet is licensed under the Lisp Lesser GNU Public License, or LLGPL.
 ;;; See: http://opensource.franz.com/preamble.html
 ;;; This license provides NO WARRANTY.
@@ -13,8 +13,8 @@
   :description "A functional set-theoretic collections library.
 See: http://www.ergy.com/FSet.html
 "
-  :author "Scott L. Burson <Scott@ergy.com>"
-  :version "1.3.2"
+  :author "Scott L. Burson <Scott@sympoiesis.com>"
+  :version "1.3.3"
   :licence "LLGPL"
   :depends-on (:misc-extensions :mt19937 :named-readtables)
   :serial t
