@@ -37,7 +37,8 @@
 	   ;; because they may want to extend it; and `Compare-Slots' because it's
 	   ;; useful in extending `Compare'.  But `Less-Than?' and `Greater-Than?'
 	   ;; are unlikely to be useful in user code.
-	   #:equal? #:compare #:compare-slots #:identity-ordering-mixin
+	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal
+	   #:identity-ordering-mixin
 	   #:define-cross-type-compare-methods
 	   #:compare-lexicographically
 	   #:empty? #:nonempty? #:size #:set-size #:arb

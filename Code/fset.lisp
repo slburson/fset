@@ -260,19 +260,6 @@ else to false).  `collection' can also be a map, in which case `fn' must be a
 Lisp function of two arguments that returns two values (the map-default of the
 result is that of `collection'); also see `compose'."))
 
-;;; Convenience methods.
-(defmethod image ((fn function) (l list))
-  (mapcar fn l))
-
-(defmethod image ((fn symbol) (l list))
-  (mapcar fn l))
-
-(defmethod image ((fn map) (l list))
-  (mapcar (lambda (x) (lookup fn x)) l))
-
-(defmethod image ((fn set) (l list))
-  (mapcar (lambda (x) (lookup fn x)) l))
-
 (defgeneric reduce (fn collection &key key initial-value)
   (:documentation
     "If `collection' is a Lisp sequence, this simply calls `cl:reduce' (q.v.).
@@ -836,11 +823,23 @@ Also works on an FSet seq."))
 ;;; ================================================================================
 ;;; FSet methods for CL sequences
 
+(defmethod with-first ((ls list) val)
+  (cons val ls))
+
+(defmethod with-last ((ls list) val)
+  (append ls (list val)))
+
 (defmethod concat ((a list) &rest seqs)
   (append a (reduce #'append seqs :key (fn (x) (convert 'list x)) :from-end t)))
 
 (defmethod convert ((to-type (eql 'list)) (ls list) &key)
   ls)
+
+(defmethod filter ((pred symbol) (ls list))
+  (remove-if-not (coerce pred 'function) ls))
+
+(defmethod filter ((pred function) (ls list))
+  (remove-if-not pred ls))
 
 (defmethod convert ((to-type (eql 'vector)) (v vector) &key)
   v)
@@ -862,7 +861,17 @@ Also works on an FSet seq."))
 	(push x res2)))
     (values (nreverse res1) (nreverse res2))))
 
+(defmethod image ((fn function) (l list))
+  (mapcar fn l))
 
+(defmethod image ((fn symbol) (l list))
+  (mapcar (coerce fn 'function) l))
+
+(defmethod image ((fn map) (l list))
+  (mapcar (lambda (x) (lookup fn x)) l))
+
+(defmethod image ((fn set) (l list))
+  (mapcar (lambda (x) (lookup fn x)) l))
 
 
 ;;; ================================================================================

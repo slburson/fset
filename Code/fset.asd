@@ -12,15 +12,18 @@
 ;;; This license provides NO WARRANTY.
 
 (defsystem FSet
-  :depends-on (:gmap :mt19937)
+  :depends-on (:gmap :mt19937 :named-readtables)
   :components
   ((:file "defs")
    (:file "port" :depends-on ("defs"))
-   (:file "order" :depends-on ("port"))
+   (:file "macros" :depends-on ("defs"))
+   (:file "order-macros" :depends-on ("defs"))
+   (:file "order" :depends-on ("port" "order-macros"))
    (:file "wb-trees" :depends-on ("order"))
-   (:file "fset" :depends-on ("wb-trees"))
-   (:file "tuples" :depends-on ("fset"))
    (:file "reader" :depends-on ("tuples"))
+   (:file "fset-macros" :depends-on ("defs"))
+   (:file "fset" :depends-on ("wb-trees" "fset-macros"))
+   (:file "tuples" :depends-on ("fset"))
    (:file "testing" :depends-on ("reader"))
    (:file "interval" :depends-on ("fset"))
    (:file "relations" :depends-on ("fset" "reader"))
