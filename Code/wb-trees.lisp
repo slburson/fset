@@ -1,11 +1,9 @@
 ;;; -*- Mode: Lisp; Package: FSet; Syntax: ANSI-Common-Lisp -*-
 
-(in-package :fset)
-
 ;;; File: wb-trees.lisp
 ;;; Contents: Weight-balanced binary tree implementation for FSet.
 ;;;
-;;; This file is part of FSet.  Copyright (c) 2007-2012 Scott L. Burson.
+;;; This file is part of FSet.  Copyright (c) 2007-2024 Scott L. Burson.
 ;;; FSet is licensed under the Lisp Lesser GNU Public License, or LLGPL.
 ;;; See: http://opensource.franz.com/preamble.html
 ;;; This license provides NO WARRANTY.
@@ -44,6 +42,8 @@ comparator rather than separate `less-than?' and `equal?' -- so we have to
 do the comparison only once for each pair of values.
 
 ||#
+
+(in-package :fset)
 
 
 ;;; ================================================================================

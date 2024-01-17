@@ -1,14 +1,14 @@
 ;;; -*- Mode: Lisp; Package: FSet; Syntax: ANSI-Common-Lisp -*-
 
-(in-package :fset)
-
 ;;; File: order.lisp
 ;;; Contents: Ordering function for FSet.
 ;;;
-;;; This file is part of FSet.  Copyright (c) 2007-2012 Scott L. Burson.
+;;; This file is part of FSet.  Copyright (c) 2007-2024 Scott L. Burson.
 ;;; FSet is licensed under the Lisp Lesser GNU Public License, or LLGPL.
 ;;; See: http://opensource.franz.com/preamble.html
 ;;; This license provides NO WARRANTY.
+
+(in-package :fset)
 
 
 (defgeneric compare (x y)

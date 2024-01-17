@@ -1,4 +1,204 @@
+;;; -*- Mode: Lisp; Package: FSet; Syntax: ANSI-Common-Lisp -*-
+
+;;; File: macros.lisp
+;;; Contents: Collected macros, separated out for compilation and coverage purposes
+;;;
+;;; This file is part of FSet.  Copyright (c) 2007-2024 Scott L. Burson.
+;;; FSet is licensed under the Lisp Lesser GNU Public License, or LLGPL.
+;;; See: http://opensource.franz.com/preamble.html
+;;; This license provides NO WARRANTY.
+
 (in-package :fset)
+
+
+;;; ================================================================================
+;;; Macros related to order.lisp
+
+;;; Makes it easy to define `compare' methods on new classes.  Just say:
+;;;
+;;; (defmethod compare ((f1 frob) (f2 frob))
+;;;   (compare-slots f1 f2 'foo #'frob-bar))
+;;;
+;;; where `foo' is a slot and `frob-bar' is an accessor (or any other
+;;; function on your class).
+;;;
+;;; If you want distinct instances to never compare `:equal', put `:eql'
+;;; at the end of the accessor list to specify that `eql' is the final
+;;; determiner of equality for your type:
+;;;
+;;; (defmethod compare ((f1 frob) (f2 frob))
+;;;   (compare-slots f1 f2 'foo #'frob-bar :eql))
+;;;
+
+(defmacro compare-slots (obj1 obj2 &rest accessors)
+  "A handy macro for writing the bodies of `compare' methods for user classes.
+Returns the result of comparing the two objects by comparing the results of
+calling each of `accessors', in order, on the objects.  Despite the name, an
+accessor can actually be any function on the class in question; it can also
+be a symbol, which will be used to access the slot via `slot-value'.  For
+example, if class `frob' has accessor `frob-foo' and slot `bar':
+
+  (defmethod compare ((f1 frob) (f2 frob))
+    (compare-slots f1 f2 #'frob-foo 'bar))
+
+If the symbol `:eql' is supplied as the last accessor, then if the comparisons
+by the other supplied accessors all return `:equal' but `obj1' and `obj2' are
+not eql, this returns `:unequal'."
+  (let ((default-var (gensym "DEFAULT-"))
+	(comp-var (gensym "COMP-"))
+	(obj1-var (gensym "OBJ1-"))
+	(obj2-var (gensym "OBJ2-")))
+    (labels ((rec (accs)
+	       (if (or (null accs)
+		       (and (eq (car accs) ':eql)
+			    (or (null (cdr accs))
+				(error "If ~S is supplied to ~S, it must be ~
+					the last argument"
+				       ':eql 'compare-slots))))
+		   default-var
+		 `(let ((,comp-var (compare ,(call (car accs) obj1-var)
+					    ,(call (car accs) obj2-var))))
+		    (if (or (eq ,comp-var ':less) (eq ,comp-var ':greater))
+			,comp-var
+		      (let ((,default-var (if (eq ,comp-var ':unequal)
+					      ':unequal ,default-var)))
+			,(rec (cdr accs)))))))
+	     (call (fn arg)
+	       ;; Makes the expansion more readable, if nothing else
+	       (cond ((and (listp fn)
+			   (eq (car fn) 'function))
+		      `(,(cadr fn) ,arg))
+		     ((and (listp fn)
+			   (eq (car fn) 'lambda))
+		      `(,fn ,arg))
+		     ((and (listp fn)
+			   (eq (car fn) 'quote)
+			   (symbolp (cadr fn)))
+		      `(slot-value ,arg ,fn))
+		     (t `(funcall ,fn ,arg)))))
+      `(let ((,obj1-var ,obj1)
+	     (,obj2-var ,obj2)
+	     (,default-var ,(if (member ':eql accessors) '':unequal '':equal)))
+	(if (eql ,obj1-var ,obj2-var) ':equal
+	    ,(rec accessors))))))
+
+(defmacro compare-slots-no-unequal (obj1 obj2 &rest accessors)
+  "A handy macro for writing the bodies of `compare' methods for user classes,
+in the case when you know the comparison will never need to return `:unequal'
+(a case handled correctly by `compare-slots', but with a slight time cost).
+
+Returns the result of comparing the two objects by comparing the results of
+calling each of `accessors', in order, on the objects, using a nested call to
+`compare'.  Despite the name, an accessor can actually be any function on the
+class in question; it can also be a symbol, which will be used to access the
+slot via `slot-value'.  For example, if class `frob' has accessor `frob-foo' and
+slot `bar':
+
+  (defmethod compare ((f1 frob) (f2 frob))
+    (compare-slots-no-unequal f1 f2 #'frob-foo 'bar))
+
+Additionally, an accessor can be a list of the form `(:compare acc less-fn)', in
+which `acc` is an accessor as defined above, and `less-fn' is a function to be
+used to compare the two values, returning true iff the first is less than the
+second.  This feature allows you to avoid the nested call to `compare'.  For
+example, if your objects have an `id' slot that holds a unique integer:
+
+  (defmethod compare ((f1 frob) (f2 frob))
+    (compare-slots-no-unequal f1 f2 (:compare 'id #'<))"
+  (let ((comp-var (gensym "COMP-"))
+	(obj1-var (gensym "OBJ1-"))
+	(obj2-var (gensym "OBJ2-")))
+    (labels ((rec (accs)
+	       (if (null accs)
+		   ':equal
+		 (if (null (cdr accs))
+		     (comp (car accs))
+		   `(let ((,comp-var ,(comp (car accs))))
+		      (if (or (eq ,comp-var ':less) (eq ,comp-var ':greater))
+			  ,comp-var
+			,(rec (cdr accs)))))))
+	     (comp (acc)
+	       (if (and (listp acc) (eq (car acc) ':compare))
+		   (let ((accval1-var (gensym "ACCVAL1-"))
+			 (accval2-var (gensym "ACCVAL2-")))
+		     `(let ((,accval1-var ,(call (second acc) obj1-var))
+			    (,accval2-var ,(call (second acc) obj2-var)))
+			(if ,(call (third acc) accval1-var accval2-var)
+			    ':less
+			  (if ,(call (third acc) accval2-var accval1-var)
+			      ':greater
+			    ':equal))))
+		 `(compare ,(call acc obj1-var) ,(call acc obj2-var))))
+	     (call (fn &rest args)
+	       ;; Makes the expansion more readable, if nothing else
+	       (cond ((and (listp fn)
+			   (eq (car fn) 'function))
+		      `(,(cadr fn) . ,args))
+		     ((and (listp fn)
+			   (eq (car fn) 'lambda))
+		      `(,fn . ,args))
+		     ((and (null (cdr args))
+			   (listp fn)
+			   (eq (car fn) 'quote)
+			   (symbolp (cadr fn)))
+		      `(slot-value ,(car args) ,fn))
+		     (t `(funcall ,fn . ,args)))))
+      `(let ((,obj1-var ,obj1)
+	     (,obj2-var ,obj2))
+	 (if (eq ,obj1-var ,obj2-var) ':equal
+	     ,(rec accessors))))))
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (deflex +Master-Type-Ordering+ nil
+    "Keeps track of the types for which explicit cross-comparison methods have
+been generated, and against which subsequent such methods will be generated.
+This is a list in reverse order."))
+
+;;; Handy macro to generate the cross-comparison methods.
+(defmacro define-cross-type-compare-methods (type)
+  "Generates cross-type comparison methods for `type' against the types on
+which the macro has previously been invoked.  This macro is intended to be
+invoked at the top level of a source file.  You should make sure that calls
+to this macro are always compiled in the same order; if you don't, you could
+possibly get a \"master type ordering out of sync\" error, at which point you
+should delete all your fasls, restart your Lisp session, and recompile.
+However, the implementation tries very hard to prevent this."
+  (unless (symbolp type)
+    (error "Type name required, not ~S" type))
+  ;; Have to add it to the list, if it's not there, at both expansion time and
+  ;; load time.
+  (pushnew type +Master-Type-Ordering+)
+  (let ((types (member type +Master-Type-Ordering+))
+	((prev-types (cdr types))))
+    `(progn
+       (let ((mto-len (length +Master-Type-Ordering+)))
+	 (unless (if (< mto-len ,(length types))
+		     (equal +Master-Type-Ordering+
+			    (cl:subseq ',prev-types (- ,(length prev-types) mto-len)))
+		   (equal (cl:subseq +Master-Type-Ordering+
+				     (- mto-len ,(length types)))
+			  ',types))
+	   ;; This can happen if calls to this macro are compiled in a different
+	   ;; order on different occasions, but only if neither call has been loaded.
+	   (error "FSet master type ordering out of sync.~@
+		   See fset::define-cross-type-compare-methods.")))
+       (unless (member ',type +Master-Type-Ordering+)
+	 ;; You might think we would set it to the full expansion-time value,
+	 ;; but that would cause problems if FSet is recompiled in a session
+	 ;; in which this macro has been invoked on other types -- it would cause
+	 ;; this fasl to contain symbols from those packages.
+	 (setq +Master-Type-Ordering+ ',types))
+       . ,(cl:reduce #'append
+		     (mapcar (lambda (type2)
+			       `((defmethod compare ((a ,type2) (b ,type))
+				   ':less)
+				 (defmethod compare ((a ,type) (b ,type2))
+				   ':greater)))
+			     prev-types)))))
+
+
+;;; ================================================================================
+;;; Macros related to fset.lisp
 
 ;;; `adjoinf' / `removef', which don't form a good pair, are now deprecated
 ;;; in favor of `includef' / `excludef'.
@@ -74,3 +274,111 @@
 (defun xconcat (seq1 seq2)
   (concat seq2 seq1))
 
+
+(defmacro @ (fn-or-collection &rest args)
+  "A little hack with two purposes: (1) to make it easy to make FSet maps
+behave like Lisp functions in certain contexts; and (2) to somewhat lessen the
+pain of writing higher-order code in a two-namespace Lisp like Common Lisp.
+The idea is that you can write `(@ fn arg)', and if `fn' is a Lisp function,
+it will be funcalled on the argument; otherwise `lookup' (q.v.) will be called
+on `fn' and `arg'.  To allow for `@' to be used in more contexts, it actually
+can take any number of `args', though `lookup' always takes exactly two.  Thus
+you can write `(@ fn arg1 arg2 ...)' when you just want a shorter name for
+`funcall'.  As a matter of style, it is suggested that `@' be used only for
+side-effect-free functions.  Also, though this doc string has spoken only of
+FSet maps, `@' can be used with any type that `lookup' works on.  Can be used
+with `setf', but only on collections, not functions, of course."
+  (if (> (length args) 1)
+      ;; Hmm.  We _could_ listify `args' and use that as the map key.
+      `(funcall ,fn-or-collection . ,args)
+    (let ((fn-var (gensym "FN-")))
+      `(let ((,fn-var ,fn-or-collection))
+	 (if (functionp ,fn-var)
+	     (funcall ,fn-var . ,args)
+	   ;; We do it this way rather than just `(lookup fn-or-collection (car args))'
+	   ;; so that we get the right error when `args' is not of length 1.  If this
+	   ;; doesn't get compiled well everyplace we care about, we could test the
+	   ;; length and issue the error ourselves (if that helps).
+	   (lookup ,fn-var . ,args))))))
+
+(defmacro check-two-arguments (arg2? op type)
+  `(when ,arg2?
+     (error 'simple-program-error
+	    :format-control "~A on a ~A takes only two arguments"
+	    :format-arguments (list ,(copy-tree op) ,(copy-tree type)))))
+
+(defmacro check-three-arguments (arg2? op type)
+  `(unless ,arg2?
+     (error 'simple-program-error
+	    :format-control "~A on a ~A takes three arguments"
+	    :format-arguments (list ,(copy-tree op) ,(copy-tree type)))))
+
+(defmacro do-set ((var set &optional value) &body body)
+  "For each member of `set', binds `var' to it and executes `body'.  When done,
+returns `value'."
+  `(block nil		; in case `body' contains `(return ...)'
+     ;; &&& Here and in similar cases below, `dynamic-extent' declarations could
+     ;; be helpful.  (The closures will have to be bound to variables.)
+     (internal-do-set ,set #'(lambda (,var) . ,body)
+			   ,@(when value `(#'(lambda () ,value))))))
+
+
+(defmacro do-bag-pairs ((value-var mult-var bag &optional value)
+			&body body)
+  "For each member of `bag', binds `value-var' and `mult-var' to the member and
+its multiplicity respectively, and executes `body'.  When done, returns `value'."
+  `(block nil
+     (internal-do-bag-pairs ,bag #'(lambda (,value-var ,mult-var) . ,body)
+			    ,@(when value `(#'(lambda () ,value))))))
+
+(defmacro do-bag ((value-var bag &optional value)
+		  &body body)
+  "For each member of `bag', binds `value-var' to it and and executes `body' a
+number of times equal to the member's multiplicity.  When done, returns `value'."
+  (let ((mult-var (gensym "MULT-"))
+	(idx-var (gensym "IDX-")))
+    `(block nil
+       (internal-do-bag-pairs ,bag #'(lambda (,value-var ,mult-var)
+				       ;; Seems safe to assume it's a fixnum here.
+				       (declare (type fixnum ,mult-var))
+				       (dotimes (,idx-var ,mult-var)
+					 (declare (type fixnum ,idx-var))
+					 . ,body))
+			      ,@(when value `(#'(lambda () ,value)))))))
+
+(defmacro do-map ((key-var value-var map &optional value) &body body)
+  "For each pair of `map', binds `key-var' and `value-var' and executes `body'.
+When done, returns `value'."
+  `(block nil
+     (internal-do-map ,map
+		      #'(lambda (,key-var ,value-var) . ,body)
+		      ,@(when value `(#'(lambda () ,value))))))
+
+(defmacro do-map-domain ((key-var map &optional value) &body body)
+  "For each pair of `map', binds `key-var' and executes `body'.  When done,
+returns `value'."
+  (let ((value-var (gensym "VAL-")))
+    `(block nil
+       (internal-do-map ,map
+			#'(lambda (,key-var ,value-var)
+			    (declare (ignore ,value-var))
+			    . ,body)
+			,@(when value `#'(lambda () ,value))))))
+
+(defmacro do-seq ((var seq
+		   &key (start nil start?) (end nil end?) (from-end? nil from-end??)
+		   (index nil index?) (value nil))
+		  &body body)
+  "For each element of `seq', possibly restricted by `start' and `end', and in
+reverse order if `from-end?' is true, binds `var' to it and executes `body'.
+If `index' is supplied, it names a variable that will be bound at each
+iteration to the index of the current element of `seq'.  When done, returns
+`value'."
+  `(block nil
+     (internal-do-seq ,seq
+		      #'(lambda (,var . ,(and index? `(,index))) . ,body)
+		      ,(when value `#'(lambda () ,value))
+                      ,index?
+		      ,@(and start? `(:start ,start))
+		      ,@(and end? `(:end ,end))
+		      ,@(and from-end?? `(:from-end? ,from-end?)))))

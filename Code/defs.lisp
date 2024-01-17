@@ -1,14 +1,14 @@
 ;;; -*- Mode: Lisp; Package: CL-User; Syntax: ANSI-Common-Lisp -*-
 
-(in-package :cl-user)
-
 ;;; File: defs.lisp
 ;;; Contents: Package, system, and other build-related definitions for FSet.
 ;;;
-;;; This file is part of FSet.  Copyright (c) 2007-2012 Scott L. Burson.
+;;; This file is part of FSet.  Copyright (c) 2007-2024 Scott L. Burson.
 ;;; FSet is licensed under the Lisp Lesser GNU Public License, or LLGPL.
 ;;; See: http://opensource.franz.com/preamble.html
 ;;; This license provides NO WARRANTY.
+
+(in-package :cl-user)
 
 
 (defpackage :fset
@@ -52,7 +52,7 @@
 	   #:set-difference #:set-difference-2 #:bag-difference
 	   #:subset? #:disjoint? #:subbag?
 	   #:filter #:filter-pairs #:partition
-	   #:image #:reduce #:domain #:range #:with-default
+	   #:image #:reduce #:domain #:range #:with-default #:update
 	   #:map-union #:map-intersection #:map-difference-2
 	   #:restrict #:restrict-not #:compose #:map-default
 	   #:first #:last

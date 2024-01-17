@@ -1,11 +1,9 @@
 ;;; -*- Mode: Lisp; Package: FSet; Syntax: ANSI-Common-Lisp -*-
 
-(in-package :fset)
-
 ;;; File: tuples.lisp
 ;;; Contents: Dynamic tuples implementation.
 ;;;
-;;; This file is part of FSet.  Copyright (c) 2007-2012 Scott L. Burson.
+;;; This file is part of FSet.  Copyright (c) 2007-2024 Scott L. Burson.
 ;;; FSet is licensed under the Lisp Lesser GNU Public License, or LLGPL.
 ;;; See: http://opensource.franz.com/preamble.html
 ;;; This license provides NO WARRANTY.
@@ -99,6 +97,8 @@
 ;;; ever used is represented explicitly, and in the worst case this would be
 ;;; the powerset of the set of keys.  I don't think real code behaves this way,
 ;;; but it's something to keep in mind.
+
+(in-package :fset)
 
 
 (defstruct (dyn-tuple
