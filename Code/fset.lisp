@@ -936,9 +936,9 @@ you can write, equivalently
   (setq foo (update #'1+ foo 'a 3 7))
 
 This is perhaps most useful in contexts where you don't want to do the `setq'
-anyway."
+anyway.  `fn' can be a function object, an fbound symbol, or a map."
   (labels ((rec (fn coll keys)
-	     (if (null keys) (@ fn coll)
+	     (if (null keys) (@ (if (symbolp fn) (coerce fn 'function) fn) coll)
 	       (with coll (car keys) (rec fn (lookup coll (car keys)) (cdr keys))))))
     (rec fn coll keys)))
 

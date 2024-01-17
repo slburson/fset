@@ -57,8 +57,7 @@
   (defmethod sb-sequence:make-sequence-like ((obj my-sequence) len &rest args)
     (let ((new-contents
 	   (apply #'sb-sequence:make-sequence-like (my-sequence-actual obj) len args)))
-      (make-instance 'my-sequence :actual new-contents)))
-  )
+      (make-instance 'my-sequence :actual new-contents))))
 
 ;;; utility functions used in tests
 
@@ -1744,8 +1743,7 @@
                      '(nil nil)))
         (test (equal (my-sequence-actual
                       (subseq (make-instance 'my-sequence :actual '(a b c d e f)) 2 4))
-                     '(c d)))
-	)
+                     '(c d))))
 
       (test (= (size (empty-set)) 0))
       (locally (declare (notinline empty-set))
@@ -1936,8 +1934,7 @@
       (error-test "#~<")
       (test "#~< (+K0+ 1) >" (tuple (+K0+ 1)))
       (let ((x (tuple (+K0+ 1))))
-	(test "#~< #$x (+K1+ 3) >" (tuple (+K0+ 1) (+K1+ 3))))
-      )))
+	(test "#~< #$x (+K1+ 3) >" (tuple (+K0+ 1) (+K1+ 3)))))))
 
 (defun Test-Rereader ()
   (with-standard-io-syntax
@@ -2049,8 +2046,7 @@
 	     (make-array '(1)
 			 :initial-element (make-instance 'my-unhandled-obj)
 			 :adjustable t)
-	     (vector (make-instance 'my-unhandled-obj))))
-      )))
+	     (vector (make-instance 'my-unhandled-obj)))))))
 
 (defun Test-Equivalent-Sets (&optional (size 20) (reps 1000))
   (macrolet ((test (form)
@@ -2150,8 +2146,7 @@
 		   (equal? m (map (1 3) (3 7)))))))
     (test (eval '(let ((s (seq 1 2)))
 		  (and (eql (push-first s :a) s)
-		   (equal? (seq :a 1 2) s)))))
-    ))
+		   (equal? (seq :a 1 2) s)))))))
 
 (defun Test-Functional-Deep-Update ()
   (macrolet ((test (form)
@@ -2161,12 +2156,10 @@
       (test (and (equal? (update (constantly :a) s 1 1) (seq 1 (seq 2 :a) 4))
 		 (equal? s (seq 1 (seq 2 3) 4))))
       (test (and (equal? (update #'(lambda (x) (declare (ignore x)) :a)
-				 s 1 1) (seq 1 (seq 2 :a) 4))
+				 s 1 1)
+                         (seq 1 (seq 2 :a) 4))
 		 (equal? s (seq 1 (seq 2 3) 4))))
-      ;; This test is failing; see https://github.com/slburson/fset/issues/26
-      ;; (test (equal? (update '- s 1 1) (seq 1 (seq 2 -3) 4)))
-      )
-    ))
+      (test (equal? (update #'- s 1 1) (seq 1 (seq 2 -3) 4))))))
 
 (defun Test-Set-Operations (i)
   (declare (optimize (speed 0) (safety 3) (debug 3)))
@@ -3199,8 +3192,7 @@
                   :less))
     (test (equal
            (format nil "~a" (complement (set 1)))
-           "~#{ 1 }"))
-    ))
+           "~#{ 1 }"))))
 
 (defun Test-Relations ()
   "Simple tests on Relations"
@@ -3339,9 +3331,7 @@
         (test (equal? (intersection (%c '((1 . 2))) (%c '((1 . 2))))
                       (%c '((1 . 2)))))
         (test (equal? (intersection (%c '((1 . 2))) (%c '((1 . 3)))) (%e)))
-        (test (equal? (intersection (%c '((2 . 1))) (%c '((3 . 1)))) (%e))))
-
-    )))
+        (test (equal? (intersection (%c '((2 . 1))) (%c '((3 . 1)))) (%e)))))))
 
 ;;; Internal.
 (defgeneric verify (coll))
