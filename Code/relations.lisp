@@ -216,7 +216,6 @@ constructed."
 	((new-map0 (WB-Map-Tree-Intersect (wb-2-relation-map0 br1)
 					  (wb-2-relation-map0 br2)
 					  (lambda (s1 s2)
-					    ;; (declare (ignore ignore))
 					    (let ((s (WB-Set-Tree-Intersect s1 s2)))
 					      (incf new-size (WB-Set-Tree-Size s))
 					      s))))

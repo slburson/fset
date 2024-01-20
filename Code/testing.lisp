@@ -1882,8 +1882,8 @@
 			   :initial-value nil :from-end t :start 1 :end 3)
 		   '(7 9)))
       (test (eql (lookup (map (#C(5 16) 41) (#C(-4 15) 43) (-8 52) (-9 53) (#C(14 8) 42))
-                         -9)
-                 53)))))
+                         #C(-4 15))
+                 43)))))
 
 (defun Test-Reader ()
   (macrolet ((test (str form)
@@ -1945,7 +1945,7 @@
 			   (map) (tuple) (bag)
 			   (map (1 2) (3 4))
                            ;; This case is currently broken
-			   ;; (with-default (map (1 2) (3 4)) 'x)
+			   (with-default (map (1 2) (3 4)) 'x)
 			   (tuple (+K0+ 1))
 			   (bag 1)
 			   (bag 1 2)
