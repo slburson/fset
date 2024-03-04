@@ -121,7 +121,8 @@
 ;;; In some Lisp implementations, there are two kinds of strings; but in some
 ;;; of these, the larger form takes as much space as a general vector, so nothing
 ;;; is to be saved by using it.
-(when (and (not (typep (make-string 1 :element-type 'extended-char) 'base-string))
+(when (and (not (typep (make-string 1 :element-type 'character :initial-element #\A)
+		       'base-string))
 	   (not (and (> (integer-length (1- char-code-limit)) 16)
 		     (< (integer-length most-positive-fixnum) 32))))
   (pushnew ':FSet-Ext-Strings *features*))

@@ -2010,17 +2010,13 @@ symbols."))
       (return t))))
 
 (defmethod map-union ((map1 wb-map) (map2 wb-map)
-		      &optional (val-fn #'(lambda (v1 v2)
-					    (declare (ignore v1))
-					    v2)))
+		      &optional (val-fn (fn (_v1 v2) v2)))
   (make-wb-map (WB-Map-Tree-Union (wb-map-contents map1) (wb-map-contents map2)
 				  (coerce val-fn 'function))
 	       (funcall val-fn (map-default map1) (map-default map2))))
 
 (defmethod map-intersection ((map1 wb-map) (map2 wb-map)
-			     &optional (val-fn #'(lambda (v1 v2)
-						   (declare (ignore v1))
-						   v2)))
+			     &optional (val-fn (fn (_v1 v2) v2)))
   (make-wb-map (WB-Map-Tree-Intersect (wb-map-contents map1) (wb-map-contents map2)
 				      (coerce val-fn 'function))
 	       (funcall val-fn (map-default map1) (map-default map2))))
@@ -2769,7 +2765,7 @@ not symbols."))
     (declare (fixnum pos))
     (block done-block
       (flet ((done () (return-from done-block
-                        (if from-end (gen + start (- end pos 1)) pos))))
+                        (if from-end (gen + start (gen - end pos 1)) pos))))
         (if key
             (let ((key (coerce-to-function key)))
               (if default?
@@ -2801,7 +2797,7 @@ not symbols."))
     (declare (fixnum pos))
     (block done-block
       (flet ((done () (return-from done-block
-                        (if from-end (gen + start (- end pos 1)) pos))))
+                        (if from-end (gen + start (gen - end pos 1)) pos))))
         (if key
             (let ((key (coerce-to-function key)))
               (do-seq (x s :start start :end end :from-end? from-end)
