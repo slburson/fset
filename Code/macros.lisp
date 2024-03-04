@@ -224,6 +224,19 @@ However, the implementation tries very hard to prevent this."
 (define-modify-macro intersectf (set)
   intersection)
 
+;;; Not completely thrilled with these names, but nothing better occurs to me.
+(define-modify-macro set-differencef (set)
+  set-difference)
+
+;;; It might seem more natural to use `&optional' than `&rest', but then this macro would have to
+;;; know the correct default value for `val-fn'; otherwise `define-modify-macro' would fill in `nil'.
+(define-modify-macro map-unionf (map &rest stuff)
+  map-union)
+
+;;; Ditto.
+(define-modify-macro map-intersectf (map &rest stuff)
+  map-intersection)
+
 (define-modify-macro imagef (fn)
   ximage)
 

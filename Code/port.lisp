@@ -104,14 +104,10 @@
        . ,body))
   ;; For those implementations that support SMP but don't give us direct ways
   ;; to generate memory barriers, we assume that grabbing a lock suffices.
-  (deflex *Memory-Barrier-Lock*
-    (sb-thread:make-mutex :name "Memory Barrier Lock"))
   (defmacro read-memory-barrier ()
-    '(sb-thread:with-mutex (*Memory-Barrier-Lock*)
-       nil))
+    '(sb-thread:barrier (:read)))
   (defmacro write-memory-barrier ()
-    '(sb-thread:with-mutex (*Memory-Barrier-Lock*)
-       nil)))
+    '(sb-thread:barrier (:write))))
 
 #+(and clasp threads)
 (progn

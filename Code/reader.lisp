@@ -62,10 +62,10 @@
 ;;;
 ;;;   #{| <subexpression>* |}
 ;;;
-;;; where each subexpression is either a pair is written as a list of two forms, or a
+;;; where each subexpression is either a pair written as a list of two forms, or a
 ;;; use of the `#$' notation.  Again, the forms are all evaluated.  Examples:
 ;;;
-;;;   #{| (1 2) (3 'x) |}   ; maps 1 to 2, and 3 to the value of X
+;;;   #{| (1 2) (3 x) |}    ; maps 1 to 2, and 3 to the value of X
 ;;;   #{| #$x (1 2) |}      ; equivalent to `(map-union x #{| (1 2) |})'
 ;;;
 ;;; In any case where multiple values are provided for the same key, the rightmost
@@ -94,7 +94,7 @@
 ;;; or a use of the `#$' notation.  Again, the forms are all evaluated; the keys
 ;;; must all be instances of `tuple-key'.  Examples:
 ;;;
-;;;   #~< (k1 2) (k3 'x) >   ; maps k1 to 2, and k3 to the value of X
+;;;   #~< (k1 2) (k3 x) >   ; maps k1 to 2, and k3 to the value of X
 ;;;   #{| #$x (k1 2) |}     ; equivalent to `(tuple-merge x #< (1 2) >)'
 ;;;
 ;;; In any case where more than one value is provided for a given key, the rightmost

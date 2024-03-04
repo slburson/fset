@@ -11,6 +11,8 @@
 ;;; See: http://opensource.franz.com/preamble.html
 ;;; This license provides NO WARRANTY.
 
+(in-package :asdf)
+
 (defsystem FSet
   :depends-on (:gmap :mt19937 :named-readtables)
   :components

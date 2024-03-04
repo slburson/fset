@@ -829,6 +829,11 @@ Also works on an FSet seq."))
 (defmethod with-last ((ls list) val)
   (append ls (list val)))
 
+(defmethod contains? ((ls list) x &optional (y nil y?))
+  (declare (ignore y))
+  (check-two-arguments y? 'contains 'list)
+  (member x ls :test #'equal?))
+
 (defmethod concat ((a list) &rest seqs)
   (append a (reduce #'append seqs :key (fn (x) (convert 'list x)) :from-end t)))
 
