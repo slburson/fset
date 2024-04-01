@@ -1093,6 +1093,19 @@ discrimination tree (or DAG), but I'm not going to bother with them yet either.
 		       (:map submap)))
 	(:map (query-registry-indices reg))))
 
+(defmacro do-all-queries ((query reg &optional value) &body body)
+  `(block nil
+     (internal-do-all-queries ,reg (lambda (,query) . ,body)
+			      (lambda () ,value))))
+
+(defmethod internal-do-all-queries ((reg query-registry) elt-fn value-fn)
+  (do-map (aug-mp submap (query-registry-indices reg) (funcall value-fn))
+    (declare (ignore aug-mp))
+    (do-map (red-tup queries submap)
+      (declare (ignore red-tup))
+      (do-set (query queries)
+	(funcall elt-fn query)))))
+
 (defmethod lookup ((reg query-registry) tuple)
   "Returns all queries in `reg' whose patterns match `tuple'."
   (let ((arity (or (query-registry-arity reg)

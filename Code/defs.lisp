@@ -84,7 +84,7 @@
 	   #:list-relation #:wb-list-relation #:empty-list-relation
 	   #:empty-wb-list-relation #:arity #:query #:query-multi #:do-list-relation
 	   #:query-registry #:empty-query-registry #:with-query #:less-query
-	   #:all-queries #:lookup-multi #:forward-key #:lookup-restricted
+	   #:all-queries #:do-all-queries #:lookup-multi #:forward-key #:lookup-restricted
 	   #:lookup-multi-restricted
 
            ;; named-readtable readtable
