@@ -1779,8 +1779,10 @@ of which may be repeated."
         (pprint-newline :linear stream)
         (incf i)
         (if (> n 1)
-	    (write (if *print-readably* `(% ,x ,n) `(,x ,n)) :stream stream)
-            (write x :stream stream))))))
+	    ;; There might be a bag entry for 'quote or 'function...
+	    (let (#+sbcl (sb-pretty:*pprint-quote-with-syntactic-sugar* nil))
+	      (write (if *print-readably* `(% ,x ,n) `(,x ,n)) :stream stream))
+          (write x :stream stream))))))
 
 (def-gmap-arg-type :bag (bag)
   "Yields each element of `bag', as many times as its multiplicity."
@@ -2222,7 +2224,9 @@ symbols."))
       (pprint-pop)
       (write-char #\Space stream)
       (pprint-newline :linear stream)
-      (write (list x y) :stream stream))
+      ;; There might be a map entry for 'quote or 'function...
+      (let (#+sbcl (sb-pretty:*pprint-quote-with-syntactic-sugar* nil))
+	(write (list x y) :stream stream)))
     (format stream " |}~:[~;/~:*~S~]" (map-default map))))
 
 (def-gmap-arg-type :map (map)
