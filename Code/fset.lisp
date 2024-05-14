@@ -2253,6 +2253,24 @@ Note that `filterp', if supplied, must take two arguments."
   `(nil (:consume 2 #'WB-Map-Tree-With) #'(lambda (tree) (make-wb-map tree ,default))
     ,filterp))
 
+(def-gmap-res-type :map-union (&key (val-fn nil val-fn?)
+				    (default nil default?) filterp)
+  "Returns the map-union of the values, optionally filtered by `filterp'.  If `val-fn'
+is supplied, it is passed to `map-union' (q.v.).  If `default' is supplied, it is used
+as the initial map default."
+  `((map . ,(and default? `(:default ,default)))
+    ,(if val-fn? `(fn (a b) (map-union a b ,val-fn)) '#'map-union)
+    nil ,filterp))
+
+(def-gmap-res-type :map-intersection (&key (val-fn nil val-fn?)
+					   (default nil default?) filterp)
+  "Returns the map-intersection of the values, optionally filtered by `filterp'.  If
+`val-fn' is supplied, it is passed to `map-intersection' (q.v.).  If `default' is
+supplied, it is used as the initial map default."
+  `((map . ,(and default? `(:default ,default)))
+    ,(if val-fn? `(fn (a b) (map-intersection a b ,val-fn)) '#'map-intersection)
+    nil ,filterp))
+
 
 ;;; ================================================================================
 ;;; Seqs
