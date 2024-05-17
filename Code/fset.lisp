@@ -1925,9 +1925,18 @@ the default implementation of maps in FSet."
 (defmethod domain ((m wb-map))
   (make-wb-set (WB-Map-Tree-Domain (wb-map-contents m))))
 
+;;; Prior to FSet 1.4.0, this method ignored the defaults, so two maps with the same
+;;; key/value pairs but different defaults compared `:equal'.  While that was clearly
+;;; a bug, there is a remote chance that someone has inadvertently depended on this
+;;; behavior.
 (defmethod compare ((map1 wb-map) (map2 wb-map))
-  (WB-Map-Tree-Compare (wb-map-contents map1)
-                       (wb-map-contents map2)))
+  (let ((comp (WB-Map-Tree-Compare (wb-map-contents map1) (wb-map-contents map2))))
+    (if (member comp '(:less :greater))
+	comp
+      (let ((def-comp (compare (map-default map1) (map-default map2))))
+	(if (or (eq comp ':unequal) (eq def-comp ':unequal))
+	    ':unequal
+	  ':equal)))))
 
 (defgeneric internal-do-map (map elt-fn &optional value-fn)
   (:documentation
@@ -2501,8 +2510,17 @@ This is the default implementation of seqs in FSet."
 (defmethod convert ((to-type (eql 'wb-seq)) (m map) &key (pair-fn #'cons))
   (convert to-type (convert 'list m :pair-fn pair-fn)))
 
+;;; Prior to FSet 1.4.0, this method ignored the defaults, so two seqs with the same
+;;; elements but different defaults compared `:equal'.  While that was clearly a bug,
+;;; there is a remote chance that someone has inadvertently depended on this behavior.
 (defmethod compare ((s1 wb-seq) (s2 wb-seq))
-  (WB-Seq-Tree-Compare (wb-seq-contents s1) (wb-seq-contents s2)))
+  (let ((comp (WB-Seq-Tree-Compare (wb-seq-contents s1) (wb-seq-contents s2))))
+    (if (member comp '(:less :greater))
+	comp
+      (let ((def-comp (compare (seq-default s1) (seq-default s2))))
+	(if (or (eq comp ':unequal) (eq def-comp ':unequal))
+	    ':unequal
+	  ':equal)))))
 
 (defmethod compare-lexicographically ((s1 wb-seq) (s2 wb-seq))
   (WB-Seq-Tree-Compare-Lexicographically (wb-seq-contents s1) (wb-seq-contents s2)))
