@@ -218,14 +218,16 @@ constructed."
 					  (lambda (s1 s2)
 					    (let ((s (WB-Set-Tree-Intersect s1 s2)))
 					      (incf new-size (WB-Set-Tree-Size s))
-					      s))))
+					      (values s (and (null s) ':no-value))))))
 	 (new-map1 (and (or (wb-2-relation-map1 br1) (wb-2-relation-map1 br2))
 			(progn
 			  (get-inverse br1)
 			  (get-inverse br2)
 			  (WB-Map-Tree-Intersect (wb-2-relation-map1 br1)
 						 (wb-2-relation-map1 br2)
-						 #'WB-Set-Tree-Intersect))))))
+						 (lambda (s1 s2)
+						   (let ((s (WB-Set-Tree-Intersect s1 s2)))
+						     (values s (and (null s) ':no-value))))))))))
     (make-wb-2-relation new-size new-map0 new-map1)))
 
 (defgeneric join (relation-a column-a relation-b column-b)

@@ -3685,8 +3685,8 @@ in `eqvs1' are equivalent to those in `eqvs2'."
   "Print function for `WB-Map-Tree-Node', q.v."
   (if (or (null *print-level*) (<= depth *print-level*))
       (format stream "~<#map-node<~;~D, ~S -> ~S, ~
-		      ~_~{~:[~S~;~<#(~;~@{~{~S -> ~S~}~^ ~:_~:}~;)~:>~]~}, ~
-		      ~_~{~:[~S~;~<#(~;~@{~{~S -> ~S~}~^ ~:_~:}~;)~:>~]~}~;>~:>"
+		      ~_~{~:[~S~;~<#(~;~@{~{~S -> ~S~}~^, ~:_~:}~;)~:>~]~}, ~
+		      ~_~{~:[~S~;~<#(~;~@{~{~S -> ~S~}~^, ~:_~:}~;)~:>~]~}~;>~:>"
 	      (list (WB-Map-Tree-Node-Size node)
 		    (WB-Map-Tree-Node-Key node)
 		    (WB-Map-Tree-Node-Value node)
@@ -3886,19 +3886,16 @@ shadowing any previous pair with the same key."
 		 (cons (Vector-Insert (car tree) idx key)
 		       (Vector-Insert (cdr tree) idx value))
 	       (Make-WB-Map-Tree-Node (if found?
-					  (Equivalent-Map-Union (svref (car tree) idx)
-								(svref (cdr tree) idx)
-								key value)
+					  (Equivalent-Map-With (svref (car tree) idx) (svref (cdr tree) idx)
+							       key value)
 					key)
 				      value
 				      (and (> idx 0)
 					   (cons (Vector-Subseq (car tree) 0 idx)
 						 (Vector-Subseq (cdr tree) 0 idx)))
-				      (and (< right-start (length (the simple-vector
-								    (car tree))))
+				      (and (< right-start (length (the simple-vector (car tree))))
 					   (cons (Vector-Subseq (car tree) right-start)
-						 (Vector-Subseq (cdr tree)
-								right-start))))))))
+						 (Vector-Subseq (cdr tree) right-start))))))))
 	(t
 	 (let ((node-key (WB-Map-Tree-Node-Key tree))
 	       ((comp (compare key node-key))))
@@ -3906,24 +3903,20 @@ shadowing any previous pair with the same key."
 	     ((:equal :unequal)
 	      ;; Since we're probably updating the value anyway, we don't bother trying
 	      ;; to figure out whether we can reuse the node.
-	      (Make-WB-Map-Tree-Node (Equivalent-Map-Union node-key
-							   (WB-Map-Tree-Node-Value tree)
-							   key value)
+	      (Make-WB-Map-Tree-Node (Equivalent-Map-With node-key (WB-Map-Tree-Node-Value tree) key value)
 				     value
 				     (WB-Map-Tree-Node-Left tree)
 				     (WB-Map-Tree-Node-Right tree)))
 	     ((:less)
 	      (WB-Map-Tree-Build-Node (WB-Map-Tree-Node-Key tree)
 				      (WB-Map-Tree-Node-Value tree)
-				      (WB-Map-Tree-With (WB-Map-Tree-Node-Left tree)
-							key value)
+				      (WB-Map-Tree-With (WB-Map-Tree-Node-Left tree) key value)
 				      (WB-Map-Tree-Node-Right tree)))
 	     ((:greater)
 	      (WB-Map-Tree-Build-Node (WB-Map-Tree-Node-Key tree)
 				      (WB-Map-Tree-Node-Value tree)
 				      (WB-Map-Tree-Node-Left tree)
-				      (WB-Map-Tree-With (WB-Map-Tree-Node-Right tree)
-							key value))))))))
+				      (WB-Map-Tree-With (WB-Map-Tree-Node-Right tree) key value))))))))
 
 (defun Vector-Update (vec idx val)
   "Returns a new vector like `vec' but with `val' at `idx'."
@@ -4061,10 +4054,10 @@ pair removed."
 	 (let ((key2 (WB-Map-Tree-Node-Key tree2))
 	       (val2 (WB-Map-Tree-Node-Value tree2))
 	       ((eqvk1? eqvk1 eqvv1 (WB-Map-Tree-Find-Equivalent tree1 key2))
-		((key val (if eqvk1? (Equivalent-Map-Union eqvk1 eqvv1 key2 val2 val-fn)
-			    (values key2 val2))))))
-	   (WB-Map-Tree-Concat
-	     key val
+		((nonnull? key val (if eqvk1? (Equivalent-Map-Union eqvk1 eqvv1 key2 val2 val-fn)
+				     (values t key2 val2))))))
+	   (WB-Map-Tree-Concat-Maybe
+	     nonnull? key val
 	     (WB-Map-Tree-Union-Rng (WB-Map-Tree-Trim tree1 lo key2)
 				    (WB-Map-Tree-Trim (WB-Map-Tree-Node-Left tree2)
 						      lo key2)
@@ -4077,10 +4070,10 @@ pair removed."
 	 (let ((key1 (WB-Map-Tree-Node-Key tree1))
 	       (val1 (WB-Map-Tree-Node-Value tree1))
 	       ((eqvk2? eqvk2 eqvv2 (WB-Map-Tree-Find-Equivalent tree2 key1))
-		((key val (if eqvk2? (Equivalent-Map-Union key1 val1 eqvk2 eqvv2 val-fn)
-			    (values key1 val1))))))
-	   (WB-Map-Tree-Concat
-	     key val
+		((nonnull? key val (if eqvk2? (Equivalent-Map-Union key1 val1 eqvk2 eqvv2 val-fn)
+				     (values t key1 val1))))))
+	   (WB-Map-Tree-Concat-Maybe
+	     nonnull? key val
 	     (WB-Map-Tree-Union-Rng (WB-Map-Tree-Node-Left tree1)
 				    (WB-Map-Tree-Trim tree2 lo key1)
 				    val-fn lo key1)
@@ -4713,9 +4706,10 @@ between equal trees."
 	 (vals nil)
 	 (any-equivalent? nil))
 	((and (= i1 len1) (= i2 len2))
-	 (values (cons (coerce (nreverse keys) 'simple-vector)
-		       (coerce (nreverse vals) 'simple-vector))
-		 any-equivalent?))
+	 ;; The use of `:no-value' could produce an empty result.
+	 (and keys (values (cons (coerce (nreverse keys) 'simple-vector)
+				 (coerce (nreverse vals) 'simple-vector))
+			   any-equivalent?)))
       (cond ((= i1 len1)
 	     (do () ((= i2 len2))
 	       (push (svref keys2 i2) keys)
@@ -4735,9 +4729,9 @@ between equal trees."
 		  (let ((new-val second-val (funcall val-fn (svref vals1 i1) (svref vals2 i2))))
 		    (unless (eq second-val ':no-value)
 		      (push key1 keys)
-		      (push new-val vals)
-		      (incf i1)
-		      (incf i2))))
+		      (push new-val vals)))
+		   (incf i1)
+		   (incf i2))
 		 ((:less)
 		  (push key1 keys)
 		  (push (svref vals1 i1) vals)
@@ -4747,13 +4741,16 @@ between equal trees."
 		  (push (svref vals2 i2) vals)
 		  (incf i2))
 		 ((:unequal)
-		  (push (Equivalent-Map-Union key1 (svref vals1 i1)
-					      key2 (svref vals2 i2) val-fn)
-			keys)
-		  (push nil vals)
-		  (incf i1)
-		  (incf i2)
-		  (setq any-equivalent? t)))))))))
+		  (let ((nonnull? key val
+			  (Equivalent-Map-Union key1 (svref vals1 i1)
+			   key2 (svref vals2 i2) val-fn)))
+		    (when nonnull?
+		      (push key keys)
+		      (push val vals)
+		      (when (Equivalent-Map? key)
+			(setq any-equivalent? t))))
+		   (incf i1)
+		   (incf i2)))))))))
 
 (defun Vector-Pair-Intersect (pr1 pr2 val-fn lo hi)
   (declare (optimize (speed 3) (safety 0))
@@ -4784,10 +4781,12 @@ between equal trees."
 	    ((comp (compare key1 key2))))
 	(ecase comp
 	  ((:equal)
-	   (push key1 keys)
-	   (push (funcall val-fn (svref vals1 i1) (svref vals2 i2)) vals)
-	   (incf i1)
-	   (incf i2))
+	    (let ((new-val second-val (funcall val-fn (svref vals1 i1) (svref vals2 i2))))
+	      (unless (eq second-val ':no-value)
+		(push key1 keys)
+		(push new-val vals)))
+	    (incf i1)
+	    (incf i2))
 	  ((:less)
 	   (incf i1))
 	  ((:greater)
@@ -5084,6 +5083,12 @@ between equal trees."
 ;;; ================================================================================
 ;;; Equivalent-Map routines
 
+(defun Equivalent-Map-With (key1 val1 key2 val2)
+  (let ((nonnull? key val (Equivalent-Map-Union key1 val1 key2 val2)))
+    (declare (ignore nonnull?))
+    ;; `nonnull?' must be true since we used the default `val-fn'.
+    (values key val)))
+
 (defun Equivalent-Map-Union (key1 val1 key2 val2
 			     &optional (val-fn #'(lambda (v1 v2)
 						   (declare (ignore v1))
@@ -5113,25 +5118,43 @@ otherwise one value is returned, which is an `Equivalent-Map'."
 	      (let ((pr1 (find (car pr2) alist1 :test #'equal? :key #'car)))
 		(when (null pr1)
 		  (push pr2 result))))
-	    (Make-Equivalent-Map result))
+	    (cond ((null result) nil)
+		  ((cdr result)
+		   (values t (Make-Equivalent-Map result)))
+		  (t
+		   (values t (caar result) (cdar result)))))
 	(let ((alist1 (Equivalent-Map-Alist key1))
 	      ((pr1 (find key2 alist1 :test #'equal? :key #'car))))
 	  (declare (type list alist1))
-	  (when pr1
-	    (setq alist1 (remove pr1 alist1))
-	    (setq val2 (funcall val-fn (cdr pr1) val2)))
-	  (Make-Equivalent-Map (cons (cons key2 val2) alist1))))
+	  (if pr1
+	      (progn
+		(setq alist1 (remove pr1 alist1))
+		(let ((new-val second-val (funcall val-fn (cdr pr1) val2)))
+		  (if (eq second-val ':no-value)
+		      (if (null (cdr alist1))
+			  (values t (caar alist1) (cdar alist1))
+			(values t (Make-Equivalent-Map alist1)))
+		    (values t (Make-Equivalent-Map (cons (cons key2 new-val) alist1))))))
+	    (values t (Make-Equivalent-Map (cons (cons key2 val2) alist1))))))
     (if (Equivalent-Map? key2)
 	(let ((alist2 (Equivalent-Map-Alist key2))
 	      ((pr2 (find key1 alist2 :test #'equal? :key #'car))))
 	  (declare (type list alist2))
-	  (when pr2
-	    (setq alist2 (remove pr2 alist2))
-	    (setq val1 (funcall val-fn val1 (cdr pr2))))
-	  (Make-Equivalent-Map (cons (cons key1 val1) alist2)))
+	  (if pr2
+	      (progn
+		(setq alist2 (remove pr2 alist2))
+		(let ((new-val second-val (funcall val-fn val1 (cdr pr2))))
+		  (if (eq second-val ':no-value)
+		      (if (null (cdr alist2))
+			  (values t (caar alist2) (cdar alist2))
+			(values t (Make-Equivalent-Map alist2)))
+		    (values t (Make-Equivalent-Map (cons (cons key1 new-val) alist2))))))
+	    (values t (Make-Equivalent-Map (cons (cons key1 val1) alist2)))))
       (if (equal? key1 key2)
-	  (values key1 (funcall val-fn val1 val2))
-	(Make-Equivalent-Map (list (cons key1 val1) (cons key2 val2)))))))
+	  (let ((new-val second-val (funcall val-fn val1 val2)))
+	    (and (not (eq second-val ':no-value))
+		 (values t key1 new-val)))
+	(values t (Make-Equivalent-Map (list (cons key1 val1) (cons key2 val2))))))))
 
 (defun Equivalent-Map-Intersect (key1 val1 key2 val2 val-fn)
   "Both `key1' and `key2' may be single values (representing a single key/value
@@ -5152,7 +5175,9 @@ is null, returns false."
 	    (dolist (pr1 alist1)
 	      (let ((pr2 (cl:find (car pr1) alist2 :test #'equal? :key #'car)))
 		(when pr2
-		  (push (cons (car pr1) (funcall val-fn (cdr pr1) (cdr pr2))) result))))
+		  (let ((new-val second-val (funcall val-fn (cdr pr1) (cdr pr2))))
+		    (unless (eq second-val ':no-value)
+		      (push (cons (car pr1) new-val) result))))))
 	    (and result
 		 (if (cdr result)
 		     (values t (Make-Equivalent-Map result))
@@ -5161,15 +5186,18 @@ is null, returns false."
 	      ((pr1 (cl:find key2 alist1 :test #'equal? :key #'car))))
 	  (declare (type list alist1))
 	  (and pr1
-	       (values t key2 (funcall val-fn (cdr pr1) val2)))))
+	       (let ((new-val second-val (funcall val-fn (cdr pr1) val2)))
+		 (and (not (eq second-val ':no-value)) (values t key2 new-val))))))
     (if (Equivalent-Map? key2)
 	(let ((alist2 (Equivalent-Map-Alist key2))
 	      ((pr2 (cl:find key1 alist2 :test #'equal? :key #'car))))
 	  (declare (type list alist2))
 	  (and pr2
-	       (values t key1 (funcall val-fn val1 (cdr pr2)))))
+	       (let ((new-val second-val (funcall val-fn val1 (cdr pr2))))
+		 (and (not (eq second-val ':no-value)) (values t key1 new-val)))))
       (and (equal? key1 key2)
-	   (values t key1 (funcall val-fn val1 val2))))))
+	   (let ((new-val second-val (funcall val-fn val1 val2)))
+	     (and (not (eq second-val ':no-value)) (values t key1 new-val)))))))
 
 (defun Equivalent-Map-Difference (key1 val1 key2 val2)
   "Both `key1' and `key2' may be single values (representing a single key/value

@@ -293,6 +293,10 @@ when the supplied key or index is not in the domain."))
     "Returns a new map or seq with the same contents as `collection' but whose
 default is now `new-default'."))
 
+;;; Prior to 1.4.0, this unconditionally called `val-fn' on the defaults of the
+;;; two maps to produce the defaults of the result.  This was a PITA in the
+;;; common case in which the defaults were null.  Now, it calls `val-fn' only
+;;; if at least one of the defaults is nonnull.
 (defgeneric map-union (map1 map2 &optional val-fn)
   (:documentation
     "Returns a map containing all the keys of `map1' and `map2', where the
@@ -301,12 +305,18 @@ the value for each key contained in both maps is the result of calling
 `val-fn' on the value from `map1' and the value from `map2'.  `val-fn'
 defaults to simply returning its second argument, so the entries in `map2'
 simply shadow those in `map1'.  The default for the new map is the result of
-calling `val-fn' on the defaults for the two maps (so be sure it can take
-these values).
+calling `val-fn' on the defaults for the two maps, if either of those is
+nonnull.  `map-union' assumes that if the two values passed to `val-fn'
+are equal, `val-fn' returns the same value; it may elide calls to `val-fn'
+on that basis.
 
 New feature: if `val-fn' returns `:no-value' as a second value, the result
 will contain no pair with the corresponding key."))
 
+;;; Prior to 1.4.0, this unconditionally called `val-fn' on the defaults of the
+;;; two maps to produce the defaults of the result.  This was a PITA in the
+;;; common case in which the defaults were null.  Now, it calls `val-fn' only
+;;; if at least one of the defaults is nonnull.
 (defgeneric map-intersection (map1 map2 &optional val-fn)
   (:documentation
     "Returns a map containing all the keys that are in the domains of both
@@ -314,8 +324,13 @@ will contain no pair with the corresponding key."))
 `val-fn' on the value from `map1' and the value from `map2'.  `val-fn'
 defaults to simply returning its second argument, so the entries in `map2'
 simply shadow those in `map1'.  The default for the new map is the result
-of calling `val-fn' on the defaults for the two maps (so be sure it can
-take these values)."))
+of calling `val-fn' on the defaults for the two maps, if either of those
+is nonnull.  `map-intersection' assumes that if the two values passed to
+`val-fn' are equal, `val-fn' returns the same value; it may elide calls
+to `val-fn' on that basis.
+
+New feature: if `val-fn' returns `:no-value' as a second value, the result
+will contain no pair with the corresponding key."))
 
 (defgeneric map-difference-2 (map1 map2)
   (:documentation
@@ -2024,13 +2039,17 @@ symbols."))
 		      &optional (val-fn (fn (_v1 v2) v2)))
   (make-wb-map (WB-Map-Tree-Union (wb-map-contents map1) (wb-map-contents map2)
 				  (coerce val-fn 'function))
-	       (funcall val-fn (map-default map1) (map-default map2))))
+	       (let ((def1 (map-default map1))
+		     (def2 (map-default map2)))
+		 (and (or def1 def2) (funcall val-fn def1 def2)))))
 
 (defmethod map-intersection ((map1 wb-map) (map2 wb-map)
 			     &optional (val-fn (fn (_v1 v2) v2)))
   (make-wb-map (WB-Map-Tree-Intersect (wb-map-contents map1) (wb-map-contents map2)
 				      (coerce val-fn 'function))
-	       (funcall val-fn (map-default map1) (map-default map2))))
+	       (let ((def1 (map-default map1))
+		     (def2 (map-default map2)))
+		 (and (or def1 def2) (funcall val-fn def1 def2)))))
 
 (defmethod map-difference-2 ((map1 wb-map) (map2 wb-map))
   (let ((newc1 newc2 (WB-Map-Tree-Diff-2 (wb-map-contents map1) (wb-map-contents map2))))
