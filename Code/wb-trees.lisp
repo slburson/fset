@@ -5679,9 +5679,11 @@ the result, inserts `val', returning the new vector."
   (cond ((null tree) nil)
 	((simple-vector-p tree)
 	 (cl:reverse tree))
+	((stringp tree)
+	 (cl:reverse tree))
 	(t
-	  (Make-WB-Seq-Tree-Node (WB-Seq-Tree-Reverse (WB-Seq-Tree-Node-Right tree))
-				 (WB-Seq-Tree-Reverse (WB-Seq-Tree-Node-Left tree))))))
+	 (Make-WB-Seq-Tree-Node (WB-Seq-Tree-Reverse (WB-Seq-Tree-Node-Right tree))
+				(WB-Seq-Tree-Reverse (WB-Seq-Tree-Node-Left tree))))))
 
 
 ;;; ================================================================================
