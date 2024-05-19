@@ -65,7 +65,12 @@
   (nconc (copy-list vals) list))
 
 (defun run-test-suite (n-iterations &optional random-seed)
-  (Test-Misc)
+  ;; `Test-Misc' was huge and wouldn't compile in ABCL (JVM function size limitations),
+  ;; so I broke it up.
+  (Test-Misc-0)
+  (Test-Misc-1)
+  (Test-Misc-2)
+  (Test-Misc-3)
   (Test-Reader)
   (Test-Rereader)
   (Test-Compare-Lexicographically)
@@ -82,7 +87,7 @@
       (Test-Tuple-Operations i))))
 
 
-(defun Test-Misc ()
+(defun Test-Misc-0 ()
   "Tests some things that don't need extensive random test cases generated."
   (macrolet ((test (form)
 	       `(unless ,form
@@ -665,8 +670,16 @@
       (test (equal (count-if #'evenp (bag 1 2 3) :key '1+) 2))
 
       (test (equal (count-if-not #'evenp (bag 1 2 2 3 4)) 2))
-      (test (equal (count-if-not #'evenp (bag 1 2 2 3 4) :key #'1+) 3))
+      (test (equal (count-if-not #'evenp (bag 1 2 2 3 4) :key #'1+) 3)))))
 
+(defun Test-Misc-1 ()
+  "Tests some things that don't need extensive random test cases generated."
+  (macrolet ((test (form)
+	       `(unless ,form
+		  (error "Test failed: ~S" ',form))))
+    (flet ((equal? (a b)
+	     (and (equal? a b)
+		  (equal? b a))))
       (locally (declare (notinline empty-map empty-wb-map))
 	(test (equal (size (empty-map)) 0))
 	(test (equal (size (empty-map t)) 0))
@@ -793,8 +806,8 @@
 	      (and (eql (gethash 1 ht) 2)
 		   (eql (gethash 3 ht) 4)
 		   (eql (hash-table-count ht) 2))))
-      (test (let ((ht (convert 'hash-table (map (1 2) (3 4)) :test 'equal)))
-              (eql (hash-table-test ht) 'equal)))
+      (test (let ((ht (convert 'hash-table (map ('(1) 2) ('(3) 4)) :test 'equal)))
+              (eql (gethash (list 3) ht) 4)))
 
       (test (equal? (map-union (map (0 50) (1 88))
 			       (map (0 51) (1 97))
@@ -906,8 +919,16 @@
       (test (equal (count-if #'evenp (map (1 5) (2 7) (3 9)) :key #'1+) 2))
       (test (equal (count-if #'evenp (map (1 5) (2 7) (3 9) (5 17)) :key #'1+) 3))
       (test (equal (count-if-not #'evenp (map (1 5) (2 7) (3 9))) 2))
-      (test (equal (count-if-not #'evenp (map (1 5) (2 7) (3 9)) :key #'1+) 1))
+      (test (equal (count-if-not #'evenp (map (1 5) (2 7) (3 9)) :key #'1+) 1)))))
 
+(defun Test-Misc-2 ()
+  "Tests some things that don't need extensive random test cases generated."
+  (macrolet ((test (form)
+	       `(unless ,form
+		  (error "Test failed: ~S" ',form))))
+    (flet ((equal? (a b)
+	     (and (equal? a b)
+		  (equal? b a))))
       (locally (declare (notinline empty-seq empty-wb-seq))
 	(test (equal (size (empty-seq)) 0))
 	(test (empty? (empty-seq)))
@@ -1517,8 +1538,16 @@
       (test (equal? (image (set -3 1 3 21) (seq 0 1 2 3 4 5))
 		    (seq nil t nil t nil nil)))
       (test (equal? (image (bag 1 3 3 10) (seq 0 1 2 3 4 5))
-		    (seq nil t nil t nil nil)))
+		    (seq nil t nil t nil nil))))))
 
+(defun Test-Misc-3 ()
+  "Tests some things that don't need extensive random test cases generated."
+  (macrolet ((test (form)
+	       `(unless ,form
+		  (error "Test failed: ~S" ',form))))
+    (flet ((equal? (a b)
+	     (and (equal? a b)
+		  (equal? b a))))
       (with-standard-io-syntax
 	(let ((*package* (find-package :fset))
 	      (*readtable* *fset-readtable*)

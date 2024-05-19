@@ -326,6 +326,10 @@
 (defun make-char (code bits)
   (code-char (+ code (ash bits 8))))
 
+#+ecl
+(defun make-char (code bits)
+  (code-char (+ code (ash bits 8))))
+
 ;;; I'm one of these weird people who detests `loop' (except in its CLtL1 form).
 (defmacro while (pred &body body)
   `(do () ((not ,pred))
