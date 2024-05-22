@@ -449,11 +449,14 @@ subform."
   (case (peek-char nil stream t nil t)
     (#\|
      (read-char stream t nil t)
-     (convert 'map (prog1
-		       (read-delimited-list #\| stream t)
-		     (unless (eql (read-char stream) #\})
-		       (error "Incorrect #{| ... |} syntax")))
-	      :value-fn #'cadr))
+     (let ((map (convert 'map (read-delimited-list #\| stream t) :value-fn #'cadr)))
+       (unless (eql (read-char stream) #\})
+	 (error "Incorrect #{| ... |} syntax"))
+       (if (eql #\/ (peek-char nil stream nil nil t))
+	   (progn
+	     (read-char stream t nil t)
+	     (with-default map (read stream t nil t)))
+	 map)))
     (#\%
      (read-char stream t nil t)
      (let ((stuff (read-delimited-list #\% stream t))
@@ -470,7 +473,12 @@ subform."
 
 (defun |rereading-#[-reader| (stream subchar arg)
   (declare (ignore subchar arg))
-  (convert 'seq (read-delimited-list #\] stream t)))
+  (let ((seq (convert 'seq (read-delimited-list #\] stream t))))
+    (if (eql #\/ (peek-char nil stream nil nil t))
+	(progn
+	  (read-char stream t nil t)
+	  (with-default seq (read stream t nil t)))
+      seq)))
 
 (defun |rereading-#~-reader| (stream subchar arg)
   (declare (ignore subchar arg))
