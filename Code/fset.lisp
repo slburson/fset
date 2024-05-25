@@ -538,7 +538,8 @@ it is exhausted, it returns two `nil' values (three, for a map)."))
 	(:done? (>= idx len))
 	(:more? (< idx len))))))
 
-(def-gmap-arg-type :sequence (seq)
+;;; This "old syntax" GMap call also defines `:sequence'.
+(gmap:def-gmap-arg-type sequence (seq)
   "Yields the elements of `seq', which can be of any CL sequence type as well
 as an FSet seq, or a set or bag as well."
   `((iterator ,seq)
@@ -778,7 +779,7 @@ Also works on an FSet seq."))
     (t
      (values (coerce s 'function) nil))))
 
-;;; `(gmap :or ...)' is a bit faster.
+;;; `(gmap (:result or) ...)' is a bit faster.
 (defun some (pred sequence0 &rest more-sequences)
   "FSet generic version of `cl:some'."
   (let ((it0 (iterator sequence0))
@@ -786,15 +787,15 @@ Also works on an FSet seq."))
 	(pred (coerce-to-function pred)))
     (do ()
 	((or (funcall it0 ':done?)
-	     (gmap :or (lambda (it) (funcall it ':done?))
-		   (:list more-its)))
+	     (gmap (:result or) (fn (it) (funcall it ':done?))
+		   (:arg list more-its)))
 	 nil)
-      (let ((val (apply pred (funcall it0 ':get) (mapcar (lambda (it) (funcall it ':get))
-							 more-its))))
+      (let ((val (apply pred (funcall it0 ':get)
+			(mapcar (fn (it) (funcall it ':get)) more-its))))
 	(when val
 	  (return val))))))
 
-;;; `(gmap :and ...)' is a bit faster.
+;;; `(gmap (:result and) ...)' is a bit faster.
 (defun every (pred sequence0 &rest more-sequences)
   "FSet generic version of `cl:every'."
   (let ((it0 (iterator sequence0))
@@ -802,11 +803,11 @@ Also works on an FSet seq."))
 	(pred (coerce-to-function pred)))
     (do ()
 	((or (funcall it0 ':done?)
-	     (gmap :or (lambda (it) (funcall it ':done?))
-		   (:list more-its)))
+	     (gmap (:result or) (fn (it) (funcall it ':done?))
+		   (:arg list more-its)))
 	 t)
-      (let ((val (apply pred (funcall it0 ':get) (mapcar (lambda (it) (funcall it ':get))
-							 more-its))))
+      (let ((val (apply pred (funcall it0 ':get)
+			(mapcar (fn (it) (funcall it ':get)) more-its))))
 	(when (not val)
 	  (return nil))))))
 
@@ -1345,34 +1346,34 @@ for the possibility of different set implementations; it is not for public use.
       (pprint-newline :linear stream)
       (write x :stream stream))))
 
-(def-gmap-arg-type :set (set)
+(gmap:def-gmap-arg-type set (set)
   "Yields the elements of `set'."
   `((iterator ,set)
     #'(lambda (it) (declare (type function it)) (funcall it ':done?))
     #'(lambda (it) (declare (type function it)) (funcall it ':get))))
 
-(def-gmap-res-type :set (&key filterp)
+(gmap:def-gmap-res-type set (&key filterp)
   "Returns a set of the values, optionally filtered by `filterp'."
   `(nil #'WB-Set-Tree-With #'make-wb-set ,filterp))
 
 
 ;;; A bit faster than `:set', if you know it's a `wb-set'.
-(def-gmap-arg-type :wb-set (set)
+(gmap:def-gmap-arg-type wb-set (set)
   "Yields the elements of `set'."
   `((Make-WB-Set-Tree-Iterator-Internal (wb-set-contents ,set))
     #'WB-Set-Tree-Iterator-Done?
     #'WB-Set-Tree-Iterator-Get))
 
-(def-gmap-res-type :wb-set (&key filterp)
+(gmap:def-gmap-res-type wb-set (&key filterp)
   "Returns a set of the values, optionally filtered by `filterp'."
   `(nil #'WB-Set-Tree-With #'make-wb-set ,filterp))
 
 
-(def-gmap-res-type :union (&key filterp)
+(gmap:def-gmap-res-type union (&key filterp)
   "Returns the union of the values, optionally filtered by `filterp'."
   `((set) #'union nil ,filterp))
 
-(def-gmap-res-type :intersection (&key filterp)
+(gmap:def-gmap-res-type intersection (&key filterp)
   "Returns the intersection of the values, optionally filtered by `filterp'."
   `((complement (set)) #'intersection nil ,filterp))
 
@@ -1799,44 +1800,44 @@ of which may be repeated."
 	      (write (if *print-readably* `(% ,x ,n) `(,x ,n)) :stream stream))
           (write x :stream stream))))))
 
-(def-gmap-arg-type :bag (bag)
+(gmap:def-gmap-arg-type bag (bag)
   "Yields each element of `bag', as many times as its multiplicity."
   `((iterator ,bag)
     #'(lambda (it) (declare (type function it)) (funcall it ':done?))
     #'(lambda (it) (declare (type function it)) (funcall it ':get))))
 
-(def-gmap-arg-type :bag-pairs (bag)
+(gmap:def-gmap-arg-type bag-pairs (bag)
   "Yields each element of `bag' and its multiplicity as two values."
   `((iterator ,bag :pairs? t)
     #'(lambda (it) (declare (type function it)) (funcall it ':done?))
     (:values 2 #'(lambda (it) (declare (type function it)) (funcall it ':get)))))
 
-(def-gmap-arg-type :wb-bag (bag)
+(gmap:def-gmap-arg-type wb-bag (bag)
   "Yields each element of `bag', as many times as its multiplicity."
   `((Make-WB-Bag-Tree-Iterator-Internal (wb-bag-contents ,bag))
     #'WB-Bag-Tree-Iterator-Done?
     #'WB-Bag-Tree-Iterator-Get))
 
-(def-gmap-arg-type :wb-bag-pairs (bag)
+(gmap:def-gmap-arg-type wb-bag-pairs (bag)
   "Yields each element of `bag' and its multiplicity as two values."
   `((Make-WB-Bag-Tree-Pair-Iterator-Internal (wb-bag-contents ,bag))
     #'WB-Bag-Tree-Pair-Iterator-Done?
     (:values 2 #'WB-Bag-Tree-Pair-Iterator-Get)))
 
-(def-gmap-res-type :bag (&key filterp)
+(gmap:def-gmap-res-type bag (&key filterp)
   "Returns a bag of the values, optionally filtered by `filterp'."
   `(nil #'WB-Bag-Tree-With #'make-wb-bag ,filterp))
 
-(def-gmap-res-type :bag-pairs (&key filterp)
+(gmap:def-gmap-res-type bag-pairs (&key filterp)
   "Consumes two values from the mapped function; returns a bag of the pairs.
 Note that `filterp', if supplied, must take two arguments."
   `(nil (:consume 2 #'WB-Bag-Tree-With) #'make-wb-bag ,filterp))
 
-(def-gmap-res-type :wb-bag (&key filterp)
+(gmap:def-gmap-res-type wb-bag (&key filterp)
   "Returns a wb-bag of the values, optionally filtered by `filterp'."
   `(nil #'WB-Bag-Tree-With #'make-wb-bag ,filterp))
 
-(def-gmap-res-type :wb-bag-pairs (&key filterp)
+(gmap:def-gmap-res-type wb-bag-pairs (&key filterp)
   "Consumes two values from the mapped function; returns a wb-bag of the pairs.
 Note that `filterp', if supplied, must take two arguments."
   `(nil (:consume 2 #'WB-Bag-Tree-With) #'make-wb-bag ,filterp))
@@ -2257,31 +2258,31 @@ symbols."))
 	(write (list x y) :stream stream)))
     (format stream " |}~:[~;/~:*~S~]" (map-default map))))
 
-(def-gmap-arg-type :map (map)
+(gmap:def-gmap-arg-type map (map)
   "Yields each pair of `map', as two values."
   `((iterator ,map)
     #'(lambda (it) (declare (type function it)) (funcall it ':done?))
     (:values 2 #'(lambda (it) (declare (type function it)) (funcall it ':get)))))
 
-(def-gmap-arg-type :wb-map (map)
+(gmap:def-gmap-arg-type wb-map (map)
   "Yields each pair of `map', as two values."
   `((Make-WB-Map-Tree-Iterator-Internal (wb-map-contents ,map))
     #'WB-Map-Tree-Iterator-Done?
     (:values 2 #'WB-Map-Tree-Iterator-Get)))
 
-(def-gmap-res-type :map (&key filterp default)
+(gmap:def-gmap-res-type map (&key filterp default)
   "Consumes two values from the mapped function; returns a map of the pairs.
 Note that `filterp', if supplied, must take two arguments."
   `(nil (:consume 2 #'WB-Map-Tree-With) #'(lambda (tree) (make-wb-map tree ,default))
     ,filterp))
 
-(def-gmap-res-type :wb-map (&key filterp default)
+(gmap:def-gmap-res-type wb-map (&key filterp default)
   "Consumes two values from the mapped function; returns a wb-map of the pairs.
 Note that `filterp', if supplied, must take two arguments."
   `(nil (:consume 2 #'WB-Map-Tree-With) #'(lambda (tree) (make-wb-map tree ,default))
     ,filterp))
 
-(def-gmap-res-type :map-union (&key (val-fn nil val-fn?)
+(gmap:def-gmap-res-type map-union (&key (val-fn nil val-fn?)
 				    (default nil default?) filterp)
   "Returns the map-union of the values, optionally filtered by `filterp'.  If `val-fn'
 is supplied, it is passed to `map-union' (q.v.).  If `default' is supplied, it is used
@@ -2290,7 +2291,7 @@ as the initial map default."
     ,(if val-fn? `(fn (a b) (map-union a b ,val-fn)) '#'map-union)
     nil ,filterp))
 
-(def-gmap-res-type :map-intersection (&key (val-fn nil val-fn?)
+(gmap:def-gmap-res-type map-intersection (&key (val-fn nil val-fn?)
 					   (default nil default?) filterp)
   "Returns the map-intersection of the values, optionally filtered by `filterp'.  If
 `val-fn' is supplied, it is passed to `map-intersection' (q.v.).  If `default' is
@@ -2972,33 +2973,33 @@ not symbols."))
       (write x :stream stream))
     (format stream " ]~:[~;/~:*~S~]" (seq-default seq))))
 
-(def-gmap-arg-type :seq (seq)
+(gmap:def-gmap-arg-type seq (seq)
   "Yields the elements of `seq'."
   `((iterator ,seq)
     #'(lambda (it) (declare (type function it)) (funcall it ':done?))
     #'(lambda (it) (declare (type function it)) (funcall it ':get))))
 
-(def-gmap-arg-type :wb-seq (seq)
+(gmap:def-gmap-arg-type wb-seq (seq)
   "Yields the elements of `seq'."
   `((Make-WB-Seq-Tree-Iterator-Internal (wb-seq-contents ,seq))
     #'WB-Seq-Tree-Iterator-Done?
     #'WB-Seq-Tree-Iterator-Get))
 
-(def-gmap-res-type :seq (&key filterp)
+(gmap:def-gmap-res-type seq (&key filterp)
   "Returns a seq of the values, optionally filtered by `filterp'."
   `(nil
     #'(lambda (a b) (cons b a))
     #'(lambda (s) (convert 'seq (nreverse s)))
     ,filterp))
 
-(def-gmap-res-type :wb-seq (&key filterp)
+(gmap:def-gmap-res-type wb-seq (&key filterp)
   "Returns a seq of the values, optionally filtered by `filterp'."
   `(nil
     #'(lambda (a b) (cons b a))
     #'(lambda (s) (convert 'seq (nreverse s)))
     ,filterp))
 
-(def-gmap-res-type :concat (&key filterp)
+(gmap:def-gmap-res-type concat (&key filterp)
   "Returns the concatenation of the seq values, optionally filtered by `filterp'."
   `((seq) #'concat nil ,filterp))
 

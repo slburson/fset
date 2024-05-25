@@ -574,14 +574,14 @@ of calling `val-fn' on the value from `tuple1' and the value from `tuple2'.
       (push (funcall pair-fn k v) result))
     (nreverse result)))
 
-(def-gmap-arg-type :tuple (tuple)
+(gmap:def-gmap-arg-type tuple (tuple)
   "Yields each pair of `tuple', as two values."
   `((convert 'list ,tuple)
     #'null
     (:values 2 #'(lambda (al) (values (caar al) (cdar al))))
     #'cdr))
 
-(def-gmap-res-type :tuple (&key filterp)
+(gmap:def-gmap-res-type tuple (&key filterp)
   `((empty-dyn-tuple) (:consume 2 #'Tuple-With) nil ,filterp))
 
 
