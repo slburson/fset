@@ -31,7 +31,7 @@
 (defclass My-Unhandled-Obj ()
   ((value :initarg :value :initform nil
 	  :accessor My-Unhandled-Obj-Value))
-  (:documentation "Object on which we have defined no FSET methods."))
+  (:documentation "Object on which we have defined no FSet methods."))
 
 (defclass My-Identity-Ordered-Obj (identity-ordering-mixin)
   ((value :initarg :value :initform nil
@@ -286,16 +286,14 @@
       (test (equal (multiple-value-list (lookup (convert 'bag '(3 3 5 5 5)) 4)) '(nil nil)))
 
       (dolist (n '(2 5 10 20))
-	(let* ((objs (loop for i from 1 to n collect (make-instance 'my-unhandled-obj :value i)))
-	       (s (set))
-	       (singles (loop for o in objs collect (set o))))
-	  (dolist (o objs) (setf s (with s o)))
+	(let* ((s (gmap :set (fn (i) (make-instance 'my-unhandled-obj :value i)) (:index 0 n)))
+	       (singles (gmap :list (fn (o) (set o)) (:set s))))
 	  (dolist (s1 singles)
 	    (test (subset? s1 s))
 	    (test (not (subset? s s1))))
-	  (test (every (lambda (o) (lookup s o)) objs))))
+	  (test (every (lambda (o) (lookup s o)) s))))
 
-      (let* ((objs (loop for i from 1 to 3 collect (make-instance 'my-unhandled-obj :value i)))
+      (let* ((objs (gmap :list (fn (i) (make-instance 'my-unhandled-obj :value i)) (:index 0 3)))
 	     (s (convert 'set objs))
 	     (s1 (set (car objs)))
 	     (s2 (set (cadr objs)))
@@ -388,15 +386,14 @@
               (simple-type-error (e) e)))
 
       (dolist (n '(0 2 5 7 10))
-	(let* ((vals (loop for i from 1 to n collect i))
+	(let* ((vals (gmap :list nil (:index 0 n)))
 	       #+sbcl
 	       (seq (make-instance 'my-sequence :actual vals))
 	       (s (set)))
 	  (dolist (i vals) (setf s (with s i)))
 	  (test (equal? (convert 'set vals) s))
 	  #+sbcl
-	  (test (equal? (convert 'set seq) s))
-	  ))
+	  (test (equal? (convert 'set seq) s))))
 
       (test (equal (find 0 (set)) nil))
       (test (equal (find 1 (set 1)) 1))
@@ -1145,8 +1142,7 @@
 		       (make-array '(2) :initial-contents '(3 5)
 				   :adjustable t)
 		       #+sbcl
-		       (make-instance 'my-sequence :actual '(3 5))
-		       ))
+		       (make-instance 'my-sequence :actual '(3 5))))
 	(let ((it (iterator v)))
 	  (test (equal (mapcar (lambda (v)
 				 (multiple-value-bind (x y)
@@ -2047,30 +2043,29 @@
     (let ((*readtable* *fset-rereading-readtable*)
 	  (*package* (find-package :fset))
 	  (*print-readably* t))
-      (loop for x in (list (seq) (set) (seq 1 2 3) (set 'a 'b 2)
-			   (map) (tuple) (bag)
-			   (map (1 2) (3 4))
-                           ;; This case is currently broken
-			   (with-default (map (1 2) (3 4)) 'x)
-			   (tuple (+K0+ 1))
-			   (bag 1)
-			   (bag 1 2)
-			   (bag 1 1)
-			   )
-	 do (let ((str (prin1-to-string x)))
-	      ;; (let ((*print-readably* nil)) (format t "str = ~s~%"str))
-	      (let ((y (read-from-string str)))
-		(unless (equal? x y)
-		  (error "Rereader failure: ~s, ~s, ~s"
-			 x str y)))))
+      (dolist (x (list (seq) (set) (seq 1 2 3) (set 'a 'b 2)
+		       (map) (tuple) (bag)
+		       (map (1 2) (3 4))
+		       (with-default (map (1 2) (3 4)) 'x)
+		       (with-default (seq 4 17 33) 42)
+		       (tuple (+K0+ 1))
+		       (bag 1)
+		       (bag 1 2)
+		       (bag 1 1)))
+	 (let ((str (prin1-to-string x)))
+	   ;; (let ((*print-readably* nil)) (format t "str = ~s~%"str))
+	   (let ((y (read-from-string str)))
+	     (unless (equal? x y)
+	       (error "Rereader failure: ~s, ~s, ~s"
+		      x str y)))))
       ;; Error cases
-      (loop for x in '("#[" "#{|}" "#{| |x" "#{%%" "#{%%x" "#{" "#{%" "#~<" "#~["
-		       "#~< 1 >" "#~< (1) >" "#~< ( 1 . 2 ) >" "#~< (1 2 . 3) >"
-		       "#~< (1 2 3) >" "#~< #(1 2) >")
-	 do (block nil
-	      (handler-case (read-from-string x)
-		(error () (return nil)))
-	      (error "Rereading ~s did not cause an error" x))))))
+      (dolist (x '("#[" "#{|}" "#{| |x" "#{%%" "#{%%x" "#{" "#{%" "#~<" "#~["
+		   "#~< 1 >" "#~< (1) >" "#~< ( 1 . 2 ) >" "#~< (1 2 . 3) >"
+		   "#~< (1 2 3) >" "#~< #(1 2) >"))
+	 (block nil
+	   (handler-case (read-from-string x)
+	     (error () (return nil)))
+	   (error "Rereading ~s did not cause an error" x))))))
 
 (defun Test-Compare-Lexicographically ()
   (macrolet ((test (form)
@@ -2160,12 +2155,14 @@
 		  (error "Test in Test-Equivalent-Sets failed: ~S" ',form))))
     (dotimes (i reps)
       (let* ((size (+ 5 (random size)))
-	     (objs (loop for i from 1 to size collect (make-instance 'my-unhandled-obj :value i)))
+	     (objs (gmap (:result list) (fn (i) (make-instance 'my-unhandled-obj :value i))
+			 (:arg index 0 size)))
 	     (all (convert 'set objs)))
 	(flet ((%rset ()
 		 (let ((max (random (1+ size))))
-		   (convert 'set (loop for x in objs repeat max
-				    when (= (random 2) 0) collect x)))))
+		   (gmap (:result set :filterp (fn (_x) (= (random 2) 0)))
+                         (fn (x _i) x)
+			 (:arg list objs) (:index 0 max)))))
 	  (let* ((o (elt objs (random size)))
 		 (s0 (set o))
 		 (s1 (%rset))
@@ -3072,7 +3069,7 @@
   (macrolet ((test (form)
                `(unless ,form
                   (error "Test failed: ~S" ',form))))
-    (let ((u (convert 'set (loop for i from 1 to 10 collect i))))
+    (let ((u (gmap (:result set) nil (:arg index-inc 1 10))))
       (test (equal? (make-bounded-set u (set 1 2)) (set 1 2)))
       (test (equal? (make-bounded-set u (set 1 2 3 4 5 6)) (set 1 2 3 4 5 6)))
       (test (equal? (complement (make-bounded-set u (set 1 3 5 7)))

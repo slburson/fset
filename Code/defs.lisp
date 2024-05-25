@@ -13,7 +13,7 @@
 
 (defpackage :fset
   (:use :cl :new-let :lexical-contexts)
-  (:import-from :gmap #:gmap #:alist #:constant #:index #:sum)
+  (:import-from :gmap #:gmap #:alist #:constant #:index #:index-inc #:sum)
   (:shadowing-import-from :new-let #:let #:cond)
   (:shadowing-import-from :mt19937 #:make-random-state #:random #:*random-state*)
   ;; For each of these shadowed symbols, using packages must either shadowing-
