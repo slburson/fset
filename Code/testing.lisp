@@ -78,7 +78,8 @@
   (Test-Functional-Deep-Update)
   (Test-Bounded-Sets)
   (Test-Complement-Sets)
-  (Test-Relations)
+  (Test-2-Relations)
+  (Test-List-Relations)
   (let ((*random-state* (make-random-state random-seed))) ; for repeatability.
     (dotimes (i n-iterations)
       (Test-Map-Operations i (Test-Set-Operations i))
@@ -3297,8 +3298,8 @@
            (format nil "~a" (complement (set 1)))
            "~#{ 1 }"))))
 
-(defun Test-Relations ()
-  "Simple tests on Relations"
+(defun Test-2-Relations ()
+  "Simple tests on binary relations."
   (macrolet ((test (form)
                `(unless ,form
                   (error "Test failed: ~S" ',form))))
@@ -3434,6 +3435,41 @@
       (test (equal? (intersection (%c '((a . 7) (b . 12) (c . 17))) (%c '((b . 12) (c . 22))))
 		    (%c '((b . 12))))))))
 
+(defun Test-List-Relations ()
+  "Simple tests on List-Relations and Query-Registries."
+  (macrolet ((test (form)
+               `(unless ,form
+                  (error "Test failed: ~S" ',form))))
+    (let ((3-rel (with (empty-list-relation) '(age lydia 27)))
+	  (q-reg (empty-query-registry)))
+      (test (= (arity 3-rel) 3))
+      (test (= (size 3-rel) 1))
+      (test (equal? (arb 3-rel) '(age lydia 27)))
+      (test (contains? 3-rel '(age lydia 27)))
+      (test (not (contains? 3-rel '(age lydia 28))))
+      (includef 3-rel '(age riley 47))
+      (includef 3-rel '(age riley 25))
+      (includef 3-rel '(eye-color riley blue))
+      (includef 3-rel '(age dana 31))
+      (excludef 3-rel '(age riley 47))
+      (test (equal? (query 3-rel '(age ? ?))
+		    (set '(age lydia 27) '(age riley 25) '(age dana 31))))
+      (test (equal? (query 3-rel '(age riley ?))
+		    (set '(age riley 25))))
+      (test (equal? (query-multi 3-rel (list (set 'age) (set 'lydia) '?))
+		    (set '(age lydia 27))))
+      (test (equal? (query-multi 3-rel (list (set 'age 'eye-color) (set 'lydia 'riley) '?))
+		    (set '(age lydia 27) '(age riley 25) '(eye-color riley blue))))
+      (includef q-reg '(age ? ?) 'query0)
+      (includef q-reg '(age riley ?) 'query1)
+      (includef q-reg '(eye-color ? blue) 'query2)
+      (includef q-reg '(eye-color ? green) 'query3)
+      (test (equal? (lookup q-reg '(age lydia 27))
+		    (set 'query0)))
+      (test (equal? (lookup q-reg '(age riley 25))
+		    (set 'query0 'query1)))
+      (test (equal? (lookup-multi q-reg (list (set 'age 'eye-color) (set 'lydia) (set 27 'blue)))
+		    (set 'query0 'query2))))))
 
 ;;; Internal.
 (defgeneric verify (coll))

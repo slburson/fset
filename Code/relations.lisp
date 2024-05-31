@@ -668,21 +668,15 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
 ;;; ================================================================================
 ;;; List relations
 
-;;; A list relation is a general relation (i.e. of arbitrary arity >= 2) whose
-;;; tuples are in list form.  List relations support a `query' operation that
-;;; takes, along with the relation, two lists, each of length equal to the
-;;; arity, called the "pattern" and "metapattern".  For each position, if the
-;;; metapattern contains `nil', the query is not constrained by that position
-;;; (the corresponding position in the pattern is ignored); if the metapattern
-;;; contains `t' or `:single', then the result set contains only those tuples
-;;; with the same value in that position as the pattern has.  The difference
-;;; between `t' and `:single' has to do with indexing.  For each metapattern
-;;; that is actually used, an index is constructed if not previously present,
-;;; and then is maintained incrementally.  If the metapattern has `t' in a
-;;; location, the resulting index will contain all values for that location;
-;;; if it has `:single', the resulting index will contain only those values
-;;; that have actually appeared in a query pattern with this metapattern.
-
+;;; A list relation is a general relation (i.e. of arbitrary arity >= 2) whose tuples are
+;;; in list form.  List relations support a `query' operation that takes, along with the
+;;; relation, a list, of length equal to the arity, called the "pattern".  For each
+;;; position, if the pattern contains the symbol `fset::?', the query is not constrained
+;;; by that position; otherwise, the result set contains only those tuples with the same
+;;; value in that position as the pattern has.  There is also a `query-multi' operation
+;;; that is similar, but the pattern contains sets of possible values (or `?') in each
+;;; position, and the result set contains all tuples with any of those values in that
+;;; position.
 
 
 (defstruct (list-relation
@@ -704,20 +698,20 @@ tuples are in list form.")
 are in list form."
   arity
   tuples
-  ;; a map from augmented metapattern to map from reduced tuple to set of tuples
+  ;; a map from pattern mask to map from reduced tuple to set of tuples
   indices)
 
 
 (defun empty-list-relation (&optional arity)
   "We allow the arity to be temporarily unspecified; it will be taken from
-the first tuple added, or the first query."
+the first tuple added."
   (unless (or (null arity) (and (integerp arity) (>= arity 1)))
     (error "Invalid arity"))
   (empty-wb-list-relation arity))
 
 (defun empty-wb-list-relation (arity)
   "We allow the arity to be temporarily unspecified; it will be taken from
-the first tuple added, or the first query."
+the first tuple added."
   ;; If arity = 1 it's just a set... but what the heck...
   (unless (or (null arity) (and (integerp arity) (>= arity 1)))
     (error "Invalid arity"))
@@ -741,160 +735,138 @@ the first tuple added, or the first query."
   (check-two-arguments arg2? 'contains? 'wb-list-relation)
   (contains? (wb-list-relation-tuples rel) tuple))
 
-(defgeneric query (relation pattern metapattern)
+(defgeneric query (relation pattern)
   (:documentation
-    "Along with the relation, takes two lists, of equal length less than
-or equal to the arity, called the `pattern' and `metapattern'; returns a set
-of tuples satisfying the query.  For each position, if the metapattern
-contains `nil', the query is not constrained by that position (the
-corresponding position in the pattern is ignored); if the metapattern
-contains `t' or `:single', then the result set contains only those tuples
-with the same value in that position as the pattern has.  The difference
-between `t' and `:single' has to do with indexing.  For each metapattern
-that is actually used, an index is constructed if not previously present,
-and then is maintained incrementally.  If the metapattern has `t' in a
-location, the resulting index will contain all values for that location; if
-it has `:single', the resulting index will contain only those values that
-have actually appeared in a query pattern with this metapattern."))
+    "Along with the relation, takes `pattern', which is a list of length
+less than or equal to the arity.  Returns all tuples whose elements match
+those of the pattern, starting from the left end of both, where pattern
+elements equal to `fset::?' (the symbol itself, not its value) match any
+tuple value.  If the pattern's length is less than the arity, the missing
+positions also match any tuple value.  (Note that `?' is intentionally
+_not_ exported from `fset:' so that you won't use it accidentally.)"))
 
-;;; `:single' is implemented, but not necessarily well enough that you'd want to
-;;; use it.
-(defmethod query ((rel wb-list-relation) (pattern list) (metapattern list))
+(defmethod query ((rel wb-list-relation) pattern)
   (let ((arity (wb-list-relation-arity rel)))
     (if (null arity)
 	;; We don't know the arity yet, which means there are no tuples.
 	(set)
       (progn
-	(unless (and (<= (length pattern) arity)
-		     (= (length pattern) (length metapattern)))
-	  (error "Pattern or metapattern is of the wrong length"))
-	(let ((pattern metapattern (handle-var-arity arity pattern metapattern)))
-	  (if (every #'identity metapattern)
+	(unless (and pattern (<= (length pattern) arity))
+	  (error "Pattern is of the wrong length"))
+	(let ((pattern mask (prepare-pattern arity pattern)))
+	  (if (= mask (1- (ash 1 arity)))
 	      (if (contains? rel pattern) (set pattern) (set))
-	    (let ((augmented-mp (augmented-mp pattern metapattern))
-		  ((reduced-tuple (reduced-tuple pattern augmented-mp))
-		   (index (@ (wb-list-relation-indices rel) augmented-mp))))
+	    (let ((reduced-tuple (reduced-tuple pattern))
+		  (index (@ (wb-list-relation-indices rel) mask)))
 	      (if index
 		  (@ index reduced-tuple)
-		(progn
+		(let ((index-results
+			(gmap (:result list :filterp #'identity)
+			      (fn (index i pat-elt)
+				(and (logbitp i mask) (@ index (list pat-elt))))
+			      (:arg list (get-indices rel mask))
+			      (:arg index 0)
+			      (:arg list pattern))))
+		  ;; &&& We also want to build composite indices under some
+		  ;; circumstances -- e.g. if the result set is much smaller
+		  ;; than the smallest of `index-results'.
+		  (if index-results
+		      (reduce #'intersection
+			      (sort index-results #'< :key #'size))
+		    ;; Completely uninstantiated pattern
+		    (wb-list-relation-tuples rel)))))))))))
 
-		  (let ((index-results
-			  (remove nil (mapcar (lambda (index mp-elt pat-elt)
-						(and index
-						     (@ index (and (eq mp-elt t)
-								   (list pat-elt)))))
-					      (get-indices rel augmented-mp)
-					      augmented-mp pattern))))
-		    ;; &&& We also want to build composite indices under some
-		    ;; circumstances -- e.g. if the result set is much smaller
-		    ;; than the smallest of `index-results'.
-		    (if index-results
-			(reduce #'intersection
-				(sort index-results #'< :key #'size))
-		      (wb-list-relation-tuples rel))))))))))))
-
-(defun handle-var-arity (rel-arity pattern metapattern)
-  (if (< (length metapattern) rel-arity)
-      (let ((nils (make-list (- rel-arity (length metapattern)))))
-	(values (append pattern nils) (append metapattern nils)))
-    (values pattern metapattern)))
-
-;;; &&& Another nail in the coffin of `:single'... should just rip it out...
-(defgeneric query-multi (rel pattern metapattern)
+(defgeneric query-multi (rel pattern)
   (:documentation
-   "Like `query' (q.v.), except that `pattern' is a list of sets of values
-rather than a list of values.  Returns all tuples in the relation for which
-each value is a member of the corresponding set in the pattern.  `:single'
-in the metapattern is not accepted."))
+    "Like `query' (q.v.), except that `pattern' is a list where the elements that
+aren't `fset::?' are sets of values rather than single values.  Returns all tuples
+in the relation for which each value is a member of the corresponding set in the
+pattern."))
 
-(defmethod query-multi ((rel wb-list-relation) (pattern list) (metapattern list))
+(defmethod query-multi ((rel wb-list-relation) (pattern list))
   (let ((arity (wb-list-relation-arity rel)))
     (if (null arity)
 	;; We don't know the arity yet, which means there are no tuples.
 	(set)
       (progn
-	(unless (and (<= (length pattern) arity)
-		     (= (length pattern) (length metapattern)))
-	  (error "Pattern or metapattern is of the wrong length"))
-	;; Without :single, the augmented-mp is just the metapattern.
-	(when (member ':single metapattern)
-	  (error "~S doesn't take ~S" 'query-multi ':single))
-	(let ((pattern metapattern (handle-var-arity arity pattern metapattern)))
-	  (if (every (fn (s m) (and m (= (size s) 1)))
-		     pattern metapattern)
-	      (query rel (mapcar #'arb pattern) metapattern)
+	(unless (<= (length pattern) arity)
+	  (error "Pattern is of the wrong length"))
+	(let ((pattern mask (prepare-pattern arity pattern)))
+	  (if (every (fn (s) (or (eq s '?) (= (size s) 1)))
+		     pattern)
+	      (query rel (mapcar (fn (s) (if (eq s '?) s (arb s))) pattern))
 	    (let ((index-results
-		    (remove nil
-			    (mapcar (lambda (index pat-elt)
-				      (and index
-					   (gmap :union
-						 (fn (pat-elt-elt)
-						   (@ index (list pat-elt-elt)))
-						 (:set pat-elt))))
-				    (get-indices rel metapattern)
-				    pattern))))
+		    (gmap (:result list :filterp #'identity)
+			  (fn (index i pat-elt)
+			    (and (logbitp i mask)
+				 (gmap :union
+				       (fn (pat-elt-elt) (@ index (list pat-elt-elt)))
+				       (:set pat-elt))))
+			  (:arg list (get-indices rel mask))
+			  (:arg index 0)
+			  (:arg list pattern))))
 	      (if index-results
 		  (reduce #'intersection
 			  (sort index-results #'< :key #'size))
 		(wb-list-relation-tuples rel)))))))))
 
-(defun get-indices (rel augmented-mp)
-  "Returns a list giving the index to use for each element of `augmented-mp'."
-  (flet ((make-mp (i elt)
-	   (let ((mp nil)
-		 (arity (wb-list-relation-arity rel)))
-	     (dotimes (j arity)
-	       (push (and (= i (- arity j 1)) elt) mp))
-	     mp)))
-    ;; First we see what indices exist on each position.
-    (let ((ex-inds (gmap :list
-			 (lambda (mp-elt i)
-			   (and mp-elt (or (@ (wb-list-relation-indices rel)
-					      (make-mp i mp-elt))
-					   (and (not (eq mp-elt t))
-						(@ (wb-list-relation-indices rel)
-						   (make-mp i t))))))
-			 (:list augmented-mp)
-			 (:index 0)))
-	  ((unindexed (mapcar (lambda (index mp-elt)
-				(and (null index) mp-elt))
-			      ex-inds augmented-mp))))
-      ;; Now, if there were any instantiated positions for which an index did
-      ;; not exist, construct indices for them.
-      (unless (every #'null unindexed)
-	(let ((saved-mps (gmap :list (lambda (unind i)
-				       (and unind (make-mp i unind)))
-			       (:list unindexed)
-			       (:index 0)))
-	      (new-indices (make-array (length augmented-mp)
-				       :initial-element (empty-map (set)))))
-	  (do-set (tuple (wb-list-relation-tuples rel))
-	    (gmap nil (lambda (tuple-elt unind saved-mp i)
-			(when (and unind
-				   (or (eq unind t)
-				       (equal? tuple-elt (cdr unind))))
-			  (adjoinf (@ (svref new-indices i)
-				      (reduced-tuple tuple saved-mp))
-				   tuple)))
-		  (:list tuple)
-		  (:list unindexed)
-		  (:list saved-mps)
-		  (:index 0)))
-	  (gmap nil (lambda (saved-mp new-index)
-		      (when saved-mp
-			(setf (@ (wb-list-relation-indices rel) saved-mp) new-index)))
-		(:list saved-mps)
-		(:vector new-indices))
-	  (setq ex-inds (gmap :list (lambda (ex-ind saved-mp new-index)
-				      (or ex-ind (and saved-mp new-index)))
-			      (:list ex-inds)
-			      (:list saved-mps)
-			      (:vector new-indices)))))
-      ;; &&& If we just built a complete index that subsumes any single-value indices,
-      ;; need to discard the latter.
-      ;; &&& Also, if the total size of the single-value indices we build for any
-      ;; position gets large enough, we should replace them all with a complete index.
-      ex-inds)))
+(defun prepare-pattern (rel-arity pattern)
+  (let ((mask (pattern-mask pattern)))
+    (if (< (length pattern) rel-arity)
+	(let ((nils (make-list (- rel-arity (length pattern)))))
+	  (values (append pattern nils) mask))
+      (values pattern mask))))
+
+(defun pattern-mask (pattern)
+  (gmap (:result sum) (fn (pat-elt i)
+			(if (eq pat-elt '?) 0 (ash 1 i)))
+	(:arg list pattern)
+	(:index 0)))
+
+(defmethod get-indices ((rel list-relation) mask)
+  "Returns a list giving the index to use for each element of `mask'
+considered as a bit set."
+  ;; First we see what indices exist on each position.
+  (let ((ex-inds (gmap (:result list)
+		       (fn (i) (and (logbitp i mask)
+				    (@ (wb-list-relation-indices rel)
+				      (ash 1 i))))
+		       (:arg index 0 (arity rel))))
+	((unindexed (gmap (:result list)
+			  (lambda (index i)
+			    (and (logbitp i mask) (null index)))
+			  (:arg list ex-inds)
+			  (:arg index 0)))))
+    ;; Now, if there were any instantiated positions for which an index did
+    ;; not exist, construct indices for them.
+    (if (every #'null unindexed)
+	ex-inds
+      (let ((new-indices (make-array (arity rel) :initial-element (empty-map (set)))))
+	;; Populate the new indices
+	(do-set (tuple (wb-list-relation-tuples rel))
+	  (gmap nil (fn (tuple-elt unind i)
+		      (when unind
+			;; If we called `reduced-tuple', we'd get `(list tuple-elt)'.
+			(adjoinf (@ (svref new-indices i) (list tuple-elt))
+				 tuple)))
+		(:list tuple)
+		(:list unindexed)
+		(:index 0)))
+	;; Store them back in the relation.  This is unusual in that we're modifying an FSet
+	;; collection, but note that we're just caching information about the contents.
+	;; In particular, if two threads do this at the same time, all that goes wrong is
+	;; some duplication of work.
+	(let ((indices (wb-list-relation-indices rel)))
+	  (gmap nil (fn (unind i)
+		      (when unind
+			(setf (@ indices (ash 1 i)) (svref new-indices i))))
+		(:arg list unindexed)
+		(:arg index 0))
+	  (setf (wb-list-relation-indices rel) indices))
+	(gmap :list (lambda (ex-ind new-index)
+		      (or ex-ind new-index))
+	      (:list ex-inds)
+	      (:vector new-indices))))))
 
 (defmethod with ((rel wb-list-relation) tuple &optional (arg2 nil arg2?))
   (declare (ignore arg2))
@@ -907,14 +879,9 @@ in the metapattern is not accepted."))
     (if (contains? (wb-list-relation-tuples rel) tuple)
 	rel
       (make-wb-list-relation arity (with (wb-list-relation-tuples rel) tuple)
-			     ;; Hmm, methinks we need to index the index map...
-			     (image (lambda (aug-mp rt-map)
-				      (if (augmented-mp-matches? aug-mp tuple)
-					  (let ((rt (reduced-tuple tuple aug-mp)))
-					    (values aug-mp
-						    (with rt-map rt
-							  (with (@ rt-map rt) tuple))))
-					(values aug-mp rt-map)))
+			     (image (lambda (mask rt-map)
+				      (let ((rt (reduced-tuple tuple)))
+					(values mask (with rt-map rt (with (@ rt-map rt) tuple)))))
 				    (wb-list-relation-indices rel))))))
 
 (defmethod less ((rel wb-list-relation) tuple &optional (arg2 nil arg2?))
@@ -928,45 +895,17 @@ in the metapattern is not accepted."))
     (if (not (contains? (wb-list-relation-tuples rel) tuple))
 	rel
       (make-wb-list-relation arity (less (wb-list-relation-tuples rel) tuple)
-			     (image (lambda (aug-mp rt-map)
-				      (if (augmented-mp-matches? aug-mp tuple)
-					  (let ((rt (reduced-tuple tuple aug-mp)))
-					    (values aug-mp
-						    (with rt-map rt
-							  (less (@ rt-map rt) tuple))))
-					(values aug-mp rt-map)))
+			     (image (lambda (mask rt-map)
+				      (let ((rt (reduced-tuple tuple)))
+					(values mask (with rt-map rt (less (@ rt-map rt) tuple)))))
 				    (wb-list-relation-indices rel))))))
 
-;;; &&& I suppose that instead of consing these things up all the time we could
-;;; have a special pattern object with special compare methods against lists that
-;;; would compare only the desired positions.  L8r...
-(defun reduced-tuple (tuple augmented-mp)
+(defun reduced-tuple (tuple)
   "Returns a list of those members of `tuple' corresponding to instantiated
 positions in the original pattern."
-  (if (every (lambda (x) (eq x t)) augmented-mp) tuple
-    (gmap (:list :filterp #'identity)		; omits nil
-	  (lambda (pat-elt mp-elt)
-	    (and (eq mp-elt t) pat-elt))
-	  (:list tuple)
-	  (:list augmented-mp))))
-
-(defun augmented-mp (pattern metapattern)
-  "Returns a list, of the same length as the pattern, which is like the
-metapattern except that each `:single' has been replaced by a cons of
-`:single' and the corresponding pattern element."
-  (if (not (member ':single metapattern)) metapattern
-    (mapcar (lambda (pat-elt mp-elt)
-	      (if (eq mp-elt ':single) (cons ':single pat-elt)
-		mp-elt))
-	    pattern metapattern)))
-
-(defun augmented-mp-matches? (augmented-mp tuple)
-  (every (lambda (mp-elt tuple-elt)
-	   (or (eq mp-elt nil) (eq mp-elt t)
-	       (and (consp mp-elt) (eq (car mp-elt) ':single)
-		    (equal? tuple-elt (cdr mp-elt)))))
-	 augmented-mp tuple))
-
+  (if (cl:find '? tuple)
+      (cl:remove '? tuple)
+    tuple))
 
 
 (defgeneric internal-do-list-relation (rel elt-fn value-fn))
@@ -978,7 +917,7 @@ metapattern except that each `:single' has been replaced by a cons of
 
 (defmethod internal-do-list-relation ((rel wb-list-relation) elt-fn value-fn)
   (Do-WB-Set-Tree-Members (tuple (wb-set-contents (wb-list-relation-tuples rel))
-			   (funcall value-fn))
+				 (funcall value-fn))
     (funcall elt-fn tuple)))
 
 (defun print-wb-list-relation (rel stream level)
@@ -1000,100 +939,63 @@ metapattern except that each `:single' has been replaced by a cons of
 	  (format stream " ")))
       (format stream "*}~@[^~D~]" (arity rel)))))
 
+(gmap:def-gmap-arg-type list-relation (rel)
+  `((Make-WB-Set-Tree-Iterator-Internal (wb-set-contents (wb-list-relation-tuples ,rel)))
+    #'WB-Set-Tree-Iterator-Done?
+    #'WB-Set-Tree-Iterator-Get))
+
+
 #||
 
 Okay, this is a start, but:
 
 () Don't we want to do better meta-indexing, so adding a tuple doesn't require
-iterating through all the indices?
+iterating through all the indices?  [Eh, maybe not]
 
 () I'm not creating composite indices yet.  The plan is straightforward -- create
 one when the size of the final result set is <= the square root of the size of
 the smallest index set.  This is easy, but how do subsequent queries find the
-composite index?
-
-[Later]  I think that for now, the single-value index feature is an unnecessary
-complication.  Without it, there either exists an index on a column, or not.
-
-As for composite indices, I think the right way to find them will be with a
-discrimination tree (or DAG), but I'm not going to bother with them yet either.
+composite index?  [Why "square root"?  Maybe a fixed fraction like 1/8?]
 
 ||#
 
 
-;;; A query registry to be used with `list-relation'.  Register queries with
-;;; `with-query', supplying a pattern and metapattern.  The queries themselves
-;;; are uninterpreted except that they are kept in sets (so CL closures are not
-;;; a good choice).  `lookup' returns the set of queries that match the supplied
-;;; tuple.
+;;; A query registry to be used with `list-relation'.  Register queries with `with',
+;;; supplying a pattern.  The queries themselves are uninterpreted except that they are
+;;; kept in sets (so bare CL closures are not a good choice).  `lookup' returns the set of
+;;; queries that match the supplied tuple.  A single query registry can now be used with
+;;; several list-relations of different arities, but the client has to check whether the
+;;; arity of each returned query matches that of the tuple.
 (defstruct (query-registry
-	     (:constructor make-query-registry (arity indices key-index)))
-  arity
-  ;; A map from augmented metapattern to map from reduced tuple to set of queries.
-  ;; &&& Not worrying for now whether this does anything reasonable with `:single'.
-  indices
-  ;; A map from every "key", i.e., value used in an instantiated position in a
-  ;; pattern, to map from augmented metapattern to set of reduced tuples in which
-  ;; they were used.
-  key-index)
+	     (:constructor make-query-registry (list-relations)))
+  ;; A map from pattern mask to a list-relation holding lists of the form
+  ;; `(,query . ,masked-tuple).
+  list-relations)
 
-(defun empty-query-registry (&optional arity)
-  (unless (or (null arity) (and (integerp arity) (>= arity 1)))
-    (error "Invalid arity"))
-  (make-query-registry arity (empty-map (empty-map (set)))
-		       (empty-map (empty-map (set)))))
+(defun empty-query-registry ()
+  (make-query-registry (empty-map (empty-list-relation))))
 
-(defmethod arity ((reg query-registry))
-  (query-registry-arity reg))
+(defmethod with ((reg query-registry) pattern &optional (query nil query?))
+  (check-three-arguments query? 'with 'query-registry)
+  (let ((mask (pattern-mask pattern)))
+    (make-query-registry (with (query-registry-list-relations reg)
+			       mask (with (@ (query-registry-list-relations reg) mask)
+					  (cons query (reduced-tuple pattern)))))))
 
-(defmethod with-query ((reg query-registry) (pattern list) (metapattern list) query
-		       ;; If you're using the variable-arity feature, supply the arity explicitly.
-		       &optional arity)
-  (let ((arity (or (query-registry-arity reg) arity (length pattern))))
-    (unless (and (<= (length pattern) arity)
-		 (= (length pattern) (length metapattern)))
-      (error "Pattern or metapattern is of the wrong length"))
-    (let ((pattern metapattern (handle-var-arity arity pattern metapattern))
-	  ((augmented-mp (augmented-mp pattern metapattern))
-	   ((reduced-tuple (reduced-tuple pattern augmented-mp))
-	    ((prev-1 (@ (query-registry-indices reg) augmented-mp))
-	     ((prev-2 (@ prev-1 reduced-tuple)))
-	     (aug->red (map (augmented-mp (set reduced-tuple)) :default (set)))))))
-      (make-query-registry arity
-			   (with (query-registry-indices reg) augmented-mp
-				 (with prev-1 reduced-tuple
-				       (with prev-2 query)))
-			   (map-union (query-registry-key-index reg)
-				      (gmap (:map :default (empty-map (set)))
-					    (fn (key) (values key aug->red))
-					    (:list reduced-tuple))
-				      (lambda (x y) (map-union x y #'union)))))))
-
-(defmethod less-query ((reg query-registry) (pattern list) (metapattern list) query)
+(defmethod less ((reg query-registry) pattern &optional (query nil query?))
+  (check-three-arguments query? 'less 'query-registry)
   (if (empty? (query-registry-indices reg))
       reg
-    (let ((arity (query-registry-arity reg)))
-      (unless (and (<= (length pattern) arity)
-		   (= (length pattern) (length metapattern)))
-	(error "Pattern or metapattern is of the wrong length"))
-      (let ((pattern metapattern (handle-var-arity arity pattern metapattern))
-	    ((augmented-mp (augmented-mp pattern metapattern))
-	     ((reduced-tuple (reduced-tuple pattern augmented-mp))
-	      ((prev-1 (@ (query-registry-indices reg) augmented-mp))
-	       ((prev-2 (@ prev-1 reduced-tuple)))))))
-	(make-query-registry arity
-			     (with (query-registry-indices reg) augmented-mp
-				   (with prev-1 reduced-tuple
-					 (less prev-2 query)))
-			     ;; &&& For now.
-			     (query-registry-key-index reg))))))
+    (let ((mask (pattern-mask pattern)))
+      (make-query-registry (with (query-registry-list-relations reg)
+				 mask (less (@ (query-registry-list-relations reg) mask)
+					    (cons query (reduced-tuple pattern))))))))
 
 (defmethod all-queries ((reg query-registry))
-  (gmap :union (fn (_aug-mp submap)
-		 (gmap :union (fn (_red-tup queries)
-				queries)
-		       (:map submap)))
-	(:map (query-registry-indices reg))))
+  (gmap (:result union)
+	(fn (_mask rel)
+	  (image #'car (wb-list-relation-tuples rel)))
+	(:arg map (query-registry-list-relations reg))))
 
 (defmacro do-all-queries ((query reg &optional value) &body body)
   `(block nil
@@ -1101,141 +1003,37 @@ discrimination tree (or DAG), but I'm not going to bother with them yet either.
 			      (lambda () ,value))))
 
 (defmethod internal-do-all-queries ((reg query-registry) elt-fn value-fn)
-  (do-map (aug-mp submap (query-registry-indices reg) (funcall value-fn))
-    (declare (ignore aug-mp))
-    (do-map (red-tup queries submap)
-      (declare (ignore red-tup))
-      (do-set (query queries)
-	(funcall elt-fn query)))))
+  (do-map (mask rel (query-registry-list-relations reg) (funcall value-fn))
+    (declare (ignore mask))
+    (do-list-relation (tuple rel)
+      (funcall elt-fn (car tuple)))))
 
 (defmethod lookup ((reg query-registry) tuple)
   "Returns all queries in `reg' whose patterns match `tuple'."
-  (let ((arity (or (query-registry-arity reg)
-		   (length tuple))))
-    (unless (and (listp tuple) (>= (length tuple) arity))
-      (error "Length of tuple, ~D, does not match arity, ~D"
-	     (length tuple) arity))
-    (gmap :union (lambda (aug-mp rt-map)
-		   (@ rt-map (reduced-tuple tuple aug-mp)))
-	  (:map (query-registry-indices reg)))))
+  (gmap (:result union)
+	(fn (mask list-rel)
+	  (let ((msk-tup (masked-tuple tuple mask)))
+	    (if msk-tup (image #'car (query list-rel (cons '? msk-tup)))
+	      (set))))
+	(:arg map (query-registry-list-relations reg))))
 
 (defmethod lookup-multi ((reg query-registry) set-tuple)
   "Here `set-tuple' contains a set of values in each position.  Returns
-all queries in `reg' whose patterns match any member of the cartesian
-product of the sets."
-  (let ((arity (or (query-registry-arity reg)
-		   (length set-tuple))))
-    (unless (and (listp set-tuple) (>= (length set-tuple) arity))
-      (error "Length of tuple, ~D, does not match arity, ~D"
-	     (length set-tuple) arity))
-    ;; Ugh.  At least, computing the cartesian product of the reduced set-tuple
-    ;; will frequently be faster than computing that of the original.  Still,
-    ;; maybe we &&& need to redesign the indexing scheme here...
-    (gmap :union (lambda (aug-mp rt-map)
-		   (gmap :union (fn (tuple)
-				  (@ rt-map tuple))
-			 (:seq (cartesian-product (reduced-tuple set-tuple aug-mp)))))
-	  (:map (query-registry-indices reg)))))
+all queries in `reg' whose patterns match any member of each set."
+  (gmap (:result union)
+	(fn (mask list-rel)
+	  (let ((msk-tup (masked-tuple set-tuple mask)))
+	    (if msk-tup (image #'car (query-multi list-rel (cons '? msk-tup)))
+	      (set))))
+	(:arg map (query-registry-list-relations reg))))
 
-;;; Since all the members are known to be distinct, we return a seq rather
-;;; than pay the setification cost... a little inelegant, though.
-(defmethod cartesian-product ((sets list))
-  (if (null sets)
-      (seq nil)
-    (gmap :concat (fn (tail)
-		    (gmap :seq (fn (x) (cons x tail))
-			  (:set (car sets))))
-	  (:seq (cartesian-product (cdr sets))))))
+(defun masked-tuple (tuple mask)
+  (do ((mask mask (ash mask -1))
+       (tuple tuple (cdr tuple))
+       (result nil))
+      ((= mask 0) (nreverse result))
+    (when (null tuple)
+      (return nil))  ; tuple is too short for mask
+    (when (logbitp 0 mask)
+      (push (car tuple) result))))
 
-(defmethod forward-key ((reg query-registry) from-key to-key)
-  "Returns a new query-registry in which all queries whose patterns used
-`from-key' (in an instantiated position) now use `to-key' in that position
-instead."
-  (let ((key-idx-submap (@ (query-registry-key-index reg) from-key))
-	;; We'll generate garbage maintaining the map, but then the tuple instances
-	;; will be shared.
-	(subst-cache (map)))
-    (flet ((get-subst (tuple)
-	     (or (@ subst-cache tuple)
-		 (setf (@ subst-cache tuple)
-		       (substitute to-key from-key tuple)))))
-      (make-query-registry
-	(query-registry-arity reg)
-	(image (fn (aug-mp submap)
-		 (let ((red-tups (@ key-idx-submap aug-mp)))
-		   (values aug-mp
-			   (map-union (restrict-not submap red-tups)
-				      (gmap (:map :default (set))
-					    (fn (tup)
-					      (let ((new-tup (get-subst tup)))
-						(values new-tup
-							(union (@ submap tup)
-							       (@ submap new-tup)))))
-					    (:set red-tups))
-				      #'union))))
-	       (query-registry-indices reg))
-	;; Hehe, this is fun :-)  We need to update the indices for the other
-	;; keys that occur along with `from-key' in tuples, and we don't want to
-	;; walk the whole index to find them; but we already know what tuples are
-	;; affected (the ones in `key-idx-submap'), so we work off of that.  Doing
-	;; this functionally was interesting.
-	(map-union (reduce (fn (kidx aug-mp tups)
-			     (let ((to-update
-				     (reduce (fn (x y) (map-union x y #'union))
-					     (image (fn (tup)
-						      (gmap :map
-							    (fn (x) (values x (set tup)))
-							    (:set (less (convert 'set tup)
-									from-key))))
-						    tups))))
-			       (reduce (fn (kidx key tups)
-					 (let ((prev-1 (@ kidx key))
-					       ((prev-2 (@ prev-1 aug-mp))))
-					   (with kidx key
-						 (with prev-1 aug-mp
-						       (union (set-difference prev-2 tups)
-							      (image #'get-subst
-								     tups))))))
-				       to-update :initial-value kidx)))
-			   key-idx-submap
-			   :initial-value (less (query-registry-key-index reg) from-key))
-		   (map (to-key (compose key-idx-submap
-					 (fn (tups)
-					   (image #'get-subst tups))))
-			:default (empty-map (set)))
-		   (fn (x y) (map-union x y #'union)))))))
-
-(defmethod lookup-restricted ((reg query-registry) tuple key)
-  "Returns all queries in `reg' whose patterns match `tuple' and which use
-`key' (in an instantiated position) in their patterns."
-  (let ((arity (or (query-registry-arity reg)
-		   (length tuple))))
-    (unless (and (listp tuple) (= (length tuple) arity))
-      (error "Length of tuple, ~D, does not match arity, ~D"
-	     (length tuple) arity))
-    (gmap :union (lambda (aug-mp rt-map)
-		   (@ rt-map (reduced-tuple tuple aug-mp)))
-	  (:map (let ((key-idx-submap (@ (query-registry-key-index reg) key)))
-		  (image (fn (aug-mp rt-map)
-			   (values aug-mp (restrict rt-map (@ key-idx-submap aug-mp))))
-			 (query-registry-indices reg)))))))
-
-(defmethod lookup-multi-restricted ((reg query-registry) set-tuple keys)
-  "Here `set-tuple' contains a set of values in each position.  Returns
-all queries in `reg' whose patterns match any member of the cartesian
-product of the sets and which use a member of `keys' in their patterns."
-  (let ((arity (or (query-registry-arity reg)
-		   (length set-tuple))))
-    (unless (and (listp set-tuple) (= (length set-tuple) arity))
-      (error "Length of tuple, ~D, does not match arity, ~D"
-	     (length set-tuple) arity))
-    (gmap :union (lambda (aug-mp rt-map)
-		   (gmap :union (fn (tuple)
-				  (@ rt-map tuple))
-			 (:seq (cartesian-product (reduced-tuple set-tuple aug-mp)))))
-	  (:map (let ((key-idx-submap
-			(reduce (fn (x y) (map-union x y #'union))
-				(image (query-registry-key-index reg) keys))))
-		  (image (fn (aug-mp rt-map)
-			   (values aug-mp (restrict rt-map (@ key-idx-submap aug-mp))))
-			 (query-registry-indices reg)))))))

@@ -14,7 +14,7 @@
 See: http://www.ergy.com/FSet.html
 "
   :author "Scott L. Burson <Scott@sympoiesis.com>"
-  :version "1.3.3"
+  :version "1.4.0"
   :licence "LLGPL"
   :depends-on (:misc-extensions :mt19937 :named-readtables)
   :serial t
@@ -38,7 +38,7 @@ See: http://www.ergy.com/FSet.html
              #+lispworks
              (:file "lispworks-inspect")))))
 
-(asdf:defsystem :Fset/test
+(asdf:defsystem :FSet/test
   :description "Test system for FSet"
   :depends-on (:fset)
   :components
