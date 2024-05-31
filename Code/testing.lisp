@@ -287,14 +287,14 @@
       (test (equal (multiple-value-list (lookup (convert 'bag '(3 3 5 5 5)) 4)) '(nil nil)))
 
       (dolist (n '(2 5 10 20))
-	(let* ((s (gmap :set (fn (i) (make-instance 'my-unhandled-obj :value i)) (:index 0 n)))
-	       (singles (gmap :list (fn (o) (set o)) (:set s))))
+	(let* ((s (gmap (:result set) (fn (i) (make-instance 'my-unhandled-obj :value i)) (:arg index 0 n)))
+	       (singles (gmap (:result list) (fn (o) (set o)) (:arg set s))))
 	  (dolist (s1 singles)
 	    (test (subset? s1 s))
 	    (test (not (subset? s s1))))
 	  (test (every (lambda (o) (lookup s o)) s))))
 
-      (let* ((objs (gmap :list (fn (i) (make-instance 'my-unhandled-obj :value i)) (:index 0 3)))
+      (let* ((objs (gmap (:result list) (fn (i) (make-instance 'my-unhandled-obj :value i)) (:arg index 0 3)))
 	     (s (convert 'set objs))
 	     (s1 (set (car objs)))
 	     (s2 (set (cadr objs)))
@@ -387,7 +387,7 @@
               (simple-type-error (e) e)))
 
       (dolist (n '(0 2 5 7 10))
-	(let* ((vals (gmap :list nil (:index 0 n)))
+	(let* ((vals (gmap (:result list) nil (:arg index 0 n)))
 	       #+sbcl
 	       (seq (make-instance 'my-sequence :actual vals))
 	       (s (set)))
