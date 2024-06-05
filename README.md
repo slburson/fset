@@ -12,3 +12,8 @@ introduction and tutorial.
 
 There might be some useful information on the [FSet CLiki page](http://cliki.net/FSet).
 
+FSet is installable via Quicklisp:
+
+```
+> (ql:quickload "fset")
+```
