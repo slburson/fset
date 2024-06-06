@@ -3448,6 +3448,8 @@
       (test (contains? 3-rel '(age lydia 27)))
       (test (not (contains? 3-rel '(age lydia 28))))
       (includef 3-rel '(age riley 47))
+      (test (equal? (query 3-rel '(age ? ?))
+		    (set '(age lydia 27) '(age riley 47))))
       (includef 3-rel '(age riley 25))
       (includef 3-rel '(eye-color riley blue))
       (includef 3-rel '(age dana 31))

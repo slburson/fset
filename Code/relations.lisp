@@ -757,7 +757,7 @@ _not_ exported from `fset:' so that you won't use it accidentally.)"))
 	(let ((pattern mask (prepare-pattern arity pattern)))
 	  (if (= mask (1- (ash 1 arity)))
 	      (if (contains? rel pattern) (set pattern) (set))
-	    (let ((reduced-tuple (reduced-tuple pattern))
+	    (let ((reduced-tuple (reduced-tuple pattern mask))
 		  (index (@ (wb-list-relation-indices rel) mask)))
 	      (if index
 		  (@ index reduced-tuple)
@@ -831,7 +831,7 @@ considered as a bit set."
   (let ((ex-inds (gmap (:result list)
 		       (fn (i) (and (logbitp i mask)
 				    (@ (wb-list-relation-indices rel)
-				      (ash 1 i))))
+				       (ash 1 i))))
 		       (:arg index 0 (arity rel))))
 	((unindexed (gmap (:result list)
 			  (lambda (index i)
@@ -881,7 +881,7 @@ considered as a bit set."
 	rel
       (make-wb-list-relation arity (with (wb-list-relation-tuples rel) tuple)
 			     (image (lambda (mask rt-map)
-				      (let ((rt (reduced-tuple tuple)))
+				      (let ((rt (reduced-tuple tuple mask)))
 					(values mask (with rt-map rt (with (@ rt-map rt) tuple)))))
 				    (wb-list-relation-indices rel))))))
 
@@ -897,16 +897,23 @@ considered as a bit set."
 	rel
       (make-wb-list-relation arity (less (wb-list-relation-tuples rel) tuple)
 			     (image (lambda (mask rt-map)
-				      (let ((rt (reduced-tuple tuple)))
+				      (let ((rt (reduced-tuple tuple mask)))
 					(values mask (with rt-map rt (less (@ rt-map rt) tuple)))))
 				    (wb-list-relation-indices rel))))))
 
-(defun reduced-tuple (tuple)
+(defun reduced-tuple (tuple mask)
   "Returns a list of those members of `tuple' corresponding to instantiated
 positions in the original pattern."
-  (if (cl:find '? tuple)
-      (cl:remove '? tuple)
-    tuple))
+  (declare (fixnum mask))
+  (if (= mask (1- (ash 1 (length tuple))))
+      tuple
+    (do ((mask mask (ash mask -1))
+	 (tuple tuple (cdr tuple))
+	 (result nil))
+	((zerop mask)
+	 (nreverse result))
+      (when (logbitp 0 mask)
+	(push (car tuple) result)))))
 
 
 (defgeneric internal-do-list-relation (rel elt-fn value-fn))
@@ -981,16 +988,16 @@ composite index?  [Why "square root"?  Maybe a fixed fraction like 1/8?]
   (let ((mask (pattern-mask pattern)))
     (make-query-registry (with (query-registry-list-relations reg)
 			       mask (with (@ (query-registry-list-relations reg) mask)
-					  (cons query (reduced-tuple pattern)))))))
+					  (cons query (reduced-tuple pattern mask)))))))
 
 (defmethod less ((reg query-registry) pattern &optional (query nil query?))
   (check-three-arguments query? 'less 'query-registry)
-  (if (empty? (query-registry-indices reg))
-      reg
-    (let ((mask (pattern-mask pattern)))
+  (let ((mask (pattern-mask pattern)))
+    (if (empty? (@ (query-registry-list-relations reg) mask))
+	reg
       (make-query-registry (with (query-registry-list-relations reg)
 				 mask (less (@ (query-registry-list-relations reg) mask)
-					    (cons query (reduced-tuple pattern))))))))
+					    (cons query (reduced-tuple pattern mask))))))))
 
 (defmethod all-queries ((reg query-registry))
   (gmap (:result union)
