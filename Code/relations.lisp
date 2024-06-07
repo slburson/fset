@@ -736,7 +736,7 @@ the first tuple added."
   (check-two-arguments arg2? 'contains? 'wb-list-relation)
   (contains? (wb-list-relation-tuples rel) tuple))
 
-(defgeneric query (relation pattern)
+(defgeneric query (relation pattern &optional metapattern)
   (:documentation
     "Along with the relation, takes `pattern', which is a list of length
 less than or equal to the arity.  Returns all tuples whose elements match
@@ -744,9 +744,16 @@ those of the pattern, starting from the left end of both, where pattern
 elements equal to `fset::?' (the symbol itself, not its value) match any
 tuple value.  If the pattern's length is less than the arity, the missing
 positions also match any tuple value.  (Note that `?' is intentionally
-_not_ exported from `fset:' so that you won't use it accidentally.)"))
+_not_ exported from `fset:' so that you won't use it accidentally.)
 
-(defmethod query ((rel wb-list-relation) pattern)
+The `metapattern' parameter was used in an older API; its use is now
+deprecated."))
+
+(defmethod query ((rel wb-list-relation) pattern &optional (metapattern nil metapattern?))
+  ;; Backward compatibility for the old API.  Deprecated.
+  (when metapattern?
+    (setq pattern (gmap (:result list) (fn (p m) (if m p '?))
+			(:arg list pattern) (:arg list metapattern))))
   (let ((arity (wb-list-relation-arity rel)))
     (if (null arity)
 	;; We don't know the arity yet, which means there are no tuples.
@@ -777,14 +784,18 @@ _not_ exported from `fset:' so that you won't use it accidentally.)"))
 		    ;; Completely uninstantiated pattern
 		    (wb-list-relation-tuples rel)))))))))))
 
-(defgeneric query-multi (rel pattern)
+(defgeneric query-multi (rel pattern &optional metapattern)
   (:documentation
     "Like `query' (q.v.), except that `pattern' is a list where the elements that
 aren't `fset::?' are sets of values rather than single values.  Returns all tuples
 in the relation for which each value is a member of the corresponding set in the
 pattern."))
 
-(defmethod query-multi ((rel wb-list-relation) (pattern list))
+(defmethod query-multi ((rel wb-list-relation) (pattern list) &optional (metapattern nil metapattern?))
+  ;; Backward compatibility for the old API.  Deprecated.
+  (when metapattern?
+    (setq pattern (gmap (:result list) (fn (p m) (if m p '?))
+			(:arg list pattern) (:arg list metapattern))))
   (let ((arity (wb-list-relation-arity rel)))
     (if (null arity)
 	;; We don't know the arity yet, which means there are no tuples.
