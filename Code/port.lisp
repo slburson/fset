@@ -363,7 +363,7 @@
     `(if (null ,x) 0 (cl:length ,x))))
 #+sbcl
 (defmacro length-nv (x)
-  (sb-ext::once-only ((x x))
+  (sb-int:once-only ((x x))
     `(if (null ,x) 0 (cl:length ,x))))
 #-(or cmu scl sbcl)
 (defmacro length-nv (x)
