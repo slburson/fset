@@ -20,13 +20,7 @@
 (def-tuple-key +K2+)
 (def-tuple-key +K3+)
 (def-tuple-key +K4+)
-(def-tuple-key +K5+)
-(def-tuple-key +K6+)
 
-
-(def-tuple-key +K7+)
-(def-tuple-key +K8+)
-(def-tuple-key +K9+)
 
 (defclass My-Unhandled-Obj ()
   ((value :initarg :value :initform nil
@@ -2822,7 +2816,9 @@
 	(error "Find failed on iteration ~D" i)))))
 
 
-(deflex Tuple-Keys (vector +K0+ +K1+ +K2+ +K3+ +K4+ +K5+ +K6+ +K7+ +K8+ +K9+))
+(deflex Tuple-Keys (gmap (:result vector :length 40)
+			 #'get-tuple-key
+			 (:arg index 0 40)))
 
 (defun Test-Tuple-Operations (i)
   (let ((tup (tuple))
@@ -2830,14 +2826,18 @@
 	(nkeys (length Tuple-Keys)))
     (dotimes (j 100)
       (let ((key (svref Tuple-Keys (random nkeys)))
-	    (val (Make-My-Integer (random 8))))
+	    (val (Make-My-Integer (random 8)))
+	    (prev-m m)
+	    (prev-tup tup))
 	(setq tup (with tup key val))
 	(setq m (with m key val))
 	(unless (equal? m (convert 'map tup))
 	  (error "Tuple `with' failed on iteration ~D" i))
 	(do-map (k v m)
 	  (unless (equal? v (lookup tup k))
-	    (error "Tuple `lookup' failed on iteration ~D" i)))))))
+	    (error "Tuple `lookup' failed on iteration ~D" i)))
+	(unless (eq (compare prev-tup tup) (compare prev-m m))
+	  (error "Tuple `compare' failed on iteration ~D" i))))))
 
 
 ;;; ================================================================================

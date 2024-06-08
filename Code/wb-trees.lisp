@@ -707,12 +707,12 @@ this range."
 ;;; Comparison
 
 (defun WB-Set-Tree-Compare (tree1 tree2)
-  (let ((size1 (WB-Set-Tree-Size tree1))
-	(size2 (WB-Set-Tree-Size tree2)))
-    (cond ((eq tree1 tree2) ':equal)
-	  ((< size1 size2) ':less)
-	  ((> size1 size2) ':greater)
-	  (t (WB-Set-Tree-Compare-Rng tree1 0 tree2 0 0 size1)))))
+  (if (eq tree1 tree2) ':equal
+    (let ((size1 (WB-Set-Tree-Size tree1))
+	  (size2 (WB-Set-Tree-Size tree2)))
+      (cond ((< size1 size2) ':less)
+	    ((> size1 size2) ':greater)
+	    (t (WB-Set-Tree-Compare-Rng tree1 0 tree2 0 0 size1))))))
 
 (defun WB-Set-Tree-Compare-Rng (tree1 base1 tree2 base2 lo hi)
   ;; This is similar to the other hedge algorithms, but there is a key difference:
@@ -2401,12 +2401,12 @@ of `tree1' and `tree2' are in this range."
 ;;; Comparison
 
 (defun WB-Bag-Tree-Compare (tree1 tree2)
-  (let ((size1 (WB-Bag-Tree-Size tree1))
-	(size2 (WB-Bag-Tree-Size tree2)))
-    (cond ((eq tree1 tree2) ':equal)
-	  ((< size1 size2) ':less)
-	  ((> size1 size2) ':greater)
-	  (t (WB-Bag-Tree-Compare-Rng tree1 0 tree2 0 0 size1)))))
+  (if (eq tree1 tree2) ':equal
+    (let ((size1 (WB-Bag-Tree-Size tree1))
+	  (size2 (WB-Bag-Tree-Size tree2)))
+      (cond ((< size1 size2) ':less)
+	    ((> size1 size2) ':greater)
+	    (t (WB-Bag-Tree-Compare-Rng tree1 0 tree2 0 0 size1))))))
 
 (defun WB-Bag-Tree-Compare-Rng (tree1 base1 tree2 base2 lo hi)
   ;; See notes at `WB-Set-Tree-Compare-Rng'.
@@ -4308,11 +4308,12 @@ pair removed."
 ;;; Compare
 
 (defun WB-Map-Tree-Compare (tree1 tree2 &optional (val-fn #'compare))
-  (let ((size1 (WB-Map-Tree-Size tree1))
-	(size2 (WB-Map-Tree-Size tree2)))
-    (cond ((< size1 size2) ':less)
-	  ((> size1 size2) ':greater)
-	  (t (WB-Map-Tree-Compare-Rng tree1 0 tree2 0 0 size1 val-fn)))))
+  (if (eq tree1 tree2) ':equal
+    (let ((size1 (WB-Map-Tree-Size tree1))
+	  (size2 (WB-Map-Tree-Size tree2)))
+      (cond ((< size1 size2) ':less)
+	    ((> size1 size2) ':greater)
+	    (t (WB-Map-Tree-Compare-Rng tree1 0 tree2 0 0 size1 val-fn))))))
 
 (defun WB-Map-Tree-Compare-Rng (tree1 base1 tree2 base2 lo hi val-fn)
   ;; See notes at `WB-Set-Tree-Compare-Rng'.
@@ -5872,11 +5873,12 @@ the result, inserts `val', returning the new vector."
 ;;; Compare
 
 (defun WB-Seq-Tree-Compare (tree1 tree2)
-  (let ((size1 (WB-Seq-Tree-Size tree1))
-	(size2 (WB-Seq-Tree-Size tree2)))
-    (cond ((< size1 size2) ':less)
-	  ((> size1 size2) ':greater)
-	  (t (WB-Seq-Tree-Compare-Rng tree1 0 tree2 0 0 size1)))))
+  (if (eq tree1 tree2) ':equal
+    (let ((size1 (WB-Seq-Tree-Size tree1))
+	  (size2 (WB-Seq-Tree-Size tree2)))
+      (cond ((< size1 size2) ':less)
+	    ((> size1 size2) ':greater)
+	    (t (WB-Seq-Tree-Compare-Rng tree1 0 tree2 0 0 size1))))))
 
 (defun WB-Seq-Tree-Compare-Lexicographically (tree1 tree2)
   (let ((size1 (WB-Seq-Tree-Size tree1))
