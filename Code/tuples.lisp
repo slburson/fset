@@ -152,12 +152,15 @@ the tuple."
   ;; What this should have been called to begin with.
   `(define-tuple-key ,name ,default-fn))
 
-(defmacro define-tuple-key (name &optional default-fn)
+(defmacro define-tuple-key (name &optional default-fn doc-string)
   "Defines a tuple key named `name' as a global lexical variable (see `deflex').
 If `default-fn' is supplied, it is used to compute a value for lookups where
 the tuple has no explicit pair with this key; it is called with one argument,
-the tuple."
+the tuple.  To supply a doc string without a default-fn, supply `nil' for
+`default-fn'."
   (assert (symbolp name))
+  (when doc-string
+    (setf (get name 'tuple-key-doc-string) doc-string))
   `(deflex ,name (get-tuple-key ',name ,default-fn)))
 
 (defun print-tuple-key (key stream level)
@@ -318,6 +321,9 @@ don't worry about locking it, either.")
       (let ((nkeys*2 (length pairs))
 	    ((window-size (Tuple-Window-Size nkeys*2))))
 	(declare (fixnum nkeys*2))
+	;; If it's at least 1 slot past the end of the window, just move it down 1.
+	;; If it's in the slot just after the window, swap it with a (pseudo-)randomly-selected
+	;; occupant of the window.
 	(let ((to-idx (if (>= (1- idx) window-size)
 			  (1- idx)
 			(mod (Tuple-Random-Value) window-size)))

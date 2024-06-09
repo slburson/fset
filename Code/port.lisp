@@ -32,6 +32,7 @@
 (progn
   (defun make-lock (&optional name)
     (apply #'mp:make-process-lock (and name `(:name ,name))))
+  ;; If `wait?' is false, and the lock is not available, returns without executing the body.
   (defmacro with-lock ((lock &key (wait? t)) &body body)
     `(mp:with-process-lock (,lock :timeout (if ,wait? nil 0))
        . ,body))
@@ -102,8 +103,6 @@
   (defmacro with-lock ((lock &key (wait? t)) &body body)
     `(sb-thread:with-mutex (,lock :wait-p ,wait?)
        . ,body))
-  ;; For those implementations that support SMP but don't give us direct ways
-  ;; to generate memory barriers, we assume that grabbing a lock suffices.
   (defmacro read-memory-barrier ()
     '(sb-thread:barrier (:read)))
   (defmacro write-memory-barrier ()
@@ -121,8 +120,7 @@
   (defmacro read-memory-barrier ()
     '(mp:with-lock (*Memory-Barrier-Lock*) nil))
   (defmacro write-memory-barrier ()
-    '(mp:with-lock (*Memory-Barrier-Lock*) nil))
-  )
+    '(mp:with-lock (*Memory-Barrier-Lock*) nil)))
 
 #+scl
 (progn
@@ -265,6 +263,30 @@
   (defmacro write-memory-barrier ()
     '(threads:with-mutex (*Memory-Barrier-Lock*)
        nil)))
+
+
+#+sbcl
+(defmacro defglobal (name value &optional doc-string)
+  `(sb-ext:defglobal ,name ,value ,doc-string))
+
+#-sbcl
+(defmacro defglobal (name value &optional doc-string)
+  `(deflex ,name ,value ,doc-string))
+
+(defmacro define-atomic-series (name &optional doc-string)
+  #+(and sbcl 64-bit)
+  `(sb-ext:defglobal ,name 0 ,(and doc-string `(,doc-string)))
+  #-(and sbcl 64-bit)
+  `(deflex ,name (cons 0 (make-lock ',lock-name)) . ,(and doc-string `(,doc-string))))
+
+(defmacro increment-atomic-series (name)
+  #+(and sbcl 64-bit)
+  `(1- (sb-ext:atomic-incf ,name))
+  #+(and allegro smp-macros)
+  `(1- (excl:incf-atomic (car ,name)))
+  #-(or (and sbcl 64-bit) (and allegro smp-macros))
+  `(with-lock ((cdr ,name))
+     (1- (incf ,(car name)))))
 
 
 ;;; ----------------
