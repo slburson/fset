@@ -172,14 +172,11 @@ However, the implementation tries very hard to prevent this."
 	((prev-types (cdr types))))
     `(progn
        (let ((mto-len (length +Master-Type-Ordering+)))
-	 (unless (if (< mto-len ,(length types))
-		     (equal +Master-Type-Ordering+
-			    (cl:subseq ',prev-types (- ,(length prev-types) mto-len)))
-		   (equal (cl:subseq +Master-Type-Ordering+
-				     (- mto-len ,(length types)))
-			  ',types))
+	 (unless (equal (cl:subseq +Master-Type-Ordering+
+				   (- mto-len ,(length types)))
+			',types)
 	   ;; This can happen if calls to this macro are compiled in a different
-	   ;; order on different occasions, but only if neither call has been loaded.
+	   ;; order on different occasions.
 	   (error "FSet master type ordering out of sync.~@
 		   See fset::define-cross-type-compare-methods.")))
        (unless (member ',type +Master-Type-Ordering+)

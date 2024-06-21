@@ -275,13 +275,15 @@
 
 (defmacro define-atomic-series (name &optional doc-string)
   #+(and sbcl 64-bit)
-  `(sb-ext:defglobal ,name 0 ,(and doc-string `(,doc-string)))
+  `(progn
+     (sb-ext:defglobal ,name 0 . ,(and doc-string `(,doc-string)))
+     (declaim (type fixnum ,name)))
   #-(and sbcl 64-bit)
   `(deflex ,name (cons 0 (make-lock ',lock-name)) . ,(and doc-string `(,doc-string))))
 
 (defmacro increment-atomic-series (name)
   #+(and sbcl 64-bit)
-  `(1- (sb-ext:atomic-incf ,name))
+  `(sb-ext:atomic-incf ,name) ; (postincrement)
   #+(and allegro smp-macros)
   `(1- (excl:incf-atomic (car ,name)))
   #-(or (and sbcl 64-bit) (and allegro smp-macros))
