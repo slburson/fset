@@ -11,7 +11,7 @@
 
 (asdf:defsystem FSet
   :description "A functional set-theoretic collections library.
-See: http://www.ergy.com/FSet.html
+See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
 "
   :author "Scott L. Burson <Scott@sympoiesis.com>"
   :version "1.4.0"
