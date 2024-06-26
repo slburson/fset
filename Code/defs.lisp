@@ -12,7 +12,7 @@
 
 
 (defpackage :fset
-  (:use :cl :new-let :lexical-contexts)
+  (:use :cl :new-let :lexical-contexts :rev-fun-bind)
   (:import-from :gmap #:gmap #:alist #:constant #:index #:index-inc #:sum)
   (:shadowing-import-from :new-let #:let #:cond)
   (:shadowing-import-from :mt19937 #:make-random-state #:random #:*random-state*)
