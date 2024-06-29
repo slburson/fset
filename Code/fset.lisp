@@ -1004,10 +1004,16 @@ the default implementation of sets in FSet."
   "Returns an empty set of the default implementation."
   *empty-wb-set*)
 
+(defmethod empty-instance-form ((type-name (eql 'set)))
+  '(empty-set))
+
 (declaim (inline empty-wb-set))
 (defun empty-wb-set ()
   "Returns an empty wb-set."
   *empty-wb-set*)
+
+(defmethod empty-instance-form ((type-name (eql 'wb-set)))
+  '(empty-wb-set))
 
 (defmethod empty? ((s wb-set))
   (null (wb-set-contents s)))
@@ -1399,10 +1405,16 @@ trees.  This is the default implementation of bags in FSet."
   "Returns an empty bag of the default implementation."
   *empty-wb-bag*)
 
+(defmethod empty-instance-form ((type-name (eql 'bag)))
+  '(empty-bag))
+
 (declaim (inline empty-wb-bag))
 (defun empty-wb-bag ()
   "Returns an empty wb-bag."
   *empty-wb-bag*)
+
+(defmethod empty-instance-form ((type-name (eql 'wb-bag)))
+  '(empty-wb-bag))
 
 (defmethod empty? ((b wb-bag))
   (null (wb-bag-contents b)))
@@ -1865,11 +1877,17 @@ the default implementation of maps in FSet."
   (if default (make-wb-map nil default)
     *empty-wb-map*))
 
+(defmethod empty-map-instance-form ((type-name (eql 'map)) default)
+  `(empty-map ,default))
+
 (declaim (inline empty-wb-map))
 (defun empty-wb-map (&optional default)
   "Returns an empty wb-map."
   (if default (make-wb-map nil default)
     *empty-wb-map*))
+
+(defmethod empty-map-instance-form ((type-name (eql 'wb-map)) default)
+  `(empty-wb-map ,default))
 
 (defmethod default ((m map))
   (map-default m))
@@ -2324,10 +2342,16 @@ This is the default implementation of seqs in FSet."
   (if default (make-wb-seq nil default)
     *empty-wb-seq*))
 
+(defmethod empty-instance-form ((type-name (eql 'seq)))
+  '(empty-seq))
+
 (declaim (inline empty-wb-seq))
 (defun empty-wb-seq ()
   "Returns an empty wb-seq."
   *empty-wb-seq*)
+
+(defmethod empty-instance-form ((type-name (eql 'wb-seq)))
+  '(empty-wb-seq))
 
 (defmethod empty? ((s wb-seq))
   (null (wb-seq-contents s)))
