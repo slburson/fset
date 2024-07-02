@@ -1947,14 +1947,20 @@ the default implementation of maps in FSet."
 
 (defmethod with ((m wb-map) key &optional (value nil value?))
   (check-three-arguments value? 'with 'wb-map)
-  (make-wb-map (WB-Map-Tree-With (wb-map-contents m) key value)
-	       (map-default m)))
+  (let ((contents (wb-map-contents m))
+	((new-contents (WB-Map-Tree-With contents key value))))
+    (if (eq new-contents contents)
+	m
+      (make-wb-map new-contents (map-default m)))))
 
 (defmethod less ((m wb-map) key &optional (arg2 nil arg2?))
   (declare (ignore arg2))
   (check-two-arguments arg2? 'less 'wb-map)
-  (make-wb-map (WB-Map-Tree-Less (wb-map-contents m) key)
-	       (map-default m)))
+  (let ((contents (wb-map-contents m))
+	((new-contents (WB-Map-Tree-Less contents key))))
+    (if (eq new-contents contents)
+	m
+      (make-wb-map new-contents (map-default m)))))
 
 (defmethod domain ((m wb-map))
   (make-wb-set (WB-Map-Tree-Domain (wb-map-contents m))))
@@ -2048,7 +2054,7 @@ symbols."))
 (defmethod domain-contains? ((m wb-map) x)
   (WB-Map-Tree-Lookup (wb-map-contents m) x))
 
-(defmethod range-contains? ((m wb-map) x)
+(defmethod range-contains? ((m map) x)
   (do-map (k v m)
     (declare (ignore k))
     (when (equal? v x)

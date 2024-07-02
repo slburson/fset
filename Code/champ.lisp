@@ -28,6 +28,15 @@
     (when (logbitp 0 mask)
       (push i result))))
 
+(define-modify-macro logiorf (&rest args)
+  logior)
+
+(define-modify-macro logandc2f (arg-2)
+  logandc2)
+
+(define-modify-macro logxorf (&rest args)
+  logxor)
+
 
 ;;; ================================================================================
 ;;; Sets
@@ -61,6 +70,7 @@
   (if default (make-ch-map nil default)
     *empty-ch-map*))
 
+;; For the constructor macros.
 (defmethod empty-map-instance-form ((type-name (eql 'ch-map)) default)
   `(empty-ch-map ,default))
 
@@ -78,19 +88,28 @@
 
 (defmethod with ((m ch-map) key &optional (value nil value?))
   (check-three-arguments value? 'with 'ch-map)
-  (make-ch-map (ch-map-tree-with (ch-map-contents m) key (hash-value key) value)
-	       (map-default m)))
+  (let ((contents (ch-map-contents m))
+	((new-contents (ch-map-tree-with contents key (hash-value key) value))))
+    (if (eq new-contents contents)
+	m
+      (make-ch-map new-contents (map-default m)))))
 
 (defmethod less ((m ch-map) key &optional (arg2 nil arg2?))
   (declare (ignore arg2))
   (check-two-arguments arg2? 'less 'ch-map)
-  (make-ch-map (ch-map-tree-less (ch-map-contents m) key (hash-value key))
-	       (map-default m)))
+  (let ((contents (ch-map-contents m))
+	((new-contents (ch-map-tree-less contents key (hash-value key)))))
+    (if (eq new-contents contents)
+	m
+      (make-ch-map new-contents (map-default m)))))
 
 (defmethod lookup ((m ch-map) key)
   (let ((val? val (ch-map-tree-lookup (ch-map-contents m) key (hash-value key))))
     ;; Our internal convention is the reverse of the external one.
     (values (if val? val (map-default m)) val?)))
+
+(defmethod domain-contains? ((m ch-map) x)
+  (ch-map-tree-lookup (ch-map-contents m) x (hash-value x)))
 
 (defstruct (ch-map-node
 	     (:type vector))
@@ -133,9 +152,7 @@ adding a new key.
 			  node ; Key found, value equal: nothing to do
 			;; Key found, value differs: just update value
 			(let ((n (vector-update node (+ entry-idx 1) value)))
-			  (setf (ch-map-node-hash-value n)
-				(logxor (ch-map-node-hash-value node)
-					(hash-value ex-val) (hash-value value)))
+			  (logxorf (ch-map-node-hash-value n) (hash-value ex-val) (hash-value value))
 			  n))
 		    ;; Entry with different key found: make a subnode
 		    (let ((hash-shifted (ash hash-shifted (- champ-hash-bits-per-level)))
@@ -148,29 +165,14 @@ adding a new key.
 				  ;; Creates a little garbage; maybe hand-integrate later.
 				  (rec (vector (ash 1 (logand ex-key-hash-shifted champ-hash-level-mask))
 					       0 1 (logxor ex-key-hash (hash-value ex-val)) ex-key ex-val)
-				       hash-shifted (1+ depth))))))
-			  (n (make-array (1- (length node)))))
-		      (setf (ch-map-node-entry-mask n)
-			    (logand (ch-map-node-entry-mask node) (lognot (ash 1 hash-bits))))
-		      (assert (not (logbitp hash-bits (ch-map-node-subnode-mask node))))
-		      (setf (ch-map-node-subnode-mask n) (logior (ch-map-node-subnode-mask node) (ash 1 hash-bits)))
-		      (setf (ch-map-node-size n) (1+ (ch-map-node-size node)))
-		      (setf (ch-map-node-hash-value n)
-			    (logxor (ch-map-node-hash-value node) key-hash (hash-value value)))
-		      ;; Copy up to entry being deleted
-		      (dotimes (i (* 2 entry-raw-idx))
-			(setf (svref n (+ i ch-map-node-header-size)) (svref node (+ i ch-map-node-header-size))))
-		      ;; Copy from next entry up to subnode being inserted
-		      (dotimes (i (- subnode-idx entry-idx 1))
-			(setf (svref n (+ entry-idx i))
-			      (svref node (+ entry-idx i 2))))
-		      ;; Insert subnode (`subnode-idx' is where the subnode would have been in `node', had it
-		      ;; been present; we subtract 2 for the deleted entry, but add 1 back because it's a new subnode)
-		      (setf (svref n (1- subnode-idx)) n2)
-		      ;; Copy remaining subnodes
-		      (dotimes (i subnode-raw-idx)
-			(setf (svref n (+ subnode-idx i))
-			      (svref node (+ subnode-idx i 1))))
+				       hash-shifted (1+ depth))))
+			    ;; The `1+' is because we're inserting _after_ `subnode-idx', because the subnodes
+			    ;; are in reverse order.
+			    ((n (vector-rem-2-ins-1 node entry-idx (1+ subnode-idx) n2))))))
+		      (logandc2f (ch-map-node-entry-mask n) (ash 1 hash-bits))
+		      (logiorf (ch-map-node-subnode-mask n) (ash 1 hash-bits))
+		      (incf (ch-map-node-size n))
+		      (logxorf (ch-map-node-hash-value n) key-hash (hash-value value))
 		      n)))
 	      ;; No entry found: check for subnode
 	      (if (logbitp hash-bits subnode-mask)
@@ -214,23 +216,37 @@ adding a new key.
 		      ;; New subnode
 		      (let ((n (vector-update node subnode-idx new-subnode)))
 			(incf (ch-map-node-size n) (- (ch-map-tree-size new-subnode) (ch-map-tree-size subnode)))
-			(setf (ch-map-node-hash-value n)
-			      (logxor (ch-map-node-hash-value node) (ch-map-tree-hash-value subnode)
-				      (ch-map-tree-hash-value new-subnode)))
+			(logxorf (ch-map-node-hash-value n) (ch-map-tree-hash-value subnode)
+				 (ch-map-tree-hash-value new-subnode))
 			n)))
 		;; Neither entry nor subnode found: make new entry
-		(let ((n (make-array (+ 2 (length node)))))
-		  (dotimes (i entry-idx) ; includes header
-		    (setf (svref n i) (svref node i)))
-		  (setf (ch-map-node-entry-mask n) (logior (ch-map-node-entry-mask node) (ash 1 hash-bits)))
+		(let ((n (vector-insert-2 node entry-idx key value)))
+		  (logiorf (ch-map-node-entry-mask n) (ash 1 hash-bits))
 		  (incf (ch-map-node-size n))
-		  (setf (ch-map-node-hash-value n)
-			(logxor (ch-map-node-hash-value node) key-hash (hash-value value)))
-		  (setf (svref n entry-idx) key)
-		  (setf (svref n (1+ entry-idx)) value)
-		  (dotimes (i (- (length node) entry-idx))
-		    (setf (svref n (+ entry-idx i 2)) (svref node (+ entry-idx i))))
+		  (logxorf (ch-map-node-hash-value n) key-hash (hash-value value))
 		  n)))))))))
+
+(defun vector-rem-2-ins-1 (vec rem-idx ins-idx ins-val)
+  (assert (<= rem-idx (- ins-idx 2)))
+  (let ((v (make-array (1- (length vec)))))
+    (dotimes (i rem-idx)
+      (setf (svref v i) (svref vec i)))
+    (dotimes (i (- ins-idx rem-idx 2))
+      (setf (svref v (+ rem-idx i)) (svref vec (+ rem-idx i 2))))
+    (setf (svref v (- ins-idx 2)) ins-val)
+    (dotimes (i (- (length vec) ins-idx))
+      (setf (svref v (+ ins-idx i -1)) (svref vec (+ ins-idx i))))
+    v))
+
+(defun vector-insert-2 (vec idx ins-0 ins-1)
+  (let ((v (make-array (+ 2 (length vec)))))
+    (dotimes (i idx)
+      (setf (svref v i) (svref vec i)))
+    (setf (svref v idx) ins-0)
+    (setf (svref v (1+ idx)) ins-1)
+    (dotimes (i (- (length vec) idx))
+      (setf (svref v (+ idx i 2)) (svref vec (+ idx i))))
+    v))
 
 (defun ch-map-tree-size (tree)
   (cond ((null tree) 0)
@@ -261,11 +277,9 @@ adding a new key.
 			 (t
 			  (let ((n (vector-remove-2-at node entry-idx))
 				(ex-value-hash (hash-value (svref node (1+ entry-idx)))))
-			    (setf (ch-map-node-entry-mask n)
-				  (logand (ch-map-node-entry-mask n) (lognot (ash 1 hash-bits))))
+			    (logandc2f (ch-map-node-entry-mask n) (ash 1 hash-bits))
 			    (decf (ch-map-node-size n))
-			    (setf (ch-map-node-hash-value n)
-				  (logxor (ch-map-node-hash-value n) key-hash ex-value-hash))
+			    (logxorf (ch-map-node-hash-value n) key-hash ex-value-hash)
 			    (values n (logxor key-hash ex-value-hash))))))
 	       (let ((subnode-raw-idx (logcount (logand (1- (ash 1 hash-bits)) subnode-mask)))
 		     ((subnode-idx (- (length node) 1 subnode-raw-idx))))
@@ -284,52 +298,49 @@ adding a new key.
 				   (let ((rem-key rem-val (wb-map-tree-arb-pair new-wb-tree))
 					 ;; `entry-idx' is still valid from above; the hash bits must be the same
 					 ((n (vector-ins-2-rem-1 node entry-idx rem-key rem-val subnode-idx))))
-				     (setf (ch-map-node-entry-mask n)
-					   (logior (ch-map-node-entry-mask n) (ash 1 hash-bits)))
-				     (setf (ch-map-node-subnode-mask n)
-					   (logand (ch-map-node-subnode-mask n) (lognot (ash 1 hash-bits))))
+				     (logiorf (ch-map-node-entry-mask n) (ash 1 hash-bits))
+				     (logandc2f (ch-map-node-subnode-mask n) (ash 1 hash-bits))
 				     (decf (ch-map-node-size n))
-				     (setf (ch-map-node-hash-value n)
-					   (logxor (ch-map-node-hash-value n) key-hash ex-value-hash))
+				     (logxorf (ch-map-node-hash-value n) key-hash ex-value-hash)
 				     (values n (logxor key-hash ex-value-hash)))
 				 (let ((n (vector-update node subnode-idx
 							 (cons (logxor (car subnode) key-hash ex-value-hash)
 							       new-wb-tree))))
 				   (decf (ch-map-node-size n))
-				   (setf (ch-map-node-hash-value n) (logxor (ch-map-node-hash-value n) ex-value-hash))
+				   (logxorf (ch-map-node-hash-value n) ex-value-hash)
 				   (values n (logxor key-hash ex-value-hash)))))))
 		       (let ((new-subnode content-hash-delta
 			       (rec subnode (ash hash-shifted (- champ-hash-bits-per-level)))))
-			 (cond ((eq new-subnode subnode)
-				(values node 0))
-			       ((null new-subnode)
-				(let ((n (vector-remove-at node subnode-idx)))
-				  (setf (ch-map-node-subnode-mask n)
-					(logand (ch-map-node-subnode-mask n) (lognot (ash 1 hash-bits))))
-				  (decf (ch-map-node-size n))
-				  (setf (ch-map-node-hash-value n)
-					(logxor (ch-map-node-hash-value n) content-hash-delta))
-				  (values n content-hash-delta)))
-			       ((and (= 1 (logcount entry-mask)) (= 0 subnode-mask))
-				;; New subnode contains only a single entry: pull it up into this node
-				(let ((new-entry-idx (+ ch-map-node-header-size
-							(* 2 (logcount (logand (1- (ash 1 hash-bits)) entry-mask)))))
-				      ((n (vector-ins-2-rem-1 node new-entry-idx
-							      (svref new-subnode ch-map-node-header-size)
-							      (svref new-subnode (1+ ch-map-node-header-size))
-							      subnode-idx))))
-				  (setf (ch-map-node-entry-mask n)
-					(logior (ch-map-node-entry-mask n) (ash 1 hash-bits)))
-				  (setf (ch-map-node-subnode-mask n)
-					(logand (ch-map-node-subnode-mask n) (lognot (ash 1 hash-bits))))
-				  (values n content-hash-delta)))
-			       ((and (= 0 entry-mask) (= 1 (logcount subnode-mask))
-				     (consp (svref new-subnode ch-map-node-header-size)))
-				;; New subnode contains only a single collision node: pull it up into this node
-				(values (vector-update node subnode-idx (svref new-subnode ch-map-node-header-size))
-					content-hash-delta))
-			       (t
-				(values (vector-update node subnode-idx new-subnode) content-hash-delta))))))))))))))
+			 (if (eq new-subnode subnode)
+			     (values node 0)
+			   (let ((n (cond ((null new-subnode)
+					   (let ((n (vector-remove-at node subnode-idx)))
+					     (logandc2f (ch-map-node-subnode-mask n) (ash 1 hash-bits))
+					     n))
+					  ((and (= 1 (logcount (ch-map-node-entry-mask new-subnode)))
+						(= 0 (ch-map-node-subnode-mask new-subnode)))
+					   ;; New subnode contains only a single entry: pull it up into this node
+					   (let ((new-entry-idx
+						   (+ ch-map-node-header-size
+						      (* 2 (logcount (logand (1- (ash 1 hash-bits)) entry-mask)))))
+						 ((n
+						    (vector-ins-2-rem-1 node new-entry-idx
+									(svref new-subnode ch-map-node-header-size)
+									(svref new-subnode (1+ ch-map-node-header-size))
+									subnode-idx))))
+					     (logiorf (ch-map-node-entry-mask n) (ash 1 hash-bits))
+					     (logandc2f (ch-map-node-subnode-mask n) (ash 1 hash-bits))
+					     n))
+					  ((and (= 0 (ch-map-node-entry-mask new-subnode))
+						(= 1 (logcount (ch-map-node-subnode-mask new-subnode)))
+						(consp (svref new-subnode ch-map-node-header-size)))
+					   ;; New subnode contains only a collision node: pull it up into this node
+					   (vector-update node subnode-idx
+							  (svref new-subnode ch-map-node-header-size)))
+					  (t (vector-update node subnode-idx new-subnode)))))
+			     (decf (ch-map-node-size n))
+			     (logxorf (ch-map-node-hash-value n) content-hash-delta)
+			     (values n content-hash-delta))))))))))))))
 
 (defun vector-remove-2-at (vec idx)
   (let ((v (make-array (- (length vec) 2))))
@@ -415,56 +426,68 @@ adding a new key.
   (or (null tree)
       (rlabels (rec tree 0 0)
 	(rec (node depth partial-hash)
-	  (let ((entry-mask (ch-map-node-entry-mask node))
-		(subnode-mask (ch-map-node-subnode-mask node))
-		((entry-bits (bit-indices entry-mask))
-		 (subnode-bits (bit-indices subnode-mask))))
-	    (and (= 0 (logand entry-mask subnode-mask))
-		 (= 0 (ash entry-mask (- champ-node-radix)))
-		 (= 0 (ash subnode-mask (- champ-node-radix)))
-		 (= (length node) (+ ch-map-node-header-size (* 2 (logcount entry-mask)) (logcount subnode-mask)))
-		 ;; Check that unless root, this node does not contain only an entry ...
-		 (not (and (> depth 0) (= 1 (logcount entry-mask)) (= 0 subnode-mask)))
-		 ;; ... or only a collision subnode
-		 (not (and (> depth 0) (= 0 entry-mask) (= 1 (logcount subnode-mask))
-			   (consp (svref node (1- (length node))))))
-		 (let ((size (logcount entry-mask))
-		       (content-hash 0))
-		   (and
-		     ;; Check entry key hashes
-		     (gmap :and (fn (key-idx hash-bits)
-				  (let ((key (svref node (+ ch-map-node-header-size (* 2 key-idx))))
-					((key-hash (hash-value key)))
-					(value (svref node (+ ch-map-node-header-size (1+ (* 2 key-idx))))))
-				    (setq content-hash (logxor content-hash key-hash (hash-value value)))
-				    (= (ldb (byte (* champ-hash-bits-per-level (1+ depth)) 0)
-					    key-hash)
-				       (new-partial-hash hash-bits depth partial-hash))))
-			   (:arg index 0)
-			   (:arg list entry-bits))
-		     ;; Verify subnodes
-		     (gmap :and (fn (subnode-idx hash-bits)
-				  (let ((subnode (svref node (- (length node) 1 subnode-idx))))
-				    (if (consp subnode)
-					(let ((chash 0))
-					  (do-wb-map-tree-pairs (k v (cdr subnode))
-					    (setf chash (logxor content-hash (hash-value k) (hash-value v))))
-					  (setf content-hash (logxor content-hash chash))
-					  (incf size (wb-map-tree-size (cdr subnode)))
-					  (= (car subnode) chash))
-				      (and (rec subnode (1+ depth) (new-partial-hash hash-bits depth partial-hash))
-					   (progn
-					     (incf size (ch-map-node-size subnode))
-					     (setf content-hash (logxor content-hash (ch-map-node-hash-value subnode)))
-					     t)))))
-			   (:arg index 0)
-			   (:arg list subnode-bits))
-		     ;; Finally, check size and hash
-		     (= (ch-map-node-size node) size)
-		     (= (ch-map-node-hash-value node) content-hash))))))
+	  (macrolet ((test (form)
+		       `(or ,form
+			    (error "Test failed at ~:A: ~S" (path depth partial-hash) ',form))))
+	    (let ((entry-mask (ch-map-node-entry-mask node))
+		  (subnode-mask (ch-map-node-subnode-mask node))
+		  ((entry-bits (bit-indices entry-mask))
+		   (subnode-bits (bit-indices subnode-mask))))
+	      (and (test (= 0 (logand entry-mask subnode-mask)))
+		   (test (= 0 (ash entry-mask (- champ-node-radix))))
+		   (test (= 0 (ash subnode-mask (- champ-node-radix))))
+		   (test (= (length node)
+			    (+ ch-map-node-header-size (* 2 (logcount entry-mask)) (logcount subnode-mask))))
+		   ;; Check that unless root, this node does not contain only an entry ...
+		   (test (not (and (> depth 0) (= 1 (logcount entry-mask)) (= 0 subnode-mask))))
+		   ;; ... or only a collision subnode
+		   (test (not (and (> depth 0) (= 0 entry-mask) (= 1 (logcount subnode-mask))
+				   (consp (svref node (1- (length node)))))))
+		   (let ((size (logcount entry-mask))
+			 (content-hash 0))
+		     (and
+		       ;; Check entry key hashes
+		       (gmap :and (fn (key-idx hash-bits)
+				    (let ((key (svref node (+ ch-map-node-header-size (* 2 key-idx))))
+					  ((key-hash (hash-value key)))
+					  (value (svref node (+ ch-map-node-header-size (1+ (* 2 key-idx))))))
+				      (setq content-hash (logxor content-hash key-hash (hash-value value)))
+				      (test (= (ldb (byte (* champ-hash-bits-per-level (1+ depth)) 0)
+						    key-hash)
+					       (new-partial-hash hash-bits depth partial-hash)))))
+			     (:arg index 0)
+			     (:arg list entry-bits))
+		       ;; Verify subnodes
+		       (gmap :and (fn (subnode-idx hash-bits)
+				    (let ((subnode (svref node (- (length node) 1 subnode-idx))))
+				      (if (consp subnode)
+					  (let ((chash 0))
+					    (do-wb-map-tree-pairs (k v (cdr subnode))
+					      (setf chash (logxor chash (hash-value k) (hash-value v))))
+					    (setf content-hash (logxor content-hash chash))
+					    (incf size (wb-map-tree-size (cdr subnode)))
+					    (test (= (car subnode) chash)))
+					(and (rec subnode (1+ depth) (new-partial-hash hash-bits depth partial-hash))
+					     (progn
+					       (incf size (ch-map-node-size subnode))
+					       (setf content-hash
+						     (logxor content-hash (ch-map-node-hash-value subnode)))
+					       t)))))
+			     (:arg index 0)
+			     (:arg list subnode-bits))
+		       ;; Finally, check size and hash
+		       (test (= (ch-map-node-size node) size))
+		       (test (= (ch-map-node-hash-value node) content-hash))))))))
 	(new-partial-hash (hash-bits depth partial-hash)
 	  (dpb hash-bits (byte champ-hash-bits-per-level (* champ-hash-bits-per-level depth))
-	       partial-hash)))))
+	       partial-hash))
+	(path (depth partial-hash)
+	  (let ((path nil))
+	    (dotimes (i depth)
+	      (push (ldb (byte champ-hash-bits-per-level (* i champ-hash-bits-per-level))
+			 partial-hash)
+		    path))
+	    (nreverse path))))))
 
 (defmethod convert ((to-type (eql 'wb-map)) (m ch-map) &key)
   (let ((wb-m (empty-wb-map (map-default m))))
@@ -490,32 +513,38 @@ adding a new key.
 			(byte 2 5)
 			(ldb (byte 2 0) val)))))))
 
+(defmethod verify ((m ch-map))
+  (ch-map-tree-verify (ch-map-contents m)))
+
 (defvar *champ-test-pairs* (seq))
 
 (defun test-champ-maps (n)
   (declare (optimize (speed 0) (debug 3)))
-  (setq *champ-test-pairs* (seq))
-  (macrolet ((test (form)
-               `(unless ,form
-                  (error "Test failed: ~S" ',form))))
-    (dotimes (i n)
-      (let ((wbm (wb-map))
-	    (chm (ch-map)))
-	(dotimes (j 4096)
-	  (let ((mi (make-my-integer (random 1024)))
-		(val (random 65536))
-		(prev-chm chm))
-	    (if (< (random 100) 20)
-		(progn
-		  (push-last *champ-test-pairs* (list '- mi val))
-		  (excludef wbm mi)
-		  (excludef chm mi))
+  (dotimes (i n)
+    (setq *champ-test-pairs* (seq))
+    (let ((wbm (wb-map))
+	  (chm (ch-map)))
+      (dotimes (j 4096)
+	(let ((mi (make-my-integer (random 1024)))
+	      (val (random 65536))
+	      (prev-wbm wbm)
+	      (prev-chm chm))
+	  (if (< (random 100) 20)
 	      (progn
-		(push-last *champ-test-pairs* (list '+ mi val))
-		(setf (@ wbm mi) val)
-		(setf (@ chm mi) val)))
-	    (let ((wbm-from-ch (convert 'wb-map chm)))
-	      (unless (equal? wbm wbm-from-ch)
-		(error "EQUAL? failed on ~A~%vs. ~A:~%diffs ~A~%prev ~A" wbm chm
-		       (multiple-value-list (map-difference-2 wbm wbm-from-ch)) prev-chm)))))))))
+		(push-last *champ-test-pairs* (list '- mi val))
+		(excludef wbm mi)
+		(excludef chm mi)
+		(unless (or (domain-contains? prev-wbm mi)
+			    (eq chm prev-chm))
+		  (error "LESS failed to detect no change")))
+	    (progn
+	      (push-last *champ-test-pairs* (list '+ mi val))
+	      (setf (@ wbm mi) val)
+	      (setf (@ chm mi) val)))
+	  (unless (verify chm)
+	    (error "Verification failed on ~A; prev ~A" chm prev-chm))
+	  (let ((wbm-from-ch (convert 'wb-map chm)))
+	    (unless (equal? wbm wbm-from-ch)
+	      (error "EQUAL? failed on ~A~%vs. ~A:~%diffs ~A~%prev ~A" wbm chm
+		     (multiple-value-list (map-difference-2 wbm wbm-from-ch)) prev-chm))))))))
 
