@@ -21,6 +21,7 @@
 
 (defmethod hash-value ((x fixnum))
   ;; Seems reasonable for our purposes
+  ;; &&& Oops -- should strip sign bit?
   x)
 
 (defmethod hash-value ((x character))
