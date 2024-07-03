@@ -1004,6 +1004,7 @@ the default implementation of sets in FSet."
   "Returns an empty set of the default implementation."
   *empty-wb-set*)
 
+;; For the constructor macros.
 (defmethod empty-instance-form ((type-name (eql 'set)))
   '(empty-set))
 
@@ -2323,6 +2324,89 @@ supplied, it is used as the initial map default."
   `((map . ,(and default? `(:default ,default)))
     ,(if val-fn? `(fn (a b) (map-intersection a b ,val-fn)) '#'map-intersection)
     nil ,filterp))
+
+
+;;; ================================================================================
+;;; CHAMP maps
+
+(defstruct (ch-map
+	     (:include map)
+	     (:constructor make-ch-map (contents &optional default))
+	     (:predicate ch-map?)
+	     (:print-function print-ch-map)
+	     (:copier nil))
+  contents)
+
+(defparameter *empty-ch-map* (make-ch-map nil))
+
+(declaim (inline empty-ch-map))
+(defun empty-ch-map (&optional default)
+  (if default (make-ch-map nil default)
+    *empty-ch-map*))
+
+(defmethod empty-map-instance-form ((type-name (eql 'ch-map)) default)
+  `(empty-ch-map ,default))
+
+(defmacro ch-map (&rest args)
+  (expand-map-constructor-form 'ch-map args))
+
+(defmethod with-default ((m ch-map) new-default)
+  (make-ch-map (ch-map-contents m) new-default))
+
+(defmethod empty? ((m ch-map))
+  (null (ch-map-contents m)))
+
+(defmethod size ((m ch-map))
+  (ch-map-tree-size (ch-map-contents m)))
+
+(defmethod with ((m ch-map) key &optional (value nil value?))
+  (check-three-arguments value? 'with 'ch-map)
+  (let ((contents (ch-map-contents m))
+	((new-contents (ch-map-tree-with contents key (hash-value key) value))))
+    (if (eq new-contents contents)
+	m
+      (make-ch-map new-contents (map-default m)))))
+
+(defmethod less ((m ch-map) key &optional (arg2 nil arg2?))
+  (declare (ignore arg2))
+  (check-two-arguments arg2? 'less 'ch-map)
+  (let ((contents (ch-map-contents m))
+	((new-contents (ch-map-tree-less contents key (hash-value key)))))
+    (if (eq new-contents contents)
+	m
+      (make-ch-map new-contents (map-default m)))))
+
+(defmethod lookup ((m ch-map) key)
+  (let ((val? val (ch-map-tree-lookup (ch-map-contents m) key (hash-value key))))
+    ;; Our internal convention is the reverse of the external one.
+    (values (if val? val (map-default m)) val?)))
+
+(defmethod domain-contains? ((m ch-map) x)
+  (ch-map-tree-lookup (ch-map-contents m) x (hash-value x)))
+
+(defmethod internal-do-map ((m ch-map) elt-fn &optional (value-fn (lambda () nil)))
+  (declare ;(optimize (speed 3) (safety 0))
+	   (type function elt-fn value-fn))
+  (do-ch-map-tree-pairs (x y (ch-map-contents m) (funcall value-fn))
+    (funcall elt-fn x y)))
+
+(defmethod convert ((to-type (eql 'wb-map)) (m ch-map) &key)
+  (let ((wb-m (empty-wb-map (map-default m))))
+    (do-ch-map-tree-pairs (x y (ch-map-contents m))
+      (setf (lookup wb-m x) y))
+    wb-m))
+
+(defun print-ch-map (map stream level)
+  (declare (ignore level))
+  (pprint-logical-block (stream nil :prefix "##{|")
+    (do-map (x y map)
+      (pprint-pop)
+      (write-char #\Space stream)
+      (pprint-newline :linear stream)
+      ;; There might be a map entry for 'quote or 'function...
+      (let (#+sbcl (sb-pretty:*pprint-quote-with-syntactic-sugar* nil))
+	(write (list x y) :stream stream)))
+    (format stream " |}~:[~;/~:*~S~]" (map-default map))))
 
 
 ;;; ================================================================================

@@ -3501,3 +3501,56 @@
 	  (dotimes (j (size seq))
 	    (WB-Seq-Tree-Subscript (wb-seq-contents seq) i)))))
 
+
+;;; ================================================================================
+;;; CHAMP testing
+
+(defmethod hash-value ((x my-integer))
+  ;; Drop the low-order bit to force collisions, and spread the bits out to force more levels
+  ;; to be created.
+  (let ((val (ash (my-integer-value x) -1)))
+    (dpb (ldb (byte 2 8) val)
+	 (byte 2 20)
+	 (dpb (ldb (byte 2 6) val)
+	      (byte 2 15)
+	      (dpb (ldb (byte 2 4) val)
+		   (byte 2 10)
+		   (dpb (ldb (byte 2 2) val)
+			(byte 2 5)
+			(ldb (byte 2 0) val)))))))
+
+(defmethod verify ((m ch-map))
+  (ch-map-tree-verify (ch-map-contents m)))
+
+(defvar *champ-test-pairs* (seq))
+
+(defun test-champ-maps (n)
+  (declare (optimize (speed 0) (debug 3)))
+  (dotimes (i n)
+    (setq *champ-test-pairs* (seq))
+    (let ((wbm (wb-map))
+	  (chm (ch-map)))
+      (dotimes (j 4096)
+	(let ((mi (make-my-integer (random 1024)))
+	      (val (random 65536))
+	      (prev-wbm wbm)
+	      (prev-chm chm))
+	  (if (< (random 100) 20)
+	      (progn
+		;; (push-last *champ-test-pairs* (list '- mi val))
+		(excludef wbm mi)
+		(excludef chm mi)
+		(unless (or (domain-contains? prev-wbm mi)
+			    (eq chm prev-chm))
+		  (error "LESS failed to detect no change")))
+	    (progn
+	      ;; (push-last *champ-test-pairs* (list '+ mi val))
+	      (setf (@ wbm mi) val)
+	      (setf (@ chm mi) val)))
+	  (unless (verify chm)
+	    (error "Verification failed on ~A; prev ~A" chm prev-chm))
+	  (let ((wbm-from-ch (convert 'wb-map chm)))
+	    (unless (equal? wbm wbm-from-ch)
+	      (error "EQUAL? failed on ~A~%vs. ~A:~%diffs ~A~%prev ~A" wbm chm
+		     (multiple-value-list (map-difference-2 wbm wbm-from-ch)) prev-chm))))))))
+

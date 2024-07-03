@@ -12,6 +12,9 @@
 
 (defgeneric hash-value (x))
 
+;;; As of this writing, these methods are tentative.  They should be gone over for performance
+;;; and hash quality (well-distributed-ness) in the major Lisp implementations.
+
 (defmethod hash-value ((x identity-ordering-mixin))
   ;; &&& Seems to work in SBCL
   (logxor (sxhash (class-of x)) (slot-value x 'serial-number)))

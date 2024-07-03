@@ -41,6 +41,7 @@
 ;;; ================================================================================
 ;;; Sets
 
+#||
 (defstruct (ch-set
 	     (:include set)
 	     (:constructor make-ch-set (contents))
@@ -50,66 +51,11 @@
   contents)
 
 (defparameter *empty-ch-set* (make-ch-set nil))
+||#
 
 
 ;;; ================================================================================
 ;;; Maps
-
-(defstruct (ch-map
-	     (:include map)
-	     (:constructor make-ch-map (contents &optional default))
-	     (:predicate ch-map?)
-	     (:print-function print-ch-map)
-	     (:copier nil))
-  contents)
-
-(defparameter *empty-ch-map* (make-ch-map nil))
-
-(declaim (inline empty-ch-map))
-(defun empty-ch-map (&optional default)
-  (if default (make-ch-map nil default)
-    *empty-ch-map*))
-
-;; For the constructor macros.
-(defmethod empty-map-instance-form ((type-name (eql 'ch-map)) default)
-  `(empty-ch-map ,default))
-
-(defmacro ch-map (&rest args)
-  (expand-map-constructor-form 'ch-map args))
-
-(defmethod with-default ((m ch-map) new-default)
-  (make-ch-map (ch-map-contents m) new-default))
-
-(defmethod empty? ((m ch-map))
-  (null (ch-map-contents m)))
-
-(defmethod size ((m ch-map))
-  (ch-map-tree-size (ch-map-contents m)))
-
-(defmethod with ((m ch-map) key &optional (value nil value?))
-  (check-three-arguments value? 'with 'ch-map)
-  (let ((contents (ch-map-contents m))
-	((new-contents (ch-map-tree-with contents key (hash-value key) value))))
-    (if (eq new-contents contents)
-	m
-      (make-ch-map new-contents (map-default m)))))
-
-(defmethod less ((m ch-map) key &optional (arg2 nil arg2?))
-  (declare (ignore arg2))
-  (check-two-arguments arg2? 'less 'ch-map)
-  (let ((contents (ch-map-contents m))
-	((new-contents (ch-map-tree-less contents key (hash-value key)))))
-    (if (eq new-contents contents)
-	m
-      (make-ch-map new-contents (map-default m)))))
-
-(defmethod lookup ((m ch-map) key)
-  (let ((val? val (ch-map-tree-lookup (ch-map-contents m) key (hash-value key))))
-    ;; Our internal convention is the reverse of the external one.
-    (values (if val? val (map-default m)) val?)))
-
-(defmethod domain-contains? ((m ch-map) x)
-  (ch-map-tree-lookup (ch-map-contents m) x (hash-value x)))
 
 (defstruct (ch-map-node
 	     (:type vector))
@@ -404,24 +350,6 @@ adding a new key.
 	 (,recur-fn ,tree-form))
        ,value-form)))
 
-(defmethod internal-do-map ((m ch-map) elt-fn &optional (value-fn (lambda () nil)))
-  (declare ;(optimize (speed 3) (safety 0))
-	   (type function elt-fn value-fn))
-  (do-ch-map-tree-pairs (x y (ch-map-contents m) (funcall value-fn))
-    (funcall elt-fn x y)))
-
-(defun print-ch-map (map stream level)
-  (declare (ignore level))
-  (pprint-logical-block (stream nil :prefix "##{|")
-    (do-map (x y map)
-      (pprint-pop)
-      (write-char #\Space stream)
-      (pprint-newline :linear stream)
-      ;; There might be a map entry for 'quote or 'function...
-      (let (#+sbcl (sb-pretty:*pprint-quote-with-syntactic-sugar* nil))
-	(write (list x y) :stream stream)))
-    (format stream " |}~:[~;/~:*~S~]" (map-default map))))
-
 (defun ch-map-tree-verify (tree)
   (or (null tree)
       (rlabels (rec tree 0 0)
@@ -488,63 +416,4 @@ adding a new key.
 			 partial-hash)
 		    path))
 	    (nreverse path))))))
-
-(defmethod convert ((to-type (eql 'wb-map)) (m ch-map) &key)
-  (let ((wb-m (empty-wb-map (map-default m))))
-    (do-ch-map-tree-pairs (x y (ch-map-contents m))
-      (setf (lookup wb-m x) y))
-    wb-m))
-
-
-;;; ================================================================================
-;;; Testing
-
-(defmethod hash-value ((x my-integer))
-  ;; Drop the low-order bit to force collisions, and spread the bits out to force more levels
-  ;; to be created.
-  (let ((val (ash (my-integer-value x) -1)))
-    (dpb (ldb (byte 2 8) val)
-	 (byte 2 20)
-	 (dpb (ldb (byte 2 6) val)
-	      (byte 2 15)
-	      (dpb (ldb (byte 2 4) val)
-		   (byte 2 10)
-		   (dpb (ldb (byte 2 2) val)
-			(byte 2 5)
-			(ldb (byte 2 0) val)))))))
-
-(defmethod verify ((m ch-map))
-  (ch-map-tree-verify (ch-map-contents m)))
-
-(defvar *champ-test-pairs* (seq))
-
-(defun test-champ-maps (n)
-  (declare (optimize (speed 0) (debug 3)))
-  (dotimes (i n)
-    (setq *champ-test-pairs* (seq))
-    (let ((wbm (wb-map))
-	  (chm (ch-map)))
-      (dotimes (j 4096)
-	(let ((mi (make-my-integer (random 1024)))
-	      (val (random 65536))
-	      (prev-wbm wbm)
-	      (prev-chm chm))
-	  (if (< (random 100) 20)
-	      (progn
-		(push-last *champ-test-pairs* (list '- mi val))
-		(excludef wbm mi)
-		(excludef chm mi)
-		(unless (or (domain-contains? prev-wbm mi)
-			    (eq chm prev-chm))
-		  (error "LESS failed to detect no change")))
-	    (progn
-	      (push-last *champ-test-pairs* (list '+ mi val))
-	      (setf (@ wbm mi) val)
-	      (setf (@ chm mi) val)))
-	  (unless (verify chm)
-	    (error "Verification failed on ~A; prev ~A" chm prev-chm))
-	  (let ((wbm-from-ch (convert 'wb-map chm)))
-	    (unless (equal? wbm wbm-from-ch)
-	      (error "EQUAL? failed on ~A~%vs. ~A:~%diffs ~A~%prev ~A" wbm chm
-		     (multiple-value-list (map-difference-2 wbm wbm-from-ch)) prev-chm))))))))
 
