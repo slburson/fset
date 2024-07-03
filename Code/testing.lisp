@@ -3535,6 +3535,8 @@
 	      (val (random 65536))
 	      (prev-wbm wbm)
 	      (prev-chm chm))
+	  (unless (eql (lookup chm mi) (lookup wbm mi))
+	    (error "LOOKUP failed"))
 	  (if (< (random 100) 20)
 	      (progn
 		;; (push-last *champ-test-pairs* (list '- mi val))

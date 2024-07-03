@@ -67,19 +67,26 @@
   size ; total number of pairs at or below this node
   hash-value)
 (defconstant ch-map-node-header-size 4)
+(declaim (ftype (function (t) fixnum)
+		ch-map-node-entry-mask ch-map-node-subnode-mask ch-map-node-size ch-map-node-hash-value))
 
 #||
 This differs slightly from the published CHAMP algorithm.  It is agnostic as to the number
 of bits in the hash values; it will use as many as are provided.  A collision can be
 detected at any level, when two keys hash to the same value but `equal?' is false on them.
 When that happens, we fall back to using a WB-tree for those entries.  The resulting
-collision node will be as high in the tree as possible given that it can only contain keys
+collision node will be as high in the tree as possible given that it can contain only keys
 with that hash value; this can require pushing it down an arbitrary number of levels when
 adding a new key.
 ||#
+
 (defun ch-map-tree-with (tree key key-hash value)
+  (declare (optimize (speed 3) (safety 0))
+	   (fixnum key-hash))
   (rlabels (rec tree key-hash 0)
     (rec (node hash-shifted depth)
+      (declare (fixnum hash-shifted)
+	       (type (integer 0 64) depth))
       (let ((hash-bits (logand hash-shifted champ-hash-level-mask)))
 	(if (null node)
 	    (vector (ash 1 hash-bits) 0 1 (logxor key-hash (hash-value value)) key value)
@@ -91,8 +98,8 @@ adding a new key.
 		 ((subnode-idx (- (length node) 1 subnode-raw-idx)))))
 	    (if (logbitp hash-bits entry-mask)
 		;; Entry found
-		(let (((ex-key (svref node entry-idx))
-		       (ex-val (svref node (1+ entry-idx)))))
+		(let ((ex-key (svref node entry-idx))
+		      (ex-val (svref node (1+ entry-idx))))
 		  (if (equal? key ex-key)
 		      (if (equal? value ex-val)
 			  node ; Key found, value equal: nothing to do
@@ -131,6 +138,7 @@ adding a new key.
 							   (* (- champ-hash-bits-per-level) (1+ depth))))
 				     (hash-shifted (ash hash-shifted (- champ-hash-bits-per-level)))
 				     (size (1+ (wb-map-tree-size (cdr subnode)))))
+				 (declare (fixnum wb-hash-shifted hash-shifted size))
 				 (if (= hash-shifted wb-hash-shifted)
 				     ;; Update the collision node.
 				     (let ((new-wb-tree (wb-map-tree-with (cdr subnode) key value)))
@@ -140,16 +148,20 @@ adding a new key.
 					      ;; The key was already present, but the value was updated.
 					      (let ((ig old-value (wb-map-tree-lookup (cdr subnode) key)))
 						(declare (ignore ig))
-						(cons (logxor (car subnode) (hash-value old-value) (hash-value value))
+						(cons (logxor (the fixnum (car subnode))
+							      (hash-value old-value) (hash-value value))
 						      new-wb-tree)))
 					     (t ; new entry in collision node
-					      (cons (logxor (car subnode) key-hash (hash-value value)) new-wb-tree))))
+					      (cons (logxor (the fixnum (car subnode)) key-hash (hash-value value))
+						    new-wb-tree))))
 				   ;; Oh, this is fun.  We have to add enough levels to get to where the hashes differ.
 				   (rlabels (build hash-shifted wb-hash-shifted)
 				     (build (hash-shifted wb-hash-shifted)
+				       (declare (fixnum hash-shifted wb-hash-shifted))
 				       (let ((hash-bits (logand hash-shifted champ-hash-level-mask))
 					     (wb-hash-bits (logand wb-hash-shifted champ-hash-level-mask))
-					     (content-hash (logxor (car subnode) key-hash (hash-value value))))
+					     (content-hash (logxor (the fixnum (car subnode)) key-hash
+								   (hash-value value))))
 					 (if (= hash-bits wb-hash-bits)
 					     (vector 0 (ash 1 hash-bits) size content-hash
 						     (build (ash hash-shifted (- champ-hash-bits-per-level))
@@ -161,9 +173,11 @@ adding a new key.
 			node ; no change
 		      ;; New subnode
 		      (let ((n (vector-update node subnode-idx new-subnode)))
-			(incf (ch-map-node-size n) (- (ch-map-tree-size new-subnode) (ch-map-tree-size subnode)))
-			(logxorf (ch-map-node-hash-value n) (ch-map-tree-hash-value subnode)
-				 (ch-map-tree-hash-value new-subnode))
+			(setf (ch-map-node-size n)
+			      (the fixnum (+ (ch-map-node-size n) (- (the fixnum (ch-map-tree-size new-subnode))
+								     (the fixnum (ch-map-tree-size subnode))))))
+			(logxorf (ch-map-node-hash-value n) (the fixnum (ch-map-tree-hash-value subnode))
+				 (the fixnum (ch-map-tree-hash-value new-subnode)))
 			n)))
 		;; Neither entry nor subnode found: make new entry
 		(let ((n (vector-insert-2 node entry-idx key value)))
@@ -173,18 +187,26 @@ adding a new key.
 		  n)))))))))
 
 (defun vector-rem-2-ins-1 (vec rem-idx ins-idx ins-val)
-  (assert (<= rem-idx (- ins-idx 2)))
+  (declare (optimize (speed 3) (safety 0))
+	   (simple-vector vec)
+	   (fixnum rem-idx ins-idx))
+  (assert (<= rem-idx (the fixnum (- ins-idx 2))))
   (let ((v (make-array (1- (length vec)))))
     (dotimes (i rem-idx)
       (setf (svref v i) (svref vec i)))
     (dotimes (i (- ins-idx rem-idx 2))
+      (declare (fixnum i))
       (setf (svref v (+ rem-idx i)) (svref vec (+ rem-idx i 2))))
     (setf (svref v (- ins-idx 2)) ins-val)
     (dotimes (i (- (length vec) ins-idx))
+      (declare (fixnum i))
       (setf (svref v (+ ins-idx i -1)) (svref vec (+ ins-idx i))))
     v))
 
 (defun vector-insert-2 (vec idx ins-0 ins-1)
+  (declare (optimize (speed 3) (safety 0))
+	   (simple-vector vec)
+	   (fixnum idx))
   (let ((v (make-array (+ 2 (length vec)))))
     (dotimes (i idx)
       (setf (svref v i) (svref vec i)))
@@ -206,8 +228,11 @@ adding a new key.
 	(t (ch-map-node-hash-value tree))))
 
 (defun ch-map-tree-less (tree key key-hash)
+  (declare (optimize (speed 3) (safety 0))
+	   (fixnum key-hash))
   (rlabels (rec tree key-hash)
     (rec (node hash-shifted)
+      (declare (fixnum hash-shifted))
       (and node
 	   (let ((hash-bits (logand hash-shifted champ-hash-level-mask))
 		 (entry-mask (ch-map-node-entry-mask node))
@@ -250,13 +275,15 @@ adding a new key.
 				     (logxorf (ch-map-node-hash-value n) key-hash ex-value-hash)
 				     (values n (logxor key-hash ex-value-hash)))
 				 (let ((n (vector-update node subnode-idx
-							 (cons (logxor (car subnode) key-hash ex-value-hash)
+							 (cons (logxor (the fixnum (car subnode)) key-hash
+								       ex-value-hash)
 							       new-wb-tree))))
 				   (decf (ch-map-node-size n))
 				   (logxorf (ch-map-node-hash-value n) ex-value-hash)
 				   (values n (logxor key-hash ex-value-hash)))))))
 		       (let ((new-subnode content-hash-delta
 			       (rec subnode (ash hash-shifted (- champ-hash-bits-per-level)))))
+			 (declare (fixnum content-hash-delta))
 			 (if (eq new-subnode subnode)
 			     (values node 0)
 			   (let ((n (cond ((null new-subnode)
@@ -289,14 +316,21 @@ adding a new key.
 			     (values n content-hash-delta))))))))))))))
 
 (defun vector-remove-2-at (vec idx)
+  (declare (optimize (speed 3) (safety 0))
+	   (simple-vector vec)
+	   (fixnum idx))
   (let ((v (make-array (- (length vec) 2))))
     (dotimes (i idx)
       (setf (svref v i) (svref vec i)))
     (dotimes (i (- (length vec) idx 2))
+      (declare (fixnum i))
       (setf (svref v (+ idx i)) (svref vec (+ idx i 2))))
     v))
 
 (defun vector-ins-2-rem-1 (vec ins-idx ins-0 ins-1 rem-idx)
+  (declare (optimize (speed 3) (safety 0))
+	   (simple-vector vec)
+	   (fixnum ins-idx rem-idx))
   (assert (<= ins-idx rem-idx))
   (let ((v (make-array (1+ (length vec)))))
     (dotimes (i ins-idx)
@@ -306,12 +340,16 @@ adding a new key.
     (dotimes (i (- rem-idx ins-idx))
       (setf (svref v (+ ins-idx i 2)) (svref vec (+ ins-idx i))))
     (dotimes (i (- (length vec) rem-idx 1))
+      (declare (fixnum i))
       (setf (svref v (+ rem-idx i 2)) (svref vec (+ rem-idx i 1))))
     v))
 
 (defun ch-map-tree-lookup (tree key key-hash)
+  (declare (optimize (speed 3) (safety 0))
+	   (fixnum key-hash))
   (rlabels (rec tree key key-hash)
     (rec (node key hash-shifted)
+      (declare (fixnum hash-shifted))
       (and node
 	   (let ((hash-bits (logand hash-shifted champ-hash-level-mask))
 		 (entry-mask (ch-map-node-entry-mask node)))
@@ -323,7 +361,7 @@ adding a new key.
 			(values t (svref node (1+ entry-idx)))))
 	       (let ((subnode-mask (ch-map-node-subnode-mask node)))
 		 (and (logbitp hash-bits subnode-mask)
-		      (let ((subnode-idx (- (length node) 1))
+		      (let ((subnode-idx (- (length node) 1 (logcount (logand (1- (ash 1 hash-bits)) subnode-mask))))
 			    ((subnode (svref node subnode-idx))))
 			(if (consp subnode)
 			    (wb-map-tree-lookup (cdr subnode) key)

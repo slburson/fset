@@ -12,6 +12,8 @@
 
 (defgeneric hash-value (x))
 
+(declaim (ftype (function (t) fixnum) hash-value))
+
 ;;; As of this writing, these methods are tentative.  They should be gone over for performance
 ;;; and hash quality (well-distributed-ness) in the major Lisp implementations.
 
