@@ -407,7 +407,7 @@ on `vec', which it assumes is simple."
 	   (type simple-vector vec)
 	   (type fixnum start end))
   (and (> end start)
-       (let ((len (- end start))
+       (let ((len (the fixnum (- end start)))
 	     ((new-vec (make-array len))))
 	 (dotimes (i len)
 	   (setf (svref new-vec i) (svref vec (+ i start))))

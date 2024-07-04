@@ -1004,10 +1004,17 @@ the default implementation of sets in FSet."
   "Returns an empty set of the default implementation."
   *empty-wb-set*)
 
+;; For the constructor macros.
+(defmethod empty-instance-form ((type-name (eql 'set)))
+  '(empty-set))
+
 (declaim (inline empty-wb-set))
 (defun empty-wb-set ()
   "Returns an empty wb-set."
   *empty-wb-set*)
+
+(defmethod empty-instance-form ((type-name (eql 'wb-set)))
+  '(empty-wb-set))
 
 (defmethod empty? ((s wb-set))
   (null (wb-set-contents s)))
@@ -1399,10 +1406,16 @@ trees.  This is the default implementation of bags in FSet."
   "Returns an empty bag of the default implementation."
   *empty-wb-bag*)
 
+(defmethod empty-instance-form ((type-name (eql 'bag)))
+  '(empty-bag))
+
 (declaim (inline empty-wb-bag))
 (defun empty-wb-bag ()
   "Returns an empty wb-bag."
   *empty-wb-bag*)
+
+(defmethod empty-instance-form ((type-name (eql 'wb-bag)))
+  '(empty-wb-bag))
 
 (defmethod empty? ((b wb-bag))
   (null (wb-bag-contents b)))
@@ -1865,11 +1878,17 @@ the default implementation of maps in FSet."
   (if default (make-wb-map nil default)
     *empty-wb-map*))
 
+(defmethod empty-map-instance-form ((type-name (eql 'map)) default)
+  `(empty-map ,default))
+
 (declaim (inline empty-wb-map))
 (defun empty-wb-map (&optional default)
   "Returns an empty wb-map."
   (if default (make-wb-map nil default)
     *empty-wb-map*))
+
+(defmethod empty-map-instance-form ((type-name (eql 'wb-map)) default)
+  `(empty-wb-map ,default))
 
 (defmethod default ((m map))
   (map-default m))
@@ -1929,14 +1948,20 @@ the default implementation of maps in FSet."
 
 (defmethod with ((m wb-map) key &optional (value nil value?))
   (check-three-arguments value? 'with 'wb-map)
-  (make-wb-map (WB-Map-Tree-With (wb-map-contents m) key value)
-	       (map-default m)))
+  (let ((contents (wb-map-contents m))
+	((new-contents (WB-Map-Tree-With contents key value))))
+    (if (eq new-contents contents)
+	m
+      (make-wb-map new-contents (map-default m)))))
 
 (defmethod less ((m wb-map) key &optional (arg2 nil arg2?))
   (declare (ignore arg2))
   (check-two-arguments arg2? 'less 'wb-map)
-  (make-wb-map (WB-Map-Tree-Less (wb-map-contents m) key)
-	       (map-default m)))
+  (let ((contents (wb-map-contents m))
+	((new-contents (WB-Map-Tree-Less contents key))))
+    (if (eq new-contents contents)
+	m
+      (make-wb-map new-contents (map-default m)))))
 
 (defmethod domain ((m wb-map))
   (make-wb-set (WB-Map-Tree-Domain (wb-map-contents m))))
@@ -2030,7 +2055,7 @@ symbols."))
 (defmethod domain-contains? ((m wb-map) x)
   (WB-Map-Tree-Lookup (wb-map-contents m) x))
 
-(defmethod range-contains? ((m wb-map) x)
+(defmethod range-contains? ((m map) x)
   (do-map (k v m)
     (declare (ignore k))
     (when (equal? v x)
@@ -2302,6 +2327,86 @@ supplied, it is used as the initial map default."
 
 
 ;;; ================================================================================
+;;; CHAMP maps
+
+(defstruct (ch-map
+	     (:include map)
+	     (:constructor make-ch-map (contents &optional default))
+	     (:predicate ch-map?)
+	     (:print-function print-ch-map)
+	     (:copier nil))
+  contents)
+
+(defparameter *empty-ch-map* (make-ch-map nil))
+
+(declaim (inline empty-ch-map))
+(defun empty-ch-map (&optional default)
+  (if default (make-ch-map nil default)
+    *empty-ch-map*))
+
+(defmethod empty-map-instance-form ((type-name (eql 'ch-map)) default)
+  `(empty-ch-map ,default))
+
+(defmethod with-default ((m ch-map) new-default)
+  (make-ch-map (ch-map-contents m) new-default))
+
+(defmethod empty? ((m ch-map))
+  (null (ch-map-contents m)))
+
+(defmethod size ((m ch-map))
+  (ch-map-tree-size (ch-map-contents m)))
+
+(defmethod with ((m ch-map) key &optional (value nil value?))
+  (check-three-arguments value? 'with 'ch-map)
+  (let ((contents (ch-map-contents m))
+	((new-contents (ch-map-tree-with contents key (hash-value key) value))))
+    (if (eq new-contents contents)
+	m
+      (make-ch-map new-contents (map-default m)))))
+
+(defmethod less ((m ch-map) key &optional (arg2 nil arg2?))
+  (declare (ignore arg2))
+  (check-two-arguments arg2? 'less 'ch-map)
+  (let ((contents (ch-map-contents m))
+	((new-contents (ch-map-tree-less contents key (hash-value key)))))
+    (if (eq new-contents contents)
+	m
+      (make-ch-map new-contents (map-default m)))))
+
+(defmethod lookup ((m ch-map) key)
+  (let ((val? val (ch-map-tree-lookup (ch-map-contents m) key (hash-value key))))
+    ;; Our internal convention is the reverse of the external one.
+    (values (if val? val (map-default m)) val?)))
+
+(defmethod domain-contains? ((m ch-map) x)
+  (ch-map-tree-lookup (ch-map-contents m) x (hash-value x)))
+
+(defmethod internal-do-map ((m ch-map) elt-fn &optional (value-fn (lambda () nil)))
+  (declare ;(optimize (speed 3) (safety 0))
+	   (type function elt-fn value-fn))
+  (do-ch-map-tree-pairs (x y (ch-map-contents m) (funcall value-fn))
+    (funcall elt-fn x y)))
+
+(defmethod convert ((to-type (eql 'wb-map)) (m ch-map) &key)
+  (let ((wb-m (empty-wb-map (map-default m))))
+    (do-ch-map-tree-pairs (x y (ch-map-contents m))
+      (setf (lookup wb-m x) y))
+    wb-m))
+
+(defun print-ch-map (map stream level)
+  (declare (ignore level))
+  (pprint-logical-block (stream nil :prefix "##{|")
+    (do-map (x y map)
+      (pprint-pop)
+      (write-char #\Space stream)
+      (pprint-newline :linear stream)
+      ;; There might be a map entry for 'quote or 'function...
+      (let (#+sbcl (sb-pretty:*pprint-quote-with-syntactic-sugar* nil))
+	(write (list x y) :stream stream)))
+    (format stream " |}~:[~;/~:*~S~]" (map-default map))))
+
+
+;;; ================================================================================
 ;;; Seqs
 
 (defstruct (wb-seq
@@ -2324,10 +2429,16 @@ This is the default implementation of seqs in FSet."
   (if default (make-wb-seq nil default)
     *empty-wb-seq*))
 
+(defmethod empty-instance-form ((type-name (eql 'seq)))
+  '(empty-seq))
+
 (declaim (inline empty-wb-seq))
 (defun empty-wb-seq ()
   "Returns an empty wb-seq."
   *empty-wb-seq*)
+
+(defmethod empty-instance-form ((type-name (eql 'wb-seq)))
+  '(empty-wb-seq))
 
 (defmethod empty? ((s wb-seq))
   (null (wb-seq-contents s)))

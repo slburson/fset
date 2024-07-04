@@ -12,7 +12,7 @@
 
 
 (defpackage :fset
-  (:use :cl :new-let :lexical-contexts)
+  (:use :cl :new-let :lexical-contexts :rev-fun-bind)
   (:import-from :gmap #:gmap #:alist #:constant #:index #:index-inc #:sum)
   (:shadowing-import-from :new-let #:let #:cond)
   (:shadowing-import-from :mt19937 #:make-random-state #:random #:*random-state*)
@@ -39,6 +39,101 @@
 	   ;; useful in extending `Compare'.  But `Less-Than?' and `Greater-Than?'
 	   ;; are unlikely to be useful in user code.
 	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal
+	   #:identity-ordering-mixin
+	   #:define-cross-type-compare-methods
+	   #:compare-lexicographically
+	   #:empty? #:nonempty? #:size #:set-size #:arb
+	   #:contains? #:domain-contains? #:range-contains? #:member? #:multiplicity
+	   #:empty-set #:empty-bag #:empty-map #:empty-seq #:empty-tuple
+	   #:empty-wb-set #:empty-wb-bag #:empty-wb-map #:empty-wb-seq
+	   #:empty-dyn-tuple
+	   #:least #:greatest #:lookup #:rank #:at-rank #:@
+	   #:with #:less #:split-from #:split-above #:split-through #:split-below
+	   #:union #:bag-sum #:intersection #:bag-product #:complement
+	   #:set-difference #:set-difference-2 #:bag-difference
+	   #:subset? #:disjoint? #:subbag?
+	   #:filter #:filter-pairs #:partition
+	   #:image #:reduce #:domain #:range #:with-default #:update
+	   #:map-union #:map-intersection #:map-difference-2
+	   #:restrict #:restrict-not #:compose #:map-default
+	   #:first #:last
+	   #:lastcons #:head #:tail
+	   #:with-first #:less-first #:push-first #:pop-first
+	   #:with-last #:less-last #:push-last #:pop-last #:appendf #:prependf
+	   #:insert #:splice #:subseq #:concat #:reverse #:sort #:stable-sort #:sort-and-group
+	   #:find #:find-if #:find-if-not
+	   #:count #:count-if #:count-if-not
+	   #:position #:position-if #:position-if-not
+	   #:remove #:remove-if #:remove-if-not
+	   #:substitute #:substitute-if #:substitute-if-not
+	   #:some #:every #:notany #:notevery
+	   #:convert #:iterator
+	   #:do-set #:do-bag #:do-bag-pairs #:do-map #:do-map-domain #:do-seq #:do-tuple
+	   #:adjoinf #:removef #:includef #:excludef
+	   #:unionf #:intersectf #:set-differencef #:map-unionf #:map-intersectf #:imagef #:composef
+	   #:define-tuple-key #:def-tuple-key #:get-tuple-key #:tuple-key-name #:tuple-key?
+	   #:tuple-merge
+	   #:fset-setup-readtable #:*fset-readtable*
+	   #:$ #:%
+	   ;; Used by the bag methods that convert to and from lists.
+	   #:alist
+	   ;; Bounded sets
+	   #:bounded-set #:make-bounded-set #:bounded-set-contents
+	   ;; Relations
+	   #:relation #:2-relation #:wb-2-relation #:empty-2-relation #:empty-wb-2-relation
+	   #:do-2-relation
+	   #:lookup-inv #:inverse #:join #:conflicts #:map-to-sets
+	   #:list-relation #:wb-list-relation #:empty-list-relation
+	   #:empty-wb-list-relation #:arity #:query #:query-multi #:do-list-relation
+	   #:query-registry #:empty-query-registry #:with-query #:less-query
+	   #:all-queries #:do-all-queries #:lookup-multi #:forward-key #:lookup-restricted
+	   #:lookup-multi-restricted
+
+           ;; named-readtable readtable
+           #:fset-readtable))
+
+
+;;; The need has arisen to define a second FSet package.  There are two motivations:
+;;; () the planned introduction of the CHAMP data structure for sets, maps, and bags,
+;;; which will become the default, incompatibly altering the behavior of the corresponding
+;;; constructor macros, and requiring methods on `hash-code' as well as `compare' for
+;;; user types;
+;;; () miscellaneous infelicities in the API which cannot be fixed compatibly.
+;;;
+;;; The plan is for both packages to continue to exist indefinitely.  New client code is
+;;; encouraged to use package `fset2' instead of `fset'; existing clients may update
+;;; their code at their leisure.
+(defpackage :fset2
+  (:use :cl :fset :new-let :lexical-contexts)
+  (:import-from :gmap #:gmap #:alist #:constant #:index #:sum)
+  (:shadowing-import-from :new-let #:let #:cond)
+  (:shadowing-import-from :mt19937 #:make-random-state #:random #:*random-state*)
+  ;; For each of these shadowed symbols, using packages must either shadowing-
+  ;; import it or shadowing-import the original Lisp symbol.
+  (:shadow ;; Shadowed type/constructor names
+	   #:set #:map
+	   ;; Shadowed set operations
+	   #:union #:intersection #:set-difference #:complement
+	   ;; Shadowed sequence operations
+	   #:first #:last #:subseq #:reverse #:sort #:stable-sort
+	   #:reduce
+	   #:find #:find-if #:find-if-not
+	   #:count #:count-if #:count-if-not
+	   #:position #:position-if #:position-if-not
+	   #:remove #:remove-if #:remove-if-not
+	   #:substitute #:substitute-if #:substitute-if-not
+	   #:some #:every #:notany #:notevery
+	   ;; Additional shadowed names from `fset:'
+	   #:map-intersection)
+  (:export #:collection #:set #:bag #:map #:seq #:tuple
+	   #:collection? #:set? #:bag? #:map? #:seq? #:tuple?
+	   #:wb-set #:wb-bag #:wb-map #:wb-seq #:dyn-tuple
+	   ;; `Equal?' is exported because users may want to call it; `Compare'
+	   ;; because they may want to extend it; and `Compare-Slots' because it's
+	   ;; useful in extending `Compare'.  But `Less-Than?' and `Greater-Than?'
+	   ;; are unlikely to be useful in user code.
+	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal
+	   #:hash-code ; new for FSet2
 	   #:identity-ordering-mixin
 	   #:define-cross-type-compare-methods
 	   #:compare-lexicographically

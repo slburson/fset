@@ -185,9 +185,7 @@ result set."
 	(splice-args (remove-if-not #'(lambda (arg) (and (listp arg) (eq (car arg) '$)))
 				    args))
 	((start (if normal-args `(convert ',type-name (list . ,normal-args))
-		  (ecase type-name
-		    (set `(empty-set))
-		    (wb-set `(empty-wb-set)))))))
+		  (empty-instance-form type-name)))))
     (labels ((recur (splice-args result)
 	       (if (null splice-args) result
 		 (if (= (length (car splice-args)) 2)
@@ -230,9 +228,7 @@ multiplicities as supplied by each of the argument subforms."
 	(multi-args (remove-if-not #'(lambda (arg) (and (listp arg) (eq (car arg) '%)))
 				   args))
 	((start (if normal-args `(convert ',type-name (list . ,normal-args))
-		  (ecase type-name
-		    (bag `(empty-bag))
-		    (wb-bag `(empty-wb-bag)))))))
+		  (empty-instance-form type-name)))))
     (labels ((add-splice-args (splice-args result)
 	       (if (null splice-args) result
 		 (if (= (length (car splice-args)) 2)
@@ -278,14 +274,11 @@ will be given by the rightmost such subform."
   (expand-map-constructor-form 'wb-map args))
 
 (defun expand-map-constructor-form (type-name args)
-  (let ((empty-form (ecase type-name
-		      (map `(empty-map))
-		      (wb-map `(empty-wb-map))))
-	(default nil))
+  (let ((default (cadr (member ':default args)))
+	((empty-form (empty-map-instance-form type-name default))))
     (labels ((recur (args result)
 	       (cond ((null args) result)
 		     ((eq (car args) ':default)
-		      (setq default (cadr args))
 		      (recur (cddr args) result))
 		     ((not (and (listp (car args))
 				(= (length (car args)) 2)))
@@ -298,7 +291,19 @@ will be given by the rightmost such subform."
 			(recur (cdr args) `(map-union ,result ,(cadar args)))))
 		     (t
 		      (recur (cdr args) `(with ,result ,(caar args) ,(cadar args)))))))
-      `(with-default ,(recur args empty-form) ,default))))
+      (recur args empty-form))))
+
+(defmacro ch-map (&rest args)
+  "Constructs a ch-map according to the supplied argument subforms.  Each
+argument subform can be a list of the form (`key-expr' `value-expr'), denoting
+a mapping from the value of `key-expr' to the value of `value-expr'; or a list
+of the form ($ `expression'), in which case the expression must evaluate to a
+map, denoting all its mappings; or the symbol `:default', in which case the
+next argument subform is a form whose value will become the map's default.  The
+result is constructed from the denoted mappings in left-to-right order; so if a
+given key is supplied by more than one argument subform, its associated value
+will be given by the rightmost such subform."
+  (expand-map-constructor-form 'ch-map args))
 
 (defmacro seq (&rest args)
   "Constructs a seq of the default implementation according to the supplied
@@ -322,9 +327,7 @@ order of the result sequence reflects the order of the argument subforms."
 	     (cond ((null args)
 		    (if nonsplice-args
 			`(convert ',type-name (list . ,(cl:reverse nonsplice-args)))
-		      (ecase type-name
-			(seq `(empty-seq))
-			(wb-seq `(empty-wb-seq)))))
+		      (empty-instance-form type-name)))
 		   ((and (listp (car args))
 			 (eq (caar args) '$))
 		    (unless (= (length (car args)) 2)
