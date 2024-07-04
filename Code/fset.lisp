@@ -2347,9 +2347,6 @@ supplied, it is used as the initial map default."
 (defmethod empty-map-instance-form ((type-name (eql 'ch-map)) default)
   `(empty-ch-map ,default))
 
-(defmacro ch-map (&rest args)
-  (expand-map-constructor-form 'ch-map args))
-
 (defmethod with-default ((m ch-map) new-default)
   (make-ch-map (ch-map-contents m) new-default))
 
