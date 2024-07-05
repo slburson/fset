@@ -772,7 +772,7 @@ deprecated."))
 			(gmap (:result list :filterp #'identity)
 			      (fn (index i pat-elt)
 				(and (logbitp i mask) (@ index (list pat-elt))))
-			      (:arg list (get-indices rel mask))
+			      (:arg seq (get-indices rel mask))
 			      (:arg index 0)
 			      (:arg list pattern))))
 		  ;; &&& We also want to build composite indices under some
@@ -814,7 +814,7 @@ pattern."))
 				 (gmap (:result union)
 				       (fn (pat-elt-elt) (@ index (list pat-elt-elt)))
 				       (:arg set pat-elt))))
-			  (:arg list (get-indices rel mask))
+			  (:arg seq (get-indices rel mask))
 			  (:arg index 0)
 			  (:arg list pattern))))
 	      (if index-results
@@ -822,11 +822,59 @@ pattern."))
 			  (sort index-results #'< :key #'size))
 		(wb-list-relation-tuples rel)))))))))
 
+(defgeneric query-multi-restricted (rel pattern restrict-set)
+  (:documentation
+    "Queries the relation for tuples that match `pattern' and contain some element
+of `restrict-set'.  `pattern' is a list where each element is either the symbol
+`fset::?' or a set of values.  A tuple matches the pattern if, for each position,
+either the element of `pattern' at that position is `fset::?' or the tuple element
+at that position is an element of that set of values.  Returns the set of tuples
+in the relation that match the pattern and contain at least one element of
+`restrict-set'."))
+
+(defmethod query-multi-restricted ((rel wb-list-relation) (pattern list) restrict-set)
+  (let ((arity (wb-list-relation-arity rel)))
+    (if (null arity)
+	(set)
+      (let ((pattern (prepare-pattern arity pattern)))
+	(if (and (not (contains? pattern '?))
+		 (gmap :and (fn (x) (disjoint? x restrict-set))
+		       (:arg list pattern)))
+	    (set)
+	  (let ((indices (get-indices rel (1- (ash 1 arity))))
+		((full-results restricted-results
+		   (gmap (:result values seq seq)
+			 (fn (pat-elt index)
+			   (let ((restricted (if (eq pat-elt '?) restrict-set
+					       (intersection pat-elt restrict-set))))
+			     (values (if (eq pat-elt '?) (complement (set))
+				       (gmap (:result union)
+					     (fn (pat-elt-elt) (@ index (list pat-elt-elt)))
+					     (:arg set pat-elt)))
+				     (gmap (:result union)
+					   (fn (pat-elt-elt) (@ index (list pat-elt-elt)))
+					   (:arg set restricted)))))
+			 (:arg list pattern)
+			 (:arg seq indices)))))
+	    ;; Hmm.  The simpler approach would be just to call `query-multi', and then intersect
+	    ;; its result with each of `restricted-results', unioning the intersections.  The
+	    ;; potential downside of that is that the full results might be much larger than any
+	    ;; of the partial results we get this way.  That is, each element of `restricted-results'
+	    ;; might be much smaller than any of `full-results' or even their intersection, so that
+	    ;; materializing that intersection might be much more expensive than doing this.
+	    (gmap (:result union)
+		  (fn (i)
+		    (let ((results (with full-results i (@ restricted-results i))))
+		      (reduce #'intersection (sort results #'< :key #'size))))
+		  (:index 0 (length pattern)))))))))
+
 (defun prepare-pattern (rel-arity pattern)
+  (unless (<= (length pattern) rel-arity)
+    (error "Pattern is too long for arity ~D" rel-arity))
   (let ((mask (pattern-mask pattern)))
     (if (< (length pattern) rel-arity)
-	(let ((nils (make-list (- rel-arity (length pattern)))))
-	  (values (append pattern nils) mask))
+	(let ((qs (make-list (- rel-arity (length pattern)) :initial-element '?)))
+	  (values (append pattern qs) mask))
       (values pattern mask))))
 
 (defun pattern-mask (pattern)
@@ -836,7 +884,7 @@ pattern."))
 	(:index 0)))
 
 (defmethod get-indices ((rel list-relation) mask)
-  "Returns a list giving the index to use for each element of `mask'
+  "Returns a seq giving the index to use for each element of `mask'
 considered as a bit set."
   ;; First we see what indices exist on each position.
   (let ((ex-inds (gmap (:result list)
@@ -853,13 +901,13 @@ considered as a bit set."
     ;; not exist, construct indices for them.
     (if (every #'null unindexed)
 	ex-inds
-      (let ((new-indices (make-array (arity rel) :initial-element (empty-map (set)))))
+      (let ((new-indices (empty-seq (empty-map (set)))))
 	;; Populate the new indices
 	(do-set (tuple (wb-list-relation-tuples rel))
 	  (gmap nil (fn (tuple-elt unind i)
 		      (when unind
 			;; If we called `reduced-tuple', we'd get `(list tuple-elt)'.
-			(adjoinf (@ (svref new-indices i) (list tuple-elt))
+			(adjoinf (@ (@ new-indices i) (list tuple-elt))
 				 tuple)))
 		(:list tuple)
 		(:list unindexed)
@@ -869,16 +917,17 @@ considered as a bit set."
 	;; In particular, if two threads do this at the same time, all that goes wrong is
 	;; some duplication of work.
 	(let ((indices (wb-list-relation-indices rel)))
-	  (gmap nil (fn (unind i)
+	  (gmap nil (fn (unind i new-index)
 		      (when unind
-			(setf (@ indices (ash 1 i)) (svref new-indices i))))
+			(setf (@ indices (ash 1 i)) new-index)))
 		(:arg list unindexed)
-		(:arg index 0))
+		(:arg index 0)
+		(:arg seq new-indices))
 	  (setf (wb-list-relation-indices rel) indices))
-	(gmap (:result list) (fn (ex-ind new-index)
+	(gmap (:result seq) (fn (ex-ind new-index)
 			       (or ex-ind new-index))
 	      (:list ex-inds)
-	      (:vector new-indices))))))
+	      (:seq new-indices))))))
 
 (defmethod with ((rel wb-list-relation) tuple &optional (arg2 nil arg2?))
   (declare (ignore arg2))
