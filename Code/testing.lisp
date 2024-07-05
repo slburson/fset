@@ -3462,6 +3462,8 @@
 		    (set '(age lydia 27))))
       (test (equal? (query-multi 3-rel (list (set 'age 'eye-color) (set 'lydia 'riley) '?))
 		    (set '(age lydia 27) '(age riley 25) '(eye-color riley blue))))
+      (test (equal? (query-multi-restricted 3-rel (list '? (set 'riley 'lydia) '?) (set 'riley))
+		    (set '(age riley 25) '(eye-color riley blue))))
       (includef q-reg '(age ? ?) 'query0)
       (includef q-reg '(age riley ?) 'query1)
       (includef q-reg '(eye-color ? blue) 'query2)
