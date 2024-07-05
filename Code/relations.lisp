@@ -830,7 +830,8 @@ of `restrict-set'.  `pattern' is a list where each element is either the symbol
 either the element of `pattern' at that position is `fset::?' or the tuple element
 at that position is an element of that set of values.  Returns the set of tuples
 in the relation that match the pattern and contain at least one element of
-`restrict-set'."))
+`restrict-set'.  For convenience, the function accepts the full set for `restrict-set',
+in which case there is no restriction."))
 
 (defmethod query-multi-restricted ((rel wb-list-relation) (pattern list) restrict-set)
   (let ((arity (wb-list-relation-arity rel)))
@@ -841,32 +842,34 @@ in the relation that match the pattern and contain at least one element of
 		 (gmap :and (fn (x) (disjoint? x restrict-set))
 		       (:arg list pattern)))
 	    (set)
-	  (let ((indices (get-indices rel (1- (ash 1 arity))))
-		((full-results restricted-results
-		   (gmap (:result values seq seq)
-			 (fn (pat-elt index)
-			   (let ((restricted (if (eq pat-elt '?) restrict-set
-					       (intersection pat-elt restrict-set))))
-			     (values (if (eq pat-elt '?) (complement (set))
+	  (if (equal? restrict-set (full-set))
+	      (query-multi rel pattern)
+	    (let ((indices (get-indices rel (1- (ash 1 arity))))
+		  ((full-results restricted-results
+		     (gmap (:result values seq seq)
+			   (fn (pat-elt index)
+			     (let ((restricted (if (eq pat-elt '?) restrict-set
+						 (intersection pat-elt restrict-set))))
+			       (values (if (eq pat-elt '?) (full-set)
+					 (gmap (:result union)
+					       (fn (pat-elt-elt) (@ index (list pat-elt-elt)))
+					       (:arg set pat-elt)))
 				       (gmap (:result union)
 					     (fn (pat-elt-elt) (@ index (list pat-elt-elt)))
-					     (:arg set pat-elt)))
-				     (gmap (:result union)
-					   (fn (pat-elt-elt) (@ index (list pat-elt-elt)))
-					   (:arg set restricted)))))
-			 (:arg list pattern)
-			 (:arg seq indices)))))
-	    ;; Hmm.  The simpler approach would be just to call `query-multi', and then intersect
-	    ;; its result with each of `restricted-results', unioning the intersections.  The
-	    ;; potential downside of that is that the full results might be much larger than any
-	    ;; of the partial results we get this way.  That is, each element of `restricted-results'
-	    ;; might be much smaller than any of `full-results' or even their intersection, so that
-	    ;; materializing that intersection might be much more expensive than doing this.
-	    (gmap (:result union)
-		  (fn (i)
-		    (let ((results (with full-results i (@ restricted-results i))))
-		      (reduce #'intersection (sort results #'< :key #'size))))
-		  (:index 0 (length pattern)))))))))
+					     (:arg set restricted)))))
+			   (:arg list pattern)
+			   (:arg seq indices)))))
+	      ;; Hmm.  The simpler approach would be just to call `query-multi', and then intersect
+	      ;; its result with each of `restricted-results', unioning the intersections.  The
+	      ;; potential downside of that is that the full results might be much larger than any
+	      ;; of the partial results we get this way.  That is, each element of `restricted-results'
+	      ;; might be much smaller than any of `full-results' or even their intersection, so that
+	      ;; materializing that intersection might be much more expensive than doing this.
+	      (gmap (:result union)
+		    (fn (i)
+		      (let ((results (with full-results i (@ restricted-results i))))
+			(reduce #'intersection (sort results #'< :key #'size))))
+		    (:index 0 (length pattern))))))))))
 
 (defun prepare-pattern (rel-arity pattern)
   (unless (<= (length pattern) rel-arity)

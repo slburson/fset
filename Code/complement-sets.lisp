@@ -37,6 +37,9 @@ complement set."
 (defmethod complement ((cs complement-set))
   (complement-set-complement cs))
 
+(defun full-set ()
+  (make-complement-set (empty-set)))
+
 (defmethod contains? ((cs complement-set) x &optional (y nil y?))
   (declare (ignore y))
   (check-two-arguments y? 'contains? 'complement-set)

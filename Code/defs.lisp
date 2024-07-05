@@ -79,12 +79,14 @@
 	   #:alist
 	   ;; Bounded sets
 	   #:bounded-set #:make-bounded-set #:bounded-set-contents
+	   ;; Complement sets
+	   #:full-set
 	   ;; Relations
 	   #:relation #:2-relation #:wb-2-relation #:empty-2-relation #:empty-wb-2-relation
 	   #:do-2-relation
 	   #:lookup-inv #:inverse #:join #:conflicts #:map-to-sets
-	   #:list-relation #:wb-list-relation #:empty-list-relation
-	   #:empty-wb-list-relation #:arity #:query #:query-multi #:do-list-relation
+	   #:list-relation #:wb-list-relation #:empty-list-relation #:do-list-relation
+	   #:empty-wb-list-relation #:arity #:query #:query-multi #:query-multi-restricted
 	   #:query-registry #:empty-query-registry #:with-query #:less-query
 	   #:all-queries #:do-all-queries #:lookup-multi #:forward-key #:lookup-restricted
 	   #:lookup-multi-restricted
@@ -96,7 +98,7 @@
 ;;; The need has arisen to define a second FSet package.  There are two motivations:
 ;;; () the planned introduction of the CHAMP data structure for sets, maps, and bags,
 ;;; which will become the default, incompatibly altering the behavior of the corresponding
-;;; constructor macros, and requiring methods on `hash-code' as well as `compare' for
+;;; constructor macros, and requiring methods on `hash-value' as well as `compare' for
 ;;; user types;
 ;;; () miscellaneous infelicities in the API which cannot be fixed compatibly.
 ;;;
@@ -174,12 +176,14 @@
 	   #:alist
 	   ;; Bounded sets
 	   #:bounded-set #:make-bounded-set #:bounded-set-contents
+	   ;; Complement sets
+	   #:full-set
 	   ;; Relations
 	   #:relation #:2-relation #:wb-2-relation #:empty-2-relation #:empty-wb-2-relation
 	   #:do-2-relation
 	   #:lookup-inv #:inverse #:join #:conflicts #:map-to-sets
-	   #:list-relation #:wb-list-relation #:empty-list-relation
-	   #:empty-wb-list-relation #:arity #:query #:query-multi #:do-list-relation
+	   #:list-relation #:wb-list-relation #:empty-list-relation #:do-list-relation
+	   #:empty-wb-list-relation #:arity #:query #:query-multi #:query-multi-restricted
 	   #:query-registry #:empty-query-registry #:with-query #:less-query
 	   #:all-queries #:do-all-queries #:lookup-multi #:forward-key #:lookup-restricted
 	   #:lookup-multi-restricted
