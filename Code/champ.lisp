@@ -11,6 +11,9 @@
 
 (in-package :fset)
 
+;;; We seem to need this here for it to reliably take effect.
+(declaim (ftype (function (t) fixnum) hash-value))
+
 ;;; ================================================================================
 ;;; Global constants
 
