@@ -179,6 +179,14 @@ expression must evaluate to a set, all of whose members become members of the
 result set."
   (expand-set-constructor-form 'wb-set args))
 
+(defmacro ch-set (&rest args)
+  "Constructs a ch-set according to the supplied argument subforms.  Each
+argument subform can be an expression, whose value will be a member of the
+result set; or a list of the form ($ `expression'), in which case the
+expression must evaluate to a set, all of whose members become members of the
+result set."
+  (expand-set-constructor-form 'ch-set args))
+
 (defun expand-set-constructor-form (type-name args)
   (let ((normal-args (remove-if #'(lambda (arg) (and (listp arg) (eq (car arg) '$)))
 				args))
@@ -273,6 +281,18 @@ given key is supplied by more than one argument subform, its associated value
 will be given by the rightmost such subform."
   (expand-map-constructor-form 'wb-map args))
 
+(defmacro ch-map (&rest args)
+  "Constructs a ch-map according to the supplied argument subforms.  Each
+argument subform can be a list of the form (`key-expr' `value-expr'), denoting
+a mapping from the value of `key-expr' to the value of `value-expr'; or a list
+of the form ($ `expression'), in which case the expression must evaluate to a
+map, denoting all its mappings; or the symbol `:default', in which case the
+next argument subform is a form whose value will become the map's default.  The
+result is constructed from the denoted mappings in left-to-right order; so if a
+given key is supplied by more than one argument subform, its associated value
+will be given by the rightmost such subform."
+  (expand-map-constructor-form 'ch-map args))
+
 (defun expand-map-constructor-form (type-name args)
   (let ((default (cadr (member ':default args)))
 	((empty-form (empty-map-instance-form type-name default))))
@@ -292,18 +312,6 @@ will be given by the rightmost such subform."
 		     (t
 		      (recur (cdr args) `(with ,result ,(caar args) ,(cadar args)))))))
       (recur args empty-form))))
-
-(defmacro ch-map (&rest args)
-  "Constructs a ch-map according to the supplied argument subforms.  Each
-argument subform can be a list of the form (`key-expr' `value-expr'), denoting
-a mapping from the value of `key-expr' to the value of `value-expr'; or a list
-of the form ($ `expression'), in which case the expression must evaluate to a
-map, denoting all its mappings; or the symbol `:default', in which case the
-next argument subform is a form whose value will become the map's default.  The
-result is constructed from the denoted mappings in left-to-right order; so if a
-given key is supplied by more than one argument subform, its associated value
-will be given by the rightmost such subform."
-  (expand-map-constructor-form 'ch-map args))
 
 (defmacro seq (&rest args)
   "Constructs a seq of the default implementation according to the supplied

@@ -364,9 +364,12 @@ appear at the same rank."
 	      (if (and (not (Equivalent-Set? node-val)) (not (Equivalent-Set? value))
 		       (eq comp ':equal))
 		  tree
-		(Make-WB-Set-Tree-Node (Equivalent-Set-Union node-val value)
-				       (WB-Set-Tree-Node-Left tree)
-				       (WB-Set-Tree-Node-Right tree))))
+		(let ((eqvs (Equivalent-Set-Union node-val value)))
+		  (if (eq eqvs node-val)
+		      tree
+		    (Make-WB-Set-Tree-Node eqvs
+					   (WB-Set-Tree-Node-Left tree)
+					   (WB-Set-Tree-Node-Right tree))))))
 	     ((:less)
 	      (let ((left (WB-Set-Tree-Node-Left tree))
 		    ((new-left (WB-Set-Tree-With left value))))

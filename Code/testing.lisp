@@ -3510,9 +3510,9 @@
 ;;; CHAMP testing
 
 (defmethod hash-value ((x my-integer))
-  ;; Drop the low-order bit to force collisions, and spread the bits out to force more levels
+  ;; Drop the two low-order bits to force collisions, and spread the bits out to force more levels
   ;; to be created.
-  (let ((val (ash (my-integer-value x) -1)))
+  (let ((val (ash (my-integer-value x) -2)))
     (dpb (ldb (byte 2 8) val)
 	 (byte 2 20)
 	 (dpb (ldb (byte 2 6) val)
@@ -3523,15 +3523,50 @@
 			(byte 2 5)
 			(ldb (byte 2 0) val)))))))
 
+(defmethod verify ((s ch-set))
+  (ch-set-tree-verify (ch-set-contents s)))
+
+(defvar *champ-set-test-values* (seq))
+
+(defun test-champ-sets (n)
+  (declare (optimize (speed 0) (debug 3)))
+  (dotimes (i n)
+    (setq *champ-set-test-values* (seq))
+    (let ((wbs (wb-set))
+	  (chs (ch-set)))
+      (dotimes (i 4096)
+	(let ((mi (make-my-integer (random 1024)))
+	      (prev-wbs wbs)
+	      (prev-chs chs))
+	  (unless (eqv (contains? chs mi) (contains? wbs mi))
+	    (error "CONTAINS? failed"))
+	  (if (< (random 100) 20)
+	      (progn
+		(push-last *champ-set-test-values* `(- ,mi))
+		(excludef wbs mi)
+		(excludef chs mi)
+		(unless (or (contains? prev-wbs mi)
+			    (eq chs prev-chs))
+		  (error "LESS failed to detect no change")))
+	    (progn
+	      (push-last *champ-set-test-values* `(+ ,mi))
+	      (includef wbs mi)
+	      (includef chs mi)))
+	  (unless (verify chs)
+	    (error "Verification failed"))
+	  (let ((wbs-from-ch (convert 'wb-set chs)))
+	    (unless (equal? wbs wbs-from-ch)
+	      (error "EQUAL? failed"))))))))
+
 (defmethod verify ((m ch-map))
   (ch-map-tree-verify (ch-map-contents m)))
 
-(defvar *champ-test-pairs* (seq))
+(defvar *champ-map-test-pairs* (seq))
 
 (defun test-champ-maps (n)
   (declare (optimize (speed 0) (debug 3)))
   (dotimes (i n)
-    (setq *champ-test-pairs* (seq))
+    (setq *champ-map-test-pairs* (seq))
     (let ((wbm (wb-map))
 	  (chm (ch-map)))
       (dotimes (j 4096)
@@ -3543,14 +3578,14 @@
 	    (error "LOOKUP failed"))
 	  (if (< (random 100) 20)
 	      (progn
-		;; (push-last *champ-test-pairs* (list '- mi val))
+		;; (push-last *champ-map-test-pairs* (list '- mi val))
 		(excludef wbm mi)
 		(excludef chm mi)
 		(unless (or (domain-contains? prev-wbm mi)
 			    (eq chm prev-chm))
 		  (error "LESS failed to detect no change")))
 	    (progn
-	      ;; (push-last *champ-test-pairs* (list '+ mi val))
+	      ;; (push-last *champ-map-test-pairs* (list '+ mi val))
 	      (setf (@ wbm mi) val)
 	      (setf (@ chm mi) val)))
 	  (unless (verify chm)

@@ -198,6 +198,19 @@ However, the implementation tries very hard to prevent this."
 
 
 ;;; ================================================================================
+;;; Macros related to hash.lisp
+
+(define-modify-macro logiorf (&rest args)
+  logior)
+
+(define-modify-macro logandc2f (arg-2)
+  logandc2)
+
+(define-modify-macro logxorf (&rest args)
+  logxor)
+
+
+;;; ================================================================================
 ;;; Macros related to fset.lisp
 
 ;;; `adjoinf' / `removef', which don't form a good pair, are now deprecated

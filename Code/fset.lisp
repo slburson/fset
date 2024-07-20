@@ -1386,6 +1386,77 @@ for the possibility of different set implementations; it is not for public use.
 
 
 ;;; ================================================================================
+;;; CHAMP sets
+
+(defstruct (ch-set
+	     (:include set)
+	     (:constructor make-ch-set (contents))
+	     (:predicate ch-set?)
+	     (:print-function print-ch-set)
+	     (:copier nil))
+  contents)
+
+(defparameter *empty-ch-set* (make-ch-set nil))
+
+(declaim (inline empty-ch-set))
+(defun empty-ch-set ()
+  *empty-ch-set*)
+
+(defmethod empty-instance-form ((type-name (eql 'ch-set)))
+  '(empty-ch-set))
+
+(defmethod empty? ((s ch-set))
+  (null (ch-set-contents s)))
+
+(defmethod size ((s ch-set))
+  (ch-set-tree-size (ch-set-contents s)))
+
+(defmethod with ((s ch-set) value &optional (arg2 nil arg2?))
+  (declare (ignore arg2))
+  (check-two-arguments arg2? 'with 'ch-set)
+  (let ((contents (ch-set-contents s))
+	((new-contents (ch-set-tree-with contents value))))
+    (if (eq new-contents contents)
+	s
+      (make-ch-set new-contents))))
+
+(defmethod less ((s ch-set) value &optional (arg2 nil arg2?))
+  (declare (ignore arg2))
+  (check-two-arguments arg2? 'less 'ch-set)
+  (let ((contents (ch-set-contents s))
+	((new-contents (ch-set-tree-less contents value))))
+    (if (eq new-contents contents)
+	s
+      (make-ch-set new-contents))))
+
+(defmethod contains? ((s ch-set) x &optional (y nil y?))
+  (declare (ignore y))
+  (check-two-arguments y? 'contains? 'ch-set)
+  (ch-set-tree-contains? (ch-set-contents s) x))
+
+(defmethod internal-do-set ((s ch-set) elt-fn &optional (value-fn (lambda () nil)))
+  (declare ;(optimize (speed 3) (safety 0))
+	   (type function elt-fn value-fn))
+  (do-ch-set-tree-members (x (ch-set-contents s) (funcall value-fn))
+    (funcall elt-fn x)))
+
+(defmethod convert ((to-type (eql 'wb-set)) (s ch-set) &key)
+  (let ((wb-s (empty-wb-set)))
+    (do-ch-set-tree-members (x (ch-set-contents s))
+      (includef wb-s x))
+    wb-s))
+
+(defun print-ch-set (set stream level)
+  (declare (ignore level))
+  (pprint-logical-block (stream nil :prefix "##{" :suffix " }")
+    (do-set (x set)
+      (pprint-pop)
+      (write-char #\Space stream)
+      (pprint-newline :linear stream)
+      (write x :stream stream))))
+
+
+;;; ================================================================================
 ;;; Bags
 
 (defstruct (wb-bag
@@ -2359,7 +2430,7 @@ supplied, it is used as the initial map default."
 (defmethod with ((m ch-map) key &optional (value nil value?))
   (check-three-arguments value? 'with 'ch-map)
   (let ((contents (ch-map-contents m))
-	((new-contents (ch-map-tree-with contents key (hash-value key) value))))
+	((new-contents (ch-map-tree-with contents key value))))
     (if (eq new-contents contents)
 	m
       (make-ch-map new-contents (map-default m)))))
@@ -2368,18 +2439,18 @@ supplied, it is used as the initial map default."
   (declare (ignore arg2))
   (check-two-arguments arg2? 'less 'ch-map)
   (let ((contents (ch-map-contents m))
-	((new-contents (ch-map-tree-less contents key (hash-value key)))))
+	((new-contents (ch-map-tree-less contents key))))
     (if (eq new-contents contents)
 	m
       (make-ch-map new-contents (map-default m)))))
 
 (defmethod lookup ((m ch-map) key)
-  (let ((val? val (ch-map-tree-lookup (ch-map-contents m) key (hash-value key))))
+  (let ((val? val (ch-map-tree-lookup (ch-map-contents m) key)))
     ;; Our internal convention is the reverse of the external one.
     (values (if val? val (map-default m)) val?)))
 
 (defmethod domain-contains? ((m ch-map) x)
-  (ch-map-tree-lookup (ch-map-contents m) x (hash-value x)))
+  (ch-map-tree-lookup (ch-map-contents m) x))
 
 (defmethod internal-do-map ((m ch-map) elt-fn &optional (value-fn (lambda () nil)))
   (declare ;(optimize (speed 3) (safety 0))
