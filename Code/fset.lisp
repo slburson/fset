@@ -1241,6 +1241,12 @@ for the possibility of different set implementations; it is not for public use.
 (defmethod convert ((to-type (eql 'wb-set)) (s wb-set) &key)
   s)
 
+(defmethod convert ((to-type (eql 'ch-set)) (s wb-set) &key)
+  (let ((ch-tree nil))
+    (do-wb-set-tree-members (x (wb-set-contents s))
+      (setq ch-tree (ch-set-tree-with ch-tree x)))
+    (make-ch-set ch-tree)))
+
 (defmethod convert ((to-type (eql 'bag)) (s wb-set) &key)
   (make-wb-bag (WB-Set-Tree-To-Bag-Tree (wb-set-contents s))))
 
@@ -1411,6 +1417,14 @@ for the possibility of different set implementations; it is not for public use.
 (defmethod size ((s ch-set))
   (ch-set-tree-size (ch-set-contents s)))
 
+(defmethod set-size ((s ch-set))
+  (ch-set-tree-size (ch-set-contents s)))
+
+(defmethod contains? ((s ch-set) x &optional (y nil y?))
+  (declare (ignore y))
+  (check-two-arguments y? 'contains? 'ch-set)
+  (ch-set-tree-contains? (ch-set-contents s) x))
+
 (defmethod with ((s ch-set) value &optional (arg2 nil arg2?))
   (declare (ignore arg2))
   (check-two-arguments arg2? 'with 'ch-set)
@@ -1429,10 +1443,20 @@ for the possibility of different set implementations; it is not for public use.
 	s
       (make-ch-set new-contents))))
 
-(defmethod contains? ((s ch-set) x &optional (y nil y?))
-  (declare (ignore y))
-  (check-two-arguments y? 'contains? 'ch-set)
-  (ch-set-tree-contains? (ch-set-contents s) x))
+;;; Analogous to `at-rank' on a WB-Set, but I didn't want to make this a method of that, because
+;;; the ordering, though deterministic, is not one that will make any sense to a client.
+;;; &&& Needs `defgeneric'
+(defmethod at-index ((s ch-set) index)
+  (let ((contents (ch-set-contents s))
+	((size (ch-set-tree-size contents))))
+    (unless (and (>= index 0) (< index size))
+      (error 'simple-type-error :datum index :expected-type `(integer 0 (,size))
+	     :format-control "Index ~D out of bounds on ~A"
+				:format-arguments (list index s)))
+    (ch-set-tree-index-element contents index)))
+
+(defmethod compare ((s1 ch-set) (s2 ch-set))
+  (ch-set-tree-compare (ch-set-contents s1) (ch-set-contents s2)))
 
 (defmethod internal-do-set ((s ch-set) elt-fn &optional (value-fn (lambda () nil)))
   (declare ;(optimize (speed 3) (safety 0))
@@ -1440,11 +1464,14 @@ for the possibility of different set implementations; it is not for public use.
   (do-ch-set-tree-members (x (ch-set-contents s) (funcall value-fn))
     (funcall elt-fn x)))
 
+(defmethod convert ((to-type (eql 'ch-set)) (s ch-set) &key)
+  s)
+
 (defmethod convert ((to-type (eql 'wb-set)) (s ch-set) &key)
-  (let ((wb-s (empty-wb-set)))
+  (let ((wb-tree nil))
     (do-ch-set-tree-members (x (ch-set-contents s))
-      (includef wb-s x))
-    wb-s))
+      (setq wb-tree (WB-Set-Tree-With wb-tree x)))
+    (make-wb-set wb-tree)))
 
 (defun print-ch-set (set stream level)
   (declare (ignore level))

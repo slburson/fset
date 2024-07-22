@@ -3556,7 +3556,27 @@
 	    (error "Verification failed"))
 	  (let ((wbs-from-ch (convert 'wb-set chs)))
 	    (unless (equal? wbs wbs-from-ch)
-	      (error "EQUAL? failed"))))))))
+	      (error "CONVERT 'WB-SET or EQUAL? failed")))
+	  (when (let ((quot rem (floor i 32)))
+		  (and (= 0 rem) (>= quot 1)))
+	    (let ((elts (wb-set)))
+	      (dotimes (i (size chs))
+		(includef elts (at-index chs i)))
+	      (unless (equal? elts wbs)
+		(error "AT-INDEX failed")))
+	    (let ((idx (random (size chs)))
+		  ((elt (at-index chs idx))
+		   ((tmp-chs (with (less chs elt)
+				   ;; Adding 4096 doesn't change the hash value.
+				   (make-my-integer (+ (my-integer-value elt) 4096)))))))
+	      ;; `ch-set-tree-compare' is tough to test thoroughly.  This at least checks the case that is
+	      ;; least obviously correct by inspection, where all the hash values are the same but two elements
+	      ;; nonetheless differ.
+	      (unless (and (eq (compare chs tmp-chs) ':less)
+			   (eq (compare tmp-chs chs) ':greater))
+		(error "COMPARE failed")))
+	    (unless (equal? chs (convert 'ch-set wbs))
+	      (error "CONVERT 'CH-SET or EQUAL? failed"))))))))
 
 (defmethod verify ((m ch-map))
   (ch-map-tree-verify (ch-map-contents m)))
