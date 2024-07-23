@@ -142,7 +142,7 @@ do the comparison only once for each pair of values.
 
 
 (defun WB-Set-Tree-Arb (tree)
-  "Selects an arbitrary member of the set.  Assumes it is nonnull."
+  "Selects an arbitrary member of the set.  Assumes `tree' is nonnull."
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Set-Tree tree))
   (cond ((null tree)

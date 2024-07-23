@@ -1443,6 +1443,9 @@ for the possibility of different set implementations; it is not for public use.
 	s
       (make-ch-set new-contents))))
 
+(defmethod union ((s1 ch-set) (s2 ch-set) &key)
+  (make-ch-set (ch-set-tree-union (ch-set-contents s1) (ch-set-contents s2))))
+
 ;;; Analogous to `at-rank' on a WB-Set, but I didn't want to make this a method of that, because
 ;;; the ordering, though deterministic, is not one that will make any sense to a client.
 ;;; &&& Needs `defgeneric'
@@ -1466,6 +1469,12 @@ for the possibility of different set implementations; it is not for public use.
 
 (defmethod convert ((to-type (eql 'ch-set)) (s ch-set) &key)
   s)
+
+(defmethod convert ((to-type (eql 'ch-set)) (l list) &key)
+  (let ((result nil))
+    (dolist (x l)
+      (setq result (ch-set-tree-with result x)))
+    (make-ch-set result)))
 
 (defmethod convert ((to-type (eql 'wb-set)) (s ch-set) &key)
   (let ((wb-tree nil))
