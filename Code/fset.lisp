@@ -1446,6 +1446,9 @@ for the possibility of different set implementations; it is not for public use.
 (defmethod union ((s1 ch-set) (s2 ch-set) &key)
   (make-ch-set (ch-set-tree-union (ch-set-contents s1) (ch-set-contents s2))))
 
+(defmethod intersection ((s1 ch-set) (s2 ch-set) &key)
+  (make-ch-set (ch-set-tree-intersection (ch-set-contents s1) (ch-set-contents s2))))
+
 ;;; Analogous to `at-rank' on a WB-Set, but I didn't want to make this a method of that, because
 ;;; the ordering, though deterministic, is not one that will make any sense to a client.
 ;;; &&& Needs `defgeneric'
