@@ -11,6 +11,22 @@
 
 (in-package :fset)
 
+#||
+
+Our implementation differs slightly from the published CHAMP algorithm.  It is agnostic as to the
+number of bits in the hash values; it will use as many as are provided.  A collision can be detected
+at any level, when two members/keys hash to the same value but `equal?' is false on them.  When that
+happens, we fall back to using a WB-tree for those entries.  The resulting collision node will be as
+high in the tree as possible given that it can contain only keys with that hash value; this can
+require pushing it down an arbitrary number of levels when adding a new key.
+
+As Steindorfer recommends, we do go to the trouble to canonicalize on deletion, so that the shape of
+the tree is a function of the members/keys, i.e., is independent of how the tree was constructed.
+The two-tree algorithms (`compare', `union', etc.) take considerable advantage of this fact.
+
+||#
+
+
 ;;; ================================================================================
 ;;; Global constants
 
@@ -61,9 +77,6 @@
 
 (defstruct (ch-set-node
 	     (:type vector))
-  ;; We could cram both masks into a single fixnum, giving them 30 bits each (on a native 64-bit architecture),
-  ;; at the price of having to do integer div/mod instead of shifting and masking to split the hash value.
-  ;; I wonder how much that would cost.
   entry-mask
   subnode-mask
   size ; total number of elements at or below this node
@@ -700,16 +713,6 @@
 (defconstant ch-map-node-header-size 4)
 (declaim (ftype (function (t) fixnum)
 		ch-map-node-entry-mask ch-map-node-subnode-mask ch-map-node-size ch-map-node-hash-value))
-
-#||
-This differs slightly from the published CHAMP algorithm.  It is agnostic as to the number
-of bits in the hash values; it will use as many as are provided.  A collision can be
-detected at any level, when two keys hash to the same value but `equal?' is false on them.
-When that happens, we fall back to using a WB-tree for those entries.  The resulting
-collision node will be as high in the tree as possible given that it can contain only keys
-with that hash value; this can require pushing it down an arbitrary number of levels when
-adding a new key.
-||#
 
 (defun ch-map-tree-with (tree key value)
   (declare (optimize (speed 3) (safety 0)))

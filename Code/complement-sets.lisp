@@ -8,6 +8,9 @@
 ;;; See: http://opensource.franz.com/preamble.html
 ;;; This license provides NO WARRANTY.
 
+;;; Complement sets don't add any new functionality, but they can be a notational
+;;; convenience in certain cases.
+
 (in-package :fset)
 
 

@@ -107,7 +107,7 @@ This is the right choice for the vast majority of mutable classes."))
 ;;; declared, as they are below, than to use this for all cross-type comparisons.
 ;;; But this is fast enough that I think it will suffice for user-defined types.
 ;;; Of course the user is free to define all the cross-type methods themselves
-;;; if they want; a macro to assist with this is below.
+;;; if they want; a macro to assist with this is `define-cross-type-compare-methods'.
 (defmethod compare ((a t) (b t))
   (let ((a-type (cond ((realp a) 'real)
 		      ((stringp a) 'string)	; We check for these ourselves
