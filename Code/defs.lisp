@@ -218,6 +218,8 @@
 			  #:some #:every #:notany #:notevery))
 
 
+(pushnew ':FSet *features*)
+
 ;;; The seq implementation tries to use strings for leaf vectors when possible.
 ;;; In some Lisp implementations, there are two kinds of strings; but in some
 ;;; of these, the larger form takes as much space as a general vector, so nothing
