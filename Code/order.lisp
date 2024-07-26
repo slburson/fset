@@ -48,6 +48,15 @@ structure class.")
 	    (:copier nil))
   "The abstract class for FSet functional sets.  It is a structure class.")
 
+(defstruct (replay-set
+            (:constructor nil)
+            (:include set)
+            (:predicate replay-set?)
+            (:copier nil))
+  "The abstract class for FSet functional replay sets.  It is a structure class.
+A replay set is like a set, except that its iteration order is the order in which
+members were added to it.  It may not support all set operations.")
+
 (defstruct (bag
 	    (:constructor nil)
 	    (:include collection)
@@ -63,6 +72,15 @@ class.")
 	    (:copier nil))
   "The abstract class for FSet functional maps.  It is a structure class."
   (default nil))
+
+(defstruct (replay-map
+            (:constructor nil)
+            (:include map)
+            (:predicate replay-map?)
+            (:copier nil))
+  "The abstract class for FSet functional replay maps.  It is a structure class.
+A replay map is like a map, except that its iteration order is the order in which
+members were added to it.  It may not support all map operations.")
 
 (defstruct (seq
 	    (:constructor nil)

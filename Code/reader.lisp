@@ -202,6 +202,31 @@ result set."
 			   ($ <sub-set>) -- not ~S" type-name (car splice-args))))))
       (recur splice-args start))))
 
+(defmacro replay-set (&rest args)
+  "Constructs a replay-set of the default implementation according to the
+supplied argument subforms.  Each argument subform can be an expression,
+whose value will be a member of the result set; or a list of the form
+\($ `expression'), in which case the expression must evaluate to a set,
+all of whose members become members of the result set."
+  `(wb-replay-set . ,args))
+
+(defmacro wb-replay-set (&rest args)
+  "Constructs a wb-replay-set according to the supplied argument subforms.  Each
+argument subform can be an expression, whose value will be a member of the
+result set; or a list of the form ($ `expression'), in which case the
+expression must evaluate to a set, all of whose members become members of the
+result set."
+  ;; We MUST maintain ORDER!!!  Yow!!!
+  (let ((result (empty-instance-form 'wb-replay-set)))
+    (dolist (arg args result)
+      (if (and (listp arg) (eq (car arg) '$))
+	  (let ((tmp (gensym "TMP-")))
+	    (setq result `(let ((,tmp ,result))
+			    (do-set (x ,(cadr arg))
+			      (includef ,tmp x))
+			    ,tmp)))
+	(setq result `(with ,result ,arg))))))
+
 (defmacro bag (&rest args)
   "Constructs a bag of the default implementation according to the supplied
 argument subforms.  Each argument subform can be an expression, whose value
@@ -312,6 +337,44 @@ will be given by the rightmost such subform."
 		     (t
 		      (recur (cdr args) `(with ,result ,(caar args) ,(cadar args)))))))
       (recur args empty-form))))
+
+(defmacro replay-map (&rest args)
+  "Constructs a replay-map of the default implementation according to the supplied
+argument subforms.  Each argument subform can be a list of the form (`key-expr'
+`value-expr'), denoting a mapping from the value of `key-expr' to the value of
+`value-expr'; or a list of the form ($ `expression'), in which case the
+expression must evaluate to a map, denoting all its mappings; or the symbol
+`:default', in which case the next argument subform is a form whose value will
+become the map's default.  The result is constructed from the denoted mappings
+in left-to-right order; so if a given key is supplied by more than one argument
+subform, its associated value will be given by the rightmost such subform."
+  `(wb-replay-map . ,args))
+
+(defmacro wb-replay-map (&rest args)
+  "Constructs a wb-replay-map according to the supplied argument subforms.  Each
+argument subform can be a list of the form (`key-expr' `value-expr'), denoting
+a mapping from the value of `key-expr' to the value of `value-expr'; or a list
+of the form ($ `expression'), in which case the expression must evaluate to a
+map, denoting all its mappings; or the symbol `:default', in which case the
+next argument subform is a form whose value will become the map's default.  The
+result is constructed from the denoted mappings in left-to-right order; so if a
+given key is supplied by more than one argument subform, its associated value
+will be given by the rightmost such subform."
+  ;; We MUST maintain ORDER!!!  Yow!!!
+  (let ((default (cadr (member ':default args)))
+	((result (empty-map-instance-form 'wb-replay-map default))))
+    (do ((args args (cdr args)))
+	((null args) result)
+      (let ((arg (car args)))
+	(cond ((eq arg ':default) (pop args))
+	      ((and (listp arg) (eq (car arg) '$))
+	       (let ((tmp (gensym "TMP-")))
+		 (setq result `(let ((,tmp ,result))
+				 (do-map (x y ,(cadr arg))
+				   (includef ,tmp x y))
+				 ,tmp))))
+	      (t
+	       (setq result `(with ,result ,(car arg) ,(cadr arg)))))))))
 
 (defmacro seq (&rest args)
   "Constructs a seq of the default implementation according to the supplied

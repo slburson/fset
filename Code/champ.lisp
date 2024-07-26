@@ -704,6 +704,20 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 ;;; ================================================================================
 ;;; Maps
 
+#||
+
+It occurs to me that with a little tweaking, we could arrange for `domain' to be O(1):
+
+- split the map node hash value into a key part and a value part
+- move the value part of the hash, along with the values, to the region in between the keys and subnodes,
+  so a node looks like (key-mask subnode-mask size key-hash keys... value-hash values... ...subnodes)
+  (note, the key-hash and value-hash have to include resp. the key-hashes and value-hashes of the subnodes)
+- for collision nodes, make them (key-hash value-hash . wb-tree)
+- add another `consp' check on the cdrs of collision nodes in the set code, to deal with
+  the possibility of a map collision node (when building a new set node, may want to convert)
+
+||#
+
 (defstruct (ch-map-node
 	     (:type vector))
   entry-mask
