@@ -1137,16 +1137,16 @@ for the possibility of different set implementations; it is not for public use.
 (defmethod iterator ((s wb-set) &key)
   (Make-WB-Set-Tree-Iterator (wb-set-contents s)))
 
-(defmethod filter ((pred function) (s set))
-  (set-filter pred s))
+(defmethod filter ((pred function) (s wb-set))
+  (wb-set-filter pred s))
 
-(defmethod filter ((pred symbol) (s set))
-  (set-filter (coerce-to-function pred) s))
+(defmethod filter ((pred symbol) (s wb-set))
+  (wb-set-filter (coerce-to-function pred) s))
 
-(defmethod filter ((pred map) (s set))
-  (set-filter #'(lambda (x) (lookup pred x)) s))
+(defmethod filter ((pred map) (s wb-set))
+  (wb-set-filter #'(lambda (x) (lookup pred x)) s))
 
-(defun set-filter (pred s)
+(defun wb-set-filter (pred s)
   (declare (optimize (speed 3) (safety 0))
 	   (type function pred))
   (let ((result nil))
@@ -1155,16 +1155,16 @@ for the possibility of different set implementations; it is not for public use.
 	(setq result (WB-Set-Tree-With result x))))
     (make-wb-set result)))
 
-(defmethod partition ((pred function) (s set))
-  (set-partition pred s))
+(defmethod partition ((pred function) (s wb-set))
+  (wb-set-partition pred s))
 
-(defmethod partition ((pred symbol) (s set))
-  (set-partition (coerce-to-function pred) s))
+(defmethod partition ((pred symbol) (s wb-set))
+  (wb-set-partition (coerce-to-function pred) s))
 
-(defmethod partition ((pred map) (s set))
-  (set-partition #'(lambda (x) (lookup pred x)) s))
+(defmethod partition ((pred map) (s wb-set))
+  (wb-set-partition #'(lambda (x) (lookup pred x)) s))
 
-(defun set-partition (pred s)
+(defun wb-set-partition (pred s)
   (declare (optimize (speed 3) (safety 0))
 	   (type function pred))
   (let ((result-1 nil)
@@ -1177,29 +1177,29 @@ for the possibility of different set implementations; it is not for public use.
 	    (make-wb-set result-2))))
 
 ;;; A set is another kind of boolean-valued map.
-(defmethod filter ((pred set) (s set))
+(defmethod filter ((pred wb-set) (s wb-set))
   (intersection pred s))
 
 ;;; A bag is yet another kind of boolean-valued map.
-(defmethod filter ((pred bag) (s set))
+(defmethod filter ((pred wb-bag) (s wb-set))
   (intersection pred s))
 
-(defmethod image ((fn function) (s set))
+(defmethod image ((fn function) (s wb-set))
   (set-image fn s))
 
-(defmethod image ((fn symbol) (s set))
+(defmethod image ((fn symbol) (s wb-set))
   (set-image (coerce-to-function fn) s))
 
-(defmethod image ((fn map) (s set))
-  (set-image fn s))
+(defmethod image ((fn map) (s wb-set))
+  (wb-set-image fn s))
 
-(defmethod image ((fn set) (s set))
-  (set-image fn s))
+(defmethod image ((fn set) (s wb-set))
+  (wb-set-image fn s))
 
-(defmethod image ((fn bag) (s set))
-  (set-image fn s))
+(defmethod image ((fn bag) (s wb-set))
+  (wb-set-image fn s))
 
-(defun set-image (fn s)
+(defun wb-set-image (fn s)
   (let ((result nil))
     (do-set (x s)
       (setq result (WB-Set-Tree-With result (@ fn x))))
@@ -1370,7 +1370,7 @@ for the possibility of different set implementations; it is not for public use.
   `(nil #'WB-Set-Tree-With #'make-wb-set ,filterp))
 
 
-;;; A bit faster than `:set', if you know it's a `wb-set'.
+;;; A bit faster than `set', if you know it's a `wb-set'.
 (gmap:def-gmap-arg-type wb-set (set)
   "Yields the elements of `set'."
   `((Make-WB-Set-Tree-Iterator-Internal (wb-set-contents ,set))
@@ -2107,26 +2107,26 @@ symbols."))
 (defmethod iterator ((m wb-map) &key)
   (Make-WB-Map-Tree-Iterator (wb-map-contents m)))
 
-(defmethod filter ((pred function) (m map))
-  (map-filter pred m))
+(defmethod filter ((pred function) (m wb-map))
+  (wb-map-filter pred m))
 
-(defmethod filter ((pred symbol) (m map))
-  (map-filter (coerce-to-function pred) m))
+(defmethod filter ((pred symbol) (m wb-map))
+  (wb-map-filter (coerce-to-function pred) m))
 
-(defun map-filter (pred m)
+(defun wb-map-filter (pred m)
   (let ((result nil))
     (do-map (x y m)
       (when (funcall pred x y)
 	(setq result (WB-Map-Tree-With result x y))))
     (make-wb-map result (map-default m))))
 
-(defmethod image ((fn function) (m map))
-  (map-image fn m))
+(defmethod image ((fn function) (m wb-map))
+  (wb-map-image fn m))
 
-(defmethod image ((fn symbol) (m map))
-  (map-image (coerce-to-function fn) m))
+(defmethod image ((fn symbol) (m wb-map))
+  (wb-map-image (coerce-to-function fn) m))
 
-(defun map-image (fn m)
+(defun wb-map-image (fn m)
   (declare (type function fn))
   (let ((result nil))
     (do-map (x y m)
@@ -2155,7 +2155,7 @@ symbols."))
 	(setq result (funcall fn result x y))))
     result))
 
-(defmethod range ((m map))
+(defmethod range ((m wb-map))
   (let ((s nil))
     (do-map (key val m)
       (declare (ignore key))
@@ -2200,7 +2200,7 @@ symbols."))
   (make-wb-map (WB-Map-Tree-Restrict-Not (wb-map-contents m) (wb-set-contents s))
 	       (map-default m)))
 
-(defmethod compose ((map1 map) (map2 wb-map))
+(defmethod compose ((map1 wb-map) (map2 wb-map))
   (let ((tree2 (wb-map-contents map2)))
     (make-wb-map (WB-Map-Tree-Compose (wb-map-contents map1)
 				      #'(lambda (x)

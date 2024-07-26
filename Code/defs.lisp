@@ -34,6 +34,8 @@
   (:export #:collection #:set #:bag #:map #:seq #:tuple
 	   #:collection? #:set? #:bag? #:map? #:seq? #:tuple?
 	   #:wb-set #:wb-bag #:wb-map #:wb-seq #:dyn-tuple
+	   #:replay-set #:replay-set? #:wb-replay-set #:wb-replay-set?
+	   #:replay-map #:replay-map? #:wb-replay-map #:wb-replay-map?
 	   ;; `Equal?' is exported because users may want to call it; `Compare'
 	   ;; because they may want to extend it; and `Compare-Slots' because it's
 	   ;; useful in extending `Compare'.  But `Less-Than?' and `Greater-Than?'
@@ -47,6 +49,7 @@
 	   #:empty-set #:empty-bag #:empty-map #:empty-seq #:empty-tuple
 	   #:empty-wb-set #:empty-wb-bag #:empty-wb-map #:empty-wb-seq
 	   #:empty-dyn-tuple
+	   #:empty-replay-set #:empty-wb-replay-set #:empty-replay-map #:empty-wb-replay-map
 	   #:least #:greatest #:lookup #:rank #:at-rank #:@
 	   #:with #:less #:split-from #:split-above #:split-through #:split-below
 	   #:union #:bag-sum #:intersection #:bag-product #:complement

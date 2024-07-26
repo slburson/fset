@@ -1824,6 +1824,30 @@
 
       (test (empty? nil))
       (test (not (empty? '(x))))
+
+      (let ((rs (replay-set 27 14 ($ (set 3 92)))))
+	(test (equal? (size rs) 4))
+	(test (contains? rs 3))
+	(test (equal? (convert 'seq rs) (seq 27 14 3 92)))
+	(test (equal? (let ((tmp nil))
+			(do-set (x rs)
+			  (push x tmp))
+			(nreverse tmp))
+		      '(27 14 3 92)))
+	(test (equal? (convert 'seq (less rs 3)) (seq 27 14 92))))
+
+      (let ((rm (replay-map (19 'foo) (12 'bar) :default 'xyzzy (8 'quux) ($ (map (2 'gubbish) (34 'ork))))))
+	(test (equal? (size rm) 5))
+	(test (equal? (@ rm 8) 'quux))
+	(test (equal? (convert 'seq rm) (seq '(19 . foo) '(12 . bar) '(8 . quux) '(2 . gubbish) '(34 . ork))))
+	(excludef rm 12)
+	(setf (@ rm 8) 'the-great-quux)
+	(test (equal? (let ((tmp nil))
+			(do-map (x y rm)
+			  (push (cons x y) tmp))
+			(nreverse tmp))
+		      '((19 . foo) (8 . the-great-quux) (2 . gubbish) (34 . ork)))))
+
       #+sbcl
       (progn
 	(test (empty? (make-instance 'my-sequence)))
