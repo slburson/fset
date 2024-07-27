@@ -1185,10 +1185,10 @@ for the possibility of different set implementations; it is not for public use.
   (intersection pred s))
 
 (defmethod image ((fn function) (s wb-set))
-  (set-image fn s))
+  (wb-set-image fn s))
 
 (defmethod image ((fn symbol) (s wb-set))
-  (set-image (coerce-to-function fn) s))
+  (wb-set-image (coerce-to-function fn) s))
 
 (defmethod image ((fn map) (s wb-set))
   (wb-set-image fn s))

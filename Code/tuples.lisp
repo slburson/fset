@@ -644,8 +644,8 @@ of calling `val-fn' on the value from `tuple1' and the value from `tuple2'.
 
 ;;; ================================================================================
 
-(defmethod image ((key tuple-key) (s set))
-  (set-image #'(lambda (x) (lookup x key)) s))
+(defmethod image ((key tuple-key) (s wb-set))
+  (wb-set-image #'(lambda (x) (lookup x key)) s))
 
 (defmethod image ((key tuple-key) (s seq))
   (seq-image #'(lambda (x) (lookup x key)) s))
