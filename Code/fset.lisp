@@ -1177,11 +1177,11 @@ for the possibility of different set implementations; it is not for public use.
 	    (make-wb-set result-2))))
 
 ;;; A set is another kind of boolean-valued map.
-(defmethod filter ((pred wb-set) (s wb-set))
+(defmethod filter ((pred set) (s set))
   (intersection pred s))
 
 ;;; A bag is yet another kind of boolean-valued map.
-(defmethod filter ((pred wb-bag) (s wb-set))
+(defmethod filter ((pred bag) (s set))
   (intersection pred s))
 
 (defmethod image ((fn function) (s wb-set))
