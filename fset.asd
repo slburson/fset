@@ -31,6 +31,7 @@ See: http://www.ergy.com/FSet.html
 	     (:file "champ")
 	     (:file "reader")
 	     (:file "fset")
+	     (:file "replay")
 	     (:file "tuples")
 	     (:file "testing")
 	     (:file "interval")
