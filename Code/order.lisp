@@ -290,9 +290,7 @@ This is the right choice for the vast majority of mutable classes."))
        (default ':equal))
       ((or (atom a) (atom b))
        (let ((comp (compare a b)))
-	 (if (or (eq comp ':less) (eq comp ':greater))
-	     comp
-	   default)))
+	 (if (eq comp ':equal) default comp)))
     (when (eq a b)			; we could get lucky
       (return default))
     (let ((comp (compare (car a) (car b))))
