@@ -279,7 +279,7 @@
      (sb-ext:defglobal ,name 0 . ,(and doc-string `(,doc-string)))
      (declaim (type fixnum ,name)))
   #-(and sbcl 64-bit)
-  `(deflex ,name (cons 0 (make-lock ',lock-name)) . ,(and doc-string `(,doc-string))))
+  `(deflex ,name (cons 0 (make-lock ',name)) . ,(and doc-string `(,doc-string))))
 
 (defmacro increment-atomic-series (name)
   #+(and sbcl 64-bit)
