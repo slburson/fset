@@ -1420,6 +1420,11 @@ for the possibility of different set implementations; it is not for public use.
 (defmethod set-size ((s ch-set))
   (ch-set-tree-size (ch-set-contents s)))
 
+(defmethod arb ((s ch-set))
+  (let ((tree (ch-set-contents s)))
+    (if tree (values (ch-set-tree-arb tree) t)
+      (values nil nil))))
+
 (defmethod contains? ((s ch-set) x &optional (y nil y?))
   (declare (ignore y))
   (check-two-arguments y? 'contains? 'ch-set)
@@ -1449,6 +1454,48 @@ for the possibility of different set implementations; it is not for public use.
 (defmethod intersection ((s1 ch-set) (s2 ch-set) &key)
   (make-ch-set (ch-set-tree-intersection (ch-set-contents s1) (ch-set-contents s2))))
 
+(defmethod disjoint? ((s1 ch-set) (s2 ch-set))
+  (ch-set-tree-disjoint? (ch-set-contents s1) (ch-set-contents s2)))
+
+(defmethod filter ((pred function) (s ch-set))
+  (ch-set-filter pred s))
+
+(defmethod filter ((pred symbol) (s ch-set))
+  (ch-set-filter (coerce-to-function pred) s))
+
+(defmethod filter ((pred map) (s ch-set))
+  (ch-set-filter #'(lambda (x) (lookup pred x)) s))
+
+(defun ch-set-filter (pred s)
+  (declare (optimize (speed 3) (safety 0))
+	   (type function pred))
+  (let ((result nil))
+    (do-ch-set-tree-members (x (ch-set-contents s))
+      (when (funcall pred x)
+	(setq result (ch-set-tree-with result x))))
+    (make-ch-set result)))
+
+(defmethod image ((fn function) (s ch-set))
+  (ch-set-image fn s))
+
+(defmethod image ((fn symbol) (s ch-set))
+  (ch-set-image (coerce-to-function fn) s))
+
+(defmethod image ((fn map) (s ch-set))
+  (ch-set-image fn s))
+
+(defmethod image ((fn set) (s ch-set))
+  (ch-set-image fn s))
+
+(defmethod image ((fn bag) (s ch-set))
+  (ch-set-image fn s))
+
+(defun ch-set-image (fn s)
+  (let ((result nil))
+    (do-ch-set-tree-members (x (ch-set-contents s))
+      (setq result (ch-set-tree-with result (@ fn x))))
+    (make-ch-set result)))
+
 ;;; Analogous to `at-rank' on a WB-Set, but I didn't want to make this a method of that, because
 ;;; the ordering, though deterministic, is not one that will make any sense to a client.
 ;;; &&& Needs `defgeneric'
@@ -1469,6 +1516,16 @@ for the possibility of different set implementations; it is not for public use.
 	   (type function elt-fn value-fn))
   (do-ch-set-tree-members (x (ch-set-contents s) (funcall value-fn))
     (funcall elt-fn x)))
+
+(defmethod iterator ((s ch-set) &key)
+  ;; Quick and O(log n) per element.   &&& Write a proper tree iterator.
+  (let ((tree (ch-set-contents s))
+	(idx 0))
+    (lambda (op)
+      (ecase op
+	(:get (ch-set-tree-index-element tree (postincf idx)))
+	(:done? (>= idx (ch-set-tree-size tree)))
+	(:more? (< idx (ch-set-tree-size tree)))))))
 
 (defmethod convert ((to-type (eql 'ch-set)) (s ch-set) &key)
   s)

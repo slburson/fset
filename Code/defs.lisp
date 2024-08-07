@@ -34,13 +34,14 @@
   (:export #:collection #:set #:bag #:map #:seq #:tuple
 	   #:collection? #:set? #:bag? #:map? #:seq? #:tuple?
 	   #:wb-set #:wb-bag #:wb-map #:wb-seq #:dyn-tuple
+	   #:ch-set #:ch-map
 	   #:replay-set #:replay-set? #:wb-replay-set #:wb-replay-set?
 	   #:replay-map #:replay-map? #:wb-replay-map #:wb-replay-map?
 	   ;; `Equal?' is exported because users may want to call it; `Compare'
 	   ;; because they may want to extend it; and `Compare-Slots' because it's
 	   ;; useful in extending `Compare'.  But `Less-Than?' and `Greater-Than?'
 	   ;; are unlikely to be useful in user code.
-	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal
+	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal #:define-comparison-slots
 	   #:identity-ordering-mixin
 	   #:define-cross-type-compare-methods
 	   #:compare-lexicographically
@@ -48,9 +49,9 @@
 	   #:contains? #:domain-contains? #:range-contains? #:member? #:multiplicity
 	   #:empty-set #:empty-bag #:empty-map #:empty-seq #:empty-tuple
 	   #:empty-wb-set #:empty-wb-bag #:empty-wb-map #:empty-wb-seq
-	   #:empty-dyn-tuple
+	   #:empty-dyn-tuple #:empty-ch-set #:empty-ch-map
 	   #:empty-replay-set #:empty-wb-replay-set #:empty-replay-map #:empty-wb-replay-map
-	   #:least #:greatest #:lookup #:rank #:at-rank #:@
+	   #:least #:greatest #:lookup #:rank #:at-rank #:at-index #:@
 	   #:with #:less #:split-from #:split-above #:split-through #:split-below
 	   #:union #:bag-sum #:intersection #:bag-product #:complement
 	   #:set-difference #:set-difference-2 #:bag-difference
