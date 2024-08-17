@@ -54,7 +54,7 @@
 	   #:least #:greatest #:lookup #:rank #:at-rank #:at-index #:@
 	   #:with #:less #:split-from #:split-above #:split-through #:split-below
 	   #:union #:bag-sum #:intersection #:bag-product #:complement
-	   #:set-difference #:set-difference-2 #:bag-difference
+	   #:set-difference #:set-difference-2 #:bag-difference #:bag-pairs
 	   #:subset? #:disjoint? #:subbag?
 	   #:filter #:filter-pairs #:partition
 	   #:image #:reduce #:domain #:range #:with-default #:update
@@ -151,7 +151,7 @@
 	   #:least #:greatest #:lookup #:rank #:at-rank #:@
 	   #:with #:less #:split-from #:split-above #:split-through #:split-below
 	   #:union #:bag-sum #:intersection #:bag-product #:complement
-	   #:set-difference #:set-difference-2 #:bag-difference
+	   #:set-difference #:set-difference-2 #:bag-difference #:bag-pairs
 	   #:subset? #:disjoint? #:subbag?
 	   #:filter #:filter-pairs #:partition
 	   #:image #:reduce #:domain #:range #:with-default #:update
