@@ -86,11 +86,13 @@
 	   ;; Complement sets
 	   #:full-set
 	   ;; Relations
-	   #:relation #:2-relation #:wb-2-relation #:empty-2-relation #:empty-wb-2-relation
-	   #:do-2-relation
+	   #:relation #:relation? #:2-relation #:2-relation? #:wb-2-relation #:wb-2-relation?
+	   #:empty-2-relation #:empty-wb-2-relation #:do-2-relation
 	   #:lookup-inv #:inverse #:join #:conflicts #:map-to-sets
-	   #:list-relation #:wb-list-relation #:empty-list-relation #:do-list-relation
-	   #:empty-wb-list-relation #:arity #:query #:query-multi #:query-multi-restricted
+	   #:list-relation #:list-relation? #:wb-list-relation #:wb-list-relation?
+	   #:empty-list-relation #:empty-wb-list-relation #:do-list-relation
+	   #:arity #:query #:query-multi #:query-multi-restricted
+	   #:assertion-db #:empty-assertion-db #:empty-wb-assertion-db
 	   #:query-registry #:empty-query-registry #:with-query #:less-query
 	   #:all-queries #:do-all-queries #:lookup-multi #:forward-key #:lookup-restricted
 	   #:lookup-multi-restricted
@@ -109,6 +111,7 @@
 ;;; The plan is for both packages to continue to exist indefinitely.  New client code is
 ;;; encouraged to use package `fset2' instead of `fset'; existing clients may update
 ;;; their code at their leisure.
+;;; NOTE: This package is not ready for use yet.  I will announce when it is.
 (defpackage :fset2
   (:use :cl :fset :new-let :lexical-contexts)
   (:import-from :gmap #:gmap #:alist #:constant #:index #:sum)
@@ -139,7 +142,7 @@
 	   ;; useful in extending `Compare'.  But `Less-Than?' and `Greater-Than?'
 	   ;; are unlikely to be useful in user code.
 	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal
-	   #:hash-code ; new for FSet2
+	   #:hash-value ; new for FSet2
 	   #:identity-ordering-mixin
 	   #:define-cross-type-compare-methods
 	   #:compare-lexicographically
@@ -183,11 +186,13 @@
 	   ;; Complement sets
 	   #:full-set
 	   ;; Relations
-	   #:relation #:2-relation #:wb-2-relation #:empty-2-relation #:empty-wb-2-relation
-	   #:do-2-relation
+	   #:relation #:relation? #:2-relation #:2-relation? #:wb-2-relation #:wb-2-relation?
+	   #:empty-2-relation #:empty-wb-2-relation #:do-2-relation
 	   #:lookup-inv #:inverse #:join #:conflicts #:map-to-sets
-	   #:list-relation #:wb-list-relation #:empty-list-relation #:do-list-relation
-	   #:empty-wb-list-relation #:arity #:query #:query-multi #:query-multi-restricted
+	   #:list-relation #:list-relation? #:wb-list-relation #:wb-list-relation?
+	   #:empty-list-relation #:empty-wb-list-relation #:do-list-relation
+	   #:arity #:query #:query-multi #:query-multi-restricted
+	   #:assertion-db #:empty-assertion-db #:empty-wb-assertion-db
 	   #:query-registry #:empty-query-registry #:with-query #:less-query
 	   #:all-queries #:do-all-queries #:lookup-multi #:forward-key #:lookup-restricted
 	   #:lookup-multi-restricted

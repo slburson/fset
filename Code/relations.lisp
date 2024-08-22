@@ -686,7 +686,7 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
 	    (:predicate list-relation?)
 	    (:copier nil))
   "The abstract class for FSet list relations.  It is a structure class.
-A list relation is a general relation (i.e. of arbitrary arity >= 2) whose
+A list relation is a general relation (i.e. of arbitrary arity >= 1) whose
 tuples are in list form.")
 
 (defstruct (wb-list-relation
@@ -695,7 +695,7 @@ tuples are in list form.")
 	    (:predicate wb-list-relation?)
 	    (:print-function print-wb-list-relation)
 	    (:copier nil))
-  "A class of functional relations of arbitrary arity >= 2, whose tuples
+  "A class of functional relations of arbitrary arity >= 1, whose tuples
 are in list form."
   arity
   tuples
@@ -1014,6 +1014,58 @@ positions in the original pattern."
   `((Make-WB-Set-Tree-Iterator-Internal (wb-set-contents (wb-list-relation-tuples ,rel)))
     #'WB-Set-Tree-Iterator-Done?
     #'WB-Set-Tree-Iterator-Get))
+
+
+(defstruct (assertion-db
+	     (:constructor nil)
+	     (:predicate assertion-db?)
+	     (:copier nil)))
+
+(defstruct (wb-assertion-db
+	     (:include assertion-db)
+	     (:constructor make-wb-assertion-db (list-rels))
+	     (:predicate wb-assertion-db?)
+	     (:print-function print-wb-assertion-db)
+	     (:copier nil))
+  list-rels)
+
+(defun empty-assertion-db ()
+  (empty-wb-assertion-db))
+
+(defun empty-wb-assertion-db ()
+  (make-assertion-db (map :default (empty-list-relation))))
+
+(defmethod with ((adb assertion-db) tuple &optional (arg2 nil arg2?))
+  (declare (ignore arg2))
+  (check-two-arguments arg2? 'with 'wb-list-relation)
+  (let ((arity (length tuple)))
+    (make-assertion-db (with (wb-assertion-db-list-rels adb) arity
+			     (with (@ (wb-assertion-db-list-rels adb) arity)
+				   tuple)))))
+
+(defmethod less ((adb assertion-db) tuple &optional (arg2 nil arg2?))
+  (declare (ignore arg2))
+  (check-two-arguments arg2? 'with 'assertion-db)
+  (let ((arity (length tuple)))
+    (make-assertion-db (with (wb-assertion-db-list-rels adb) arity
+			     (less (@ (wb-assertion-db-list-rels adb) arity)
+				   tuple)))))
+
+;;; A little bit unkosher to reuse the optional `metapattern' parameter of `query' on
+;;; `list-relation' like this, but use of that parameter is deprecated, so I think I
+;;; can get away with it.
+(defmethod query ((adb assertion-db) pattern &optional override-arity)
+  (when (and override-arity
+	     (not (and (integerp override-arity) (> override-arity 0) (>= override-arity (length pattern)))))
+    (error "Invalid `override-arity': ~A" override-arity))
+  (let ((arity (or override-arity (length pattern))))
+    (query (@ (wb-assertion-db-list-rels adb) arity) pattern)))
+
+(defun print-wb-assertion-db (adb stream level)
+  (if (and *print-level* (>= level *print-level*))
+      (format stream "#")
+    (progn
+      (format stream "#<Assertion DB, ~D arities> " (size (wb-assertion-db-list-rels adb))))))
 
 
 #||
