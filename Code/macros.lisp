@@ -408,3 +408,10 @@ iteration to the index of the current element of `seq'.  When done, returns
 		      ,@(and start? `(:start ,start))
 		      ,@(and end? `(:end ,end))
 		      ,@(and from-end?? `(:from-end? ,from-end?)))))
+
+
+;;; ================================================================================
+;;; Miscellany
+
+(defmacro postincf (v)
+  `(prog1 ,v (incf ,v)))

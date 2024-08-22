@@ -53,13 +53,28 @@ are printed as \"#{= ... }\"."
   (check-two-arguments y? 'contains? 'wb-set)
   (wb-set-tree-member? (wb-replay-set-contents s) x))
 
+(defmethod lookup ((s wb-replay-set) value)
+  (wb-set-tree-find-equal (wb-replay-set-contents s) value))
+
 (defmethod convert ((to-type (eql 'seq)) (s wb-replay-set) &key)
+  (make-wb-seq (wb-replay-set-ordering s)))
+(defmethod convert ((to-type (eql 'wb-seq)) (s wb-replay-set) &key)
   (make-wb-seq (wb-replay-set-ordering s)))
 
 (defmethod convert ((to-type (eql 'set)) (s wb-replay-set) &key)
   (make-wb-set (wb-replay-set-contents s)))
 (defmethod convert ((to-type (eql 'wb-set)) (s wb-replay-set) &key)
   (make-wb-set (wb-replay-set-contents s)))
+
+(defmethod convert ((to-type (eql 'replay-set)) (s wb-replay-set) &key)
+  s)
+(defmethod convert ((to-type (eql 'wb-replay-set)) (s wb-replay-set) &key)
+  s)
+(defmethod convert ((to-type (eql 'replay-set)) (s wb-set) &key)
+  ;; Of course, this uses the ordering of `s'.
+  (make-wb-replay-set (wb-set-contents s) (wb-seq-contents (convert 'wb-seq s))))
+(defmethod convert ((to-type (eql 'wb-replay-set)) (s wb-set) &key)
+  (make-wb-replay-set (wb-set-contents s) (wb-seq-contents (convert 'wb-seq s))))
 
 (defmethod with ((s wb-replay-set) value &optional (arg2 nil arg2?))
   (declare (ignore arg2))
@@ -71,6 +86,34 @@ are printed as \"#{= ... }\"."
       (make-wb-replay-set new-contents
 			  (let ((tree (wb-replay-set-ordering s)))
 			    (wb-seq-tree-insert tree (wb-seq-tree-size tree) value))))))
+
+(defmethod union ((s1 wb-replay-set) (s2 set) &key)
+  "As the parameter types suggest, this is not symmetric: it adds the members
+of `s2' to `s1', so the ordering of the result will be that of `s1' with any
+new members appended."
+  (cond ((empty? s2) s1)
+	((empty? s1)
+	 (if (wb-replay-set? s2) s2
+	   (convert 'wb-replay-set s2)))
+	(t
+	 (let ((contents (wb-replay-set-contents s1))
+	       (ordering (wb-replay-set-ordering s1)))
+	   ;; This is O(n log m), rather than the usual O(m + n).
+	   (do-set (x s2)
+	     (let ((tmp (wb-set-tree-with contents x)))
+	       (unless (eq tmp contents)
+		 (setq contents tmp)
+		 (setq ordering (wb-seq-tree-insert ordering (wb-seq-tree-size ordering) x)))))
+	   (make-wb-replay-set contents ordering)))))
+
+(defmethod intersection ((s1 wb-replay-set) (s2 set) &key)
+  "As the parameter types suggest, this is not symmetric: the ordering of the
+result is that of `s1', filtered by membership in `s2'."
+  (cond ((empty? s2) (wb-replay-set))
+	((empty? s1) s1)
+	(t
+	 (make-wb-replay-set (wb-set-contents (intersection (convert 'wb-set s1) (convert 'wb-set s2)))
+			     (wb-seq-contents (filter s2 (convert 'wb-seq s1)))))))
 
 ;;; WARNING: linear-time operation!
 (defmethod less ((s wb-replay-set) value &optional (arg2 nil arg2?))
