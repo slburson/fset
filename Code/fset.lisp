@@ -1882,6 +1882,18 @@ of which may be repeated."
 	(setq contents (WB-Bag-Tree-With contents x)))
       (make-wb-bag contents))))
 
+(defmethod convert ((to-type (eql 'bag)) (s seq) &key)
+  (let ((contents nil))
+    (do-seq (x s)
+      (setq contents (WB-Bag-Tree-With contents x)))
+    (make-wb-bag contents)))
+
+(defmethod convert ((to-type (eql 'wb-bag)) (s seq) &key)
+  (let ((contents nil))
+    (do-seq (x s)
+      (setq contents (WB-Bag-Tree-With contents x)))
+    (make-wb-bag contents)))
+
 (defmethod convert ((to-type (eql 'bag)) (s sequence) &key)
   ;; &&& Improve me someday
   (let ((contents nil))
