@@ -109,7 +109,7 @@ new members appended."
 (defmethod intersection ((s1 wb-replay-set) (s2 set) &key)
   "As the parameter types suggest, this is not symmetric: the ordering of the
 result is that of `s1', filtered by membership in `s2'."
-  (cond ((empty? s2) (wb-replay-set))
+  (cond ((empty? s2) (empty-wb-replay-set))
 	((empty? s1) s1)
 	(t
 	 (make-wb-replay-set (wb-set-contents (intersection (convert 'wb-set s1) (convert 'wb-set s2)))
