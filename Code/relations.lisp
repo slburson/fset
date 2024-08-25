@@ -1016,6 +1016,9 @@ positions in the original pattern."
     #'WB-Set-Tree-Iterator-Get))
 
 
+;;; --------------------------------------------------------------------------------
+;;; Assertion DB
+
 (defstruct (assertion-db
 	     (:constructor nil)
 	     (:predicate assertion-db?)
@@ -1033,23 +1036,23 @@ positions in the original pattern."
   (empty-wb-assertion-db))
 
 (defun empty-wb-assertion-db ()
-  (make-assertion-db (map :default (empty-list-relation))))
+  (make-wb-assertion-db (map :default (empty-list-relation))))
 
 (defmethod with ((adb assertion-db) tuple &optional (arg2 nil arg2?))
   (declare (ignore arg2))
   (check-two-arguments arg2? 'with 'wb-list-relation)
   (let ((arity (length tuple)))
-    (make-assertion-db (with (wb-assertion-db-list-rels adb) arity
-			     (with (@ (wb-assertion-db-list-rels adb) arity)
-				   tuple)))))
+    (make-wb-assertion-db (with (wb-assertion-db-list-rels adb) arity
+				(with (@ (wb-assertion-db-list-rels adb) arity)
+				      tuple)))))
 
 (defmethod less ((adb assertion-db) tuple &optional (arg2 nil arg2?))
   (declare (ignore arg2))
   (check-two-arguments arg2? 'with 'assertion-db)
   (let ((arity (length tuple)))
-    (make-assertion-db (with (wb-assertion-db-list-rels adb) arity
-			     (less (@ (wb-assertion-db-list-rels adb) arity)
-				   tuple)))))
+    (make-wb-assertion-db (with (wb-assertion-db-list-rels adb) arity
+				(less (@ (wb-assertion-db-list-rels adb) arity)
+				      tuple)))))
 
 ;;; A little bit unkosher to reuse the optional `metapattern' parameter of `query' on
 ;;; `list-relation' like this, but use of that parameter is deprecated, so I think I
@@ -1065,8 +1068,11 @@ positions in the original pattern."
   (if (and *print-level* (>= level *print-level*))
       (format stream "#")
     (progn
-      (format stream "#<Assertion DB, ~D arities> " (size (wb-assertion-db-list-rels adb))))))
+      (format stream "#<Assertion DB, ~D arit~:@P> " (size (wb-assertion-db-list-rels adb))))))
 
+
+;;; --------------------------------------------------------------------------------
+;;; Query registry
 
 #||
 
