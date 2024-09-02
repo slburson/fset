@@ -2034,6 +2034,14 @@ Note that `filterp', if supplied, must take two arguments."
 Note that `filterp', if supplied, must take two arguments."
   `(nil (:consume 2 #'WB-Bag-Tree-With) #'make-wb-bag ,filterp))
 
+(gmap:def-gmap-res-type bag-sum (&key filterp)
+  "Returns the bag-sum of the values, optionally filtered by `filterp'."
+  `((bag) #'bag-sum nil ,filterp))
+
+(gmap:def-gmap-res-type bag-product (&key filterp)
+  "Returns the bag-product of the values, optionally filtered by `filterp'."
+  `(nil #'(lambda (prev bag) (if (null prev) bag (bag-product prev bag))) nil ,filterp))
+
 
 ;;; ================================================================================
 ;;; Maps

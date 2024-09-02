@@ -78,7 +78,8 @@
 	   #:define-tuple-key #:def-tuple-key #:get-tuple-key #:tuple-key-name #:tuple-key?
 	   #:tuple-merge
 	   #:fset-setup-readtable #:*fset-readtable*
-	   #:$ #:%
+	   #:$ #:% 			; for the 'map' and 'bag' constructor macros
+	   #:?				; for `query' on 'list-relation'
 	   ;; Used by the bag methods that convert to and from lists.
 	   #:alist
 	   ;; Bounded sets
@@ -178,7 +179,8 @@
 	   #:define-tuple-key #:def-tuple-key #:get-tuple-key #:tuple-key-name #:tuple-key?
 	   #:tuple-merge
 	   #:fset-setup-readtable #:*fset-readtable*
-	   #:$ #:%
+	   #:$ #:% 			; for the 'map' and 'bag' constructor macros
+	   #:?				; for `query' on 'list-relation'
 	   ;; Used by the bag methods that convert to and from lists.
 	   #:alist
 	   ;; Bounded sets

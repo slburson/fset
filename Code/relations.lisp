@@ -743,8 +743,8 @@ less than or equal to the arity.  Returns all tuples whose elements match
 those of the pattern, starting from the left end of both, where pattern
 elements equal to `fset::?' (the symbol itself, not its value) match any
 tuple value.  If the pattern's length is less than the arity, the missing
-positions also match any tuple value.  (Note that `?' is intentionally
-_not_ exported from `fset:' so that you won't use it accidentally.)
+positions also match any tuple value.  (The symbol `?' is exported from
+`fset:' for this purpose.)
 
 The `metapattern' parameter was used in an older API; its use is now
 deprecated."))
