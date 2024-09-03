@@ -887,8 +887,8 @@ in which case there is no restriction."))
 	(:index 0)))
 
 (defmethod get-indices ((rel list-relation) mask)
-  "Returns a seq giving the index to use for each element of `mask'
-considered as a bit set."
+  "Returns a seq of size equal to the arity of `rel'.  For each 1 bit in `mask',
+the corresponding result element is the index to use for that tuple position."
   ;; First we see what indices exist on each position.
   (let ((ex-inds (gmap (:result list)
 		       (fn (i) (and (logbitp i mask)
@@ -912,9 +912,9 @@ considered as a bit set."
 			;; If we called `reduced-tuple', we'd get `(list tuple-elt)'.
 			(adjoinf (@ (@ new-indices i) (list tuple-elt))
 				 tuple)))
-		(:list tuple)
-		(:list unindexed)
-		(:index 0)))
+		(:arg list tuple)
+		(:arg list unindexed)
+		(:arg index 0)))
 	;; Store them back in the relation.  This is unusual in that we're modifying an FSet
 	;; collection, but note that we're just caching information about the contents.
 	;; In particular, if two threads do this at the same time, all that goes wrong is
@@ -927,10 +927,9 @@ considered as a bit set."
 		(:arg index 0)
 		(:arg seq new-indices))
 	  (setf (wb-list-relation-indices rel) indices))
-	(gmap (:result seq) (fn (ex-ind new-index)
-			       (or ex-ind new-index))
-	      (:list ex-inds)
-	      (:seq new-indices))))))
+	;; Careful!  Can't do `(:arg seq new-indices)', because `new-indices' might be shorter than `ex-inds'.
+	(gmap (:result seq) (fn (i) (or (nth i ex-inds) (@ new-indices i)))
+	      (:arg index 0 (arity rel)))))))
 
 (defmethod with ((rel wb-list-relation) tuple &optional (arg2 nil arg2?))
   (declare (ignore arg2))
