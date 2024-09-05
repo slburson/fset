@@ -288,7 +288,7 @@
   `(1- (excl:incf-atomic (car ,name)))
   #-(or (and sbcl 64-bit) (and allegro smp-macros))
   `(with-lock ((cdr ,name))
-     (1- (incf ,(car name)))))
+     (1- (incf (car ,name)))))
 
 
 ;;; ----------------
