@@ -115,6 +115,7 @@
       (test (less-than? "A" "B"))
       (test (less-than? "x" "12"))
       (test (equal? "This is a text." "This is a text."))
+      (test (unequal? '(a . 3) '(a . 3.0))) ; #56
       (test (less-than? (make-array '(1)
 				    :element-type 'base-char
 				    :initial-element #\A
