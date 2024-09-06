@@ -904,13 +904,13 @@ the corresponding result element is the index to use for that tuple position."
     ;; not exist, construct indices for them.
     (if (every #'null unindexed)
 	ex-inds
-      (let ((new-indices (empty-seq (empty-map (set)))))
+      (let ((new-indices (make-array (arity rel) :initial-element (empty-map (set)))))
 	;; Populate the new indices
 	(do-set (tuple (wb-list-relation-tuples rel))
 	  (gmap nil (fn (tuple-elt unind i)
 		      (when unind
 			;; If we called `reduced-tuple', we'd get `(list tuple-elt)'.
-			(adjoinf (@ (@ new-indices i) (list tuple-elt))
+			(adjoinf (@ (svref new-indices i) (list tuple-elt))
 				 tuple)))
 		(:arg list tuple)
 		(:arg list unindexed)
@@ -925,11 +925,11 @@ the corresponding result element is the index to use for that tuple position."
 			(setf (@ indices (ash 1 i)) new-index)))
 		(:arg list unindexed)
 		(:arg index 0)
-		(:arg seq new-indices))
+		(:arg vector new-indices))
 	  (setf (wb-list-relation-indices rel) indices))
-	;; Careful!  Can't do `(:arg seq new-indices)', because `new-indices' might be shorter than `ex-inds'.
-	(gmap (:result seq) (fn (i) (or (nth i ex-inds) (@ new-indices i)))
-	      (:arg index 0 (arity rel)))))))
+	(gmap (:result seq) (fn (ex-ind new-index) (or ex-ind new-index))
+	      (:arg list ex-inds)
+	      (:arg vector new-indices))))))
 
 (defmethod with ((rel wb-list-relation) tuple &optional (arg2 nil arg2?))
   (declare (ignore arg2))
