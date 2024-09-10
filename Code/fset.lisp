@@ -1390,6 +1390,10 @@ for the possibility of different set implementations; it is not for public use.
   "Returns the intersection of the values, optionally filtered by `filterp'."
   `((complement (set)) #'intersection nil ,filterp))
 
+(defmethod make-load-form ((s wb-set) &optional environment)
+  (declare (ignore environment))
+  `(convert 'wb-set ',(convert 'list s)))
+
 
 ;;; ================================================================================
 ;;; CHAMP sets
@@ -1550,6 +1554,10 @@ for the possibility of different set implementations; it is not for public use.
       (write-char #\Space stream)
       (pprint-newline :linear stream)
       (write x :stream stream))))
+
+(defmethod make-load-form ((s ch-set) &optional environment)
+  (declare (ignore environment))
+  `(convert 'ch-set ',(convert 'list s)))
 
 
 ;;; ================================================================================
@@ -2042,6 +2050,10 @@ Note that `filterp', if supplied, must take two arguments."
   "Returns the bag-product of the values, optionally filtered by `filterp'."
   `(nil #'(lambda (prev bag) (if (null prev) bag (bag-product prev bag))) nil ,filterp))
 
+(defmethod make-load-form ((b wb-bag) &optional environment)
+  (declare (ignore environment))
+  `(convert 'wb-bag ',(convert 'alist b) :from-type 'alist))
+
 
 ;;; ================================================================================
 ;;; Maps
@@ -2511,6 +2523,10 @@ supplied, it is used as the initial map default."
   `((map . ,(and default? `(:default ,default)))
     ,(if val-fn? `(fn (a b) (map-intersection a b ,val-fn)) '#'map-intersection)
     nil ,filterp))
+
+(defmethod make-load-form ((m wb-map) &optional environment)
+  (declare (ignore environment))
+  `(convert 'wb-map ',(convert 'list m)))
 
 
 ;;; ================================================================================
@@ -3300,6 +3316,10 @@ not symbols."))
 (gmap:def-gmap-res-type concat (&key filterp)
   "Returns the concatenation of the seq values, optionally filtered by `filterp'."
   `((seq) #'concat nil ,filterp))
+
+(defmethod make-load-form ((s wb-seq) &optional environment)
+  (declare (ignore environment))
+  `(convert 'wb-seq ',(convert 'list s)))
 
 
 ;;; ================================================================================

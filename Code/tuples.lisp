@@ -631,6 +631,20 @@ of calling `val-fn' on the value from `tuple1' and the value from `tuple2'.
       (push (funcall pair-fn k v) result))
     (nreverse result)))
 
+(defmethod convert ((to-type (eql 'tuple)) (list list)
+		    &key (key-fn #'car) (value-fn #'cdr))
+  (dyn-tuple-from-list list key-fn value-fn))
+
+(defmethod convert ((to-type (eql 'dyn-tuple)) (list list)
+		    &key (key-fn #'car) (value-fn #'cdr))
+  (dyn-tuple-from-list list key-fn value-fn))
+
+(defun dyn-tuple-from-list (list key-fn value-fn)
+  (let ((tup (empty-dyn-tuple)))
+    (dolist (x list)
+      (setq tup (Tuple-With tup (funcall key-fn x) (funcall value-fn x))))
+    tup))
+
 (gmap:def-gmap-arg-type tuple (tuple)
   "Yields each pair of `tuple', as two values."
   `((convert 'list ,tuple)
@@ -640,6 +654,10 @@ of calling `val-fn' on the value from `tuple1' and the value from `tuple2'.
 
 (gmap:def-gmap-res-type tuple (&key filterp)
   `((empty-dyn-tuple) (:consume 2 #'Tuple-With) nil ,filterp))
+
+(defmethod make-load-form ((tup dyn-tuple) &optional environment)
+  (declare (ignore environment))
+  `(convert 'dyn-tuple ',(convert 'list tup)))
 
 
 ;;; ================================================================================
