@@ -286,7 +286,9 @@
   `(sb-ext:atomic-incf ,name) ; (postincrement)
   #+(and allegro smp-macros)
   `(1- (excl:incf-atomic (car ,name)))
-  #-(or (and sbcl 64-bit) (and allegro smp-macros))
+  #+ccl
+  `(1- (ccl::atomic-incf (car ,name)))
+  #-(or (and sbcl 64-bit) (and allegro smp-macros) ccl)
   `(with-lock ((cdr ,name))
      (1- (incf (car ,name)))))
 
