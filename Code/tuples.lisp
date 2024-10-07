@@ -603,13 +603,11 @@ When done, returns `value'."
 where the value for each key contained in only one tuple is the value from
 that tuple, and the value for each key contained in both tuples is the result
 of calling `val-fn' on the value from `tuple1' and the value from `tuple2'.
-`val-fn' defaults to simply returning its third argument, so the entries in
+`val-fn' defaults to simply returning its second argument, so the entries in
 `tuple2' simply shadow those in `tuple1'."))
 
 (defmethod tuple-merge ((tup1 tuple) (tup2 tuple)
-			&optional (val-fn #'(lambda (v1 v2)
-					      (declare (ignore v1))
-					      v2)))
+			&optional (val-fn (fn (_v1 v2) v2)))
   ;;; Someday: better implementation.
   (let ((result tup1)
 	(val-fn (coerce val-fn 'function)))

@@ -74,7 +74,8 @@
   (Test-Complement-Sets)
   (Test-2-Relations)
   (Test-List-Relations)
-  (let ((*random-state* (make-random-state random-seed))) ; for repeatability.
+  (let ((random-state:*generator*
+	  (random-state:make-generator :xoshiro-128++ (or random-seed t)))) ; for repeatability.
     (dotimes (i n-iterations)
       (Test-Map-Operations i (Test-Set-Operations i))
       (Test-Bag-Operations i)
@@ -3562,7 +3563,8 @@
 
 (defun test-champ-sets (n &optional random-seed)
   (declare (optimize (speed 0) (debug 3)))
-  (let ((*random-state* (make-random-state random-seed)))
+  (let ((random-state:*generator*
+	  (random-state:make-generator :xoshiro-128++ (or random-seed t))))
     (dotimes (i n)
       (setq *champ-set-test-values* (seq))
       (let ((wbs (wb-set))

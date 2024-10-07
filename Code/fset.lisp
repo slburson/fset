@@ -306,9 +306,9 @@ the value for each key contained in both maps is the result of calling
 defaults to simply returning its second argument, so the entries in `map2'
 simply shadow those in `map1'.  The default for the new map is the result of
 calling `val-fn' on the defaults for the two maps, if either of those is
-nonnull.  `map-union' assumes that if the two values passed to `val-fn'
-are equal, `val-fn' returns the same value; it may elide calls to `val-fn'
-on that basis.
+nonnull.  `map-union' assumes that `val-fn' is idempotent, i.e., if the two
+values passed to `val-fn' are equal, `val-fn' must return the same value; it
+may elide calls to `val-fn' on that basis.
 
 New feature: if `val-fn' returns `:no-value' as a second value, the result
 will contain no pair with the corresponding key."))
@@ -325,9 +325,9 @@ will contain no pair with the corresponding key."))
 defaults to simply returning its second argument, so the entries in `map2'
 simply shadow those in `map1'.  The default for the new map is the result
 of calling `val-fn' on the defaults for the two maps, if either of those
-is nonnull.  `map-intersection' assumes that if the two values passed to
-`val-fn' are equal, `val-fn' returns the same value; it may elide calls
-to `val-fn' on that basis.
+is nonnull.  `map-intersection' assumes that `val-fn' is idempotent, i.e.,
+if the two values passed to `val-fn' are equal, `val-fn' must return the
+same value; it may elide calls to `val-fn' on that basis.
 
 New feature: if `val-fn' returns `:no-value' as a second value, the result
 will contain no pair with the corresponding key."))

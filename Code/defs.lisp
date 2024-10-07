@@ -12,10 +12,11 @@
 
 
 (defpackage :fset
+  (:nicknames :com.ergy.fset)
   (:use :cl :new-let :lexical-contexts :rev-fun-bind)
   (:import-from :gmap #:gmap #:alist #:constant #:index #:index-inc #:sum)
   (:shadowing-import-from :new-let #:let #:cond)
-  (:shadowing-import-from :mt19937 #:make-random-state #:random #:*random-state*)
+  (:shadowing-import-from :random-state #:random)
   ;; For each of these shadowed symbols, using packages must either shadowing-
   ;; import it or shadowing-import the original Lisp symbol.
   (:shadow ;; Shadowed type/constructor names
@@ -114,10 +115,11 @@
 ;;; their code at their leisure.
 ;;; NOTE: This package is not ready for use yet.  I will announce when it is.
 (defpackage :fset2
+  (:nicknames :com.ergy.fset2)
   (:use :cl :fset :new-let :lexical-contexts)
   (:import-from :gmap #:gmap #:alist #:constant #:index #:sum)
   (:shadowing-import-from :new-let #:let #:cond)
-  (:shadowing-import-from :mt19937 #:make-random-state #:random #:*random-state*)
+  (:shadowing-import-from :random-state #:random)
   ;; For each of these shadowed symbols, using packages must either shadowing-
   ;; import it or shadowing-import the original Lisp symbol.
   (:shadow ;; Shadowed type/constructor names
