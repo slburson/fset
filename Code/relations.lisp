@@ -672,7 +672,7 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
 ;;; A list relation is a general relation (i.e. of arbitrary arity >= 2) whose tuples are
 ;;; in list form.  List relations support a `query' operation that takes, along with the
 ;;; relation, a list, of length equal to the arity, called the "pattern".  For each
-;;; position, if the pattern contains the symbol `fset::?', the query is not constrained
+;;; position, if the pattern contains the symbol `fset:?', the query is not constrained
 ;;; by that position; otherwise, the result set contains only those tuples with the same
 ;;; value in that position as the pattern has.  There is also a `query-multi' operation
 ;;; that is similar, but the pattern contains sets of possible values (or `?') in each
@@ -741,7 +741,7 @@ the first tuple added."
     "Along with the relation, takes `pattern', which is a list of length
 less than or equal to the arity.  Returns all tuples whose elements match
 those of the pattern, starting from the left end of both, where pattern
-elements equal to `fset::?' (the symbol itself, not its value) match any
+elements equal to `fset:?' (the symbol itself, not its value) match any
 tuple value.  If the pattern's length is less than the arity, the missing
 positions also match any tuple value.  (The symbol `?' is exported from
 `fset:' for this purpose.)
@@ -787,7 +787,7 @@ deprecated."))
 (defgeneric query-multi (rel pattern &optional metapattern)
   (:documentation
     "Like `query' (q.v.), except that `pattern' is a list where the elements that
-aren't `fset::?' are sets of values rather than single values.  Returns all tuples
+aren't `fset:?' are sets of values rather than single values.  Returns all tuples
 in the relation for which each value is a member of the corresponding set in the
 pattern."))
 
@@ -826,8 +826,8 @@ pattern."))
   (:documentation
     "Queries the relation for tuples that match `pattern' and contain some element
 of `restrict-set'.  `pattern' is a list where each element is either the symbol
-`fset::?' or a set of values.  A tuple matches the pattern if, for each position,
-either the element of `pattern' at that position is `fset::?' or the tuple element
+`fset:?' or a set of values.  A tuple matches the pattern if, for each position,
+either the element of `pattern' at that position is `fset:?' or the tuple element
 at that position is an element of that set of values.  Returns the set of tuples
 in the relation that match the pattern and contain at least one element of
 `restrict-set'.  For convenience, the function accepts the full set for `restrict-set',
