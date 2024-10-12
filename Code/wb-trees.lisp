@@ -1475,7 +1475,7 @@ and that of `str2' less `str1', restricted to those members above `lo' and below
 	   (incf i2)))))))
 
 (defun Vector-Set-Subset? (vec1 vec2 lo hi)
-  "Returns true iff `vec1' contains all members of `vec2', restricted
+  "Returns true iff `vec2' contains all members of `vec1', restricted
 to those members above `lo' and below `hi'.  `vec2' may be `nil'."
   (declare (optimize (speed 3) (safety 0))
 	   (type (or null simple-vector) vec1 vec2))

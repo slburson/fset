@@ -56,7 +56,7 @@
 	   #:with #:less #:split-from #:split-above #:split-through #:split-below
 	   #:union #:bag-sum #:intersection #:bag-product #:complement
 	   #:set-difference #:set-difference-2 #:bag-difference #:bag-pairs
-	   #:subset? #:disjoint? #:subbag?
+	   #:subset? #:proper-subset? #:disjoint? #:subbag? #:proper-subbag?
 	   #:filter #:filter-pairs #:partition
 	   #:image #:reduce #:domain #:range #:with-default #:update
 	   #:map-union #:map-intersection #:map-difference-2
@@ -158,7 +158,7 @@
 	   #:with #:less #:split-from #:split-above #:split-through #:split-below
 	   #:union #:bag-sum #:intersection #:bag-product #:complement
 	   #:set-difference #:set-difference-2 #:bag-difference #:bag-pairs
-	   #:subset? #:disjoint? #:subbag?
+	   #:subset? #:proper-subset #:disjoint? #:subbag? #:proper-subbag?
 	   #:filter #:filter-pairs #:partition
 	   #:image #:reduce #:domain #:range #:with-default #:update
 	   #:map-union #:map-intersection #:map-difference-2

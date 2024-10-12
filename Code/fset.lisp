@@ -1114,6 +1114,12 @@ the default implementation of sets in FSet."
 (defmethod subset? ((s1 wb-set) (s2 wb-set))
   (WB-Set-Tree-Subset? (wb-set-contents s1) (wb-set-contents s2)))
 
+(defun proper-subset? (sub super)
+  "Returns true iff `sub' is a proper subset of `super', that is, `sub' is
+a subset of `super' and the two are not equal."
+  (and (subset? sub super)
+       (< (size sub) (size super))))
+
 (defmethod disjoint? ((s1 wb-set) (s2 wb-set))
   (WB-Set-Tree-Disjoint? (wb-set-contents s1) (wb-set-contents s2)))
 
@@ -1725,6 +1731,13 @@ trees.  This is the default implementation of bags in FSet."
 
 (defmethod subbag? ((b wb-bag) (s wb-set))
   (WB-Bag-Tree-Subbag? (wb-bag-contents b) (WB-Set-Tree-To-Bag-Tree (wb-set-contents s))))
+
+(defun proper-subbag? (sub super)
+  "Returns true iff `sub' is a proper subbag of `super', that is, for every
+member of `sub', `super' contains the same value with at least the same
+multiplicity, but the two bags are not equal."
+  (and (subbag? sub super)
+       (< (size sub) (size super))))
 
 (defmethod compare ((b1 wb-bag) (b2 wb-bag))
   (WB-Bag-Tree-Compare (wb-bag-contents b1) (wb-bag-contents b2)))
