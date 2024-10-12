@@ -1093,6 +1093,14 @@ that.  This, however, doesn't cons."
 		  (greater-than? (svref tree (1- (length tree))) lo))
 	      (or (eq hi Hedge-Positive-Infinity)
 		  (less-than? (svref tree 0) hi))
+	      ;; If it contains no elements within the range, also drop it.
+	      (let ((split-point-lo (if (eq lo Hedge-Negative-Infinity)
+					0
+				      (Vector-Set-Binary-Search-Lo tree lo)))
+		    (split-point-hi (if (eq hi Hedge-Positive-Infinity)
+					(length tree)
+				      (Vector-Set-Binary-Search-Hi tree hi))))
+		(> split-point-hi split-point-lo))
 	      tree))
 	(t
 	 (let ((val (WB-Set-Tree-Node-Value tree)))
