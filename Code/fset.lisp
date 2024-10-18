@@ -985,6 +985,7 @@ anyway.  `fn' can be a function object, an fbound symbol, or a map."
 ;;; written generically; I have left these defined on `set'.  Also, the assumption
 ;;; that `wb-set' is the default implementation is hard-coded at the moment.
 
+(declaim (inline make-wb-set))
 
 (defstruct (wb-set
 	    (:include set)
@@ -1247,18 +1248,6 @@ for the possibility of different set implementations; it is not for public use.
 (defmethod convert ((to-type (eql 'wb-set)) (s wb-set) &key)
   s)
 
-(defmethod convert ((to-type (eql 'ch-set)) (s wb-set) &key)
-  (let ((ch-tree nil))
-    (do-wb-set-tree-members (x (wb-set-contents s))
-      (setq ch-tree (ch-set-tree-with ch-tree x)))
-    (make-ch-set ch-tree)))
-
-(defmethod convert ((to-type (eql 'bag)) (s wb-set) &key)
-  (make-wb-bag (WB-Set-Tree-To-Bag-Tree (wb-set-contents s))))
-
-(defmethod convert ((to-type (eql 'wb-bag)) (s wb-set) &key)
-  (make-wb-bag (WB-Set-Tree-To-Bag-Tree (wb-set-contents s))))
-
 (defmethod convert ((to-type (eql 'list)) (s set) &key)
   (declare (optimize (speed 3)))
   (let ((result nil))
@@ -1404,6 +1393,8 @@ for the possibility of different set implementations; it is not for public use.
 ;;; ================================================================================
 ;;; CHAMP sets
 
+(declaim (inline make-ch-set))
+
 (defstruct (ch-set
 	     (:include set)
 	     (:constructor make-ch-set (contents))
@@ -1546,6 +1537,12 @@ for the possibility of different set implementations; it is not for public use.
       (setq result (ch-set-tree-with result x)))
     (make-ch-set result)))
 
+(defmethod convert ((to-type (eql 'ch-set)) (s wb-set) &key)
+  (let ((ch-tree nil))
+    (do-wb-set-tree-members (x (wb-set-contents s))
+      (setq ch-tree (ch-set-tree-with ch-tree x)))
+    (make-ch-set ch-tree)))
+
 (defmethod convert ((to-type (eql 'wb-set)) (s ch-set) &key)
   (let ((wb-tree nil))
     (do-ch-set-tree-members (x (ch-set-contents s))
@@ -1568,6 +1565,8 @@ for the possibility of different set implementations; it is not for public use.
 
 ;;; ================================================================================
 ;;; Bags
+
+(declaim (inline make-wb-bag))
 
 (defstruct (wb-bag
 	    (:include bag)
@@ -1853,6 +1852,12 @@ different bag implementations; it is not for public use.  `elt-fn' and
 (defmethod convert ((to-type (eql 'wb-set)) (b wb-bag) &key)
   (make-wb-set (WB-Bag-Tree-To-Set-Tree (wb-bag-contents b))))
 
+(defmethod convert ((to-type (eql 'bag)) (s wb-set) &key)
+  (make-wb-bag (WB-Set-Tree-To-Bag-Tree (wb-set-contents s))))
+
+(defmethod convert ((to-type (eql 'wb-bag)) (s wb-set) &key)
+  (make-wb-bag (WB-Set-Tree-To-Bag-Tree (wb-set-contents s))))
+
 (defmethod convert ((to-type (eql 'list)) (b bag) &key)
   (declare (optimize (speed 3) (safety 0)))
   (let ((result nil))
@@ -2070,6 +2075,8 @@ Note that `filterp', if supplied, must take two arguments."
 
 ;;; ================================================================================
 ;;; Maps
+
+(declaim (inline make-wb-map))
 
 (defstruct (wb-map
 	    (:include map)
@@ -2545,6 +2552,8 @@ supplied, it is used as the initial map default."
 ;;; ================================================================================
 ;;; CHAMP maps
 
+(declaim (inline make-ch-map))
+
 (defstruct (ch-map
 	     (:include map)
 	     (:constructor make-ch-map (contents &optional default))
@@ -2624,6 +2633,8 @@ supplied, it is used as the initial map default."
 
 ;;; ================================================================================
 ;;; Seqs
+
+(declaim (inline make-wb-seq))
 
 (defstruct (wb-seq
 	    (:include seq)

@@ -69,6 +69,8 @@ do the comparison only once for each pair of values.
 ;;; ================================================================================
 ;;; Sets
 
+(declaim (inline Make-Raw-WB-Set-Tree-Node))
+
 (defstruct (WB-Set-Tree-Node
 	    (:constructor Make-Raw-WB-Set-Tree-Node (Size Value Left Right))
 	    (:predicate WB-Set-Tree-Node?)
@@ -100,6 +102,8 @@ do the comparison only once for each pair of values.
 			(list nil sub)))))
     (format stream "#set-node<...>")))
 
+(declaim (inline Make-Equivalent-Set))
+
 ;;; When we get two or more equivalent values in a set, we use one of these
 ;;; as the `Value' of the tree node.  It would be a bit simpler, and would
 ;;; make the code more uniform, to say that the node value slot would always
@@ -122,6 +126,7 @@ do the comparison only once for each pair of values.
 
 
 (declaim (ftype (function (WB-Set-Tree) fixnum) WB-Set-Tree-Size))
+(declaim (inline WB-Set-Tree-Size))
 
 (defun WB-Set-Tree-Size (tree)
   "The number of members contained in this tree."
@@ -131,6 +136,8 @@ do the comparison only once for each pair of values.
 	((simple-vector-p tree) (length tree))
 	(t (WB-Set-Tree-Node-Size tree))))
 
+
+(declaim (inline Make-WB-Set-Tree-Node))
 
 (defun Make-WB-Set-Tree-Node (value left right)
   "The low-level constructor for a set tree node."
@@ -1854,6 +1861,8 @@ in `eqvs1' are equivalent to those in `eqvs2'."
 ;;; ================================================================================
 ;;; Bags
 
+(declaim (inline Make-Raw-WB-Bag-Tree-Node))
+
 (defstruct (WB-Bag-Tree-Node
 	    (:constructor Make-Raw-WB-Bag-Tree-Node (Size Total-Count Value Count
 						     Left Right))
@@ -1895,6 +1904,8 @@ in `eqvs1' are equivalent to those in `eqvs2'."
 			(list nil sub)))))
     (format stream "#bag-node<...>")))
 
+(declaim (inline Make-Equivalent-Bag))
+
 ;;; That is, a bag whose domain members are equivalent.
 (defstruct (Equivalent-Bag
 	    (:constructor Make-Equivalent-Bag (Alist))
@@ -1902,6 +1913,7 @@ in `eqvs1' are equivalent to those in `eqvs2'."
   (Alist nil :type list))	; mapping equivalent values to their counts
 
 (declaim (ftype (function (t) fixnum) Bag-Value-Size))
+(declaim (inline Bag-Value-Size))
 
 (defun Bag-Value-Size (value)
   "The number of values represented by `value', which can be more than 1 if
@@ -1911,6 +1923,7 @@ in `eqvs1' are equivalent to those in `eqvs2'."
       (length (Equivalent-Bag-Alist value))
     1))
 
+(declaim (inline WB-Bag-Tree-Size))
 
 (defun WB-Bag-Tree-Size (tree)
   "The number of value/count pairs contained in this tree."
@@ -3673,6 +3686,8 @@ in `eqvs1' are equivalent to those in `eqvs2'."
 ;;; ================================================================================
 ;;; Maps
 
+(declaim (inline Make-Raw-WB-Map-Tree-Node))
+
 (defstruct (WB-Map-Tree-Node
 	    (:constructor Make-Raw-WB-Map-Tree-Node (Size Key Value
 						     Left Right))
@@ -3712,6 +3727,8 @@ in `eqvs1' are equivalent to those in `eqvs2'."
 			(list nil sub)))))
     (format stream "#map-node<...>")))
 
+(declaim (inline Make-Equivalent-Map))
+
 ;;; That is, a map whose domain members are equivalent.
 (defstruct (Equivalent-Map
 	    (:constructor Make-Equivalent-Map (Alist))
@@ -3719,6 +3736,7 @@ in `eqvs1' are equivalent to those in `eqvs2'."
   (Alist nil :type list))	; mapping equivalent keys to their values
 
 (declaim (ftype (function (t) fixnum) Map-Key-Size))
+(declaim (inline Map-Key-Size))
 
 (defun Map-Key-Size (key)
   "The number of domain values represented by `key', which can be more than 1 if
@@ -3727,15 +3745,16 @@ in `eqvs1' are equivalent to those in `eqvs2'."
       (length (Equivalent-Map-Alist key))
     1))
 
+(declaim (ftype (function (WB-Map-Tree) fixnum) WB-Map-Tree-Size))
+(declaim (inline WB-Map-Tree-Size))
 
 (defun WB-Map-Tree-Size (tree)
   "The number of key/value pairs contained in this tree."
   (cond ((null tree) 0)
-	((consp tree) (length (car tree)))
+	((consp tree) (length (the simple-vector (car tree))))
 	(t (WB-Map-Tree-Node-Size tree))))
 
-(declaim (ftype (function (WB-Map-Tree) fixnum) WB-Map-Tree-Size))
-
+(declaim (inline Make-WB-Map-Tree-Node))
 
 (defun Make-WB-Map-Tree-Node (key value left right)
   "The low-level constructor for a map tree node."
@@ -5353,6 +5372,8 @@ in `eqvm1' are equivalent to those in `eqvm2'."
 ;;; ================================================================================
 ;;; Sequences
 
+(declaim (inline Make-Raw-WB-Seq-Tree-Node))
+
 ;;; Sequence tree nodes have no associated value.
 (defstruct (WB-Seq-Tree-Node
 	    (:constructor Make-Raw-WB-Seq-Tree-Node (Size Left Right))
@@ -5366,6 +5387,8 @@ in `eqvm1' are equivalent to those in `eqvm2'."
   '(or null WB-Seq-Tree-Node
        simple-string simple-vector))
 
+
+(declaim (inline Make-WB-Seq-Tree-Node))
 
 (defun Make-WB-Seq-Tree-Node (left right)
   "The low-level constructor for a sequence tree node."
@@ -5391,6 +5414,7 @@ in `eqvm1' are equivalent to those in `eqvm2'."
 
 
 (declaim (ftype (function (WB-Seq-Tree) fixnum) WB-Seq-Tree-Size))
+(declaim (inline WB-Seq-Tree-Size))
 
 (defun WB-Seq-Tree-Size (tree)
   (declare (optimize (speed 3) (safety 0))
