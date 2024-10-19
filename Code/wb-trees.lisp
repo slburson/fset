@@ -3960,6 +3960,62 @@ shadowing any previous pair with the same key."
     new-vec))
 
 
+(defun WB-Map-Tree-Update (tree key value-fn default &optional second-arg)
+  "Returns a new tree like `tree', except that the value associated with `key'
+is the result of calling `value-fn' on (a) either the existing such value, if any,
+or else `default', and (b) `second-arg'."
+  (declare (optimize (speed 3) (safety 0))
+	   (type WB-Map-Tree tree)
+	   (type function value-fn)
+	   (dynamic-extent value-fn))
+  (cond ((null tree)
+	 (cons (vector key) (vector (funcall value-fn default second-arg))))
+	((consp tree)
+	 (let ((found? idx (Vector-Set-Binary-Search (car tree) key))
+	       ((right-start (if found? (1+ idx) idx))))
+	   (if (eq found? ':equal)
+	       (cons (car tree)
+		     (Vector-Update (cdr tree) idx (funcall value-fn (svref (cdr tree) idx) second-arg)))
+	     (if (and (not found?)
+		      (< (length (the simple-vector (car tree)))
+			 *WB-Tree-Max-Vector-Length*))
+		 (cons (Vector-Insert (car tree) idx key)
+		       (Vector-Insert (cdr tree) idx (funcall value-fn default second-arg)))
+	       (let ((new-key new-val (Equivalent-Map-Update (svref (car tree) idx) (svref (cdr tree) idx)
+							     key value-fn default second-arg)))
+		 (Make-WB-Map-Tree-Node new-key new-val
+					(and (> idx 0)
+					     (cons (Vector-Subseq (car tree) 0 idx)
+						   (Vector-Subseq (cdr tree) 0 idx)))
+					(and (< right-start (length (the simple-vector (car tree))))
+					     (cons (Vector-Subseq (car tree) right-start)
+						   (Vector-Subseq (cdr tree) right-start)))))))))
+	(t
+	 (let ((node-key (WB-Map-Tree-Node-Key tree))
+	       ((comp (compare key node-key))))
+	   (ecase comp
+	     ((:equal :unequal)
+	      ;; Since we're probably updating the value anyway, we don't bother trying
+	      ;; to figure out whether we can reuse the node.
+	       (let ((new-key new-val (Equivalent-Map-Update node-key (WB-Map-Tree-Node-Value tree)
+							     key value-fn default second-arg)))
+		 (Make-WB-Map-Tree-Node new-key new-val
+					(WB-Map-Tree-Node-Left tree)
+					(WB-Map-Tree-Node-Right tree))))
+	     ((:less)
+	      (WB-Map-Tree-Build-Node (WB-Map-Tree-Node-Key tree)
+				      (WB-Map-Tree-Node-Value tree)
+				      (WB-Map-Tree-Update (WB-Map-Tree-Node-Left tree)
+							  key value-fn default second-arg)
+				      (WB-Map-Tree-Node-Right tree)))
+	     ((:greater)
+	      (WB-Map-Tree-Build-Node (WB-Map-Tree-Node-Key tree)
+				      (WB-Map-Tree-Node-Value tree)
+				      (WB-Map-Tree-Node-Left tree)
+				      (WB-Map-Tree-Update (WB-Map-Tree-Node-Right tree)
+							  key value-fn default second-arg))))))))
+
+
 ;;; ================================================================================
 ;;; Map-less
 
@@ -5130,7 +5186,8 @@ Returns one or more new key/value pairs in which the \"2\" pairs override
 the \"1\" pairs.  If the result is a single pair, it's returned as two values;
 otherwise one value is returned, which is an `Equivalent-Map'."
   (declare (optimize (speed 3) (safety 0))
-	   (type function val-fn))
+	   (type function val-fn)
+	   (dynamic-extent value-fn))
   (if (Equivalent-Map? key1)
       (if (Equivalent-Map? key2)
 	  (let ((alist1 (Equivalent-Map-Alist key1))
@@ -5185,6 +5242,30 @@ otherwise one value is returned, which is an `Equivalent-Map'."
 	    (and (not (eq second-val ':no-value))
 		 (values t key1 new-val)))
 	(values t (Make-Equivalent-Map (list (cons key1 val1) (cons key2 val2))))))))
+
+(defun Equivalent-Map-Update (key1 val1 key2 value-fn default second-arg)
+  "`key1' may be either a single value (representing a single key/value pair)
+or an `Equivalent-Map' of key/value pairs.  That is, if `key1' is an
+`Equivalent-Map', `val1' is ignored.  Returns one or more new key/value pairs
+in which the value associated with `key2' is the result of calling `value-fn'
+on (a) either the previous such value, if any, or else `default', and (b)
+`second-arg'.  If the result is a single pair, it's returned as two values;
+otherwise one value is returned, which is an `Equivalent-Map'."
+  (declare (optimize (speed 3) (safety 0))
+	   (type function value-fn)
+	   (dynamic-extent value-fn))
+  (if (Equivalent-Map? key1)
+      (let ((alist1 (Equivalent-Map-Alist key1))
+	    ((pr1 (find key2 alist1 :test #'equal? :key #'car))))
+	(declare (type list alist1))
+	(if pr1
+	    (Make-Equivalent-Map (cons (cons key1 (funcall value-fn (cdr pr1) second-arg))
+				       (remove pr1 alist1)))
+	  (Make-Equivalent-Map (cons (cons key2 (funcall value-fn default second-arg)) alist1))))
+    (if (equal? key1 key2)
+	(values key1 (funcall value-fn val1 second-arg))
+      (Make-Equivalent-Map (list (cons key1 val1)
+				 (cons key2 (funcall value-fn default second-arg)))))))
 
 (defun Equivalent-Map-Intersect (key1 val1 key2 val2 val-fn)
   "Both `key1' and `key2' may be single values (representing a single key/value
