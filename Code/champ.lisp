@@ -74,13 +74,13 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 
 (defstruct (ch-set-node
 	     (:type vector))
-  entry-mask
-  subnode-mask
-  size ; total number of elements at or below this node
-  hash-value)
+  ;; It's more convenient for these slots to be mutable... since the nodes are just vectors anyway, we
+  ;; can't completely prevent a client from stupidly bashing them.
+  (entry-mask 0 :type fixnum)
+  (subnode-mask 0 :type fixnum)
+  (size 0 :type integer) ; total number of elements at or below this node
+  (hash-value 0 :type fixnum))
 (defconstant ch-set-node-header-size 4)
-(declaim (ftype (function (t) fixnum)
-		ch-set-node-entry-mask ch-set-node-subnode-mask ch-set-node-size ch-set-node-hash-value))
 
 (defun ch-set-tree-with (tree value &optional (depth 0))
   ;(declare (optimize (speed 3) (safety 0)))
@@ -760,13 +760,11 @@ It occurs to me that with a little tweaking, we could arrange for `domain' to be
 
 (defstruct (ch-map-node
 	     (:type vector))
-  entry-mask
-  subnode-mask
-  size ; total number of pairs at or below this node
-  hash-value)
+  (entry-mask 0 :type fixnum)
+  (subnode-mask 0 :type fixnum)
+  (size 0 :type fixnum) ; total number of pairs at or below this node
+  (hash-value 0 :type fixnum))
 (defconstant ch-map-node-header-size 4)
-(declaim (ftype (function (t) fixnum)
-		ch-map-node-entry-mask ch-map-node-subnode-mask ch-map-node-size ch-map-node-hash-value))
 
 (defun ch-map-tree-with (tree key value)
   (declare (optimize (speed 3) (safety 0)))

@@ -23,8 +23,8 @@
 were added to it.  It does not support all set operations, but you can convert it to a set.
 Note that in the current implementation, `less' on a replay set takes O(n) time.  Replay sets
 are printed as \"#{= ... }\"."
-  contents
-  ordering)
+  (contents nil :read-only t)
+  (ordering nil :read-only t))
 
 (defparameter *empty-wb-replay-set* (make-wb-replay-set nil nil))
 

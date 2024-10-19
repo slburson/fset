@@ -24,7 +24,7 @@
 it can't be enumerated as is.  But its complement is ordinary, of course, as is
 its intersection with an ordinary set, and the difference of it and another
 complement set."
-  complement)
+  (complement nil :read-only t))
 
 (defgeneric complement (set)
   (:documentation

@@ -19,7 +19,7 @@
 	    (:predicate interval-set?)
 	    (:print-function print-interval-set)
 	    (:copier nil))
-  contents)
+  (contents nil :read-only t))
 
 (defun print-interval-set (set stream level)
   (if (and *print-level* (>= level *print-level*))
@@ -42,9 +42,9 @@
 	    (:predicate interval?)
 	    (:print-function print-interval)
 	    (:copier nil))
-  lower
-  upper
-  kind)		; closed at: one of ':both, ':lower, ':upper, ':neither
+  (lower nil :read-only t)
+  (upper nil :read-only t)
+  (kind nil :read-only t))	; closed at: one of ':both, ':lower, ':upper, ':neither
 
 (defun print-interval (iv stream level)
   (if (and *print-level* (>= level *print-level*))

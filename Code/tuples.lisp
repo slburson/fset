@@ -110,19 +110,19 @@
   "A class of functional tuples represented as vectors with dynamically-
 reordered key vectors.  This is the default implementation of tuples in FSet."
   ;; A `Tuple-Desc'.
-  descriptor
+  (descriptor nil :read-only t)
   ;; A vector of value chunks (vectors) (all these vectors being simple).
-  contents)
+  (contents nil :read-only t))
 
 
 (defstruct (tuple-key
 	    (:constructor make-tuple-key (name default-fn number))
 	    (:predicate tuple-key?)
 	    (:print-function print-tuple-key))
-  name		; a symbol
-  default-fn	; default function for tuples with no explicit entry for this key
-		;   (called with one argument, the tuple), or nil
-  number)	; used for lookup and sorting
+  (name nil :read-only t)	; a symbol (normally, but actually can be anything)
+  (default-fn nil :read-only t)	; default function for tuples with no explicit entry for this key
+				;   (called with one argument, the tuple), or nil
+  (number nil :read-only t))	; used for lookup and sorting
 
 (deflex +Tuple-Key-Name-Map+ (empty-map))
 
@@ -184,23 +184,23 @@ the tuple.  To supply a doc string without a default-fn, supply `nil' for
 	     (:constructor Make-Tuple-Desc-Internal (Key-Set Pairs Lock Serial-Number)))
   ;; The set (as an FSet set) of `tuple-key's for which tuples using this index
   ;; contain values.
-  Key-Set
+  (Key-Set nil :read-only t)
   ;; The pair vector, which contains two copies of the pair sequence, each pair
   ;; represented as a fixnum: the key number is in the low-order `Tuple-Key-Number-
   ;; Size' bits, and the value index is in the next `Tuple-Value-Index-Size' bits.
-  Pairs
+  (Pairs (vector) :type simple-vector :read-only t)
   ;; The reorder lock.
-  Lock
+  (Lock nil :read-only t)
   ;; The reorder map map: maps other tuple-descs to reorder maps for them.  Each
   ;; reorder map is a list with one element for each chunk in the target; that
   ;; element is `nil' if the chunk is unchanged, else it is a vector of indices
-  ;; into the source tuple (where an index of `nil' indicates an insertion).
+  ;; into the source tuple (where an index of `nil' indicates an insertion).  (mutable)
   (Reorder-Map-Map (empty-map))
   ;; Cache used by `Tuple-With': for each key not in this descriptor but that has been
-  ;; added to tuples with this descriptor, the descriptor for the new tuple.
+  ;; added to tuples with this descriptor, the descriptor for the new tuple.  (mutable)
   (Next-Desc-Map (empty-map))
   ;; Serial number (used for `Reorder-Map-Map').
-  Serial-Number)
+  (Serial-Number 0 :type fixnum :read-only t))
 
 (deflex +Tuple-Desc-Next-Serial-Number+ 0)
 
@@ -208,8 +208,8 @@ the tuple.  To supply a doc string without a default-fn, supply `nil' for
 
 (defun Make-Tuple-Desc (key-set pairs)
   (Make-Tuple-Desc-Internal key-set pairs (make-lock)
-			    (prog1 +Tuple-Desc-Next-Serial-Number+
-			      (with-lock (+Tuple-Desc-Next-Serial-Number-Lock+)
+			    (with-lock (+Tuple-Desc-Next-Serial-Number-Lock+)
+			      (prog1 +Tuple-Desc-Next-Serial-Number+
 				(incf +Tuple-Desc-Next-Serial-Number+)))))
 
 (deflex +Tuple-Descriptor-Map+ (empty-map))

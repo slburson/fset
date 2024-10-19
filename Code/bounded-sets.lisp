@@ -22,12 +22,12 @@
   "A \"bounded set\" is a subset (not necessarily proper) of a specified set,
 called the \"universe\".  (Topologically, it is a set in the discrete topology
 on the universe.)"
-  universe
-  set
+  (universe nil :read-only t)
+  (set nil :read-only t)
   ;; We go to some trouble to make sure that the `set' never contains more than
   ;; half the `universe'.  This doesn't help asymptotic complexity, but does help
   ;; with the constant factor.
-  complement?)
+  (complement? nil :read-only t))
 
 (defun make-bounded-set (universe set &optional complement?)
   (unless (subset? set universe)

@@ -41,9 +41,9 @@
 balanced binary trees.  This is the default implementation of binary relations
 in FSet.  The inverse is constructed lazily, and maintained incrementally once
 constructed."
-  size
-  map0
-  map1)
+  (size 0 :type integer :read-only t)
+  (map0 nil :read-only t)
+  (map1 nil)) ; a cache, so we leave it mutable
 
 (defparameter *empty-wb-2-relation* (make-wb-2-relation 0 nil nil))
 
@@ -697,9 +697,9 @@ tuples are in list form.")
 	    (:copier nil))
   "A class of functional relations of arbitrary arity >= 1, whose tuples
 are in list form."
-  arity
-  tuples
-  ;; a map from pattern mask to map from reduced tuple to set of tuples
+  (arity nil :type (or null integer) :read-only t)
+  (tuples nil :read-only t)
+  ;; A map from pattern mask to map from reduced tuple to set of tuples.  Mutable, since it's a cache.
   indices)
 
 
@@ -1029,7 +1029,7 @@ positions in the original pattern."
 	     (:predicate wb-assertion-db?)
 	     (:print-function print-wb-assertion-db)
 	     (:copier nil))
-  list-rels)
+  (list-rels nil :read-only t))
 
 (defun empty-assertion-db ()
   (empty-wb-assertion-db))
@@ -1095,10 +1095,12 @@ composite index?  [Why "square root"?  Maybe a fixed fraction like 1/8?]
 ;;; several list-relations of different arities, but the client has to check whether the
 ;;; arity of each returned query matches that of the tuple.
 (defstruct (query-registry
-	     (:constructor make-query-registry (list-relations)))
+	     (:constructor make-query-registry (list-relations))
+	     (:predicate query-registry?)
+	     (:copier nil))
   ;; A map from pattern mask to a list-relation holding lists of the form
   ;; `(,query . ,masked-tuple).
-  list-relations)
+  (list-relations nil :read-only t))
 
 (defun empty-query-registry ()
   (make-query-registry (empty-map (empty-list-relation))))

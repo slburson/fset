@@ -71,7 +71,7 @@ class.")
 	    (:predicate map?)
 	    (:copier nil))
   "The abstract class for FSet functional maps.  It is a structure class."
-  (default nil))
+  (default nil :read-only t))
 
 (defstruct (replay-map
             (:constructor nil)
@@ -89,7 +89,7 @@ members were added to it.  It may not support all map operations.")
 	    (:copier nil))
   "The abstract class for FSet functional seqs (sequences, but we use the short
 name to avoid confusion with `cl:sequence').  It is a structure class."
-  (default nil))
+  (default nil :read-only t))
 
 (defstruct (tuple
 	    (:constructor nil)

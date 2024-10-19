@@ -71,17 +71,17 @@ do the comparison only once for each pair of values.
 
 (declaim (inline Make-Raw-WB-Set-Tree-Node))
 
+(deftype WB-Set-Tree ()
+  '(or null WB-Set-Tree-Node simple-vector))
+
 (defstruct (WB-Set-Tree-Node
 	    (:constructor Make-Raw-WB-Set-Tree-Node (Size Value Left Right))
 	    (:predicate WB-Set-Tree-Node?)
 	    (:print-function WB-Set-Tree-Node-Print))
-  (Left  nil :type (or null WB-Set-Tree-Node simple-vector))
-  (Right nil :type (or null WB-Set-Tree-Node simple-vector))
-  Value		; normally the value at the node, but see `Equivalent-Set' below.
-  (Size 0 :type fixnum))		; the number of members in this subtree
-
-(deftype WB-Set-Tree ()
-  '(or null WB-Set-Tree-Node simple-vector))
+  (Left  nil :type WB-Set-Tree :read-only t)
+  (Right nil :type WB-Set-Tree :read-only t)
+  (Value nil :read-only t)		; normally the value at the node, but see `Equivalent-Set' below.
+  (Size 0 :type fixnum :read-only t))	; the number of members in this subtree
 
 (defun WB-Set-Tree-Node-Print (node stream depth)
   "Print function for `WB-Set-Tree-Node', q.v."
@@ -112,7 +112,7 @@ do the comparison only once for each pair of values.
 (defstruct (Equivalent-Set
 	    (:constructor Make-Equivalent-Set (Members))
 	    (:predicate Equivalent-Set?))
-  (Members nil :type list))	; list of equivalent values
+  (Members nil :type list :read-only t))	; list of equivalent values
 
 (declaim (ftype (function (t) fixnum) Set-Value-Size))
 
@@ -1863,23 +1863,23 @@ in `eqvs1' are equivalent to those in `eqvs2'."
 
 (declaim (inline Make-Raw-WB-Bag-Tree-Node))
 
+;;; A bag tree is either null, a node, or a cons of two simple-vectors.
+(deftype WB-Bag-Tree ()
+  '(or null WB-Bag-Tree-Node cons))
+
 (defstruct (WB-Bag-Tree-Node
 	    (:constructor Make-Raw-WB-Bag-Tree-Node (Size Total-Count Value Count
 						     Left Right))
 	    (:predicate WB-Bag-Tree-Node?)
 	    (:print-function WB-Bag-Tree-Node-Print))
-  (Left  nil :type (or null WB-Bag-Tree-Node cons))
-  (Right nil :type (or null WB-Bag-Tree-Node cons))
+  (Left  nil :type WB-Bag-Tree :read-only t)
+  (Right nil :type WB-Bag-Tree :read-only t)
   ;; If we get equivalent values, then the `Value' is an `Equivalent-Bag', and the
   ;; `Count' is unused.
-  Value				; the value at the node, or an `Equivalent-Bag'
-  (Count 0 :type integer)	; the count (multiplicity) for this value
-  (Total-Count 0 :type integer)	; total count of all values in this subtree
-  (Size 0 :type fixnum))	; the number of < value, count > pairs
-
-;;; A bag tree is either null, a node, or a cons of two simple-vectors.
-(deftype WB-Bag-Tree ()
-  '(or null WB-Bag-Tree-Node cons))
+  (Value nil :read-only t)			; the value at the node, or an `Equivalent-Bag'
+  (Count 0 :type integer :read-only t)		; the count (multiplicity) for this value
+  (Total-Count 0 :type integer :read-only t)	; total count of all values in this subtree
+  (Size 0 :type fixnum :read-only t))		; the number of < value, count > pairs
 
 
 (defun WB-Bag-Tree-Node-Print (node stream depth)
@@ -1910,7 +1910,7 @@ in `eqvs1' are equivalent to those in `eqvs2'."
 (defstruct (Equivalent-Bag
 	    (:constructor Make-Equivalent-Bag (Alist))
 	    (:predicate Equivalent-Bag?))
-  (Alist nil :type list))	; mapping equivalent values to their counts
+  (Alist nil :type list :read-only t))	; mapping equivalent values to their counts
 
 (declaim (ftype (function (t) fixnum) Bag-Value-Size))
 (declaim (inline Bag-Value-Size))
@@ -3688,22 +3688,22 @@ in `eqvs1' are equivalent to those in `eqvs2'."
 
 (declaim (inline Make-Raw-WB-Map-Tree-Node))
 
+;;; A map tree is either null, a node, or a cons of two simple-vectors.
+(deftype WB-Map-Tree ()
+  '(or null WB-Map-Tree-Node cons))
+
 (defstruct (WB-Map-Tree-Node
 	    (:constructor Make-Raw-WB-Map-Tree-Node (Size Key Value
 						     Left Right))
 	    (:predicate WB-Map-Tree-Node?)
 	    (:print-function WB-Map-Tree-Node-Print))
-  (Left  nil :type (or null WB-Map-Tree-Node cons))
-  (Right nil :type (or null WB-Map-Tree-Node cons))
+  (Left  nil :type WB-Map-Tree :read-only t)
+  (Right nil :type WB-Map-Tree :read-only t)
   ;; If we get equivalent keys, then the `Key' is an `Equivalent-Map', and the
   ;; `Value' is unused.
-  Key		; the domain value
-  Value		; the range value
-  (Size 0 :type fixnum))	; the number of < key, value > pairs
-
-;;; A map tree is either null, a node, or a cons of two simple-vectors.
-(deftype WB-Map-Tree ()
-  '(or null WB-Map-Tree-Node cons))
+  (Key nil :read-only t)		; the domain value
+  (Value nil :read-only t)		; the range value
+  (Size 0 :type fixnum :read-only t))	; the number of < key, value > pairs
 
 
 (defun WB-Map-Tree-Node-Print (node stream depth)
@@ -3733,7 +3733,7 @@ in `eqvs1' are equivalent to those in `eqvs2'."
 (defstruct (Equivalent-Map
 	    (:constructor Make-Equivalent-Map (Alist))
 	    (:predicate Equivalent-Map?))
-  (Alist nil :type list))	; mapping equivalent keys to their values
+  (Alist nil :type list :read-only t))	; mapping equivalent keys to their values
 
 (declaim (ftype (function (t) fixnum) Map-Key-Size))
 (declaim (inline Map-Key-Size))
@@ -5187,7 +5187,7 @@ the \"1\" pairs.  If the result is a single pair, it's returned as two values;
 otherwise one value is returned, which is an `Equivalent-Map'."
   (declare (optimize (speed 3) (safety 0))
 	   (type function val-fn)
-	   (dynamic-extent value-fn))
+	   (dynamic-extent val-fn))
   (if (Equivalent-Map? key1)
       (if (Equivalent-Map? key2)
 	  (let ((alist1 (Equivalent-Map-Alist key1))
@@ -5455,21 +5455,32 @@ in `eqvm1' are equivalent to those in `eqvm2'."
 
 (declaim (inline Make-Raw-WB-Seq-Tree-Node))
 
-;;; Sequence tree nodes have no associated value.
-(defstruct (WB-Seq-Tree-Node
-	    (:constructor Make-Raw-WB-Seq-Tree-Node (Size Left Right))
-	    (:predicate WB-Seq-Tree-Node?)
-	    (:print-function WB-Seq-Tree-Node-Print))
-  (Left  nil :type (or null WB-Seq-Tree-Node simple-string simple-vector))
-  (Right nil :type (or null WB-Seq-Tree-Node simple-string simple-vector))
-  (Size 0 :type fixnum))
-
 (deftype WB-Seq-Tree ()
   '(or null WB-Seq-Tree-Node
        simple-string simple-vector))
 
+;;; Seq tree nodes have no associated value.
+(defstruct (WB-Seq-Tree-Node
+	    (:constructor Make-Raw-WB-Seq-Tree-Node (Size Left Right))
+	    (:predicate WB-Seq-Tree-Node?)
+	    (:print-function WB-Seq-Tree-Node-Print))
+  (Left  nil :type WB-Seq-Tree :read-only t)
+  (Right nil :type WB-Seq-Tree :read-only t)
+  (Size 0 :type fixnum :read-only t))
+
 
 (declaim (inline Make-WB-Seq-Tree-Node))
+
+(declaim (ftype (function (WB-Seq-Tree) fixnum) WB-Seq-Tree-Size))
+(declaim (inline WB-Seq-Tree-Size))
+
+(defun WB-Seq-Tree-Size (tree)
+  (declare (optimize (speed 3) (safety 0))
+	   (type WB-Seq-Tree tree))
+  (cond ((null tree) 0)
+	((stringp tree) (length tree))
+	((simple-vector-p tree) (length tree))
+	(t (WB-Seq-Tree-Node-Size tree))))
 
 (defun Make-WB-Seq-Tree-Node (left right)
   "The low-level constructor for a sequence tree node."
@@ -5493,17 +5504,6 @@ in `eqvm1' are equivalent to those in `eqvm2'."
 			(list nil sub)))))
     (format stream "#seq-node<...>")))
 
-
-(declaim (ftype (function (WB-Seq-Tree) fixnum) WB-Seq-Tree-Size))
-(declaim (inline WB-Seq-Tree-Size))
-
-(defun WB-Seq-Tree-Size (tree)
-  (declare (optimize (speed 3) (safety 0))
-	   (type WB-Seq-Tree tree))
-  (cond ((null tree) 0)
-	((stringp tree) (length tree))
-	((simple-vector-p tree) (length tree))
-	(t (WB-Seq-Tree-Node-Size tree))))
 
 
 (defun WB-Seq-Tree-Subscript (tree idx)

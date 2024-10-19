@@ -995,7 +995,7 @@ anyway.  `fn' can be a function object, an fbound symbol, or a map."
 	    (:copier nil))
   "A class of functional sets represented as weight-balanced binary trees.  This is
 the default implementation of sets in FSet."
-  contents)
+  (contents nil :read-only t))
 
 
 (defparameter *empty-wb-set* (make-wb-set nil))
@@ -1401,7 +1401,7 @@ for the possibility of different set implementations; it is not for public use.
 	     (:predicate ch-set?)
 	     (:print-function print-ch-set)
 	     (:copier nil))
-  contents)
+  (contents nil :read-only t))
 
 (defparameter *empty-ch-set* (make-ch-set nil))
 
@@ -1576,7 +1576,7 @@ for the possibility of different set implementations; it is not for public use.
 	    (:copier nil))
   "A class of functional bags (multisets) represented as weight-balanced binary
 trees.  This is the default implementation of bags in FSet."
-  contents)
+  (contents nil :read-only t))
 
 
 (defparameter *empty-wb-bag* (make-wb-bag nil))
@@ -2086,7 +2086,7 @@ Note that `filterp', if supplied, must take two arguments."
 	    (:copier nil))
   "A class of functional maps represented as weight-balanced binary trees.  This is
 the default implementation of maps in FSet."
-  contents)
+  (contents nil :read-only t))
 
 
 (defparameter *empty-wb-map* (make-wb-map nil))
@@ -2560,7 +2560,7 @@ supplied, it is used as the initial map default."
 	     (:predicate ch-map?)
 	     (:print-function print-ch-map)
 	     (:copier nil))
-  contents)
+  (contents nil :read-only t))
 
 (defparameter *empty-ch-map* (make-ch-map nil))
 
@@ -2645,7 +2645,7 @@ supplied, it is used as the initial map default."
   "A class of functional seqs (sequences, but we use the short name to avoid
 confusion with `cl:sequence') represented as weight-balanced binary trees.
 This is the default implementation of seqs in FSet."
-  contents)
+  (contents nil :read-only t))
 
 
 (defparameter *empty-wb-seq* (make-wb-seq nil))
