@@ -3056,8 +3056,8 @@
   (let ((xv (My-Integer-Value x))
 	(yv (My-Integer-Value y)))
     (if (= xv yv) ':equal
-      (let ((x2 (floor xv 2))
-	    (y2 (floor yv 2)))
+      (let ((x2 (floor (the fixnum xv) 2))
+	    (y2 (floor (the fixnum yv) 2)))
 	(cond ((< x2 y2) ':less)
 	      ((> x2 y2) ':greater)
 	      (t ':unequal))))))
