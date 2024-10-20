@@ -83,6 +83,8 @@
 	   #:?				; for `query' on 'list-relation'
 	   ;; Used by the bag methods that convert to and from lists.
 	   #:alist
+	   ;; Miscellaneous GMap result types
+	   #:map-to-sets
 	   ;; Bounded sets
 	   #:bounded-set #:make-bounded-set #:bounded-set-contents
 	   ;; Complement sets
@@ -185,6 +187,8 @@
 	   #:?				; for `query' on 'list-relation'
 	   ;; Used by the bag methods that convert to and from lists.
 	   #:alist
+	   ;; Miscellaneous GMap result types
+	   #:map-to-sets
 	   ;; Bounded sets
 	   #:bounded-set #:make-bounded-set #:bounded-set-contents
 	   ;; Complement sets

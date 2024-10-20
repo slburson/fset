@@ -2544,6 +2544,14 @@ supplied, it is used as the initial map default."
     ,(if val-fn? `(fn (a b) (map-intersection a b ,val-fn)) '#'map-intersection)
     nil ,filterp))
 
+(gmap:def-gmap-res-type map-to-sets (&key filterp)
+  "Consumes two values from the mapped function.  Returns a map from the first
+values, with each one mapped to a set of the corresponding second values.
+Note that `filterp', if supplied, must take two arguments."
+  `((map :default (set))
+    (:consume 2 (fn (m x y) (with m x (with (lookup m x) y))))
+    nil ,filterp))
+
 (defmethod make-load-form ((m wb-map) &optional environment)
   (declare (ignore environment))
   `(convert 'wb-map ',(convert 'list m)))
