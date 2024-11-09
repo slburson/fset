@@ -900,6 +900,86 @@ Also works on an FSet seq."))
 (defmethod image ((fn set) (l list))
   (mapcar (lambda (x) (lookup fn x)) l))
 
+;;; ----------------
+;;; This series of methods provides an elegant way to do functional update on small lists.
+;;; E.g., (incf (@ x 'first)) --> (setq x (cons (1+ (car x)) (cdr x))).
+;;;
+;;; I've defined all ten of these because CL has them, but as a stylistic recommendation, if
+;;; your list is longer than three or maybe four, you should probably use a dynamic tuple;
+;;; see `tuples.lisp'.
+
+(defmethod lookup ((ls list) (key (eql 'first)))
+  (cl:first ls))
+
+(defmethod with ((ls list) (key (eql 'first)) &optional (val nil val?))
+  (check-three-arguments val? 'with 'list)
+  (cons val (cdr ls)))
+
+(defmethod lookup ((ls list) (key (eql 'second)))
+  (second ls))
+
+(defmethod with ((ls list) (key (eql 'second)) &optional (val nil val?))
+  (check-three-arguments val? 'with 'list)
+  (list* (cl:first ls) val (cddr ls)))
+
+(defmethod lookup ((ls list) (key (eql 'third)))
+  (third ls))
+
+(defmethod with ((ls list) (key (eql 'third)) &optional (val nil val?))
+  (check-three-arguments val? 'with 'list)
+  (list* (cl:first ls) (second ls) val (cdddr ls)))
+
+(defmethod lookup ((ls list) (key (eql 'fourth)))
+  (fourth ls))
+
+(defmethod with ((ls list) (key (eql 'fourth)) &optional (val nil val?))
+  (check-three-arguments val? 'with 'list)
+  (list* (cl:first ls) (second ls) (third ls) val (cddddr ls)))
+
+(defmethod lookup ((ls list) (key (eql 'fifth)))
+  (fifth ls))
+
+(defmethod with ((ls list) (key (eql 'fifth)) &optional (val nil val?))
+  (check-three-arguments val? 'with 'list)
+  (list* (cl:first ls) (second ls) (third ls) (fourth ls) val (cdr (cddddr ls))))
+
+(defmethod lookup ((ls list) (key (eql 'sixth)))
+  (sixth ls))
+
+(defmethod with ((ls list) (key (eql 'sixth)) &optional (val nil val?))
+  (check-three-arguments val? 'with 'list)
+  (list* (cl:first ls) (second ls) (third ls) (fourth ls) (fifth ls) val (cddr (cddddr ls))))
+
+(defmethod lookup ((ls list) (key (eql 'seventh)))
+  (seventh ls))
+
+(defmethod with ((ls list) (key (eql 'seventh)) &optional (val nil val?))
+  (check-three-arguments val? 'with 'list)
+  (list* (cl:first ls) (second ls) (third ls) (fourth ls) (fifth ls) (sixth ls) val (cdddr (cddddr ls))))
+
+(defmethod lookup ((ls list) (key (eql 'eighth)))
+  (eighth ls))
+
+(defmethod with ((ls list) (key (eql 'eighth)) &optional (val nil val?))
+  (check-three-arguments val? 'with 'list)
+  (list* (cl:first ls) (second ls) (third ls) (fourth ls) (fifth ls) (sixth ls) (seventh ls) val (cddddr (cddddr ls))))
+
+(defmethod lookup ((ls list) (key (eql 'ninth)))
+  (ninth ls))
+
+(defmethod with ((ls list) (key (eql 'ninth)) &optional (val nil val?))
+  (check-three-arguments val? 'with 'list)
+  (list* (cl:first ls) (second ls) (third ls) (fourth ls) (fifth ls) (sixth ls) (seventh ls) (eighth ls)
+	 val (cdr (cddddr (cddddr ls)))))
+
+(defmethod lookup ((ls list) (key (eql 'tenth)))
+  (tenth ls))
+
+(defmethod with ((ls list) (key (eql 'tenth)) &optional (val nil val?))
+  (check-three-arguments val? 'with 'list)
+  (list* (cl:first ls) (second ls) (third ls) (fourth ls) (fifth ls) (sixth ls) (seventh ls) (eighth ls)
+	 (ninth ls) val (cddr (cddddr (cddddr ls)))))
+
 
 ;;; ================================================================================
 ;;; SETF expanders, modify methods, etc.
