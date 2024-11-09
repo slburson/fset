@@ -842,8 +842,14 @@ Also works on an FSet seq."))
 (defmethod with-first ((ls list) val)
   (cons val ls))
 
+(defmethod less-first ((ls list))
+  (cdr ls))
+
 (defmethod with-last ((ls list) val)
   (append ls (list val)))
+
+(defmethod less-last ((ls list))
+  (butlast ls))
 
 (defmethod contains? ((ls list) x &optional (y nil y?))
   (declare (ignore y))

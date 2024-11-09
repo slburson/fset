@@ -12,7 +12,7 @@
 
 
 (defpackage :fset
-  (:nicknames :com.ergy.fset)
+  (:nicknames :com.ergy.fset :com.sympoiesis.fset)
   (:use :cl :new-let :lexical-contexts :rev-fun-bind)
   (:import-from :gmap #:gmap #:alist #:constant #:index #:index-inc #:sum)
   (:shadowing-import-from :new-let #:let #:cond)
@@ -84,7 +84,7 @@
 	   ;; Used by the bag methods that convert to and from lists.
 	   #:alist
 	   ;; Miscellaneous GMap result types
-	   #:map-to-sets
+	   #:map-to-sets #:append-unique
 	   ;; Bounded sets
 	   #:bounded-set #:make-bounded-set #:bounded-set-contents
 	   ;; Complement sets
@@ -117,7 +117,7 @@
 ;;; their code at their leisure.
 ;;; NOTE: This package is not ready for use yet.  I will announce when it is.
 (defpackage :fset2
-  (:nicknames :com.ergy.fset2)
+  (:nicknames :com.ergy.fset2 :com.sympoiesis.fset2)
   (:use :cl :fset :new-let :lexical-contexts)
   (:import-from :gmap #:gmap #:alist #:constant #:index #:sum)
   (:shadowing-import-from :new-let #:let #:cond)
@@ -188,7 +188,7 @@
 	   ;; Used by the bag methods that convert to and from lists.
 	   #:alist
 	   ;; Miscellaneous GMap result types
-	   #:map-to-sets
+	   #:map-to-sets #:append-unique
 	   ;; Bounded sets
 	   #:bounded-set #:make-bounded-set #:bounded-set-contents
 	   ;; Complement sets

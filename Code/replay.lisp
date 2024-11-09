@@ -158,6 +158,16 @@ result is that of `s1', filtered by membership in `s2'."
     #'wb-seq-tree-iterator-done?
     #'wb-seq-tree-iterator-get))
 
+(gmap:def-gmap-res-type append-unique ()
+  "Returns a list of the unique elements of the lists returned by the
+mapped function, in the order in which they were first encountered."
+  `((empty-replay-set)
+    #'(lambda (rs new-elts)
+	(dolist (x new-elts)
+	  (includef rs x))
+	rs)
+    #'(lambda (rs) (convert 'list rs))))
+
 
 ;;; ================================================================================
 ;;; Replay maps

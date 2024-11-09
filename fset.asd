@@ -38,6 +38,8 @@ See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
 	     (:file "relations")
 	     (:file "complement-sets")
 	     (:file "bounded-sets")
+	     #+swank
+	     (:file "swank")
              #+lispworks
              (:file "lispworks-inspect")))))
 
