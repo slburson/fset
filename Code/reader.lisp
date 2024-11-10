@@ -160,7 +160,9 @@
 ;;; to reread printed FSet values.
 ;;;
 ;;; It remains to be seen whether anyone uses the reader macros, anyway.
-
+;;;
+;;; UPDATE: this file now consists mostly of constructor macros.  The reader macro
+;;; stuff is at the bottom.
 
 
 (defmacro set (&rest args)
@@ -227,6 +229,7 @@ result set."
 			    ,tmp)))
 	(setq result `(with ,result ,arg))))))
 
+
 (defmacro bag (&rest args)
   "Constructs a bag of the default implementation according to the supplied
 argument subforms.  Each argument subform can be an expression, whose value
@@ -281,6 +284,7 @@ multiplicities as supplied by each of the argument subforms."
 			,(second m-arg) ,(third m-arg))))))
       (add-multi-args multi-args
 		      (add-splice-args splice-args start)))))
+
 
 (defmacro map (&rest args)
   "Constructs a map of the default implementation according to the supplied
@@ -376,6 +380,7 @@ will be given by the rightmost such subform."
 	      (t
 	       (setq result `(with ,result ,(car arg) ,(cadr arg)))))))))
 
+
 (defmacro seq (&rest args)
   "Constructs a seq of the default implementation according to the supplied
 argument subforms.  Each argument subform can be an expression whose value is
@@ -418,6 +423,7 @@ order of the result sequence reflects the order of the argument subforms."
 		    (recur (cdr args) (cons (car args) nonsplice-args))))))
     (recur args nil)))
 
+
 (defmacro tuple (&rest args)
   "Constructs a tuple of the default implementation according to the supplied
 argument subforms.  Each argument subform can be a list of the form (`key-expr'
@@ -458,6 +464,92 @@ subform."
 		    (recur (cdr args) `(with ,result ,(caar args) ,(cadar args)))))))
     (recur args `(empty-tuple))))
 
+
+(defmacro 2-relation (&rest args)
+  "Constructs a 2-relation of the default implementation according to the supplied
+argument subforms.  Each argument subform can be a list of the form (`key-expr'
+`value-expr'), denoting a mapping from the value of `key-expr' to the value of
+`value-expr'; or a list of the form ($ `expression'), in which case the
+expression must evaluate to a 2-relation, all of whose mappings will be
+included in the result.  Also, each of 'key-expr' and 'value-expr' can be of the
+form ($ `expression'), in which case the expression must evaluate to a set, and
+the elements of the set are used individually to form pairs; for example, the
+result of
+
+  (2-relation (($ (set 1 2)) ($ (set 'a 'b))))
+
+contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
+  (expand-2-relation-constructor-form '2-relation args))
+
+(defmacro wb-2-relation (&rest args)
+  "Constructs a wb-2-relation according to the supplied argument subforms.
+Each argument subform can be a list of the form (`key-expr' `value-expr'),
+denoting a mapping from the value of `key-expr' to the value of `value-expr';
+or a list of the form ($ `expression'), in which case the expression must
+evaluate to a 2-relation, all of whose mappings will be included in the
+result.  Also, each of 'key-expr' and 'value-expr' can be of the
+form ($ `expression'), in which case the expression must evaluate to a set, and
+the elements of the set are used individually to form pairs; for example, the
+result of
+
+  (wb-2-relation (($ (set 1 2)) ($ (set 'a 'b))))
+
+contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
+  (expand-2-relation-constructor-form 'wb-2-relation args))
+
+(defun expand-2-relation-constructor-form (type-name subforms)
+  (let ((empty-form (ecase type-name
+		      (2-relation '(empty-2-relation))
+		      (wb-2-relation '(empty-wb-2-relation)))))
+    (labels ((recur (subforms result)
+	       (if (null subforms) result
+		 (let ((subform (car subforms)))
+		   (cond ((not (and (listp subform)
+				    (= (length subform) 2)))
+			  (error "Subforms for ~S must all be pairs expressed as 2-element~@
+			      lists, or ($ x) subforms -- not ~S"
+				 type-name subform))
+			 ((eq (car subform) '$)
+			  (if (eq result empty-form)
+			      (recur (cdr subforms) (cadr subform))
+			    (recur (cdr subforms) `(union ,result ,(cadr subform)))))
+			 ((and (listp (car subform)) (eq (caar subform) '$)
+			       (listp (cadr subform)) (eq (caadr subform) '$))
+			  (let ((key-var (gensym "KEY-"))
+				(vals-var (gensym "VALS-")))
+			    (recur (cdr subforms)
+				   `(union ,result
+					   (let ((,vals-var ,(cadadr subform)))
+					     (gmap (:result union)
+						   (fn (,key-var)
+						     (convert ',type-name
+							      (map (,key-var ,vals-var))
+							      :from-type 'map-to-sets))
+						   (:arg set ,(cadar subform))))))))
+			 ((and (listp (car subform)) (eq (caar subform) '$))
+			  (let ((key-var (gensym "KEY-"))
+				(val-var (gensym "VAL-")))
+			    (recur (cdr subforms)
+				   `(union ,result
+					   (let ((,val-var ,(cadr subform)))
+					     (gmap (:result union)
+						   (fn (,key-var)
+						     (,type-name (,key-var ,val-var)))
+						   (:arg set ,(cadar subform))))))))
+			 ((and (listp (cadr subform)) (eq (caadr subform) '$))
+			  (recur (cdr subforms)
+				 `(union ,result
+					 (convert ',type-name
+						  (map (,(car subform) ,(cadadr subform)))
+						  :from-type 'map-to-sets))))
+			 (t
+			  (recur (cdr subforms)
+				 `(with ,result ,(car subform) ,(cadr subform)))))))))
+      (recur subforms empty-form))))
+
+
+;;; ================================================================================
+;;; Reader macros
 
 (defun |#{-reader| (stream subchar arg)
   (declare (ignore subchar arg))
