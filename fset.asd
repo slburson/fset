@@ -33,11 +33,11 @@ See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
 	     (:file "fset")
 	     (:file "replay")
 	     (:file "tuples")
-	     (:file "testing")
 	     (:file "interval")
 	     (:file "relations")
 	     (:file "complement-sets")
 	     (:file "bounded-sets")
+	     (:file "testing")
 	     #+swank
 	     (:file "swank")
              #+lispworks
