@@ -910,8 +910,13 @@ Also works on an FSet seq."))
 
 (defmethod lookup ((ls list) (key (eql 'first)))
   (cl:first ls))
+(defmethod lookup ((ls list) (key (eql 'cl:first)))  ; in case they don't shadowing-import `fset:first'
+  (cl:first ls))
 
 (defmethod with ((ls list) (key (eql 'first)) &optional (val nil val?))
+  (check-three-arguments val? 'with 'list)
+  (cons val (cdr ls)))
+(defmethod with ((ls list) (key (eql 'cl:first)) &optional (val nil val?))
   (check-three-arguments val? 'with 'list)
   (cons val (cdr ls)))
 
