@@ -598,6 +598,20 @@ When done, returns `value'."
 (defmethod size ((tuple tuple))
   (size (Tuple-Desc-Key-Set (dyn-tuple-descriptor tuple))))
 
+(defmethod at-rank ((tup tuple) rank)
+  (let ((desc (dyn-tuple-descriptor tup))
+	((size (size (Tuple-Desc-Key-Set desc)))
+	 (pairs (Tuple-Desc-Pairs desc)))
+	(contents (dyn-tuple-contents tup)))
+    (unless (and (>= rank 0) (< rank size))
+      (error 'simple-type-error :datum rank :expected-type `(integer 0 (,size))
+	     :format-control "Rank ~D out of bounds on ~A"
+	     :format-arguments (list rank tup)))
+    ;; We use the second copy of the pairs, which won't change underneath us.
+    (let ((pr (svref pairs (+ rank size))))
+      (values (lookup +Tuple-Key-Seq+ (logand pr Tuple-Key-Number-Mask))
+	      (Tuple-Contents-Ref size contents (ash pr (- Tuple-Key-Number-Size)))))))
+
 (defgeneric tuple-merge (tuple1 tuple2 &optional val-fn)
   (:documentation "Returns a new tuple containing all the keys of `tuple1' and `tuple2',
 where the value for each key contained in only one tuple is the value from

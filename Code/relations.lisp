@@ -101,6 +101,16 @@ constructed."
   (get-inverse br)
   (make-wb-set (WB-Map-Tree-Domain (wb-2-relation-map1 br))))
 
+(defmethod at-rank ((br wb-2-relation) rank)
+  (let ((tree (wb-2-relation-map0 br))
+	((size (WB-Map-Tree-Size tree))))
+    (unless (and (>= rank 0) (< rank size))
+      (error 'simple-type-error :datum rank :expected-type `(integer 0 (,size))
+	     :format-control "Rank ~D out of bounds on ~A"
+	     :format-arguments (list rank br)))
+    (let ((key set-tree (WB-Map-Tree-Rank-Pair tree rank)))
+      (values key (make-wb-set set-tree)))))
+
 (defun get-inverse (br)
   (let ((m0 (wb-2-relation-map0 br))
 	(m1 (wb-2-relation-map1 br)))
@@ -730,6 +740,15 @@ the first tuple added."
 
 (defmethod arb ((rel wb-list-relation))
   (arb (wb-list-relation-tuples rel)))
+
+(defmethod at-rank ((rel wb-list-relation) rank)
+  (at-rank (wb-list-relation-tuples rel) rank))
+
+(defmethod convert ((to-type (eql 'set)) (rel wb-list-relation) &key)
+  (wb-list-relation-tuples rel))
+
+(defmethod convert ((to-type (eql 'wb-set)) (rel wb-list-relation) &key)
+  (wb-list-relation-tuples rel))
 
 (defmethod contains? ((rel wb-list-relation) tuple &optional (arg2 nil arg2?))
   (declare (ignore arg2))

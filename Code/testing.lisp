@@ -2022,6 +2022,11 @@
               (simple-type-error (e) e)))
       (test (let ((key val (at-rank (map ('a 3) ('d 7) ('c 3) ('g 1) ('e 6)) 3)))
 	      (and (eq key 'e) (eql val 6))))
+      (test (let ((key set (at-rank (2-relation ('a 'c) ('b 'f) ('c 'q) ('b 'g)) 1)))
+	      (and (eq key 'b) (equal? set (set 'f 'g)))))
+      (test (let ((key val (at-rank (tuple (+k0+ 'foo) (+k1+ 'bar) (+k2+ "xyzzy") (+k3+ 42)) 2)))
+	      ;; The current tuple implementation keeps the keys in the order of the `def-tuple-key' forms.
+	      (and (eq key +k2+) (equal val "xyzzy"))))
       ;; Good start, but &&& more to do here.
       (test (equal (reduce (lambda (x y) (cons y x)) (seq 3 7 9 13)
 			   :initial-value nil :from-end t :start 1 :end 3)
