@@ -270,9 +270,14 @@
 		    (tuple (+K0+ 1) (+K3+ 5))))
 
       (test (empty? (set)))
+      (test (empty? (less (set 3) 3)))
       (test (empty? (map)))
+      (test (empty? (less (map (3 42)) 3)))
       (test (empty? (bag)))
+      (test (empty? (less (bag 7) 7)))
       (test (empty? (seq)))
+      (test (empty? (less (seq 'a) 0)))	 ; #67
+      (test (empty? (less (seq #\x) 0))) ; #67
       (test (nonempty? (set 1)))
       (test (locally (declare (notinline nonempty?)) (nonempty? (set 1))))
       (test (member? 1 (set 1)))

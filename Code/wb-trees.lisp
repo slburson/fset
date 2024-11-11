@@ -438,7 +438,7 @@ on `vec', which it assumes is simple."
 	((simple-vector-p tree)
 	 (let ((found? idx (Vector-Set-Binary-Search tree value)))
 	   (if (eq found? ':equal)
-	       (and (> (length tree) 1) (Vector-Remove-At tree idx))
+	       (Vector-Remove-At tree idx)
 	     tree)))
 	(t
 	 (let ((node-val (WB-Set-Tree-Node-Value tree))
@@ -476,7 +476,7 @@ on `vec', which it assumes is simple."
 	   (type (unsigned-byte 24) idx))
   (let ((len (length vec)))
     (declare (type fixnum len))
-    (and (> len 0)
+    (and (> len 1)
 	 (let ((new-vec (make-array (1- len))))
 	   (dotimes (i idx)
 	     (setf (svref new-vec i) (svref vec i)))
@@ -5700,18 +5700,19 @@ the result, inserts `val', returning the new vector."
   (declare (optimize (speed 3) (safety 0))
 	   (type simple-string str)
 	   (type (unsigned-byte 24) idx))
-  (let ((len (length str))
-	((new-str (make-string (1- len)
-			       :element-type #-FSet-Ext-Strings 'base-char
-			       #+FSet-Ext-Strings (if (typep str 'base-string)
-						      'base-char
-						    'character)))))
-    (declare (fixnum len))
-    (dotimes (i idx)
-      (setf (schar new-str i) (schar str i)))
-    (dotimes (i (- len idx 1))
-      (setf (schar new-str (+ idx i)) (schar str (+ idx i 1))))
-    new-str))
+  (let ((len (length str)))
+    (and (> len 1)
+	 (let ((new-str (make-string (1- len)
+				     :element-type #-FSet-Ext-Strings 'base-char
+				     #+FSet-Ext-Strings (if (typep str 'base-string)
+							    'base-char
+							  'character))))
+	   (declare (fixnum len))
+	   (dotimes (i idx)
+	     (setf (schar new-str i) (schar str i)))
+	   (dotimes (i (- len idx 1))
+	     (setf (schar new-str (+ idx i)) (schar str (+ idx i 1))))
+	   new-str))))
 
 
 ;;; We assume bounds checking has already been done.
