@@ -671,6 +671,10 @@ of calling `val-fn' on the value from `tuple1' and the value from `tuple2'.
   (declare (ignore environment))
   `(convert 'dyn-tuple ',(convert 'list tup)))
 
+(defmethod make-load-form ((key tuple-key) &optional environment)
+  (declare (ignore environment))
+  `(get-tuple-key ',(tuple-key-name key) ',(tuple-key-default-fn key)))
+
 
 ;;; ================================================================================
 

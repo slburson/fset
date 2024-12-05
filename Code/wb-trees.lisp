@@ -4000,11 +4000,11 @@ or else `default', and (b) `second-arg'."
 	     ((:equal :unequal)
 	      ;; Since we're probably updating the value anyway, we don't bother trying
 	      ;; to figure out whether we can reuse the node.
-	       (let ((new-key new-val (Equivalent-Map-Update node-key (WB-Map-Tree-Node-Value tree)
-							     key value-fn default second-arg)))
-		 (Make-WB-Map-Tree-Node new-key new-val
-					(WB-Map-Tree-Node-Left tree)
-					(WB-Map-Tree-Node-Right tree))))
+	      (let ((new-key new-val (Equivalent-Map-Update node-key (WB-Map-Tree-Node-Value tree)
+							    key value-fn default second-arg)))
+		(Make-WB-Map-Tree-Node new-key new-val
+				       (WB-Map-Tree-Node-Left tree)
+				       (WB-Map-Tree-Node-Right tree))))
 	     ((:less)
 	      (WB-Map-Tree-Build-Node (WB-Map-Tree-Node-Key tree)
 				      (WB-Map-Tree-Node-Value tree)
