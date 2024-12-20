@@ -2285,9 +2285,11 @@ the default implementation of maps in FSet."
     (if (member comp '(:less :greater))
 	comp
       (let ((def-comp (compare (map-default map1) (map-default map2))))
-	(if (or (eq comp ':unequal) (eq def-comp ':unequal))
-	    ':unequal
-	  ':equal)))))
+	(if (member def-comp '(:less :greater))
+	    def-comp
+	  (if (or (eq comp ':unequal) (eq def-comp ':unequal))
+	      ':unequal
+	    ':equal))))))
 
 (defgeneric internal-do-map (map elt-fn &optional value-fn)
   (:documentation
@@ -2975,9 +2977,11 @@ This is the default implementation of seqs in FSet."
     (if (member comp '(:less :greater))
 	comp
       (let ((def-comp (compare (seq-default s1) (seq-default s2))))
-	(if (or (eq comp ':unequal) (eq def-comp ':unequal))
-	    ':unequal
-	  ':equal)))))
+	(if (member def-comp '(:less :greater))
+	    def-comp
+	  (if (or (eq comp ':unequal) (eq def-comp ':unequal))
+	      ':unequal
+	    ':equal))))))
 
 (defmethod compare-lexicographically ((s1 wb-seq) (s2 wb-seq))
   (WB-Seq-Tree-Compare-Lexicographically (wb-seq-contents s1) (wb-seq-contents s2)))
