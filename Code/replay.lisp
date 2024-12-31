@@ -21,8 +21,10 @@
 	     (:copier nil))
   "A replay set is like a set, except that its iteration order is the order in which members
 were added to it.  It does not support all set operations, but you can convert it to a set.
-Note that in the current implementation, `less' on a replay set takes O(n) time.  Replay sets
-are printed as \"#{= ... }\"."
+Note that in the current implementation, `less' on a replay set takes O(n) time.  Also, two
+replay sets are equal only if they both contain the same elements and have the same iteration
+order; if you just want to compare the contents, convert them to ordinary sets first.  Replay
+sets are printed as \"#{= ... }\"."
   (contents nil :read-only t)
   (ordering nil :read-only t))
 
@@ -48,6 +50,36 @@ are printed as \"#{= ... }\"."
     (if tree (values (wb-set-tree-arb tree) t)
       (values nil nil))))
 
+(defmethod first ((s wb-replay-set))
+  (let ((val? val (WB-Seq-Tree-Subscript (wb-replay-set-ordering s) 0)))
+    (values val val?)))
+
+(defmethod last ((s wb-replay-set))
+  (let ((tree (wb-replay-set-ordering s))
+	((val? val (WB-Seq-Tree-Subscript tree (1- (WB-Seq-Tree-Size tree))))))
+    (values val val?)))
+
+(defmethod least ((s wb-replay-set))
+  (let ((tree (wb-replay-set-contents s)))
+    (if tree (values (WB-Set-Tree-Least tree) t)
+      (values nil nil))))
+
+(defmethod greatest ((s wb-replay-set))
+  (let ((tree (wb-replay-set-contents s)))
+    (if tree (values (WB-Set-Tree-Greatest tree) t)
+        (values nil nil))))
+
+(defmethod at-index ((m wb-replay-set) index)
+  (let ((ordering (wb-replay-set-ordering m))
+	((size (wb-seq-tree-size ordering))))
+    (unless (and (>= index 0) (< index size))
+      (error 'simple-type-error :datum index :expected-type `(integer 0 (,size))
+	     :format-control "Index ~D out of bounds on ~A"
+				:format-arguments (list index m)))
+    (let ((ignore val (wb-seq-tree-subscript ordering index)))
+      (declare (ignore ignore))
+      val)))
+
 (defmethod contains? ((s wb-replay-set) x &optional (y nil y?))
   (declare (ignore y))
   (check-two-arguments y? 'contains? 'wb-set)
@@ -55,6 +87,17 @@ are printed as \"#{= ... }\"."
 
 (defmethod lookup ((s wb-replay-set) value)
   (wb-set-tree-find-equal (wb-replay-set-contents s) value))
+
+(defmethod compare ((set1 wb-replay-set) (set2 wb-replay-set))
+  (let ((comp (wb-set-tree-compare (wb-replay-set-contents set1) (wb-replay-set-contents set2))))
+    (if (member comp '(:less :greater))
+	comp
+      (let ((ord-comp (wb-seq-tree-compare (wb-replay-set-ordering set1) (wb-replay-set-ordering set2))))
+	(if (member ord-comp '(:less :greater))
+	    ord-comp
+	  (if (or (eq comp ':unequal) (eq ord-comp ':unequal))
+	      ':unequal
+	    ':equal))))))
 
 (defmethod convert ((to-type (eql 'seq)) (s wb-replay-set) &key)
   (make-wb-seq (wb-replay-set-ordering s)))
@@ -75,6 +118,16 @@ are printed as \"#{= ... }\"."
   (make-wb-replay-set (wb-set-contents s) (wb-seq-contents (convert 'wb-seq s))))
 (defmethod convert ((to-type (eql 'wb-replay-set)) (s wb-set) &key)
   (make-wb-replay-set (wb-set-contents s) (wb-seq-contents (convert 'wb-seq s))))
+
+(defmethod convert ((to-type (eql 'replay-set)) (l list) &key)
+  (make-wb-replay-set (wb-set-tree-from-list l) (wb-seq-tree-from-list l)))
+(defmethod convert ((to-type (eql 'wb-replay-set)) (l list) &key)
+  (make-wb-replay-set (wb-set-tree-from-list l) (wb-seq-tree-from-list l)))
+
+(defmethod convert ((to-type (eql 'replay-set)) (v vector) &key)
+  (make-wb-replay-set (wb-set-tree-from-cl-sequence v) (wb-seq-tree-from-vector v)))
+(defmethod convert ((to-type (eql 'wb-replay-set)) (v vector) &key)
+  (make-wb-replay-set (wb-set-tree-from-cl-sequence v) (wb-seq-tree-from-vector v)))
 
 (defmethod with ((s wb-replay-set) value &optional (arg2 nil arg2?))
   (declare (ignore arg2))
@@ -181,7 +234,9 @@ mapped function, in the order in which they were first encountered."
   "A replay map is like a map, except that its iteration order is the order in which keys
 were first added to it.  It does not support all map operations, but you can convert it
 to a map.  Note that in the current implementation, `less' on a replay map takes O(n) time.
-Replay maps are printed as \"#{=| ... |}\"."
+Also, two replay maps are equal only if they both contain the same pairs and have the same
+iteration order; if you just want to compare the contents, convert them to ordinary maps
+first.  Replay maps are printed as \"#{=| ... |}\"."
   contents
   ordering)
 
@@ -214,6 +269,49 @@ Replay maps are printed as \"#{=| ... |}\"."
 	  (values key val t))
       (values nil nil nil))))
 
+(defmethod first ((m wb-replay-map))
+  (let ((key? key (wb-seq-tree-subscript (wb-replay-map-ordering m) 0)))
+    (values (if key? key (map-default m))
+	    (and key? (let ((ignore val (wb-map-tree-lookup (wb-replay-map-contents m) key)))
+			(declare (ignore ignore))
+			val))
+	    key?)))
+
+(defmethod last ((m wb-replay-map))
+  (let ((tree (wb-replay-map-ordering m))
+	((key? key (wb-seq-tree-subscript tree (1- (wb-seq-tree-size tree))))))
+    (values (if key? key (map-default m))
+	    (and key? (let ((ignore val (wb-map-tree-lookup (wb-replay-map-contents m) key)))
+			(declare (ignore ignore))
+			val))
+	    key?)))
+
+(defmethod least ((m wb-replay-map))
+  (let ((tree (wb-replay-map-contents m)))
+    (if tree
+	(let ((key val (wb-map-tree-least-pair tree)))
+	  (values key val t))
+      (values nil nil nil))))
+
+(defmethod greatest ((m wb-replay-map))
+  (let ((tree (wb-replay-map-contents m)))
+    (if tree
+	(let ((key val (wb-map-tree-greatest-pair tree)))
+	  (values key val t))
+      (values nil nil nil))))
+
+(defmethod at-index ((m wb-replay-map) index)
+  (let ((ordering (wb-replay-map-ordering m))
+	((size (wb-seq-tree-size ordering))))
+    (unless (and (>= index 0) (< index size))
+      (error 'simple-type-error :datum index :expected-type `(integer 0 (,size))
+	     :format-control "Index ~D out of bounds on ~A"
+				:format-arguments (list index m)))
+    (let ((ignore1 key (wb-seq-tree-subscript ordering index))
+	  ((ignore2 val (wb-map-tree-lookup (wb-replay-map-contents m) key))))
+      (declare (ignore ignore1 ignore2))
+      (values key val))))
+
 (defmethod size ((m wb-replay-map))
   (WB-Map-Tree-Size (wb-replay-map-contents m)))
 
@@ -222,12 +320,63 @@ Replay maps are printed as \"#{=| ... |}\"."
 (defmethod convert ((to-type (eql 'wb-map)) (m wb-replay-map) &key)
   (make-wb-map (wb-replay-map-contents m) (map-default m)))
 
+(defmethod convert ((to-type (eql 'replay-map)) (list list)
+		    &key (key-fn #'car) (value-fn #'cdr))
+  (wb-replay-map-from-list list key-fn value-fn))
+
+(defmethod convert ((to-type (eql 'wb-replay-map)) (list list)
+		    &key (key-fn #'car) (value-fn #'cdr))
+  (wb-replay-map-from-list list key-fn value-fn))
+
+(defun wb-replay-map-from-list (list key-fn value-fn)
+  (let ((m nil)
+	(ord nil)
+	(key-fn (coerce key-fn 'function))
+	(value-fn (coerce value-fn 'function)))
+    (dolist (pr list)
+      (let ((key (funcall key-fn pr)))
+	(setq m (WB-Map-Tree-With m key (funcall value-fn pr)))
+	(setq ord (WB-Seq-Tree-Insert ord (WB-Seq-Tree-Size ord) key))))
+    (make-wb-replay-map m ord)))
+
+(defmethod convert ((to-type (eql 'replay-map)) (s sequence)
+		    &key (key-fn #'car) (value-fn #'cdr))
+  (wb-replay-map-from-cl-sequence s key-fn value-fn))
+
+(defmethod convert ((to-type (eql 'wb-replay-map)) (s sequence)
+		    &key (key-fn #'car) (value-fn #'cdr))
+  (wb-replay-map-from-cl-sequence s key-fn value-fn))
+
+(defun wb-replay-map-from-cl-sequence (s key-fn value-fn)
+  (let ((m nil)
+	(ord nil))
+    (dotimes (i (length s))
+      (let ((pr (elt s i))
+	    ((key (funcall key-fn pr))))
+	(setq m (WB-Map-Tree-With m key (funcall value-fn pr)))
+	(setq ord (WB-Seq-Tree-Insert ord (WB-Seq-Tree-Size ord) key))))
+    (make-wb-replay-map m ord)))
+
 (defmethod lookup ((m wb-replay-map) key)
   (let ((val? val (wb-map-tree-lookup (wb-replay-map-contents m) key)))
     (values (if val? val (map-default m)) val?)))
 
 (defmethod domain-contains? ((m wb-replay-map) x)
   (wb-map-tree-lookup (wb-replay-map-contents m) x))
+
+(defmethod compare ((map1 wb-replay-map) (map2 wb-replay-map))
+  (let ((comp (wb-map-tree-compare (wb-replay-map-contents map1) (wb-replay-map-contents map2))))
+    (if (member comp '(:less :greater))
+	comp
+      (let ((def-comp (compare (map-default map1) (map-default map2))))
+	(if (member def-comp '(:less :greater))
+	    def-comp
+	  (let ((ord-comp (wb-seq-tree-compare (wb-replay-map-ordering map1) (wb-replay-map-ordering map2))))
+	    (if (member ord-comp '(:less :greater))
+		ord-comp
+	      (if (or (eq comp ':unequal) (eq def-comp ':unequal) (eq ord-comp ':unequal))
+		  ':unequal
+		':equal))))))))
 
 (defmethod with ((m wb-replay-map) key &optional (value nil value?))
   (check-three-arguments value? 'with 'wb-replay-map)

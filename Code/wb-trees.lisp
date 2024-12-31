@@ -941,41 +941,17 @@ between equal trees."
 ;;; ================================================================================
 ;;; Miscellany
 
-;;; &&& Even with the pair special case, this is actually still 70% slower than
-;;; repeated `with', though it conses slightly less.
-;;; The right way is to sort the list, then do something like WB-Seq-Tree-From-List.
 (defun WB-Set-Tree-From-List (lst)
-  (labels ((recur (lst n)
-	     (cond ((= n 0) nil)
-		   ((= n 1) (vector (car lst)))
-		   ;; Reduces consing about 12%, improves speed.
-		   ((= n 2)
-		    (ecase (Compare (car lst) (cadr lst))
-		      (:equal (vector (car lst)))
-		      (:less (let ((v (make-array 2)))
-			       (setf (svref v 0) (car lst)
-				     (svref v 1) (cadr lst))
-			       v))
-		      (:greater (let ((v (make-array 2)))
-				  (setf (svref v 0) (cadr lst)
-					(svref v 1) (car lst))
-				  v))
-		      (:unequal (WB-Set-Tree-With (vector (car lst)) (cadr lst)))))
-		   (t
-		    (let ((n2 (floor n 2)))
-		      (WB-Set-Tree-Union (recur lst n2)
-					 (recur (nthcdr n2 lst)
-						(- n n2))))))))
-    (recur lst (length lst))))
+  (let ((tree nil))
+    (dolist (x lst)
+      (setq tree (WB-Set-Tree-With tree x)))
+    tree))
 
 (defun WB-Set-Tree-From-CL-Sequence (seq)
-  (labels ((recur (n m)
-	     (cond ((= n m) nil)
-		   ((= n (1- m)) (vector (elt seq n)))
-		   (t
-		    (let ((n2 (floor (+ n m) 2)))
-		      (WB-Set-Tree-Union (recur n n2) (recur n2 m)))))))
-    (recur 0 (length seq))))
+  (let ((tree nil))
+    (dotimes (i (length seq))
+      (setq tree (WB-Set-Tree-With tree (elt seq i))))
+    tree))
 
 
 ;;; ================================================================================

@@ -34,7 +34,13 @@
 ;;;
 ;;; The reader macros expand directly into invocations of the constructor macros,
 ;;; so the syntax is similar.  Loading this file does _not_ cause these macros
-;;; to be defined in the current readtable; see `fset-setup-readtable' below.
+;;; to be defined in the current readtable.  To use them, the recommended approach
+;;; is to load system Named-Readables (it's in Quicklisp), and then do:
+;;;
+;;; > (named-readtables:in-readtable fset:fset-readtable)
+;;;
+;;; If you don't want to do that, you can use `*fset-readtable', or call
+;;; `fset-setup-readtable' on an existing readtable.
 ;;;
 ;;; Set syntax:
 ;;;
@@ -551,6 +557,7 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
 ;;; ================================================================================
 ;;; Reader macros
 
+;;; See the discussion at the top of this file before using these.
 (defun |#{-reader| (stream subchar arg)
   (declare (ignore subchar arg))
   (case (peek-char nil stream t nil t)
@@ -566,6 +573,16 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
 		  (read-delimited-list #\% stream t)
 		(unless (eql (read-char stream) #\})
 		  (error "Incorrect #{% ... %} syntax")))))
+    (#\=
+     (read-char stream t nil t)
+     (if (eql (peek-char nil stream t nil t) #\|)
+	 (progn
+	   (read-char stream t nil t)
+	   `(replay-map . ,(prog1
+			       (read-delimited-list #\| stream t)
+			     (unless (eql (read-char stream) #\})
+			       (error "Incorrect #{=| ... |} syntax")))))
+       `(replay-set . ,(read-delimited-list #\} stream t))))
     (otherwise
      `(set . ,(read-delimited-list #\} stream t)))))
 
@@ -593,17 +610,28 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
 
 (defun fset-setup-readtable (readtable)
   "Adds FSet reader macros to `readtable'.  Returns `readtable'."
-  (set-dispatch-macro-character #\# #\{ #'|#{-reader| readtable)
+  (set-dispatch-macro-character #\# #\{ '|#{-reader| readtable)
   (set-macro-character #\} (get-macro-character #\)) nil readtable)
-  (set-dispatch-macro-character #\# #\[ #'|#[-reader| readtable)
+  (set-dispatch-macro-character #\# #\[ '|#[-reader| readtable)
   (set-macro-character #\] (get-macro-character #\)) nil readtable)
-  (set-dispatch-macro-character #\# #\~ #'|#~-reader| readtable)
-  (set-dispatch-macro-character #\# #\$ #'|#$-reader| readtable)
-  (set-dispatch-macro-character #\# #\% #'|#%-reader| readtable)
+  (set-dispatch-macro-character #\# #\~ '|#~-reader| readtable)
+  (set-dispatch-macro-character #\# #\$ '|#$-reader| readtable)
+  (set-dispatch-macro-character #\# #\% '|#%-reader| readtable)
   readtable)
 
 (defvar *fset-readtable* (fset-setup-readtable (copy-readtable nil))
   "A copy of the standard readtable with FSet reader macros installed.")
+
+;;; Named-Readtables provides a better way to switch readtables.
+(named-readtables:defreadtable fset-readtable
+  (:merge :standard)
+  (:dispatch-macro-char #\# #\{ '|#{-reader|)
+  (:macro-char #\} (get-macro-character #\)) nil)
+  (:dispatch-macro-char #\# #\[ '|#[-reader|)
+  (:macro-char #\] (get-macro-character #\)) nil)
+  (:dispatch-macro-char #\# #\~ '|#~-reader|)
+  (:dispatch-macro-char #\# #\$ '|#$-reader|)
+  (:dispatch-macro-char #\# #\% '|#%-reader|))
 
 
 ;;; These function in the traditional Lisp manner, constructing the structures
@@ -612,30 +640,39 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
 (defun |rereading-#{-reader| (stream subchar arg)
   (declare (ignore subchar arg)
            (notinline empty-bag))
-  (case (peek-char nil stream t nil t)
-    (#\|
-     (read-char stream t nil t)
-     (let ((map (convert 'map (read-delimited-list #\| stream t) :value-fn #'cadr)))
-       (unless (eql (read-char stream) #\})
-	 (error "Incorrect #{| ... |} syntax"))
-       (if (eql #\/ (peek-char nil stream nil nil t))
-	   (progn
-	     (read-char stream t nil t)
-	     (with-default map (read stream t nil t)))
-	 map)))
-    (#\%
-     (read-char stream t nil t)
-     (let ((stuff (read-delimited-list #\% stream t))
-	   (result (empty-bag)))
-       (unless (eql (read-char stream) #\})
-	 (error "Incorrect #{% ... %} syntax"))
-       (dolist (x stuff)
-	 (if (and (consp x) (eq (car x) '%))
-	     (adjoinf result (cadr x) (caddr x))
-	   (adjoinf result x)))
-       result))
-    (otherwise
-     (convert 'set (read-delimited-list #\} stream t)))))
+  (flet ((read-map (tag)
+	   (read-char stream t nil t)
+	   (let ((pairs (read-delimited-list #\| stream t)))
+	     (unless (eql (read-char stream) #\})
+	       (error "Incorrect #{~A| ... |} syntax" tag))
+	     (if (eql #\/ (peek-char nil stream nil nil t))
+		 (progn
+		   (read-char stream t nil t)
+		   (values pairs (read stream t nil t)))
+	       (values pairs nil)))))
+    (case (peek-char nil stream t nil t)
+      (#\|
+	(let ((pairs default (read-map "")))
+	  (with-default (convert 'map pairs :value-fn #'cadr) default)))
+      (#\%
+	(read-char stream t nil t)
+	(let ((stuff (read-delimited-list #\% stream t))
+	      (result (empty-bag)))
+	  (unless (eql (read-char stream) #\})
+	    (error "Incorrect #{% ... %} syntax"))
+	  (dolist (x stuff)
+	    (if (and (consp x) (eq (car x) '%))
+		(adjoinf result (cadr x) (caddr x))
+	      (adjoinf result x)))
+	  result))
+      (#\=
+	(read-char stream t nil t)
+	(if (eql (peek-char nil stream t nil t) #\|)
+	    (let ((pairs default (read-map "=")))
+	      (with-default (convert 'replay-map pairs :value-fn #'cadr) default))
+	  (convert 'replay-set (read-delimited-list #\} stream t))))
+      (otherwise
+	(convert 'set (read-delimited-list #\} stream t))))))
 
 (defun |rereading-#[-reader| (stream subchar arg)
   (declare (ignore subchar arg))
@@ -662,12 +699,12 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
   "Adds the FSet rereading reader macros to `readtable'.  These reader macros
 will correctly read structure printed by the FSet print functions.  Returns
 `readtable'."
-  (set-dispatch-macro-character #\# #\{ #'|rereading-#{-reader| readtable)
+  (set-dispatch-macro-character #\# #\{ '|rereading-#{-reader| readtable)
   (set-macro-character #\} (get-macro-character #\)) nil readtable)
-  (set-dispatch-macro-character #\# #\[ #'|rereading-#[-reader| readtable)
+  (set-dispatch-macro-character #\# #\[ '|rereading-#[-reader| readtable)
   (set-macro-character #\] (get-macro-character #\)) nil readtable)
-  (set-dispatch-macro-character #\# #\~ #'|rereading-#~-reader| readtable)
-  (set-dispatch-macro-character #\# #\% #'|#%-reader| readtable)
+  (set-dispatch-macro-character #\# #\~ '|rereading-#~-reader| readtable)
+  (set-dispatch-macro-character #\# #\% '|#%-reader| readtable)
   readtable)
 
 (defvar *fset-rereading-readtable* (fset-setup-rereading-readtable (copy-readtable nil))
@@ -675,12 +712,11 @@ will correctly read structure printed by the FSet print functions.  Returns
 installed.  This readtable can be used to read structure printed by the FSet
 print functions.")
 
-(named-readtables:defreadtable fset-readtable
+(named-readtables:defreadtable fset-rereading-readtable
   (:merge :standard)
-  (:dispatch-macro-char #\# #\{ #'|#{-reader|)
+  (:dispatch-macro-char #\# #\{ '|rereading-#{-reader|)
   (:macro-char #\} (get-macro-character #\)) nil)
-  (:dispatch-macro-char #\# #\[ #'|#[-reader|)
+  (:dispatch-macro-char #\# #\[ '|rereading-#[-reader|)
   (:macro-char #\] (get-macro-character #\)) nil)
-  (:dispatch-macro-char #\# #\~ #'|#~-reader|)
-  (:dispatch-macro-char #\# #\$ #'|#$-reader|)
-  (:dispatch-macro-char #\# #\% #'|#%-reader|))
+  (:dispatch-macro-char #\# #\~ '|rereading-#~-reader|)
+  (:dispatch-macro-char #\# #\% '|rereading-#%-reader|))
