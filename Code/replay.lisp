@@ -136,9 +136,7 @@ sets are printed as \"#{= ... }\"."
 	((new-contents (wb-set-tree-with contents value))))
     (if (eq new-contents contents)
 	s
-      (make-wb-replay-set new-contents
-			  (let ((tree (wb-replay-set-ordering s)))
-			    (wb-seq-tree-insert tree (wb-seq-tree-size tree) value))))))
+      (make-wb-replay-set new-contents (wb-seq-tree-append (wb-replay-set-ordering s) value)))))
 
 (defmethod union ((s1 wb-replay-set) (s2 set) &key)
   "As the parameter types suggest, this is not symmetric: it adds the members
@@ -156,7 +154,7 @@ new members appended."
 	     (let ((tmp (wb-set-tree-with contents x)))
 	       (unless (eq tmp contents)
 		 (setq contents tmp)
-		 (setq ordering (wb-seq-tree-insert ordering (wb-seq-tree-size ordering) x)))))
+		 (setq ordering (wb-seq-tree-append ordering x)))))
 	   (make-wb-replay-set contents ordering)))))
 
 (defmethod intersection ((s1 wb-replay-set) (s2 set) &key)
@@ -336,7 +334,7 @@ first.  Replay maps are printed as \"#{=| ... |}\"."
     (dolist (pr list)
       (let ((key (funcall key-fn pr)))
 	(setq m (WB-Map-Tree-With m key (funcall value-fn pr)))
-	(setq ord (WB-Seq-Tree-Insert ord (WB-Seq-Tree-Size ord) key))))
+	(setq ord (WB-Seq-Tree-Append ord key))))
     (make-wb-replay-map m ord)))
 
 (defmethod convert ((to-type (eql 'replay-map)) (s sequence)
@@ -354,7 +352,7 @@ first.  Replay maps are printed as \"#{=| ... |}\"."
       (let ((pr (elt s i))
 	    ((key (funcall key-fn pr))))
 	(setq m (WB-Map-Tree-With m key (funcall value-fn pr)))
-	(setq ord (WB-Seq-Tree-Insert ord (WB-Seq-Tree-Size ord) key))))
+	(setq ord (WB-Seq-Tree-Append ord key))))
     (make-wb-replay-map m ord)))
 
 (defmethod lookup ((m wb-replay-map) key)
@@ -387,9 +385,7 @@ first.  Replay maps are printed as \"#{=| ... |}\"."
       (if (= (wb-map-tree-size new-contents) (wb-map-tree-size contents))
 	  ;; New value for existing key.
 	  (make-wb-replay-map new-contents (wb-replay-map-ordering m) (map-default m))
-	(make-wb-replay-map new-contents
-			    (let ((tree (wb-replay-map-ordering m)))
-			      (wb-seq-tree-insert tree (wb-seq-tree-size tree) key))
+	(make-wb-replay-map new-contents (wb-seq-tree-append (wb-replay-map-ordering m) key)
 			    (map-default m))))))
 
 ;;; WARNING: linear-time operation!
