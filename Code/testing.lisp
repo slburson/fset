@@ -253,6 +253,8 @@
       (test (less-than? (tuple (+K0+ 1)) (tuple (+K0+ 2))))
       (test (unequal? (tuple (+K0+ 1.0) (+K1+ 'c)) (tuple (+K0+ 1) (+K1+ 'c))))
       (test (less-than? (tuple (+K0+ 1.0) (+K1+ 'c)) (tuple (+K0+ 1) (+K1+ 'd))))
+      (test (not (equal? (map (3 7) :default 0) (map (3 7) :default 1))))
+      (test (not (equal? (with-default (seq 42 17) 6) (with-default (seq 42 17) 9))))
 
       (test (equal? (image +K0+ (set)) (set)))
       (test (equal? (image +K0+ (set (tuple))) (set nil)))

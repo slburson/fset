@@ -256,6 +256,12 @@ However, the implementation tries very hard to prevent this."
 (defun ximage (coll fn)
   (image fn coll))
 
+(define-modify-macro updatef (fn &rest keys)
+  xupdate)
+
+(defun xupdate (coll fn &rest keys)
+  (apply #'update fn coll keys))
+
 (define-modify-macro composef (fn)
   compose)
 

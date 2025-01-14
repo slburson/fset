@@ -79,6 +79,7 @@
 	   #:define-tuple-key #:def-tuple-key #:get-tuple-key #:tuple-key-name #:tuple-key?
 	   #:tuple-merge
 	   #:fset-setup-readtable #:*fset-readtable*
+	   #:fset-setup-rereading-readtable #:*fset-rereading-readtable*
 	   #:$ #:% 			; for the 'map' and 'bag' constructor macros
 	   #:?				; for `query' on 'list-relation'
 	   ;; Used by the bag methods that convert to and from lists.
@@ -101,8 +102,8 @@
 	   #:all-queries #:do-all-queries #:lookup-multi #:forward-key #:lookup-restricted
 	   #:lookup-multi-restricted
 
-           ;; named-readtable readtable
-           #:fset-readtable))
+           ;; named-readtable readtables
+           #:fset-readtable #:fset-rereading-readtable))
 
 
 ;;; The need has arisen to define a second FSet package.  There are two motivations:
@@ -183,6 +184,7 @@
 	   #:define-tuple-key #:def-tuple-key #:get-tuple-key #:tuple-key-name #:tuple-key?
 	   #:tuple-merge
 	   #:fset-setup-readtable #:*fset-readtable*
+	   #:fset-setup-rereading-readtable #:*fset-rereading-readtable*
 	   #:$ #:% 			; for the 'map' and 'bag' constructor macros
 	   #:?				; for `query' on 'list-relation'
 	   ;; Used by the bag methods that convert to and from lists.
@@ -205,8 +207,8 @@
 	   #:all-queries #:do-all-queries #:lookup-multi #:forward-key #:lookup-restricted
 	   #:lookup-multi-restricted
 
-           ;; named-readtable readtable
-           #:fset-readtable))
+           ;; named-readtable readtables
+           #:fset-readtable #:fset-rereading-readtable))
 
 
 ;;; A convenient package for experimenting with FSet.  Also serves as an example
