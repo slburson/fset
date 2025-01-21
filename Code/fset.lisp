@@ -2802,7 +2802,7 @@ This is the default implementation of seqs in FSet."
 
 (defmethod with-last ((s wb-seq) val)
   (let ((tree (wb-seq-contents s)))
-    (make-wb-seq (WB-Seq-Tree-Insert tree (WB-Seq-Tree-Size tree) val)
+    (make-wb-seq (WB-Seq-Tree-Append tree val)
 		 (seq-default s))))
 
 (defmethod less-first ((s wb-seq))
