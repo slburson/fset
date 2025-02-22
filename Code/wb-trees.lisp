@@ -5444,6 +5444,7 @@ in `eqvm1' are equivalent to those in `eqvm2'."
 	    (:constructor Make-Raw-WB-Seq-Tree-Node (Size Left Right))
 	    (:predicate WB-Seq-Tree-Node?)
 	    (:print-function WB-Seq-Tree-Node-Print))
+  ;; These should never actually be null, since that would make the node itself redundant.
   (Left  nil :type WB-Seq-Tree :read-only t)
   (Right nil :type WB-Seq-Tree :read-only t)
   (Size 0 :type fixnum :read-only t))
@@ -5526,17 +5527,19 @@ in `eqvm1' are equivalent to those in `eqvm2'."
 		 (Make-WB-Seq-Tree-Node (String-Subseq tree 0 idx)
 					(String-Subseq-Insert tree idx (length tree)
 							      0 value))))
-	   (if (< (length tree) *WB-Tree-Max-Vector-Length*)
-	       (Vector-Insert-From-String tree idx value)
-	     (let ((left (and (> idx 0) (String-Subseq tree 0 idx)))
-		   (right (and (< idx (length tree)) (String-Subseq tree idx))))
-	       (declare (type (or simple-string null) left right))
-	       (if (< (length-nv left) (length-nv right))
-		   (Make-WB-Seq-Tree-Node (Vector-Insert (if left (coerce left 'simple-vector) #())
-							 idx value)
-					  right)
-		 (Make-WB-Seq-Tree-Node left (Vector-Insert (if right (coerce right 'simple-vector) #())
-							    0 value)))))))
+	   (let ((len (length tree)))
+	     (if (< len *WB-Tree-Max-Vector-Length*)
+		 (Vector-Insert-From-String tree idx value)
+	       (let ((split-point (ash len -1)))
+		 ;; The recursive calls are necessary in the case where the original string is
+		 ;; of length 15 or 16 and so the substring we're inserting into is of length 8
+		 ;; (the max vector length).
+		 (if (< idx split-point)
+		     (Make-WB-Seq-Tree-Node (WB-Seq-Tree-Insert (String-Subseq tree 0 split-point) idx value)
+					    (String-Subseq tree split-point len))
+		   (Make-WB-Seq-Tree-Node (String-Subseq tree 0 split-point)
+					  (WB-Seq-Tree-Insert (String-Subseq tree split-point len)
+							      (- idx split-point) value))))))))
 	((simple-vector-p tree)
 	 (if (< (length tree) *WB-Tree-Max-Vector-Length*)
 	     (Vector-Insert tree idx value)
@@ -5701,7 +5704,17 @@ the result, inserts `val', returning the new vector."
 	((stringp tree)
 	 (if (characterp value)
 	     (String-Update tree idx value)
-	   (Vector-Update-From-String tree idx value)))
+	   (let ((len (length tree)))
+	     (if (<= len *WB-Tree-Max-Vector-Length*)
+		 (Vector-Update-From-String tree idx value)
+	       (let ((split-point (ash len -1)))
+		 (if (< idx split-point)
+		     ;; These could be improved further.  `Vector-Update-Subseq-From-String', anyone?
+		     (Make-WB-Seq-Tree-Node (Vector-Update-From-String (String-Subseq tree 0 split-point) idx value)
+					    (subseq tree split-point))
+		   (Make-WB-Seq-Tree-Node (subseq tree 0 split-point)
+					  (Vector-Update-From-String (String-Subseq tree split-point)
+								     (- idx split-point) value))))))))
 	((simple-vector-p tree)
 	 (Vector-Update tree idx value))
 	(t
@@ -5793,7 +5806,7 @@ the result, inserts `val', returning the new vector."
 ;;; Conversion to/from vectors
 
 (defun WB-Seq-Tree-From-Vector (vec)
-  (declare (optimize (speed 1) (safety 1))
+  (declare (optimize (speed 1) (safety 0))
 	   (type vector vec))
   (and (> (length vec) 0)
        ;; We walk the vector left-to-right, breaking it up into nearly-equal-sized
@@ -6131,9 +6144,10 @@ the result, inserts `val', returning the new vector."
 (defun WB-Seq-Tree-Build-Node (left right)
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Seq-Tree left right))
-  (cond ((and (or (null left) (stringp left))
-	      (or (null right) (stringp right))
-	      (< (+ (length-nv left) (length-nv right)) *WB-Tree-Max-String-Length*))
+  (cond ((null left) right)
+	((null right) left)
+	((and (stringp left) (stringp right)
+	      (<= (+ (length-nv left) (length-nv right)) *WB-Tree-Max-String-Length*))
 	 (if (and left right)
 	     (concatenate #-FSet-Ext-Strings 'base-string
 			  #+FSet-Ext-Strings (if (and (typep left 'base-string)
@@ -6142,9 +6156,9 @@ the result, inserts `val', returning the new vector."
 					       'string)
 			  (the string left) (the string right))
 	   (or left right)))
-	((and (or (null left) (simple-vector-p left))
-	      (or (null right) (simple-vector-p right)))
-	 (if (< (+ (length-nv left) (length-nv right)) *WB-Tree-Max-Vector-Length*)
+	((and (or (stringp left) (simple-vector-p left))
+	      (or (stringp right) (simple-vector-p right)))
+	 (if (<= (+ (length-nv left) (length-nv right)) *WB-Tree-Max-Vector-Length*)
 	     (concatenate 'simple-vector left right)
 	   (Make-WB-Seq-Tree-Node left right)))
 	(t
@@ -6387,19 +6401,22 @@ the result, inserts `val', returning the new vector."
 ;;; Verifier
 
 (defun WB-Seq-Tree-Verify (tree)
-  (cond ((null tree) t)
-	((stringp tree) t)
-	((simple-vector-p tree) t)
-	(t
-	 (let ((sizl (WB-Seq-Tree-Size (WB-Seq-Tree-Node-Left tree)))
-	       (sizr (WB-Seq-Tree-Size (WB-Seq-Tree-Node-Right tree))))
-	   (and (= (WB-Seq-Tree-Node-Size tree) (+ sizl sizr))
-		;; We suppress the balance test if one side is smaller than 8
-		;; here, instead of 4, because of `*WB-Tree-Max-String-Length*',
-		;; which makes the trees appear less balanced.
-		(or (<= sizr 8)
-		    (<= sizl (* sizr WB-Tree-Balance-Factor)))
-		(or (<= sizl 8)
-		    (<= sizr (* sizl WB-Tree-Balance-Factor)))
-		(WB-Seq-Tree-Verify (WB-Seq-Tree-Node-Left tree))
-		(WB-Seq-Tree-Verify (WB-Seq-Tree-Node-Right tree)))))))
+  (if (null tree) t
+    (rlabels (walk tree)
+      (walk (tree)
+	(cond ((null tree) nil) ; nil should appear only if the tree is empty
+	      ((stringp tree) (<= (length tree) *WB-Tree-Max-String-Length*))
+	      ((simple-vector-p tree) (<= (length tree) *WB-Tree-Max-Vector-Length*))
+	      (t
+	       (let ((sizl (WB-Seq-Tree-Size (WB-Seq-Tree-Node-Left tree)))
+		     (sizr (WB-Seq-Tree-Size (WB-Seq-Tree-Node-Right tree))))
+		 (and (= (WB-Seq-Tree-Node-Size tree) (+ sizl sizr))
+		      ;; We suppress the balance test if one side is smaller than 8
+		      ;; here, instead of 4, because of `*WB-Tree-Max-String-Length*',
+		      ;; which makes the trees appear less balanced.
+		      (or (<= sizr 8)
+			  (<= sizl (* sizr WB-Tree-Balance-Factor)))
+		      (or (<= sizl 8)
+			  (<= sizr (* sizl WB-Tree-Balance-Factor)))
+		      (walk (WB-Seq-Tree-Node-Left tree))
+		      (walk (WB-Seq-Tree-Node-Right tree))))))))))
