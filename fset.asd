@@ -16,7 +16,7 @@ See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
   :author "Scott L. Burson <Scott@sympoiesis.com>"
   :version "1.4.0"
   :licence "LLGPL"
-  :depends-on (:misc-extensions :random-state :named-readtables)
+  :depends-on (:misc-extensions :mt19937 :named-readtables)
   :serial t
   :components
   ((:module "Code"

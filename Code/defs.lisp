@@ -16,7 +16,7 @@
   (:use :cl :new-let :lexical-contexts :rev-fun-bind)
   (:import-from :gmap #:gmap #:alist #:constant #:index #:index-inc #:sum)
   (:shadowing-import-from :new-let #:let #:cond)
-  (:shadowing-import-from :random-state #:random)
+  (:shadowing-import-from :mt19937 #:make-random-state #:random #:*random-state*)
   ;; For each of these shadowed symbols, using packages must either shadowing-
   ;; import it or shadowing-import the original Lisp symbol.
   (:shadow ;; Shadowed type/constructor names
@@ -122,7 +122,7 @@
   (:use :cl :fset :new-let :lexical-contexts)
   (:import-from :gmap #:gmap #:alist #:constant #:index #:sum)
   (:shadowing-import-from :new-let #:let #:cond)
-  (:shadowing-import-from :random-state #:random)
+  (:shadowing-import-from :mt19937 #:make-random-state #:random #:*random-state*)
   ;; For each of these shadowed symbols, using packages must either shadowing-
   ;; import it or shadowing-import the original Lisp symbol.
   (:shadow ;; Shadowed type/constructor names
