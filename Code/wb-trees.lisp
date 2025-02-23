@@ -1637,7 +1637,7 @@ to those members above `lo' and below `hi'."
   (declare (optimize (speed 3) (safety 0)))
   (rlabels (walk tree (lambda (op)
 			(ecase op
-			  ((:first :rest) (values nil nil))
+			  (:first (values nil nil))
 			  (:empty? t)
 			  (:more? nil))))
     (walk (node cont)
@@ -1681,7 +1681,7 @@ to those members above `lo' and below `hi'."
   (declare (optimize (speed 3) (safety 0)))
   (rlabels (walk tree (lambda (op)
 			(ecase op
-			  ((:first :rest) (values nil nil))
+			  (:first (values nil nil))
 			  (:empty? t)
 			  (:more? nil))))
     (walk (node cont)
@@ -3552,7 +3552,7 @@ value and `count-var' to its member count."
   (declare (optimize (speed 3) (safety 0)))
   (rlabels (walk tree (lambda (op)
 			(ecase op
-			  ((:first :rest) (values nil nil))
+			  (:first (values nil nil))
 			  (:empty? t)
 			  (:more? nil))))
     (walk (node cont)
@@ -3611,7 +3611,7 @@ value and `count-var' to its member count."
   (declare (optimize (speed 3) (safety 0)))
   (rlabels (walk tree (lambda (op)
 			(ecase op
-			  ((:first :rest) (values nil nil))
+			  (:first (values nil nil))
 			  (:empty? t)
 			  (:more? nil))))
     (walk (node cont)
@@ -3669,7 +3669,7 @@ value and `count-var' to its member count."
   (declare (optimize (speed 3) (safety 0)))
   (rlabels (walk tree (lambda (op)
 			(ecase op
-			  ((:first :rest) (values nil nil))
+			  (:first (values nil nil))
 			  (:empty? t)
 			  (:more? nil))))
     (walk (node cont)
@@ -3713,7 +3713,7 @@ value and `count-var' to its member count."
   (declare (optimize (speed 3) (safety 0)))
   (rlabels (walk tree (lambda (op)
 			(ecase op
-			  ((:first :rest) (values nil nil))
+			  (:first (values nil nil))
 			  (:empty? t)
 			  (:more? nil))))
     (walk (node cont)
@@ -5452,7 +5452,7 @@ between equal trees."
   (declare (optimize (speed 3) (safety 0)))
   (rlabels (walk tree (lambda (op)
 			(ecase op
-			  ((:first :rest) (values nil nil nil))
+			  (:first (values nil nil nil))
 			  (:empty? t)
 			  (:more? nil))))
     (walk (node cont)
@@ -5496,7 +5496,7 @@ between equal trees."
   (declare (optimize (speed 3) (safety 0)))
   (rlabels (walk tree (lambda (op)
 			(ecase op
-			  ((:first :rest) (values nil nil nil))
+			  (:first (values nil nil nil))
 			  (:empty? t)
 			  (:more? nil))))
     (walk (node cont)
@@ -6793,7 +6793,7 @@ the result, inserts `val', returning the new vector."
   (declare (optimize (speed 3) (safety 0)))
   (rlabels (walk tree (lambda (op)
 			  (ecase op
-			    ((:first :rest) (values nil nil))
+			    (:first (values nil nil))
 			    (:empty? t)
 			    (:more? nil))))
     (walk (node cont)
@@ -6833,7 +6833,7 @@ the result, inserts `val', returning the new vector."
   (declare (optimize (speed 3) (safety 0)))
   (rlabels (walk tree (lambda (op)
 			(ecase op
-			  ((:first :rest) (values nil nil))
+			  (:first (values nil nil))
 			  (:empty? t)
 			  (:more? nil))))
     (walk (node cont)
