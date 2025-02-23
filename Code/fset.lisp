@@ -462,14 +462,30 @@ take additional keyword arguments to further specify the kind of conversion."))
 ;;; to check termination; if it might contain `nil', you can use the extra value.
 (defgeneric iterator (collection &key)
   (:documentation
-    "Returns an iterator for the collection.  (These are stateful iterators and
-are not thread-safe; if you want a pure iterator, your best bet is to `convert'
-the collection to a list.)  The iterator is a closure of one argument; given
-`:done?', it returns true iff the iterator is exhausted; given `:more?', it
-returns true iff the iterator is _not_ exhausted.  Given `:get', if the iterator
-is not exhausted, it returns the next element (or pair, for a map, as two values),
-with the second value (third, for a map) being true, and advances one element; if
-it is exhausted, it returns two `nil' values (three, for a map)."))
+    "Returns an iterator for the collection.  \(These are stateful iterators and
+are not thread-safe; if you want a pure iterator, see `fun-iterator'.\)  The iterator
+is a function of one argument; given `:done?', it returns true iff the iterator is
+exhausted; given `:more?', it returns true iff the iterator is _not_ exhausted.
+Given `:get', if the iterator is not exhausted, it returns the next element (or
+pair, for a map, as two values), with the second value (third, for a map) being
+true, and advances one element; if it is exhausted, it returns two `nil' values
+\(three, for a map\).
+
+The bag method takes a `pairs?' keyword argument; if true, it returns each element
+only once, with its multiplicity as the second value, as for a map."))
+
+(defgeneric fun-iterator (collection &key from-end?)
+  (:documentation
+    "Returns a functional iterator for the collection.  \(These iterators are
+thread-safe.\)  The iterator is a function of one argument; given `:empty?', it
+returns true iff the iterator is exhausted; given `:more?', it returns true iff
+the iterator is _not_ exhausted.  Given `:first', if it is not exhausted, it
+returns the next element \(or pair, for a map, as two values\), with an additional
+true value; if it is exhausted, it returns two or three `nil' values.
+
+If `from-end?' is true, the collection is iterated in reverse order.  The bag
+method also takes a `pairs?' keyword argument; if true, it returns each element
+only once, with its multiplicity as the second value, as for a map."))
 
 ;;; The `&allow-other-keys' is to persuade SBCL not to issue warnings about keywords
 ;;; that are accepted by some methods of `iterator'.
@@ -545,6 +561,19 @@ as an FSet seq, or a set or bag as well."
   `((iterator ,seq)
     #'(lambda (it) (declare (type function it)) (funcall it ':done?))
     #'(lambda (it) (declare (type function it)) (funcall it ':get))))
+
+;;; The new (for 1.4.7) functional iterators all take a `:from-end?' option.
+;;; Other than that, there's no reason to use them with `gmap'; they're slower
+;;; (though not as much slower as you might expect; less than 2x) and generate
+;;; lots of garbage.  They were fun to write, though :-)
+(gmap:def-arg-type fun-sequence (fun-iterable &key from-end?)
+  "Yields the elements of `fun-iterable', which can be an FSet seq, set, or bag.
+If `:from-end?' is true, iterates in reverse order."
+  `((fun-iterator ,fun-iterable :from-end? ,from-end?)
+    #'(lambda (it) (funcall it ':empty?))
+    #'(lambda (it) (funcall it ':first))
+    #'(lambda (it) (funcall it ':rest))))
+
 
 ;;; ================================================================================
 ;;; Generic versions of Common Lisp sequence functions
@@ -1235,6 +1264,11 @@ for the possibility of different set implementations; it is not for public use.
 (defmethod iterator ((s wb-set) &key)
   (Make-WB-Set-Tree-Iterator (wb-set-contents s)))
 
+(defmethod fun-iterator ((s wb-set) &key from-end?)
+  (if from-end?
+      (WB-Set-Tree-Rev-Fun-Iter (wb-set-contents s))
+    (WB-Set-Tree-Fun-Iter (wb-set-contents s))))
+
 (defmethod filter ((pred function) (s wb-set))
   (wb-set-filter pred s))
 
@@ -1853,6 +1887,15 @@ different bag implementations; it is not for public use.  `elt-fn' and
       (Make-WB-Bag-Tree-Pair-Iterator (wb-bag-contents b))
     (Make-WB-Bag-Tree-Iterator (wb-bag-contents b))))
 
+(defmethod fun-iterator ((s wb-bag) &key pairs? from-end?)
+  (if pairs?
+      (if from-end?
+	  (WB-Bag-Tree-Pair-Rev-Fun-Iter (wb-bag-contents s))
+	(WB-Bag-Tree-Pair-Fun-Iter (wb-bag-contents s)))
+    (if from-end?
+	(WB-Bag-Tree-Rev-Fun-Iter (wb-bag-contents s))
+      (WB-Bag-Tree-Fun-Iter (wb-bag-contents s)))))
+
 (defmethod filter ((pred function) (b bag))
   (bag-filter pred b))
 
@@ -2133,6 +2176,12 @@ of which may be repeated."
     #'WB-Bag-Tree-Pair-Iterator-Done?
     (:values 2 #'WB-Bag-Tree-Pair-Iterator-Get)))
 
+(gmap:def-arg-type fun-bag-pairs (bag &key from-end?)
+  `((fun-iterator ,bag :pairs? t :from-end? ,from-end?)
+    #'(lambda (it) (funcall it ':empty?))
+    (:values 2 #'(lambda (it) (funcall it ':first)))
+    #'(lambda (it) (funcall it ':rest))))
+
 (gmap:def-gmap-res-type bag (&key filterp)
   "Returns a bag of the values, optionally filtered by `filterp'."
   `(nil #'WB-Bag-Tree-With #'make-wb-bag ,filterp))
@@ -2309,6 +2358,11 @@ symbols."))
 (defmethod iterator ((m wb-map) &key)
   (Make-WB-Map-Tree-Iterator (wb-map-contents m)))
 
+(defmethod fun-iterator ((s wb-map) &key from-end?)
+  (if from-end?
+      (WB-Map-Tree-Rev-Fun-Iter (wb-map-contents s))
+    (WB-Map-Tree-Fun-Iter (wb-map-contents s))))
+
 (defmethod filter ((pred function) (m wb-map))
   (wb-map-filter pred m))
 
@@ -2437,6 +2491,12 @@ symbols."))
   (let ((result nil))
     (do-map (key val m)
       (push (funcall pair-fn key val) result))
+    (nreverse result)))
+
+(defmethod convert ((to-type (eql 'alist)) (m map) &key)
+  (let ((result nil))
+    (do-map (key val m)
+      (push (cons key val) result))
     (nreverse result)))
 
 (defmethod convert ((to-type (eql 'seq)) (m map) &key (pair-fn #'cons))
@@ -2606,6 +2666,12 @@ symbols."))
   `((Make-WB-Map-Tree-Iterator-Internal (wb-map-contents ,map))
     #'WB-Map-Tree-Iterator-Done?
     (:values 2 #'WB-Map-Tree-Iterator-Get)))
+
+(gmap:def-arg-type fun-map (map &key from-end?)
+  `((fun-iterator ,map :from-end? ,from-end?)
+    #'(lambda (it) (funcall it ':empty?))
+    (:values 2 #'(lambda (it) (funcall it ':first)))
+    #'(lambda (it) (funcall it ':rest))))
 
 (gmap:def-gmap-res-type map (&key filterp default)
   "Consumes two values from the mapped function; returns a map of the pairs.
@@ -3037,6 +3103,11 @@ not symbols."))
 
 (defmethod iterator ((s wb-seq) &key)
   (Make-WB-Seq-Tree-Iterator (wb-seq-contents s)))
+
+(defmethod fun-iterator ((s wb-seq) &key from-end?)
+  (if from-end?
+      (WB-Seq-Tree-Rev-Fun-Iter (wb-seq-contents s))
+    (WB-Seq-Tree-Fun-Iter (wb-seq-contents s))))
 
 (defmethod domain-contains? ((s seq) x)
   (and (integerp x) (>= x 0) (< x (size s))))

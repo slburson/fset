@@ -84,6 +84,8 @@
 	   #:?				; for `query' on 'list-relation'
 	   ;; Used by the bag methods that convert to and from lists.
 	   #:alist
+	   ;; Miscellaneous GMap arg types
+	   #:fun-sequence #:fun-bag-pairs #:fun-map
 	   ;; Miscellaneous GMap result types
 	   #:map-to-sets #:append-unique
 	   ;; Bounded sets
@@ -189,6 +191,8 @@
 	   #:?				; for `query' on 'list-relation'
 	   ;; Used by the bag methods that convert to and from lists.
 	   #:alist
+	   ;; Miscellaneous GMap arg types
+	   #:fun-sequence #:fun-bag-pairs #:fun-map
 	   ;; Miscellaneous GMap result types
 	   #:map-to-sets #:append-unique
 	   ;; Bounded sets

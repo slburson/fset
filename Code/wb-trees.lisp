@@ -1631,6 +1631,97 @@ to those members above `lo' and below `hi'."
 
 
 ;;; ----------------
+;;; Functional iterators.  Fun!!!
+
+(defun WB-Set-Tree-Fun-Iter (tree)
+  (declare (optimize (speed 3) (safety 0)))
+  (rlabels (walk tree (lambda (op)
+			(ecase op
+			  ((:first :rest) (values nil nil))
+			  (:empty? t)
+			  (:more? nil))))
+    (walk (node cont)
+      (cond ((null node)
+	     cont)
+	    ((simple-vector-p node)
+	     (let ((len (length node)))
+	       (rlabels (iter 0)
+		 (iter (i)
+		   (declare (fixnum i))
+		   (if (< i len)
+		       (lambda (op)
+			 (ecase op
+			   (:first (values (svref node i) t))
+			   (:rest (iter (1+ i)))
+			   (:empty? nil)
+			   (:more? t)))
+		     cont)))))
+	    (t
+	     (walk (WB-Set-Tree-Node-Left node)
+		   (let ((value (WB-Set-Tree-Node-Value node)))
+		     (if (Equivalent-Set? value)
+			 (rlabels (iter (Equivalent-Set-Members value))
+			   (iter (mems)
+			     (if mems
+				 (lambda (op)
+				   (ecase op
+				     (:first (values (car mems) t))
+				     (:rest (iter (cdr mems)))
+				     (:empty? nil)
+				     (:more? t)))
+			       (walk (WB-Set-Tree-Node-Right node) cont))))
+		       (lambda (op)
+			 (ecase op
+			   (:first (values value t))
+			   (:rest (walk (WB-Set-Tree-Node-Right node) cont))
+			   (:empty? nil)
+			   (:more? t)))))))))))
+
+(defun WB-Set-Tree-Rev-Fun-Iter (tree)
+  (declare (optimize (speed 3) (safety 0)))
+  (rlabels (walk tree (lambda (op)
+			(ecase op
+			  ((:first :rest) (values nil nil))
+			  (:empty? t)
+			  (:more? nil))))
+    (walk (node cont)
+      (cond ((null node)
+	     cont)
+	    ((simple-vector-p node)
+	     (rlabels (iter (1- (length node)))
+	       (iter (i)
+		 (declare (fixnum i))
+		 (if (>= i 0)
+		     (lambda (op)
+		       (ecase op
+			 (:first (values (svref node i) t))
+			 (:rest (iter (1- i)))
+			 (:empty? nil)
+			 (:more? t)))
+		   cont))))
+	    (t
+	     (walk (WB-Set-Tree-Node-Right node)
+		   (let ((value (WB-Set-Tree-Node-Value node)))
+		     (if (Equivalent-Set? value)
+			 (rlabels (iter (reverse (Equivalent-Set-Members value)))
+			   (iter (mems)
+			     (if mems
+				 (lambda (op)
+				   (ecase op
+				     (:first (values (car mems) t))
+				     (:rest (iter (cdr mems)))
+				     (:empty? nil)
+				     (:more? t)))
+			       (walk (WB-Set-Tree-Node-Left node) cont))))
+		       (lambda (op)
+			 (ecase op
+			   (:first (values value t))
+			   (:rest (walk (WB-Set-Tree-Node-Left node) cont))
+			   (:empty? nil)
+			   (:more? t)))))))))))
+
+
+;;; ----------------
 ;;; Utilities used by all tree types in this file
 
 (defun Make-WB-Tree-Iterator (tree size frame-size nodes-have-values?)
@@ -3454,6 +3545,214 @@ value and `count-var' to its member count."
 		  (values (car pr) (cdr pr) t))
 	      (values val (WB-Bag-Tree-Node-Count node) t))))))))
 
+;;; ----------------
+;;; Functional iterators.  Fun!!!
+
+(defun WB-Bag-Tree-Fun-Iter (tree)
+  (declare (optimize (speed 3) (safety 0)))
+  (rlabels (walk tree (lambda (op)
+			(ecase op
+			  ((:first :rest) (values nil nil))
+			  (:empty? t)
+			  (:more? nil))))
+    (walk (node cont)
+      (cond ((null node)
+	     cont)
+	    ((consp node)
+	     (let ((len (length (the simple-array (car node)))))
+	       (rlabels (iter 0)
+		 (iter (i)
+		   (declare (fixnum i))
+		   (if (< i len)
+		       (copies i 0)
+		     cont))
+		 (copies (i j)
+		   (declare (fixnum i j))
+		   (if (< j (the fixnum (svref (cdr node) i)))
+		       (lambda (op)
+			 (ecase op
+			   (:first (values (svref (car node) i) t))
+			   (:rest (copies i (1+ j)))
+			   (:empty? nil)
+			   (:more? t)))
+		     (iter (1+ i)))))))
+	    (t
+	     (walk (WB-Bag-Tree-Node-Left node)
+		   (let ((value (WB-Bag-Tree-Node-Value node)))
+		     (if (Equivalent-Bag? value)
+			 (rlabels (iter (Equivalent-Bag-Alist value))
+			   (iter (prs)
+			     (if prs
+				 (copies prs 0)
+			       (walk (WB-Bag-Tree-Node-Right node) cont)))
+			   (copies (prs j)
+			     (declare (fixnum j))
+			     (if (< j (the fixnum (cdar prs)))
+				 (lambda (op)
+				   (ecase op
+				     (:first (values (caar prs) t))
+				     (:rest (copies prs (1+ j)))
+				     (:empty? nil)
+				     (:more? t)))
+			       (iter (cdr prs)))))
+		       (rlabels (copies 0)
+			 (copies (j)
+			   (declare (fixnum j))
+			   (if (< j (WB-Bag-Tree-Node-Count node))
+			       (lambda (op)
+				 (ecase op
+				   (:first (values value t))
+				   (:rest (copies (1+ j)))
+				   (:empty? nil)
+				   (:more? t)))
+			     (walk (WB-Bag-Tree-Node-Right node) cont))))))))))))
+
+(defun WB-Bag-Tree-Rev-Fun-Iter (tree)
+  (declare (optimize (speed 3) (safety 0)))
+  (rlabels (walk tree (lambda (op)
+			(ecase op
+			  ((:first :rest) (values nil nil))
+			  (:empty? t)
+			  (:more? nil))))
+    (walk (node cont)
+      (cond ((null node)
+	     cont)
+	    ((consp node)
+	     (rlabels (iter (1- (length (the simple-array (car node)))))
+	       (iter (i)
+		 (declare (fixnum i))
+		 (if (>= i 0)
+		     (copies i 0)
+		   cont))
+	       (copies (i j)
+		 (declare (fixnum i j))
+		 (if (< j (the fixnum (svref (cdr node) i)))
+		     (lambda (op)
+		       (ecase op
+			 (:first (values (svref (car node) i) t))
+			 (:rest (copies i (1+ j)))
+			 (:empty? nil)
+			 (:more? t)))
+		   (iter (1- i))))))
+	    (t
+	     (walk (WB-Bag-Tree-Node-Right node)
+		   (let ((value (WB-Bag-Tree-Node-Value node)))
+		     (if (Equivalent-Bag? value)
+			 (rlabels (iter (reverse (Equivalent-Bag-Alist value)))
+			   (iter (prs)
+			     (if prs
+				 (copies prs 0)
+			       (walk (WB-Bag-Tree-Node-Left node) cont)))
+			   (copies (prs j)
+			     (declare (fixnum j))
+			     (if (< j (the fixnum (cdar prs)))
+				 (lambda (op)
+				   (ecase op
+				     (:first (values (caar prs) t))
+				     (:rest (copies prs (1+ j)))
+				     (:empty? nil)
+				     (:more? t)))
+			       (iter (cdr prs)))))
+		       (rlabels (copies 0)
+			 (copies (j)
+			   (declare (fixnum j))
+			   (if (< j (WB-Bag-Tree-Node-Count node))
+			       (lambda (op)
+				 (ecase op
+				   (:first (values value t))
+				   (:rest (copies (1+ j)))
+				   (:empty? nil)
+				   (:more? t)))
+			     (walk (WB-Bag-Tree-Node-Left node) cont))))))))))))
+
+(defun WB-Bag-Tree-Pair-Fun-Iter (tree)
+  (declare (optimize (speed 3) (safety 0)))
+  (rlabels (walk tree (lambda (op)
+			(ecase op
+			  ((:first :rest) (values nil nil))
+			  (:empty? t)
+			  (:more? nil))))
+    (walk (node cont)
+      (cond ((null node)
+	     cont)
+	    ((consp node)
+	     (let ((len (length (the simple-array (car node)))))
+	       (rlabels (iter 0)
+		 (iter (i)
+		   (declare (fixnum i))
+		   (if (< i len)
+		       (lambda (op)
+			 (ecase op
+			   (:first (values (svref (car node) i) (svref (cdr node) i) t))
+			   (:rest (iter (1+ i)))
+			   (:empty? nil)
+			   (:more? t)))
+		     cont)))))
+	    (t
+	     (walk (WB-Bag-Tree-Node-Left node)
+		   (let ((value (WB-Bag-Tree-Node-Value node)))
+		     (if (Equivalent-Bag? value)
+			 (rlabels (iter (Equivalent-Bag-Alist value))
+			   (iter (prs)
+			     (if prs
+				 (lambda (op)
+				   (ecase op
+				     (:first (values (caar prs) (cdar prs) t))
+				     (:rest (iter (cdr prs)))
+				     (:empty? nil)
+				     (:more? t)))
+			       (walk (WB-Bag-Tree-Node-Right node) cont))))
+		       (lambda (op)
+			 (ecase op
+			   (:first (values value (WB-Bag-Tree-Node-Count node) t))
+			   (:rest (walk (WB-Bag-Tree-Node-Right node) cont))
+			   (:empty? nil)
+			   (:more? t)))))))))))
+
+(defun WB-Bag-Tree-Pair-Rev-Fun-Iter (tree)
+  (declare (optimize (speed 3) (safety 0)))
+  (rlabels (walk tree (lambda (op)
+			(ecase op
+			  ((:first :rest) (values nil nil))
+			  (:empty? t)
+			  (:more? nil))))
+    (walk (node cont)
+      (cond ((null node)
+	     cont)
+	    ((consp node)
+	     (rlabels (iter (1- (length (the simple-array (car node)))))
+	       (iter (i)
+		 (declare (fixnum i))
+		 (if (>= i 0)
+		     (lambda (op)
+		       (ecase op
+			 (:first (values (svref (car node) i) (svref (cdr node) i) t))
+			 (:rest (iter (1- i)))
+			 (:empty? nil)
+			 (:more? t)))
+		   cont))))
+	    (t
+	     (walk (WB-Bag-Tree-Node-Right node)
+		   (let ((value (WB-Bag-Tree-Node-Value node)))
+		     (if (Equivalent-Bag? value)
+			 (rlabels (iter (reverse (Equivalent-Bag-Alist value)))
+			   (iter (prs)
+			     (if prs
+				 (lambda (op)
+				   (ecase op
+				     (:first (values (caar prs) (cdar prs) t))
+				     (:rest (iter (cdr prs)))
+				     (:empty? nil)
+				     (:more? t)))
+			       (walk (WB-Bag-Tree-Node-Left node) cont))))
+		       (lambda (op)
+			 (ecase op
+			   (:first (values value (WB-Bag-Tree-Node-Count node) t))
+			   (:rest (walk (WB-Bag-Tree-Node-Left node) cont))
+			   (:empty? nil)
+			   (:more? t)))))))))))
+
+
 ;;; ================================================================================
 ;;; Equivalent-Bag routines
 
@@ -5146,6 +5445,97 @@ between equal trees."
 	      (values key (WB-Map-Tree-Node-Value node) t))))))))
 
 
+;;; ----------------
+;;; Functional iterators.  Fun!!!
+
+(defun WB-Map-Tree-Fun-Iter (tree)
+  (declare (optimize (speed 3) (safety 0)))
+  (rlabels (walk tree (lambda (op)
+			(ecase op
+			  ((:first :rest) (values nil nil nil))
+			  (:empty? t)
+			  (:more? nil))))
+    (walk (node cont)
+      (cond ((null node)
+	     cont)
+	    ((consp node)
+	     (let ((len (length (the simple-array (car node)))))
+	       (rlabels (iter 0)
+		 (iter (i)
+		   (declare (fixnum i))
+		   (if (< i len)
+		       (lambda (op)
+			 (ecase op
+			   (:first (values (svref (car node) i) (svref (cdr node) i) t))
+			   (:rest (iter (1+ i)))
+			   (:empty? nil)
+			   (:more? t)))
+		     cont)))))
+	    (t
+	     (walk (WB-Map-Tree-Node-Left node)
+		   (let ((key (WB-Map-Tree-Node-Key node)))
+		     (if (Equivalent-Map? key)
+			 (rlabels (iter (Equivalent-Map-Alist key))
+			   (iter (prs)
+			     (if prs
+				 (lambda (op)
+				   (ecase op
+				     (:first (values (caar prs) (cdar prs) t))
+				     (:rest (iter (cdr prs)))
+				     (:empty? nil)
+				     (:more? t)))
+			       (walk (WB-Map-Tree-Node-Right node) cont))))
+		       (lambda (op)
+			 (ecase op
+			   (:first (values key (WB-Map-Tree-Node-Value node) t))
+			   (:rest (walk (WB-Map-Tree-Node-Right node) cont))
+			   (:empty? nil)
+			   (:more? t)))))))))))
+
+(defun WB-Map-Tree-Rev-Fun-Iter (tree)
+  (declare (optimize (speed 3) (safety 0)))
+  (rlabels (walk tree (lambda (op)
+			(ecase op
+			  ((:first :rest) (values nil nil nil))
+			  (:empty? t)
+			  (:more? nil))))
+    (walk (node cont)
+      (cond ((null node)
+	     cont)
+	    ((consp node)
+	     (rlabels (iter (1- (length (the simple-array (car node)))))
+	       (iter (i)
+		 (declare (fixnum i))
+		 (if (>= i 0)
+		     (lambda (op)
+		       (ecase op
+			 (:first (values (svref (car node) i) (svref (cdr node) i) t))
+			 (:rest (iter (1- i)))
+			 (:empty? nil)
+			 (:more? t)))
+		   cont))))
+	    (t
+	     (walk (WB-Map-Tree-Node-Right node)
+		   (let ((key (WB-Map-Tree-Node-Key node)))
+		     (if (Equivalent-Map? key)
+			 (rlabels (iter (reverse (Equivalent-Map-Alist key)))
+			   (iter (prs)
+			     (if prs
+				 (lambda (op)
+				   (ecase op
+				     (:first (values (caar prs) (cdar prs) t))
+				     (:rest (iter (cdr prs)))
+				     (:empty? nil)
+				     (:more? t)))
+			       (walk (WB-Map-Tree-Node-Left node) cont))))
+		       (lambda (op)
+			 (ecase op
+			   (:first (values key (WB-Map-Tree-Node-Value node) t))
+			   (:rest (walk (WB-Map-Tree-Node-Left node) cont))
+			   (:empty? nil)
+			   (:more? t)))))))))))
+
+
 ;;; ================================================================================
 ;;; Equivalent-Map routines
 
@@ -6395,6 +6785,87 @@ the result, inserts `val', returning the new vector."
 	(incf (the fixnum (svref iter (1+ sp))))
 	(WB-Seq-Tree-Iterator-Canonicalize iter)
 	(values (if (simple-string-p node) (schar node idx) (svref node idx)) t)))))
+
+;;; ----------------
+;;; Functional iterators.  Fun!!!
+
+(defun WB-Seq-Tree-Fun-Iter (tree)
+  (declare (optimize (speed 3) (safety 0)))
+  (rlabels (walk tree (lambda (op)
+			  (ecase op
+			    ((:first :rest) (values nil nil))
+			    (:empty? t)
+			    (:more? nil))))
+    (walk (node cont)
+      (cond ((null node)
+	     cont)
+	    ((simple-string-p node)
+	     (let ((len (length node)))
+	       (rlabels (iter 0)
+		 (iter (i)
+		   (declare (fixnum i))
+		   (if (< i len)
+		       (lambda (op)
+			 (ecase op
+			   (:first (values (schar node i) t))
+			   (:rest (iter (1+ i)))
+			   (:empty? nil)
+			   (:more? t)))
+		     cont)))))
+	    ((simple-vector-p node)
+	     (let ((len (length node)))
+	       (rlabels (iter 0)
+		 (iter (i)
+		   (declare (fixnum i))
+		   (if (< i len)
+		       (lambda (op)
+			 (ecase op
+			   (:first (values (svref node i) t))
+			   (:rest (iter (1+ i)))
+			   (:empty? nil)
+			   (:more? t)))
+		     cont)))))
+	    (t
+	     (walk (WB-Seq-Tree-Node-Left node)
+		   (walk (WB-Seq-Tree-Node-Right node) cont)))))))
+
+(defun WB-Seq-Tree-Rev-Fun-Iter (tree)
+  (declare (optimize (speed 3) (safety 0)))
+  (rlabels (walk tree (lambda (op)
+			(ecase op
+			  ((:first :rest) (values nil nil))
+			  (:empty? t)
+			  (:more? nil))))
+    (walk (node cont)
+      (cond ((null node)
+	     cont)
+	    ((simple-string-p node)
+	     (rlabels (iter (1- (length node)))
+	       (iter (i)
+		 (declare (fixnum i))
+		 (if (>= i 0)
+		     (lambda (op)
+		       (ecase op
+			 (:first (values (schar node i) t))
+			 (:rest (iter (1- i)))
+			 (:empty? nil)
+			 (:more? t)))
+		   cont))))
+	    ((simple-vector-p node)
+	     (rlabels (iter (1- (length node)))
+	       (iter (i)
+		 (declare (fixnum i))
+		 (if (>= i 0)
+		     (lambda (op)
+		       (ecase op
+			 (:first (values (svref node i) t))
+			 (:rest (iter (1- i)))
+			 (:empty? nil)
+			 (:more? t)))
+		   cont))))
+	    (t
+	     (walk (WB-Seq-Tree-Node-Right node)
+		   (walk (WB-Seq-Tree-Node-Left node) cont)))))))
 
 
 ;;; ================================================================================
