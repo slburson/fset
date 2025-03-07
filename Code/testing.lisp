@@ -162,10 +162,6 @@
 	      (equal? obj obj)))
       (test (unequal? (make-instance 'my-unhandled-obj)
 		      (make-instance 'my-unhandled-obj)))
-      (test (unequal? (make-array '(2 2) :initial-element nil)
-		      (make-array '(2 2) :initial-element nil)))
-      (test (unequal? (make-array '(2 2) :initial-element nil)
-		      #(nil nil nil nil)))
       (test (unequal? (make-array '(1) :initial-element '#:foo)
 		      (make-array '(1) :initial-element '#:foo)))
       (test (unequal? (make-array '(1) :initial-element '#:foo)
@@ -191,6 +187,8 @@
       (test (less-than? #p"/foo/bar" #p"/foo/baz"))
       (test (less-than? #p"/bar" #p"/foo/bar"))
       (test (less-than? #p"/" (set)))
+      (test (less-than? #*110101001101 #*111001001101))
+      (test (greater-than? #*111001001101 #*110101001101))
 
       ;; Test subtle code in compare on renamed packages
       (let ((name1 "FSET-TESTING-PACKAGE-1")

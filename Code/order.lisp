@@ -159,6 +159,7 @@ This is the right choice for the vast majority of mutable classes."))
 (define-cross-type-compare-methods list)
 (define-cross-type-compare-methods package)
 (define-cross-type-compare-methods pathname)
+(define-cross-type-compare-methods array)
 
 ;;; FSet types
 (define-cross-type-compare-methods set)
@@ -260,6 +261,14 @@ This is the right choice for the vast majority of mutable classes."))
     (cond ((eq a b) ':equal)
 	  ((< len-a len-b) ':less)
 	  ((> len-a len-b) ':greater)
+	  ((and (simple-bit-vector-p a) (simple-bit-vector-p b))
+	   (dotimes (i len-a ':equal)
+	     (let ((ai (sbit a i))
+		   (bi (sbit b i)))
+	       (cond ((< ai bi)
+		      (return ':less))
+		     ((> ai bi)
+		      (return ':greater))))))
 	  ((and (simple-vector-p a) (simple-vector-p b))
 	   (dotimes (i len-a default)
 	     (let ((res (compare (svref a i) (svref b i))))
@@ -333,6 +342,30 @@ and thus of types named by those symbols.")
 (defmethod compare ((a pathname) (b pathname))
   (compare-slots a b #'pathname-host #'pathname-device #'pathname-directory
 		 #'pathname-name #'pathname-type #'pathname-version))
+
+
+;;; Arrays (that aren't vectors)
+
+(defmethod compare ((a array) (b array))
+  ;; We don't require two arrays to have the same element type or simpleness to be equal;
+  ;; just that they have the same shape (dimensions) and that their elements are equal.
+  (if (eq a b) ':equal
+    (let ((a-elt-t (array-element-type a))
+	  (b-elt-t (array-element-type b)))
+      (if (not (or (subtypep a-elt-t b-elt-t) (subtypep b-elt-t a-elt-t)))
+	  ;; Since their element types don't overlap, just return something arbitrary (but deterministic).
+	  (compare a-elt-t b-elt-t)
+	(let ((dims-cmp (compare (array-dimensions a) (array-dimensions b))))
+	  (if (member dims-cmp '(:less :greater))
+	      dims-cmp
+	    (let ((unequal? (eq dims-cmp ':unequal))
+		  (size (array-total-size a)))
+	      (dotimes (i size (if unequal? ':unequal ':equal))
+		(let ((cmp (compare (row-major-aref a i) (row-major-aref b i))))
+		  (cond ((member cmp '(:less :greater))
+			 (return cmp))
+			((eq cmp ':unequal)
+			 (setq unequal? t))))))))))))
 
 
 ;;; ================================================================================
