@@ -947,11 +947,49 @@ between equal trees."
       (setq tree (WB-Set-Tree-With tree x)))
     tree))
 
-(defun WB-Set-Tree-From-CL-Sequence (seq)
+(defun WB-Set-Tree-From-Iterable (it)
+  (declare (type function it))
   (let ((tree nil))
-    (dotimes (i (length seq))
-      (setq tree (WB-Set-Tree-With tree (elt seq i))))
+    (while (funcall it ':more?)
+      (setq tree (WB-Set-Tree-With tree (funcall it ':get))))
     tree))
+
+;;; Much faster than repeated `with' if the input is sorted.  Still correct if the
+;;; input is not actually sorted, but if it isn't even close to sorted, this is slower.
+(defun WB-Set-Tree-From-Sorted-Iterable (it len)
+  (declare (optimize (speed 3) (safety 0))
+	   (type function it))
+  (labels ((recur (n)
+	     (declare (fixnum n))
+	     (cond ((= n 0) (values nil Hedge-Positive-Infinity Hedge-Negative-Infinity))
+		   ((= n 1)
+		    (let ((e (funcall it ':get)))
+		      (values (vector e) e e)))
+		   ;; Reduces consing about 12%, improves speed.
+		   ((= n 2)
+		    (let ((a (funcall it ':get))
+			  (b (funcall it ':get)))
+		      (ecase (Compare a b)
+			(:equal (values (vector a) a a))
+			(:less (values (vector a b) a b))
+			(:greater (values (vector b a) b a))
+			(:unequal (values (WB-Set-Tree-With (vector a) b) a a)))))
+		   (t
+		    (let ((n2 (floor (1- n) 2))
+			  ((left left-first left-last (recur n2))
+			   ((n2-elt (funcall it ':get))
+			    ((right right-first right-last (recur (- n n2 1)))))))
+		      ;; Here we check whether the tree really is sorted as promised.
+		      ;; (We really have to do this for correctness, because even if it is sorted, it
+		      ;; could have sequences of equivalent-but-unequal elements.)
+		      (if (and (less-than? left-last n2-elt)
+			       (less-than? n2-elt right-first))
+			  (values (WB-Set-Tree-Build-Node n2-elt left right) left-first right-last)
+			;; Fall back to general case.
+			(values (WB-Set-Tree-With (WB-Set-Tree-Union left right) n2-elt)
+				(if (less-than? left-first right-first) left-first right-first)
+				(if (less-than? left-last right-last) right-last left-last))))))))
+    (recur len)))
 
 
 ;;; ================================================================================
@@ -1176,7 +1214,7 @@ or `Equivalent-Set' removed."
 	(t
 	 (let ((sizl (WB-Set-Tree-Size left))
 	       (sizr (WB-Set-Tree-Size right)))
-	   ;; This code is subtly different from Adams' in order to create more
+	   ;; This code is subtly different from Adams's in order to create more
 	   ;; opportunities to coalesce adjacent short vectors.  &&& We won't really
 	   ;; know how well we're doing here, or how we might improve further, until
 	   ;; we have some real applications running and can gather some stats.
@@ -1300,7 +1338,7 @@ those members above `lo' and below `hi'."
     (do ((res nil)
 	 (any-equivalent? nil))
 	((and (= i1 len1) (= i2 len2))
-	 (values (coerce (nreverse res) 'simple-vector)
+	 (values (Reverse-List-To-Vector res)
 		 any-equivalent?))
       (cond ((= i1 len1)
 	     (do () ((= i2 len2))
@@ -1331,6 +1369,16 @@ those members above `lo' and below `hi'."
 		  (incf i2)
 		  (setq any-equivalent? t)))))))))
 
+(defun Reverse-List-To-Vector (lst)
+  (declare (optimize (speed 3) (safety 0))
+	   (type list lst))
+  (let ((len (length lst))
+	((res (make-array len))))
+    (do ((i (1- len) (1- i))
+	 (lst lst (cdr lst)))
+	((null lst) res)
+      (setf (svref res i) (car lst)))))
+
 ;;; We don't need a `WB-Set-Tree-Vector-Intersect' because the intersection is
 ;;; never longer than the operands.
 
@@ -1352,7 +1400,7 @@ to those members above `lo' and below `hi'."
 	(decf len1)))
     (do ((res nil))
 	((or (= i1 len1) (= i2 len2))
-	 (and res (coerce (nreverse res) 'simple-vector)))
+	 (and res (Reverse-List-To-Vector res)))
       (let ((v1 (svref vec1 i1))
 	    (v2 (svref vec2 i2))
 	    ((comp (compare v1 v2))))
@@ -1390,7 +1438,7 @@ restricted to those members above `lo' and below `hi'."
 	 (do () ((= i1 len1))
 	   (push (svref vec1 i1) res)
 	   (incf i1))
-	 (and res (coerce (nreverse res) 'simple-vector)))
+	 (and res (Reverse-List-To-Vector res)))
       (let ((v1 (svref vec1 i1))
 	    (v2 (svref vec2 i2))
 	    ((comp (compare v1 v2))))
@@ -1438,8 +1486,8 @@ and that of `str2' less `str1', restricted to those members above `lo' and below
 	 (do () ((= i2 len2))
 	   (push (svref vec2 i2) res2)
 	   (incf i2))
-	 (values (and res1 (coerce (nreverse res1) 'simple-vector))
-		 (and res2 (coerce (nreverse res2) 'simple-vector))))
+	 (values (and res1 (Reverse-List-To-Vector res1))
+		 (and res2 (Reverse-List-To-Vector res2))))
       (let ((v1 (svref vec1 i1))
 	    (v2 (svref vec2 i2))
 	    ((comp (compare v1 v2))))
@@ -2689,16 +2737,87 @@ between equal trees."
 ;;; ================================================================================
 ;;; Miscellany
 
-(defun WB-Bag-Tree-From-List (lst)
-  (labels ((recur (lst n)
-	     (cond ((= n 0) nil)
-		   ((= n 1) (cons (vector (car lst)) (vector 1)))
+(defun WB-Bag-Tree-From-List (lst pairs?)
+  (let ((tree nil))
+    (if pairs?
+	(dolist (x lst)
+	  (when (and pairs? (not (and (integerp (cdr x)) (< 0 (cdr x)))))
+	    (error 'simple-type-error :datum (cdr x) :expected-type '(integer 0 *)
+				      :format-control "Supplied count is not a positive integer: ~S"
+				      :format-arguments (list (cdr x))))
+	  (setq tree (WB-Bag-Tree-With tree (car x) (cdr x))))
+      (dolist (x lst)
+	(setq tree (WB-Bag-Tree-With tree x))))
+    tree))
+
+(defun WB-Bag-Tree-From-Iterable (it pairs?)
+  (declare (type function it))
+  (let ((tree nil))
+    (if pairs?
+	(while (funcall it ':more?)
+	  (let ((x (funcall it ':get)))
+	    (when (and pairs? (not (and (integerp (cdr x)) (< 0 (cdr x)))))
+	      (error 'simple-type-error :datum (cdr x) :expected-type '(integer 0 *)
+					:format-control "Supplied count is not a positive integer: ~S"
+					:format-arguments (list (cdr x))))
+	    (setq tree (WB-Bag-Tree-With tree (car x) (cdr x)))))
+      (while (funcall it ':more?)
+	(setq tree (WB-Bag-Tree-With tree (funcall it ':get)))))
+    tree))
+
+;;; See `WB-Set-Tree-From-Sorted-Iterable'.
+(defun WB-Bag-Tree-From-Sorted-Iterable (it size pairs?)
+  (declare (type function it))
+  (labels ((recur (n)
+	     (declare (fixnum n))
+	     (cond ((= n 0) (values nil Hedge-Positive-Infinity Hedge-Negative-Infinity))
+		   ((= n 1)
+		    (let ((e (funcall it ':get)))
+		      (if pairs?
+			  (let ((e (car e))
+				(ne (cdr e)))
+			    (check-count ne)
+			    (values (cons (vector e) (vector ne)) e e))
+			(values (cons (vector e) (vector 1)) e e))))
+		   ;; Reduces consing about 12%, improves speed.
+		   ((= n 2)
+		    (let ((a (funcall it ':get))
+			  (b (funcall it ':get))
+			  ((a na (if pairs? (values (car a) (cdr a)) (values a 1)))
+			   (b nb (if pairs? (values (car b) (cdr b)) (values b 1)))))
+		      (when pairs?
+			(check-count na)
+			(check-count nb))
+		      (ecase (Compare a b)
+			(:equal (values (cons (vector a) (vector (+ na nb))) a a))
+			(:less (values (cons (vector a b) (vector na nb)) a b))
+			(:greater (values (cons (vector b a) (vector nb na)) b a))
+			(:unequal (values (WB-Bag-Tree-With (cons (vector a) (vector na)) b nb) a a)))))
 		   (t
-		    (let ((n2 (floor n 2)))
-		      (WB-Bag-Tree-Sum (recur lst n2)
-					 (recur (nthcdr n2 lst)
-						(- n n2))))))))
-    (recur lst (length lst))))
+		    (let ((n2 (floor (1- n) 2))
+			  ((left left-first left-last (recur n2))
+			   ((n2-elt (funcall it ':get))
+			    ((right right-first right-last (recur (- n n2 1)))
+			     (e ne (if pairs? (values (car n2-elt) (cdr n2-elt))
+				     (values n2-elt 1)))))))
+		      (when pairs?
+			(check-count ne))
+		      ;; Here we check whether the tree really is sorted as promised.
+		      ;; (We really have to do this for correctness, because even if it is sorted, it
+		      ;; could have sequences of equivalent-but-unequal elements.)
+		      (if (and (less-than? left-last e)
+			       (less-than? e right-first))
+			  (values (WB-Bag-Tree-Build-Node e ne left right) left-first right-last)
+			;; Fall back to general case.
+			(values (WB-Bag-Tree-With (WB-Bag-Tree-Sum left right) e ne)
+				(if (less-than? left-first right-first) left-first right-first)
+				(if (less-than? left-last right-last) right-last left-last)))))))
+	   (check-count (n)
+	     (unless (and (integerp n) (< 0 n))
+	       (error 'simple-type-error :datum n :expected-type '(integer 0 *)
+					 :format-control "Supplied count is not a positive integer: ~S"
+					 :format-arguments (list n)))))
+    (recur size)))
 
 
 (defun WB-Set-Tree-To-Bag-Tree (tree)
@@ -3022,8 +3141,8 @@ removed."
 	 (counts nil)
 	 (any-equivalent? nil))
 	((and (= i1 len1) (= i2 len2))
-	 (values (cons (coerce (nreverse vals) 'simple-vector)
-		       (coerce (nreverse counts) 'simple-vector))
+	 (values (cons (Reverse-List-To-Vector vals)
+		       (Reverse-List-To-Vector counts))
 		 any-equivalent?))
       (cond ((= i1 len1)
 	     (do () ((= i2 len2))
@@ -3112,8 +3231,8 @@ removed."
 	 (counts nil)
 	 (any-equivalent? nil))
 	((and (= i1 len1) (= i2 len2))
-	 (values (cons (coerce (nreverse vals) 'simple-vector)
-		       (coerce (nreverse counts) 'simple-vector))
+	 (values (cons (Reverse-List-To-Vector vals)
+		       (Reverse-List-To-Vector counts))
 		 any-equivalent?))
       (cond ((= i1 len1)
 	     (do () ((= i2 len2))
@@ -3178,8 +3297,8 @@ removed."
     (do ((vals nil)
 	 (counts nil))
 	((or (= i1 len1) (= i2 len2))
-	 (and vals (cons (coerce (nreverse vals) 'simple-vector)
-			 (coerce (nreverse counts) 'simple-vector))))
+	 (and vals (cons (Reverse-List-To-Vector vals)
+			 (Reverse-List-To-Vector counts))))
       (let ((val1 (svref vals1 i1))
 	    (val2 (svref vals2 i2))
 	    ((comp (compare val1 val2))))
@@ -3223,8 +3342,8 @@ removed."
     (do ((vals nil)
 	 (counts nil))
 	((or (= i1 len1) (= i2 len2))
-	 (and vals (cons (coerce (nreverse vals) 'simple-vector)
-			 (coerce (nreverse counts) 'simple-vector))))
+	 (and vals (cons (Reverse-List-To-Vector vals)
+			 (Reverse-List-To-Vector counts))))
       (let ((val1 (svref vals1 i1))
 	    (val2 (svref vals2 i2))
 	    ((comp (compare val1 val2))))
@@ -3268,8 +3387,8 @@ removed."
 	   (push (svref vals1 i1) vals)
 	   (push (svref counts1 i1) counts)
 	   (incf i1))
-	 (and vals (cons (coerce (nreverse vals) 'simple-vector)
-			 (coerce (nreverse counts) 'simple-vector))))
+	 (and vals (cons (Reverse-List-To-Vector vals)
+			 (Reverse-List-To-Vector counts))))
       (let ((v1 (svref vals1 i1))
 	    (v2 (svref vals2 i2))
 	    ((comp (compare v1 v2))))
@@ -4826,6 +4945,71 @@ between equal trees."
 		 (WB-Map-Tree-Rank-Pair-Internal (WB-Map-Tree-Node-Right tree)
 						 (the fixnum (- rank key-size))))))))))
 
+
+;;; ================================================================================
+;;; Miscellany
+
+(defun WB-Map-Tree-From-List (lst key-fn value-fn)
+  (declare (type function key-fn value-fn))
+  (let ((tree nil))
+    (dolist (pr lst)
+      (setq tree (WB-Map-Tree-With tree (funcall key-fn pr) (funcall value-fn pr))))
+    tree))
+
+(defun WB-Map-Tree-From-Iterable (it key-fn value-fn)
+  (declare (type function it key-fn value-fn))
+  (let ((tree nil))
+    (while (funcall it ':more?)
+      (let ((pr (funcall it ':get)))
+	(setq tree (WB-Map-Tree-With tree (funcall key-fn pr) (funcall value-fn pr)))))
+    tree))
+
+;;; See `WB-Set-Tree-From-Sorted-Iterable'.
+(defun WB-Map-Tree-From-Sorted-Iterable (it len key-fn value-fn)
+  (declare (optimize (speed 3) (safety 0))
+	   (type function it key-fn value-fn))
+  (labels ((recur (n)
+	     (declare (fixnum n))
+	     (cond ((= n 0) (values nil Hedge-Positive-Infinity Hedge-Negative-Infinity))
+		   ((= n 1)
+		    (let ((e (funcall it ':get))
+			  ((k (funcall key-fn e))))
+		      (values (cons (vector k) (vector (funcall value-fn e))) k k)))
+		   ;; Reduces consing about 12%, improves speed.
+		   ((= n 2)
+		    (let ((a (funcall it ':get))
+			  (b (funcall it ':get))
+			  ((ka (funcall key-fn a))
+			   (kb (funcall key-fn b))
+			   (va (funcall value-fn a))
+			   (vb (funcall value-fn b))))
+		      (ecase (Compare ka kb)
+			(:equal ; Shouldn't really happen ... I guess the `b' pair should win.
+			  (values (cons (vector kb) (vector vb)) kb kb))
+			(:less (values (cons (vector ka kb) (vector va vb)) ka kb))
+			(:greater (values (cons (vector kb ka) (vector vb va)) kb ka))
+			(:unequal (values (WB-Map-Tree-With (cons (vector ka) (vector va)) kb vb) ka ka)))))
+		   (t
+		    (let ((n2 (floor (1- n) 2))
+			  ((left left-first left-last (recur n2))
+			   ((n2-elt (funcall it ':get))
+			    ((right right-first right-last (recur (- n n2 1)))
+			     (k (funcall key-fn n2-elt))
+			     (v (funcall value-fn n2-elt))))))
+		      ;; Here we check whether the tree really is sorted as promised.
+		      ;; (We really have to do this for correctness, because even if it is sorted, it
+		      ;; could have sequences of equivalent-but-unequal keys.)
+		      (if (and (less-than? left-last k)
+			       (less-than? k right-first))
+			  (values (WB-Map-Tree-Build-Node k v left right) left-first right-last)
+			;; Fall back to the general case, being careful to keep the rightmost value for
+			;; a duplicated key.
+			(values (WB-Map-Tree-Union (WB-Map-Tree-With left k v) right (fn (_a b) b))
+				(if (less-than? left-first right-first) left-first right-first)
+				(if (less-than? left-last right-last) right-last left-last))))))))
+    (recur len)))
+
+
 ;;; ================================================================================
 ;;; Support routines for the above (maps)
 
@@ -5071,8 +5255,8 @@ between equal trees."
 	 (any-equivalent? nil))
 	((and (= i1 len1) (= i2 len2))
 	 ;; The use of `:no-value' could produce an empty result.
-	 (and keys (values (cons (coerce (nreverse keys) 'simple-vector)
-				 (coerce (nreverse vals) 'simple-vector))
+	 (and keys (values (cons (Reverse-List-To-Vector keys)
+				 (Reverse-List-To-Vector vals))
 			   any-equivalent?)))
       (cond ((= i1 len1)
 	     (do () ((= i2 len2))
@@ -5138,8 +5322,8 @@ between equal trees."
     (do ((keys nil)
 	 (vals nil))
 	((or (= i1 len1) (= i2 len2))
-	 (and keys (cons (coerce (nreverse keys) 'simple-vector)
-			 (coerce (nreverse vals) 'simple-vector))))
+	 (and keys (cons (Reverse-List-To-Vector keys)
+			 (Reverse-List-To-Vector vals))))
       (let ((key1 (svref keys1 i1))
 	    (key2 (svref keys2 i2))
 	    ((comp (compare key1 key2))))
@@ -5192,10 +5376,10 @@ between equal trees."
 	   (push (svref keys2 i2) diff-2-keys)
 	   (push (svref vals2 i2) diff-2-vals)
 	   (incf i2))
-	 (values (and diff-1-keys (cons (coerce (nreverse diff-1-keys) 'simple-vector)
-					(coerce (nreverse diff-1-vals) 'simple-vector)))
-		 (and diff-2-keys (cons (coerce (nreverse diff-2-keys) 'simple-vector)
-					(coerce (nreverse diff-2-vals) 'simple-vector)))))
+	 (values (and diff-1-keys (cons (Reverse-List-To-Vector diff-1-keys)
+					(Reverse-List-To-Vector diff-1-vals)))
+		 (and diff-2-keys (cons (Reverse-List-To-Vector diff-2-keys)
+					(Reverse-List-To-Vector diff-2-vals)))))
       (let ((key1 (svref keys1 i1))
 	    (key2 (svref keys2 i2))
 	    (val1 (svref vals1 i1))
@@ -5250,8 +5434,8 @@ between equal trees."
     (do ((keys nil)
 	 (vals nil))
 	((or (= i1 len1) (= i2 len2))
-	 (and keys (cons (coerce (nreverse keys) 'simple-vector)
-			 (coerce (nreverse vals) 'simple-vector))))
+	 (and keys (cons (Reverse-List-To-Vector keys)
+			 (Reverse-List-To-Vector vals))))
       (let ((k (svref map-keys i1))
 	    (e (svref set-vec i2))
 	    ((comp (compare k e))))
@@ -5297,8 +5481,8 @@ between equal trees."
 	   (push (svref map-keys i1) keys)
 	   (push (svref map-vals i1) vals)
 	   (incf i1))
-	 (and keys (cons (coerce (nreverse keys) 'simple-vector)
-			 (coerce (nreverse vals) 'simple-vector))))
+	 (and keys (cons (Reverse-List-To-Vector keys)
+			 (Reverse-List-To-Vector vals))))
       (let ((k (svref map-keys i1))
 	    (e (svref set-vec i2))
 	    ((comp (compare k e))))
@@ -6220,16 +6404,14 @@ the result, inserts `val', returning the new vector."
 	   (let ((piece-len (if (< ipiece remainder) (1+ piece-len) piece-len))
 		 ((piece (cond ((gmap (:result and) #'base-char-p
 				      (:arg vector vec :start base :stop (+ base piece-len)))
-				(let ((str (make-string piece-len
-							:element-type 'base-char)))
+				(let ((str (make-string piece-len :element-type 'base-char)))
 				  (dotimes (i piece-len)
 				    (setf (schar str i) (aref vec (+ base i))))
 				  str))
 			       #+FSet-Ext-Strings
 			       ((gmap (:result and) (fn (x) (typep x 'character))
 				      (:arg vector vec :start base :stop (+ base piece-len)))
-				(let ((str (make-string piece-len
-							:element-type 'character)))
+				(let ((str (make-string piece-len :element-type 'character)))
 				  (dotimes (i piece-len)
 				    (setf (char str i) (aref vec (+ base i))))
 				  str))
@@ -6538,14 +6720,12 @@ the result, inserts `val', returning the new vector."
 	((null right) left)
 	((and (stringp left) (stringp right)
 	      (<= (+ (length-nv left) (length-nv right)) *WB-Tree-Max-String-Length*))
-	 (if (and left right)
-	     (concatenate #-FSet-Ext-Strings 'base-string
-			  #+FSet-Ext-Strings (if (and (typep left 'base-string)
-						      (typep right 'base-string))
-						 'base-string
-					       'string)
-			  (the string left) (the string right))
-	   (or left right)))
+	 (concatenate #-FSet-Ext-Strings 'base-string
+		      #+FSet-Ext-Strings (if (and (typep left 'base-string)
+						  (typep right 'base-string))
+					     'base-string
+					   'string)
+		      (the string left) (the string right)))
 	((and (or (stringp left) (simple-vector-p left))
 	      (or (stringp right) (simple-vector-p right)))
 	 (if (<= (+ (length-nv left) (length-nv right)) *WB-Tree-Max-Vector-Length*)

@@ -125,9 +125,9 @@ sets are printed as \"#{= ... }\"."
   (make-wb-replay-set (wb-set-tree-from-list l) (wb-seq-tree-from-list l)))
 
 (defmethod convert ((to-type (eql 'replay-set)) (v vector) &key)
-  (make-wb-replay-set (wb-set-tree-from-cl-sequence v) (wb-seq-tree-from-vector v)))
+  (make-wb-replay-set (wb-set-tree-from-iterable (iterator v)) (wb-seq-tree-from-vector v)))
 (defmethod convert ((to-type (eql 'wb-replay-set)) (v vector) &key)
-  (make-wb-replay-set (wb-set-tree-from-cl-sequence v) (wb-seq-tree-from-vector v)))
+  (make-wb-replay-set (wb-set-tree-from-iterable (iterator v)) (wb-seq-tree-from-vector v)))
 
 (defmethod with ((s wb-replay-set) value &optional (arg2 nil arg2?))
   (declare (ignore arg2))

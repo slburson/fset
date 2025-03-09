@@ -1390,17 +1390,51 @@ for the possibility of different set implementations; it is not for public use.
       (incf i))
     result))
 
-(defmethod convert ((to-type (eql 'set)) (l list) &key)
-  (make-wb-set (WB-Set-Tree-From-List l)))
+(defmethod convert ((to-type (eql 'set)) (l list) &key input-sorted?)
+  "Converts `l' to a wb-set.  If `input-sorted?', uses an algorithm that is much
+faster on sorted input, but somewhat slower, though still correct, on unsorted
+input."
+  (wb-set-from-list l input-sorted?))
 
-(defmethod convert ((to-type (eql 'wb-set)) (l list) &key)
-  (make-wb-set (WB-Set-Tree-From-List l)))
+(defmethod convert ((to-type (eql 'wb-set)) (l list) &key input-sorted?)
+  "Converts `l' to a wb-set.  If `input-sorted?', uses an algorithm that is much
+faster on sorted input, but somewhat slower, though still correct, on unsorted
+input."
+  (wb-set-from-list l input-sorted?))
 
-(defmethod convert ((to-type (eql 'set)) (s sequence) &key)
-  (make-wb-set (WB-Set-Tree-From-CL-Sequence s)))
+(defun wb-set-from-list (l input-sorted?)
+  (if input-sorted?
+      (make-wb-set (WB-Set-Tree-From-Sorted-Iterable (iterator l) (length l)))
+    (make-wb-set (WB-Set-Tree-From-List l))))
 
-(defmethod convert ((to-type (eql 'wb-set)) (s sequence) &key)
-  (make-wb-set (WB-Set-Tree-From-CL-Sequence s)))
+(defmethod convert ((to-type (eql 'set)) (s seq) &key input-sorted?)
+  "Converts `s' to a wb-set.  If `input-sorted?', uses an algorithm that is much
+faster on sorted input, but somewhat slower, though still correct, on unsorted
+input."
+  (wb-set-from-sequence s input-sorted?))
+
+(defmethod convert ((to-type (eql 'wb-set)) (s seq) &key input-sorted?)
+  "Converts `s' to a wb-set.  If `input-sorted?', uses an algorithm that is much
+faster on sorted input, but somewhat slower, though still correct, on unsorted
+input."
+  (wb-set-from-sequence s input-sorted?))
+
+(defmethod convert ((to-type (eql 'set)) (s sequence) &key input-sorted?)
+  "Converts `s' to a wb-set.  If `input-sorted?', uses an algorithm that is much
+faster on sorted input, but somewhat slower, though still correct, on unsorted
+input."
+  (wb-set-from-sequence s input-sorted?))
+
+(defmethod convert ((to-type (eql 'wb-set)) (s sequence) &key input-sorted?)
+  "Converts `s' to a wb-set.  If `input-sorted?', uses an algorithm that is much
+faster on sorted input, but somewhat slower, though still correct, on unsorted
+input."
+  (wb-set-from-sequence s input-sorted?))
+
+(defun wb-set-from-sequence (s input-sorted?)
+  (if input-sorted?
+      (make-wb-set (WB-Set-Tree-From-Sorted-Iterable (iterator s) (size s)))
+    (make-wb-set (WB-Set-Tree-From-Iterable (iterator s)))))
 
 (defmethod find (item (s set) &key key test)
   (declare (optimize (speed 3) (safety 0)))
@@ -2012,61 +2046,71 @@ different bag implementations; it is not for public use.  `elt-fn' and
       (push (cons value count) result))
     (nreverse result)))
 
-(defmethod convert ((to-type (eql 'bag)) (l list) &key from-type)
-  "If `from-type' is the symbol `alist', treats the operand as an alist where the
-cdr of each pair (which must be a positive integer) is the member count for
-the car.  Otherwise the operand is treated as a simple list of members, some
-of which may be repeated."
-  (bag-from-list l from-type))
+(defmethod convert ((to-type (eql 'bag)) (l list) &key input-sorted? pairs? from-type)
+  "If `pairs?' is true, treats the operand as a list of pairs where the
+`cdr' of each pair (which must be a positive integer) is the member count for
+the `car'.  (For backward compatibility, this behavior may also be selected
+by passing the symbol `alist' for `from-type', but this usage is deprecated.)
+Otherwise the operand is treated as a simple list of members, some of which
+may be repeated.  If `input-sorted?', uses an algorithm that is much faster
+on sorted input, but somewhat slower, though still correct, on unsorted input."
+  (wb-bag-from-list l input-sorted? (or pairs? (eq from-type 'alist))))
 
-(defmethod convert ((to-type (eql 'wb-bag)) (l list) &key from-type)
-  "If `from-type' is the symbol `alist', treats the operand as an alist where the
-cdr of each pair (which must be a positive integer) is the member count for
-the car.  Otherwise the operand is treated as a simple list of members, some
-of which may be repeated."
-  (bag-from-list l from-type))
+(defmethod convert ((to-type (eql 'wb-bag)) (l list) &key input-sorted? pairs? from-type)
+  "If `pairs?' is true, treats the operand as a list of pairs where the
+`cdr' of each pair (which must be a positive integer) is the member count for
+the `car'.  (For backward compatibility, this behavior may also be selected
+by passing the symbol `alist' for `from-type', but this usage is deprecated.)
+Otherwise the operand is treated as a simple list of members, some of which
+may be repeated.  If `input-sorted?', uses an algorithm that is much faster
+on sorted input, but somewhat slower, though still correct, on unsorted input."
+  (wb-bag-from-list l input-sorted? (or pairs? (eq from-type 'alist))))
 
-(defun bag-from-list (l from-type)
-  (if (eq from-type 'alist)
-      (let ((contents nil))
-	(dolist (pr l)
-	  (unless (and (integerp (cdr pr)) (< 0 (cdr pr)))
-	    (error 'simple-type-error :datum (cdr pr) :expected-type '(integer 0 *)
-		   :format-control "Cdr of pair is not a positive integer: ~S"
-		   :format-arguments (list (cdr pr))))
-	  (setq contents (WB-Bag-Tree-With contents (car pr) (cdr pr))))
-	(make-wb-bag contents))
-    ;; &&& Improve me someday
-    (let ((contents nil))
-      (dolist (x l)
-	(setq contents (WB-Bag-Tree-With contents x)))
-      (make-wb-bag contents))))
+(defun wb-bag-from-list (l input-sorted? pairs?)
+  (if input-sorted?
+      (make-wb-bag (WB-Bag-Tree-From-Sorted-Iterable (iterator l) (length l) pairs?))
+    (make-wb-bag (WB-Bag-Tree-From-List l pairs?))))
 
-(defmethod convert ((to-type (eql 'bag)) (s seq) &key)
-  (let ((contents nil))
-    (do-seq (x s)
-      (setq contents (WB-Bag-Tree-With contents x)))
-    (make-wb-bag contents)))
+(defmethod convert ((to-type (eql 'bag)) (s seq) &key input-sorted? pairs?)
+  "If `pairs?' is true, treats the operand as a seq of pairs where the
+`cdr' of each pair (which must be a positive integer) is the member count for
+the `car'.  Otherwise the operand is treated as a simple list of members, some
+of which may be repeated.  If `input-sorted?', uses an algorithm that is much
+faster on sorted input, but somewhat slower, though still correct, on unsorted
+input."
+  (wb-bag-from-sequence s input-sorted? pairs?))
 
-(defmethod convert ((to-type (eql 'wb-bag)) (s seq) &key)
-  (let ((contents nil))
-    (do-seq (x s)
-      (setq contents (WB-Bag-Tree-With contents x)))
-    (make-wb-bag contents)))
+(defmethod convert ((to-type (eql 'wb-bag)) (s seq) &key input-sorted? pairs?)
+  "If `pairs?' is true, treats the operand as a seq of pairs where the
+`cdr' of each pair (which must be a positive integer) is the member count for
+the `car'.  Otherwise the operand is treated as a simple list of members, some
+of which may be repeated.  If `input-sorted?', uses an algorithm that is much
+faster on sorted input, but somewhat slower, though still correct, on unsorted
+input."
+  (wb-bag-from-sequence s input-sorted? pairs?))
 
-(defmethod convert ((to-type (eql 'bag)) (s sequence) &key)
-  ;; &&& Improve me someday
-  (let ((contents nil))
-    (dotimes (i (length s))
-      (setq contents (WB-Bag-Tree-With contents (elt s i))))
-    (make-wb-bag contents)))
+(defmethod convert ((to-type (eql 'bag)) (s sequence) &key input-sorted? pairs?)
+  "If `pairs?' is true, treats the operand as a sequence of pairs where the
+`cdr' of each pair (which must be a positive integer) is the member count for
+the `car'.  Otherwise the operand is treated as a simple list of members, some
+of which may be repeated.  If `input-sorted?', uses an algorithm that is much
+faster on sorted input, but somewhat slower, though still correct, on unsorted
+input."
+  (wb-bag-from-sequence s input-sorted? pairs?))
 
-(defmethod convert ((to-type (eql 'wb-bag)) (s sequence) &key)
-  ;; &&& Improve me someday
-  (let ((contents nil))
-    (dotimes (i (length s))
-      (setq contents (WB-Bag-Tree-With contents (elt s i))))
-    (make-wb-bag contents)))
+(defmethod convert ((to-type (eql 'wb-bag)) (s sequence) &key input-sorted? pairs?)
+  "If `pairs?' is true, treats the operand as a sequence of pairs where the
+`cdr' of each pair (which must be a positive integer) is the member count for
+the `car'.  Otherwise the operand is treated as a simple list of members, some
+of which may be repeated.  If `input-sorted?', uses an algorithm that is much
+faster on sorted input, but somewhat slower, though still correct, on unsorted
+input."
+  (wb-bag-from-sequence s input-sorted? pairs?))
+
+(defun wb-bag-from-sequence (s input-sorted? pairs?)
+  (if input-sorted?
+      (make-wb-bag (wb-bag-tree-from-sorted-iterable (iterator s) (size s) pairs?))
+    (make-wb-bag (wb-bag-tree-from-iterable (iterator s) pairs?))))
 
 (defmethod find (item (b bag) &key key test)
   (declare (optimize (speed 3) (safety 0)))
@@ -2512,36 +2556,73 @@ symbols."))
     (make-wb-set result)))
 
 ;;; &&& Plist support?  The `key-fn' / `value-fn' thing is not very useful.
-(defmethod convert ((to-type (eql 'map)) (list list)
-		    &key (key-fn #'car) (value-fn #'cdr))
-  (wb-map-from-list list key-fn value-fn))
+(defmethod convert ((to-type (eql 'map)) (l list)
+		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?)
+  "Converts `l' to a wb-map.  `key-fn' and `value-fn' are used to obtain the
+key and value of each pair from the list element.  In the case of repeated
+keys, the last one's value is kept.  If `input-sorted?', uses an algorithm
+that is much faster on sorted input, but somewhat slower, though still correct,
+on unsorted input."
+  (wb-map-from-list l key-fn value-fn input-sorted?))
 
-(defmethod convert ((to-type (eql 'wb-map)) (list list)
-		    &key (key-fn #'car) (value-fn #'cdr))
-  (wb-map-from-list list key-fn value-fn))
+(defmethod convert ((to-type (eql 'wb-map)) (l list)
+		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?)
+  "Converts `l' to a wb-map.  `key-fn' and `value-fn' are used to obtain the
+key and value of each pair from the list element.  In the case of repeated
+keys, the last one's value is kept.  If `input-sorted?', uses an algorithm
+that is much faster on sorted input, but somewhat slower, though still correct,
+on unsorted input."
+  (wb-map-from-list l key-fn value-fn input-sorted?))
 
-(defun wb-map-from-list (list key-fn value-fn)
-  (let ((m nil)
-	(key-fn (coerce key-fn 'function))
+(defun wb-map-from-list (l key-fn value-fn input-sorted?)
+  (let ((key-fn (coerce key-fn 'function))
 	(value-fn (coerce value-fn 'function)))
-    (dolist (pr list)
-      (setq m (WB-Map-Tree-With m (funcall key-fn pr) (funcall value-fn pr))))
-    (make-wb-map m)))
+    (if input-sorted?
+	(make-wb-map (WB-Map-Tree-From-Sorted-Iterable (iterator l) (length l) key-fn value-fn))
+      (make-wb-map (WB-Map-Tree-From-List l key-fn value-fn)))))
+
+(defmethod convert ((to-type (eql 'map)) (s seq)
+		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?)
+  "Converts `s' to a wb-map.  `key-fn' and `value-fn' are used to obtain the
+key and value of each pair from the seq element.  In the case of repeated
+keys, the last one's value is kept.  If `input-sorted?', uses an algorithm
+that is much faster on sorted input, but somewhat slower, though still correct,
+on unsorted input."
+  (wb-map-from-sequence s key-fn value-fn input-sorted?))
+
+(defmethod convert ((to-type (eql 'wb-map)) (s seq)
+		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?)
+  "Converts `s' to a wb-map.  `key-fn' and `value-fn' are used to obtain the
+key and value of each pair from the seq element.  In the case of repeated
+keys, the last one's value is kept.  If `input-sorted?', uses an algorithm
+that is much faster on sorted input, but somewhat slower, though still correct,
+on unsorted input."
+  (wb-map-from-sequence s key-fn value-fn input-sorted?))
 
 (defmethod convert ((to-type (eql 'map)) (s sequence)
-		    &key (key-fn #'car) (value-fn #'cdr))
-  (wb-map-from-cl-sequence s key-fn value-fn))
+		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?)
+  "Converts `s' to a wb-map.  `key-fn' and `value-fn' are used to obtain the
+key and value of each pair from the sequence element.  In the case of repeated
+keys, the last one's value is kept.  If `input-sorted?', uses an algorithm
+that is much faster on sorted input, but somewhat slower, though still correct,
+on unsorted input."
+  (wb-map-from-sequence s key-fn value-fn input-sorted?))
 
 (defmethod convert ((to-type (eql 'wb-map)) (s sequence)
-		    &key (key-fn #'car) (value-fn #'cdr))
-  (wb-map-from-cl-sequence s key-fn value-fn))
+		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?)
+  "Converts `s' to a wb-map.  `key-fn' and `value-fn' are used to obtain the
+key and value of each pair from the sequence element.  In the case of repeated
+keys, the last one's value is kept.  If `input-sorted?', uses an algorithm
+that is much faster on sorted input, but somewhat slower, though still correct,
+on unsorted input."
+  (wb-map-from-sequence s key-fn value-fn input-sorted?))
 
-(defun wb-map-from-cl-sequence (s key-fn value-fn)
-  (let ((m nil))
-    (dotimes (i (length s))
-      (let ((pr (elt s i)))
-	(setq m (WB-Map-Tree-With m (funcall key-fn pr) (funcall value-fn pr)))))
-    (make-wb-map m)))
+(defun wb-map-from-sequence (s key-fn value-fn input-sorted?)
+  (let ((key-fn (coerce key-fn 'function))
+	(value-fn (coerce value-fn 'function)))
+    (if input-sorted?
+	(make-wb-map (WB-Map-Tree-From-Sorted-Iterable (iterator s) (size s) key-fn value-fn))
+      (make-wb-map (WB-Map-Tree-From-Iterable (iterator s) key-fn value-fn)))))
 
 (defmethod convert ((to-type (eql 'map)) (b bag) &key)
   (convert 'wb-map b))
@@ -3536,6 +3617,12 @@ not symbols."))
 
 (defmethod lookup ((s sequence) (idx integer))
   (values (elt s idx) t))
+
+(defmethod convert ((to-type (eql 'vector)) (l list) &key)
+  (coerce l 'vector))
+
+(defmethod convert ((to-type (eql 'list)) (s sequence) &key)
+  (coerce s 'list))
 
 
 ;;; ================================================================================
