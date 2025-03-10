@@ -345,10 +345,11 @@ with `setf', but only on collections, not functions, of course."
   "For each member of `set', binds `var' to it and executes `body'.  When done,
 returns `value'."
   `(block nil		; in case `body' contains `(return ...)'
-     ;; &&& Here and in similar cases below, `dynamic-extent' declarations could
-     ;; be helpful.  (The closures will have to be bound to variables.)
-     (internal-do-set ,set #'(lambda (,var) . ,body)
-			   ,@(when value `(#'(lambda () ,value))))))
+     (let ((elt-fn #'(lambda (,var) . ,body))
+	   (value-fn #'(lambda () ,value)))
+       ;; SBCL evidently figures this out without our help, but other implementations may benefit.
+       (declare (dynamic-extent elt-fn value-fn))
+       (internal-do-set ,set elt-fn value-fn))))
 
 
 (defmacro do-bag-pairs ((value-var mult-var bag &optional value)
@@ -356,8 +357,10 @@ returns `value'."
   "For each member of `bag', binds `value-var' and `mult-var' to the member and
 its multiplicity respectively, and executes `body'.  When done, returns `value'."
   `(block nil
-     (internal-do-bag-pairs ,bag #'(lambda (,value-var ,mult-var) . ,body)
-			    ,@(when value `(#'(lambda () ,value))))))
+     (let ((elt-fn #'(lambda (,value-var ,mult-var) . ,body))
+	   (value-fn #'(lambda () ,value)))
+       (declare (dynamic-extent elt-fn value-fn))
+       (internal-do-bag-pairs ,bag elt-fn value-fn))))
 
 (defmacro do-bag ((value-var bag &optional value)
 		  &body body)
@@ -366,32 +369,36 @@ number of times equal to the member's multiplicity.  When done, returns `value'.
   (let ((mult-var (gensym "MULT-"))
 	(idx-var (gensym "IDX-")))
     `(block nil
-       (internal-do-bag-pairs ,bag #'(lambda (,value-var ,mult-var)
-				       ;; Seems safe to assume it's a fixnum here.
-				       (declare (type fixnum ,mult-var))
-				       (dotimes (,idx-var ,mult-var)
-					 (declare (type fixnum ,idx-var))
-					 . ,body))
-			      ,@(when value `(#'(lambda () ,value)))))))
+       (let ((elt-fn #'(lambda (,value-var ,mult-var)
+			  ;; Seems safe to assume it's a fixnum here.
+			  (declare (type fixnum ,mult-var))
+			  (dotimes (,idx-var ,mult-var)
+			    (declare (type fixnum ,idx-var))
+			    . ,body)))
+	     (value-fn #'(lambda () ,value)))
+	 (declare (dynamic-extent elt-fn value-fn))
+	 (internal-do-bag-pairs ,bag elt-fn value-fn)))))
 
 (defmacro do-map ((key-var value-var map &optional value) &body body)
   "For each pair of `map', binds `key-var' and `value-var' and executes `body'.
 When done, returns `value'."
   `(block nil
-     (internal-do-map ,map
-		      #'(lambda (,key-var ,value-var) . ,body)
-		      ,@(when value `(#'(lambda () ,value))))))
+     (let ((elt-fn #'(lambda (,key-var ,value-var) . ,body))
+	   (value-fn #'(lambda () ,value)))
+       (declare (dynamic-extent elt-fn value-fn))
+       (internal-do-map ,map elt-fn value-fn))))
 
 (defmacro do-map-domain ((key-var map &optional value) &body body)
   "For each pair of `map', binds `key-var' and executes `body'.  When done,
 returns `value'."
   (let ((value-var (gensym "VAL-")))
     `(block nil
-       (internal-do-map ,map
-			#'(lambda (,key-var ,value-var)
-			    (declare (ignore ,value-var))
-			    . ,body)
-			,@(when value `#'(lambda () ,value))))))
+       (let ((elt-fn #'(lambda (,key-var ,value-var)
+			  (declare (ignore ,value-var))
+			  . ,body))
+	     (value-fn #'(lambda () ,value)))
+	 (declare (dynamic-extent elt-fn value-fn))
+	 (internal-do-map ,map elt-fn value-fn)))))
 
 (defmacro do-seq ((var seq
 		   &key (start nil start?) (end nil end?) (from-end? nil from-end??)
@@ -403,13 +410,13 @@ If `index' is supplied, it names a variable that will be bound at each
 iteration to the index of the current element of `seq'.  When done, returns
 `value'."
   `(block nil
-     (internal-do-seq ,seq
-		      #'(lambda (,var . ,(and index? `(,index))) . ,body)
-		      ,(when value `#'(lambda () ,value))
-                      ,index?
-		      ,@(and start? `(:start ,start))
-		      ,@(and end? `(:end ,end))
-		      ,@(and from-end?? `(:from-end? ,from-end?)))))
+     (let ((elt-fn #'(lambda (,var . ,(and index? `(,index))) . ,body))
+	   (value-fn #'(lambda () ,value)))
+       (declare (dynamic-extent elt-fn value-fn))
+       (internal-do-seq ,seq elt-fn value-fn ,index?
+			,@(and start? `(:start ,start))
+			,@(and end? `(:end ,end))
+			,@(and from-end?? `(:from-end? ,from-end?))))))
 
 
 ;;; ================================================================================

@@ -121,7 +121,7 @@ complement set."
 (defmethod disjoint? ((s set) (cs complement-set))
   (subset? s (complement-set-complement cs)))
 
-(defmethod internal-do-set ((cs complement-set) elt-fn &optional (value-fn (lambda () nil)))
+(defmethod internal-do-set ((cs complement-set) elt-fn value-fn)
   (declare (ignore elt-fn value-fn))
   (error "Can't enumerate a complement-set"))
 

@@ -1046,7 +1046,7 @@ were to be inserted."
   "Returns the index of the left edge of the first member of `vec' that is
 above `lo'."
   (declare (type simple-vector vec)
-	   #+(or cmu scl)
+	   #+(or cmu sbcl scl)
 	   (values fixnum))
   (let ((found? idx (Vector-Set-Binary-Search vec lo)))
     (if found? (1+ idx) idx)))
@@ -1055,7 +1055,7 @@ above `lo'."
   "Returns the index of the right edge of the last member of `vec' that is
 below `hi'."
   (declare (type simple-vector vec)
-	   #+(or cmu scl)
+	   #+(or cmu sbcl scl)
 	   (values fixnum))
   (let ((found? idx (Vector-Set-Binary-Search vec hi)))
     (declare (ignore found?))
@@ -2054,7 +2054,9 @@ in `eqvs1' are equivalent to those in `eqvs2'."
 
 (defun WB-Bag-Tree-Total-Count (tree)
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Bag-Tree tree))
+	   (type WB-Bag-Tree tree)
+	   #+(or cmu sbcl scl)
+	   (values integer))
   (cond ((null tree) 0)
 	((consp tree) (reduce #'+ (cdr tree)))
 	(t (WB-Bag-Tree-Node-Total-Count tree))))
@@ -6651,43 +6653,6 @@ the result, inserts `val', returning the new vector."
 	       (if (not (eq right-comp ':equal))
 		   right-comp
 		 left-comp)))))))
-
-
-;;; ================================================================================
-;;; Conversion to set
-
-(defun WB-Seq-Tree-To-Set-Tree (tree)
-  (cond ((null tree) nil)
-	((simple-vector-p tree)
-	 (Vector-Seq-To-Set tree 0 (length tree)))
-	((stringp tree)
-	 (String-Seq-To-Set tree 0 (length tree)))
-	(t (WB-Set-Tree-Union (WB-Seq-Tree-To-Set-Tree (WB-Seq-Tree-Node-Left tree))
-			      (WB-Seq-Tree-To-Set-Tree (WB-Seq-Tree-Node-Right tree))))))
-
-(defun Vector-Seq-To-Set (vec lo hi)
-  (declare (optimize (speed 3) (safety 0))
-	   (type simple-vector vec)
-	   (type fixnum lo hi))
-  (cond ((= lo hi) nil)			; (shouldn't happen)
-	((= hi (1+ lo))
-	 (vector (svref vec lo)))
-	(t
-	 (let ((mid (ash (+ lo hi) -1)))
-	   (WB-Set-Tree-Union (Vector-Seq-To-Set vec lo mid)
-			      (Vector-Seq-To-Set vec mid hi))))))
-
-(defun String-Seq-To-Set (vec lo hi)
-  (declare (optimize (speed 3) (safety 0))
-	   (type simple-string vec)
-	   (type fixnum lo hi))
-  (cond ((= lo hi) nil)			; (shouldn't happen)
-	((= hi (1+ lo))
-	 (vector (schar vec lo)))
-	(t
-	 (let ((mid (ash (+ lo hi) -1)))
-	   (WB-Set-Tree-Union (String-Seq-To-Set vec lo mid)
-			      (String-Seq-To-Set vec mid hi))))))
 
 
 ;;; ================================================================================

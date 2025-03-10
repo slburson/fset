@@ -1862,7 +1862,9 @@
 			  (push x tmp))
 			(nreverse tmp))
 		      '(27 14 3 92)))
-	(test (equal? (convert 'seq (less rs 3)) (seq 27 14 92))))
+	(test (equal? (convert 'seq (less rs 3)) (seq 27 14 92)))
+	(test (equal? rs (convert 'replay-set (convert 'list rs))))
+	(test (equal? rs (convert 'replay-set (convert 'vector rs)))))
 
       (let ((rm (replay-map (19 'foo) (12 'bar) :default 'xyzzy (8 'quux) ($ (map (2 'gubbish) (34 'ork))))))
 	(test (equal? (size rm) 5))
@@ -1874,7 +1876,9 @@
 			(do-map (x y rm)
 			  (push (cons x y) tmp))
 			(nreverse tmp))
-		      '((19 . foo) (8 . the-great-quux) (2 . gubbish) (34 . ork)))))
+		      '((19 . foo) (8 . the-great-quux) (2 . gubbish) (34 . ork))))
+	(test (equal? (with-default rm nil) (convert 'replay-map (convert 'list rm))))
+	(test (equal? (with-default rm nil) (convert 'replay-map (convert 'vector rm)))))
 
       #+sbcl
       (progn
@@ -3748,6 +3752,10 @@
 		  (error "COMPARE failed")))
 	      (unless (equal? chs (convert 'ch-set wbs))
 		(error "CONVERT 'CH-SET or EQUAL? failed"))
+	      (unless (equal? chs (convert 'ch-set (convert 'seq wbs)))
+		(error "CONVERT 'CH-SET from seq failed"))
+	      (unless (equal? chs (convert 'ch-set (convert 'vector wbs)))
+		(error "CONVERT 'CH-SET from vector failed"))
 	      (when saved-chs
 		(let ((chs-union (union chs saved-chs)))
 		  (unless (verify chs-union)

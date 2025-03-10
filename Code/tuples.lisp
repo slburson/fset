@@ -630,11 +630,20 @@ of calling `val-fn' on the value from `tuple1' and the value from `tuple2'.
 	(setq result (with result k (if v1? (funcall val-fn v1 v2) v2)))))
     result))
 
+(defmethod convert ((to-type (eql 'tuple)) (tup tuple) &key)
+  tup)
+(defmethod convert ((to-type (eql 'dyn-tuple)) (tup dyn-tuple) &key)
+  tup)
+
 (defmethod convert ((to-type (eql 'map)) (tup tuple) &key)
-  (let ((m (empty-map)))
+  (wb-map-from-tuple tup))
+(defmethod convert ((to-type (eql 'wb-map)) (tup tuple) &key)
+  (wb-map-from-tuple tup))
+(defun wb-map-from-tuple (tup)
+  (let ((tree nil))
     (do-tuple (k v tup)
-      (setq m (with m k v)))
-    m))
+      (setq tree (WB-Map-Tree-With tree k v)))
+    (make-wb-map tree)))
 
 (defmethod convert ((to-type (eql 'list)) (tup tuple) &key (pair-fn #'cons))
   (let ((result nil)

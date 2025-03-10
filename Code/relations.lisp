@@ -339,6 +339,9 @@ and executing `body'."
   br)
 
 (defmethod convert ((to-type (eql 'set)) (br 2-relation) &key (pair-fn #'cons))
+  (convert 'wb-set br :pair-fn pair-fn))
+
+(defmethod convert ((to-type (eql 'wb-set)) (br 2-relation) &key (pair-fn #'cons))
   (let ((result nil)
 	(pair-fn (coerce pair-fn 'function)))
     (do-2-relation (x y br)
