@@ -440,8 +440,11 @@ previously uninitialized indices are filled with the seq's default)."))
 ;;; with `cl:concatenate' -- the inconsistency between `coerce' and `concatenate'
 ;;; has long bugged me.
 (defgeneric convert (to-type collection &key)
-  (:documentation "Converts the collection to the specified type.  Some methods have
-additional keyword parameters to further specify the kind of conversion.
+  (:documentation "Converts the collection to the specified type.  Some methods
+have additional keyword parameters to further specify the kind of conversion.
+\(`sequence' here refers to a CL sequence -- either a list or a vector, unless
+the implementation has more sequence subtypes.  FSet's `seq' is not a subtype of
+`sequence'.)
 
 Method summary:     to-type       collection type         notes
 		     set		set		  0
@@ -596,9 +599,9 @@ Notes:
 8. All keyword arguments are forwarded to `make-hash-table'.
 9. Optimized O(n) algorithm.
 10. Has keyword parameter `from-type'.  If it's the symbol `map-to-sets', the
-   range elements must all be sets, and the result pairs each domain element
-   with each member of the corresponding range set.  Otherwise, the result pairs
-   each domain element with the corresponding range element directly.
+    range elements must all be sets, and the result pairs each domain element
+    with each member of the corresponding range set.  Otherwise, the result pairs
+    each domain element with the corresponding range element directly.
 11. The relation must be a function (must have only one range value per domain
     value).
 12. Returns a map mapping each domain value to the set of corresponding range
@@ -669,6 +672,9 @@ only once, with its multiplicity as the second value, as for a map."))
       (:done? (null ls))
       (:more? ls))))
 
+;;; Not sure we have any use for functional iterators on the Lisp sequence types,
+;;; but for completeness, here they are anyway.
+;;; Of course, if you know the sequence is a list, `car' and `cdr' will be much faster.
 (defmethod fun-iterator ((ls list) &key from-end?)
   (labels ((iter (ls)
 	     (if (null ls)
@@ -688,9 +694,6 @@ only once, with its multiplicity as the second value, as for a map."))
 (defmethod iterator ((vec vector) &key)
   (let ((idx 0)
 	(len (length vec)))
-    ;; You might think this could be more elegantly done by defining a method on
-    ;; `simple-vector', but the CL standard does not require `simple-vector' to
-    ;; be a class (and it isn't in Allegro).
     (if (simple-vector-p vec)
 	(lambda (op)
 	  (ecase op
@@ -705,12 +708,62 @@ only once, with its multiplicity as the second value, as for a map."))
 	  (:done? (>= idx len))
 	  (:more? (< idx len)))))))
 
+;;; Again, if you know it's a vector, you're much better off just indexing it.
+(defmethod fun-iterator ((vec vector) &key from-end?)
+  (labels ((done ()
+	     (lambda (op)
+	       (ecase op
+		 (:first (values nil nil))
+		 (:empty? t)
+		 (:more? nil)))))
+    (if from-end?
+	(if (simple-vector-p vec)
+	    (labels ((iter (i)
+		       (if (>= i 0)
+			   (lambda (op)
+			     (ecase op
+			       (:first (values (svref vec i) t))
+			       (:rest (iter (1- i)))
+			       (:empty? nil)
+			       (:more? t)))
+			 (done))))
+	      (iter (1- (length vec))))
+	  (labels ((iter (i)
+		     (if (>= i 0)
+			 (lambda (op)
+			   (ecase op
+			     (:first (values (aref vec i) t))
+			     (:rest (iter (1- i)))
+			     (:empty? nil)
+			     (:more? t)))
+		       (done))))
+	    (iter (1- (length vec)))))
+      (let ((len (length vec)))
+	(if (simple-vector-p vec)
+	    (labels ((iter (i)
+		       (if (< i len)
+			   (lambda (op)
+			     (ecase op
+			       (:first (values (svref vec i) t))
+			       (:rest (iter (1+ i)))
+			       (:empty? nil)
+			       (:more? t)))
+			 (done))))
+	      (iter 0))
+	  (labels ((iter (i)
+		     (if (< i len)
+			 (lambda (op)
+			   (ecase op
+			     (:first (values (aref vec i) t))
+			     (:rest (iter (1+ i)))
+			     (:empty? nil)
+			     (:more? t)))
+		       (done))))
+	    (iter 0)))))))
+
 (defmethod iterator ((str string) &key)
   (let ((idx 0)
 	(len (length str)))
-    ;; You might think this could be more elegantly done by defining a method on
-    ;; `simple-string', but the CL standard does not require `simple-string' to
-    ;; be a class (and it isn't in Allegro).
     (if (simple-string-p str)
 	(lambda (op)
 	  (ecase op
@@ -725,6 +778,58 @@ only once, with its multiplicity as the second value, as for a map."))
 	  (:done? (>= idx len))
 	  (:more? (< idx len)))))))
 
+(defmethod fun-iterator ((str string) &key from-end?)
+  (labels ((done ()
+	     (lambda (op)
+	       (ecase op
+		 (:first (values nil nil))
+		 (:empty? t)
+		 (:more? nil)))))
+    (if from-end?
+	(if (simple-string-p str)
+	    (labels ((iter (i)
+		       (if (>= i 0)
+			   (lambda (op)
+			     (ecase op
+			       (:first (values (schar str i) t))
+			       (:rest (iter (1- i)))
+			       (:empty? nil)
+			       (:more? t)))
+			 (done))))
+	      (iter (1- (length str))))
+	  (labels ((iter (i)
+		     (if (>= i 0)
+			 (lambda (op)
+			   (ecase op
+			     (:first (values (char str i) t))
+			     (:rest (iter (1- i)))
+			     (:empty? nil)
+			     (:more? t)))
+		       (done))))
+	    (iter (1- (length str)))))
+      (let ((len (length str)))
+	(if (simple-string-p str)
+	    (labels ((iter (i)
+		       (if (< i len)
+			   (lambda (op)
+			     (ecase op
+			       (:first (values (schar str i) t))
+			       (:rest (iter (1+ i)))
+			       (:empty? nil)
+			       (:more? t)))
+			 (done))))
+	      (iter 0))
+	  (labels ((iter (i)
+		     (if (< i len)
+			 (lambda (op)
+			   (ecase op
+			     (:first (values (char str i) t))
+			     (:rest (iter (1+ i)))
+			     (:empty? nil)
+			     (:more? t)))
+		       (done))))
+	    (iter 0)))))))
+
 ;;; If an implementation has any more concrete subtypes of `sequence' besides
 ;;; those above, this method will cover them.  Note, this is `cl:sequence' we're
 ;;; talking about here.
@@ -737,6 +842,36 @@ only once, with its multiplicity as the second value, as for a map."))
 		(values nil nil)))
 	(:done? (>= idx len))
 	(:more? (< idx len))))))
+
+(defmethod fun-iterator ((seq sequence) &key from-end?)
+  (labels ((done ()
+	     (lambda (op)
+	       (ecase op
+		 (:first (values nil nil))
+		 (:empty? t)
+		 (:more? nil)))))
+    (if from-end?
+	(labels ((iter (i)
+		   (if (>= i 0)
+		       (lambda (op)
+			 (ecase op
+			   (:first (values (elt seq i) t))
+			   (:rest (iter (1- i)))
+			   (:empty? nil)
+			   (:more? t)))
+		     (done))))
+	  (iter (1- (length seq))))
+      (let ((len (length seq)))
+	(labels ((iter (i)
+		   (if (< i len)
+		       (lambda (op)
+			 (ecase op
+			   (:first (values (elt seq i) t))
+			   (:rest (iter (1+ i)))
+			   (:empty? nil)
+			   (:more? t)))
+		     (done))))
+	  (iter 0))))))
 
 ;;; This "old syntax" GMap call also defines `:sequence'.
 (gmap:def-gmap-arg-type sequence (seq)
