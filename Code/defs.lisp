@@ -13,7 +13,7 @@
 
 (defpackage :fset
   (:nicknames :com.ergy.fset :com.sympoiesis.fset)
-  (:use :cl :new-let :lexical-contexts :rev-fun-bind)
+  (:use :cl :new-let :lexical-contexts :rev-fun-bind :misc-extensions.define-class)
   (:import-from :gmap #:gmap #:alist #:constant #:index #:index-inc #:sum)
   (:shadowing-import-from :new-let #:let #:cond)
   (:shadowing-import-from :mt19937 #:make-random-state #:random #:*random-state*)
@@ -42,7 +42,8 @@
 	   ;; because they may want to extend it; and `Compare-Slots' because it's
 	   ;; useful in extending `Compare'.  But `Less-Than?' and `Greater-Than?'
 	   ;; are unlikely to be useful in user code.
-	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal #:define-comparison-slots
+	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal
+	   #:define-equality-slots #:define-comparison-slots
 	   #:identity-ordering-mixin
 	   #:define-cross-type-compare-methods
 	   #:compare-lexicographically
@@ -121,7 +122,7 @@
 ;;; NOTE: This package is not ready for use yet.  I will announce when it is.
 (defpackage :fset2
   (:nicknames :com.ergy.fset2 :com.sympoiesis.fset2)
-  (:use :cl :fset :new-let :lexical-contexts)
+  (:use :cl :fset :new-let :lexical-contexts :rev-fun-bind :misc-extensions.define-class)
   (:import-from :gmap #:gmap #:alist #:constant #:index #:sum)
   (:shadowing-import-from :new-let #:let #:cond)
   (:shadowing-import-from :mt19937 #:make-random-state #:random #:*random-state*)
@@ -150,6 +151,7 @@
 	   ;; useful in extending `Compare'.  But `Less-Than?' and `Greater-Than?'
 	   ;; are unlikely to be useful in user code.
 	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal
+	   #:define-equality-slots #:define-comparison-slots
 	   #:hash-value ; new for FSet2
 	   #:identity-ordering-mixin
 	   #:define-cross-type-compare-methods

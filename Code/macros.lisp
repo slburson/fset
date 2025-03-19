@@ -209,6 +209,76 @@ However, the implementation tries very hard to prevent this."
 (define-modify-macro logxorf (&rest args)
   logxor)
 
+(defmacro define-equality-slots (class &rest slots/accessors)
+  "A handy macro for specifying which slots of the class determine whether
+instances are equal.  Generates methods on `compare' and `hash-value'.
+These methods call each of `slots/accessors' on the object(s); the results
+are compared or hashed, recursively.  Comparison uses the slots or accessors
+in the order provided.
+
+For best performance (at least on SBCL), it is recommended to supply slot
+names as symbols for standard classes -- these will turn into `slot-value'
+forms -- but accessor names as functions for structure classes.  Arbitrary
+functions on the class may also be supplied.
+
+If the symbol `:eql' is supplied as the last accessor, then if the comparisons
+by the other supplied accessors all return `:equal' but `obj1' and `obj2' are
+not eql, the generated `compare' method returns `:unequal'.
+
+Examples:
+
+  (defstruct point x y)
+  (define-equality-slots point #'x #'y)
+
+  (defclass part () ((part-number ...) ...))
+  (define-equality-slots part 'part-number)
+
+If you're using `define-class' from Misc-Extensions, you can just say:
+
+  (define-class part ((part-number :equality ...) ...))"
+  `(progn
+     (defmethod compare ((a ,class) (b ,class))
+       (compare-slots a b . ,slots/accessors))
+     (defmethod hash-value ((x ,class))
+       (hash-slots x . ,(if (eq (last slots/accessors) ':eql) (butlast slots/accessors)
+			  slots/accessors)))))
+
+(defmacro define-comparison-slots (class &rest slots/accessors)
+  "Old name of `define-equality-slots'.  Deprecated."
+  `(define-equality-slots ,class . ,slots/accessors))
+
+;;; &&& Add `(:cache slot/acc)' syntax for auto-caching
+(defmacro hash-slots (obj &rest slots/accessors)
+  (unless slots/accessors
+    (error "At least one slot/accessor must be supplied"))
+  (let ((x-var (gensym "X-")))
+    (rlabels `(let ((,x-var ,obj))
+		,(rec `(hash-value ,(call (car slots/accessors) x-var)) (cdr slots/accessors)))
+      (rec (value accs)
+	(if (null accs) value
+	  (rec `(logxor (logand most-positive-fixnum (* 17 ,value))
+			(hash-value ,(call (car accs) x-var)))
+	       (cdr accs))))
+      (call (fn arg)
+	;; Makes the expansion more readable, if nothing else
+	(cond ((and (listp fn)
+		    (eq (car fn) 'function))
+	       `(,(cadr fn) ,arg))
+	      ((and (listp fn)
+		    (eq (car fn) 'lambda))
+	       `(,fn ,arg))
+	      ((and (listp fn)
+		    (eq (car fn) 'quote)
+		    (symbolp (cadr fn)))
+	       `(slot-value ,arg ,fn))
+	      (t `(funcall ,fn ,arg)))))))
+
+;;; This incantation lets you use `:equality' as a slot option in `define-class',
+;;; to specify the equality slots.
+(add-define-class-extension ':equality 'define-class-equality-slots-extension)
+(defun define-class-equality-slots-extension (class slots)
+  `(define-equality-slots ,class . ,(mapcar (fn (x) `',x) slots)))
+
 
 ;;; ================================================================================
 ;;; Macros related to fset.lisp

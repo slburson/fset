@@ -100,17 +100,24 @@ name to avoid confusion with `cl:sequence').  It is a structure class."
 
 
 ;;; ================================================================================
-;;; Identity ordering
+;;; Identity equality (compares by order of construction)
 
-(define-atomic-series identity-ordering-mixin-next-serial-number)
+(define-atomic-series identity-equality-mixin-next-serial-number)
 
-(defclass identity-ordering-mixin ()
-  ((serial-number :accessor serial-number
-                  :initform (increment-atomic-series identity-ordering-mixin-next-serial-number)))
-  (:documentation
-    "A mixin class for classes whose instances will be used in FSet collections,
+(define-class identity-equality-mixin ()
+  "A mixin class for classes whose instances will be used in FSet collections,
 and for which the appropriate equivalence relation is identity (`eq').
-This is the right choice for the vast majority of mutable classes."))
+This is the right choice for the vast majority of mutable classes."
+  ((serial-number :accessor serial-number
+                  :initform (increment-atomic-series identity-equality-mixin-next-serial-number))))
+
+(defmethod compare ((obj1 identity-equality-mixin) (obj2 identity-equality-mixin))
+  (compare-slots obj1 obj2 'serial-number))
+
+(define-class identity-ordering-mixin ()
+  "The old name of `identity-equality-mixin'.  Mildly deprecated."
+  ((serial-number :accessor serial-number
+                  :initform (increment-atomic-series identity-equality-mixin-next-serial-number))))
 
 (defmethod compare ((obj1 identity-ordering-mixin) (obj2 identity-ordering-mixin))
   (compare-slots obj1 obj2 'serial-number))
