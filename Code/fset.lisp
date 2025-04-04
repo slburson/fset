@@ -656,11 +656,6 @@ If `from-end?' is true, the collection is iterated in reverse order.  The bag
 method also takes a `pairs?' keyword argument; if true, it returns each element
 only once, with its multiplicity as the second value, as for a map."))
 
-;;; The `&allow-other-keys' is to persuade SBCL not to issue warnings about keywords
-;;; that are accepted by some methods of `iterator'.
-(declaim (ftype (function (t &key &allow-other-keys) function) iterator))
-(declaim (ftype (function (t &key (:from-end? t) &allow-other-keys) function) fun-iterator))
-
 ;;; Iterators for the Lisp sequence types are useful for some generic operations
 ;;; (e.g. `some' and friends).
 (defmethod iterator ((ls list) &key)
@@ -876,7 +871,7 @@ only once, with its multiplicity as the second value, as for a map."))
 (gmap:def-gmap-arg-type sequence (seq)
   "Yields the elements of `seq', which can be of any CL sequence type as well
 as an FSet seq, or a set or bag as well."
-  `((iterator ,seq)
+  `((the function (iterator ,seq))
     #'(lambda (it) (declare (type function it)) (funcall it ':done?))
     #'(lambda (it) (declare (type function it)) (funcall it ':get))))
 
@@ -887,7 +882,7 @@ as an FSet seq, or a set or bag as well."
 (gmap:def-arg-type fun-sequence (fun-iterable &key from-end?)
   "Yields the elements of `fun-iterable', which can be an FSet seq, set, or bag.
 If `:from-end?' is true, iterates in reverse order."
-  `((fun-iterator ,fun-iterable :from-end? ,from-end?)
+  `((the function (fun-iterator ,fun-iterable :from-end? ,from-end?))
     #'(lambda (it) (funcall it ':empty?))
     #'(lambda (it) (funcall it ':first))
     #'(lambda (it) (funcall it ':rest))))
@@ -1129,7 +1124,7 @@ Also works on an FSet seq."))
 ;;; `(gmap (:result or) ...)' is a bit faster.
 (defun some (pred sequence0 &rest more-sequences)
   "FSet generic version of `cl:some'."
-  (let ((it0 (iterator sequence0))
+  (let ((it0 (the function (iterator sequence0)))
 	(more-its (mapcar #'iterator more-sequences))
 	(pred (coerce-to-function pred)))
     (do ()
@@ -1145,7 +1140,7 @@ Also works on an FSet seq."))
 ;;; `(gmap (:result and) ...)' is a bit faster.
 (defun every (pred sequence0 &rest more-sequences)
   "FSet generic version of `cl:every'."
-  (let ((it0 (iterator sequence0))
+  (let ((it0 (the function (iterator sequence0)))
 	(more-its (mapcar #'iterator more-sequences))
 	(pred (coerce-to-function pred)))
     (do ()
@@ -1716,7 +1711,7 @@ for the possibility of different set implementations; it is not for public use.
 
 (defun wb-set-from-list (l input-sorted?)
   (if input-sorted?
-      (make-wb-set (WB-Set-Tree-From-Sorted-Iterable (iterator l) (length l)))
+      (make-wb-set (WB-Set-Tree-From-Sorted-Iterable (the function (iterator l)) (length l)))
     (make-wb-set (WB-Set-Tree-From-List l))))
 
 (defmethod convert ((to-type (eql 'set)) (s seq) &key input-sorted?)
@@ -1733,8 +1728,8 @@ for the possibility of different set implementations; it is not for public use.
 
 (defun wb-set-from-sequence (s input-sorted?)
   (if input-sorted?
-      (make-wb-set (WB-Set-Tree-From-Sorted-Iterable (iterator s) (size s)))
-    (make-wb-set (WB-Set-Tree-From-Iterable (iterator s)))))
+      (make-wb-set (WB-Set-Tree-From-Sorted-Iterable (the function (iterator s)) (size s)))
+    (make-wb-set (WB-Set-Tree-From-Iterable (the function (iterator s))))))
 
 (defmethod find (item (s set) &key key test)
   (declare (optimize (speed 3) (safety 0)))
@@ -1815,9 +1810,9 @@ for the possibility of different set implementations; it is not for public use.
 
 (gmap:def-gmap-arg-type set (set)
   "Yields the elements of `set'."
-  `((iterator ,set)
-    #'(lambda (it) (declare (type function it)) (funcall it ':done?))
-    #'(lambda (it) (declare (type function it)) (funcall it ':get))))
+  `((the function (iterator ,set))
+    #'(lambda (it) (funcall it ':done?))
+    #'(lambda (it) (funcall it ':get))))
 
 (gmap:def-gmap-res-type set (&key filterp)
   "Returns a set of the values, optionally filtered by `filterp'."
@@ -2379,7 +2374,7 @@ different bag implementations; it is not for public use.  `elt-fn' and
 
 (defun wb-bag-from-list (l input-sorted? pairs?)
   (if input-sorted?
-      (make-wb-bag (WB-Bag-Tree-From-Sorted-Iterable (iterator l) (length l) pairs?))
+      (make-wb-bag (WB-Bag-Tree-From-Sorted-Iterable (the function (iterator l)) (length l) pairs?))
     (make-wb-bag (WB-Bag-Tree-From-List l pairs?))))
 
 (defmethod convert ((to-type (eql 'bag)) (s seq) &key input-sorted? pairs?)
@@ -2396,8 +2391,8 @@ different bag implementations; it is not for public use.  `elt-fn' and
 
 (defun wb-bag-from-sequence (s input-sorted? pairs?)
   (if input-sorted?
-      (make-wb-bag (wb-bag-tree-from-sorted-iterable (iterator s) (size s) pairs?))
-    (make-wb-bag (wb-bag-tree-from-iterable (iterator s) pairs?))))
+      (make-wb-bag (wb-bag-tree-from-sorted-iterable (the function (iterator s)) (size s) pairs?))
+    (make-wb-bag (wb-bag-tree-from-iterable (the function (iterator s)) pairs?))))
 
 (defmethod find (item (b bag) &key key test)
   (declare (optimize (speed 3) (safety 0)))
@@ -2485,15 +2480,15 @@ different bag implementations; it is not for public use.  `elt-fn' and
 
 (gmap:def-gmap-arg-type bag (bag)
   "Yields each element of `bag', as many times as its multiplicity."
-  `((iterator ,bag)
-    #'(lambda (it) (declare (type function it)) (funcall it ':done?))
-    #'(lambda (it) (declare (type function it)) (funcall it ':get))))
+  `((the function (iterator ,bag))
+    #'(lambda (it) (funcall it ':done?))
+    #'(lambda (it) (funcall it ':get))))
 
 (gmap:def-gmap-arg-type bag-pairs (bag)
   "Yields each element of `bag' and its multiplicity as two values."
-  `((iterator ,bag :pairs? t)
-    #'(lambda (it) (declare (type function it)) (funcall it ':done?))
-    (:values 2 #'(lambda (it) (declare (type function it)) (funcall it ':get)))))
+  `((the function (iterator ,bag :pairs? t))
+    #'(lambda (it) (funcall it ':done?))
+    (:values 2 #'(lambda (it) (funcall it ':get)))))
 
 (gmap:def-gmap-arg-type wb-bag (bag)
   "Yields each element of `bag', as many times as its multiplicity."
@@ -2855,7 +2850,7 @@ symbols."))
   (let ((key-fn (coerce key-fn 'function))
 	(value-fn (coerce value-fn 'function)))
     (if input-sorted?
-	(make-wb-map (WB-Map-Tree-From-Sorted-Iterable (iterator l) (length l) key-fn value-fn))
+	(make-wb-map (WB-Map-Tree-From-Sorted-Iterable (the function (iterator l)) (length l) key-fn value-fn))
       (make-wb-map (WB-Map-Tree-From-List l key-fn value-fn)))))
 
 (defmethod convert ((to-type (eql 'map)) (s seq)
@@ -2878,8 +2873,8 @@ symbols."))
   (let ((key-fn (coerce key-fn 'function))
 	(value-fn (coerce value-fn 'function)))
     (if input-sorted?
-	(make-wb-map (WB-Map-Tree-From-Sorted-Iterable (iterator s) (size s) key-fn value-fn))
-      (make-wb-map (WB-Map-Tree-From-Iterable (iterator s) key-fn value-fn)))))
+	(make-wb-map (WB-Map-Tree-From-Sorted-Iterable (the function (iterator s)) (size s) key-fn value-fn))
+      (make-wb-map (WB-Map-Tree-From-Iterable (the function (iterator s)) key-fn value-fn)))))
 
 (defmethod convert ((to-type (eql 'map)) (b bag) &key)
   (convert 'wb-map b))
@@ -2995,9 +2990,9 @@ symbols."))
 
 (gmap:def-gmap-arg-type map (map)
   "Yields each pair of `map', as two values."
-  `((iterator ,map)
-    #'(lambda (it) (declare (type function it)) (funcall it ':done?))
-    (:values 2 #'(lambda (it) (declare (type function it)) (funcall it ':get)))))
+  `((the function (iterator ,map))
+    #'(lambda (it) (funcall it ':done?))
+    (:values 2 #'(lambda (it) (funcall it ':get)))))
 
 (gmap:def-gmap-arg-type wb-map (map)
   "Yields each pair of `map', as two values."
@@ -3824,9 +3819,9 @@ not symbols."))
 
 (gmap:def-gmap-arg-type seq (seq)
   "Yields the elements of `seq'."
-  `((iterator ,seq)
-    #'(lambda (it) (declare (type function it)) (funcall it ':done?))
-    #'(lambda (it) (declare (type function it)) (funcall it ':get))))
+  `((the function (iterator ,seq))
+    #'(lambda (it) (funcall it ':done?))
+    #'(lambda (it) (funcall it ':get))))
 
 (gmap:def-gmap-arg-type wb-seq (seq)
   "Yields the elements of `seq'."

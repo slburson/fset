@@ -40,6 +40,7 @@ See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
 	     (:file "complement-sets")
 	     (:file "bounded-sets")
 	     (:file "testing")
+	     (:file "post")
 	     #+swank
 	     (:file "swank")
              #+lispworks

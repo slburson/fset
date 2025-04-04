@@ -505,15 +505,15 @@ is mapped to multiple range values."))
 
 (gmap:def-gmap-arg-type 2-relation (rel)
   "Yields each pair of `rel', as two values."
-  `((iterator ,rel)
-    #'(lambda (it) (declare (type function it)) (funcall it ':done?))
-    (:values 2 #'(lambda (it) (declare (type function it)) (funcall it ':get)))))
+  `((the function (iterator ,rel))
+    #'(lambda (it) (funcall it ':done?))
+    (:values 2 #'(lambda (it) (funcall it ':get)))))
 
 (gmap:def-gmap-arg-type wb-2-relation (rel)
   "Yields each pair of `rel', as two values."
-  `((iterator ,rel)
-    #'(lambda (it) (declare (type function it)) (funcall it ':done?))
-    (:values 2 #'(lambda (it) (declare (type function it)) (funcall it ':get)))))
+  `((the function (iterator ,rel))
+    #'(lambda (it) (funcall it ':done?))
+    (:values 2 #'(lambda (it) (funcall it ':get)))))
 
 (gmap:def-gmap-res-type 2-relation (&key filterp)
   "Consumes two values from the mapped function; returns a 2-relation of the pairs.
@@ -714,8 +714,8 @@ pattern."))
 	(unless (<= (length pattern) arity)
 	  (error "Pattern is of the wrong length"))
 	(let ((pattern mask (prepare-pattern arity pattern)))
-	  (if (every (fn (s) (or (eq s '?) (= (size s) 1)))
-		     pattern)
+	  (if (gmap :and (fn (s) (or (eq s '?) (= (size s) 1)))
+		    (:arg list pattern))
 	      (query rel (mapcar (fn (s) (if (eq s '?) s (arb s))) pattern))
 	    (let ((index-results
 		    (gmap (:result list :filterp #'identity)
@@ -812,7 +812,7 @@ the corresponding result element is the index to use for that tuple position."
 			  (:arg index 0)))))
     ;; Now, if there were any instantiated positions for which an index did
     ;; not exist, construct indices for them.
-    (if (every #'null unindexed)
+    (if (gmap :and #'null (:arg list unindexed))
 	ex-inds
       (let ((new-indices (make-array (arity rel) :initial-element (empty-map (set)))))
 	;; Populate the new indices
