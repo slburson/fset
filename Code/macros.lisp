@@ -5,7 +5,6 @@
 ;;;
 ;;; This file is part of FSet.  Copyright (c) 2007-2024 Scott L. Burson.
 ;;; FSet is licensed under the Lisp Lesser GNU Public License, or LLGPL.
-;;; See: http://opensource.franz.com/preamble.html
 ;;; This license provides NO WARRANTY.
 
 (in-package :fset)
@@ -372,6 +371,9 @@ If you're using `define-class' from Misc-Extensions, you can just say:
 
 (define-modify-macro prependf (seq)
   xconcat)
+
+(define-modify-macro insertf (idx value)
+  insert)
 
 (defun xconcat (seq1 seq2)
   (concat seq2 seq1))

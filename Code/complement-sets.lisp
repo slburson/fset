@@ -5,7 +5,6 @@
 ;;;
 ;;; This file is part of FSet.  Copyright (c) 2007-2024 Scott L. Burson.
 ;;; FSet is licensed under the Lisp Lesser GNU Public License, or LLGPL.
-;;; See: http://opensource.franz.com/preamble.html
 ;;; This license provides NO WARRANTY.
 
 ;;; Complement sets don't add any new functionality, but they can be a notational

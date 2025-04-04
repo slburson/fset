@@ -5,7 +5,6 @@
 ;;;
 ;;; This file is part of FSet.  Copyright (c) 2007-2024 Scott L. Burson.
 ;;; FSet is licensed under the Lisp Lesser GNU Public License, or LLGPL.
-;;; See: http://opensource.franz.com/preamble.html
 ;;; This license provides NO WARRANTY.
 
 (in-package :cl-user)
@@ -44,7 +43,7 @@
 	   ;; are unlikely to be useful in user code.
 	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal
 	   #:define-equality-slots #:define-comparison-slots
-	   #:identity-ordering-mixin
+	   #:identity-equality-mixin #:identity-ordering-mixin
 	   #:define-cross-type-compare-methods
 	   #:compare-lexicographically
 	   #:empty? #:nonempty? #:size #:set-size #:arb
@@ -65,7 +64,7 @@
 	   #:first #:last
 	   #:lastcons #:head #:tail
 	   #:with-first #:less-first #:push-first #:pop-first
-	   #:with-last #:less-last #:push-last #:pop-last #:appendf #:prependf
+	   #:with-last #:less-last #:push-last #:pop-last #:appendf #:prependf #:insertf
 	   #:insert #:splice #:subseq #:concat #:reverse #:sort #:stable-sort #:sort-and-group
 	   #:find #:find-if #:find-if-not
 	   #:count #:count-if #:count-if-not
@@ -153,7 +152,7 @@
 	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal
 	   #:define-equality-slots #:define-comparison-slots
 	   #:hash-value ; new for FSet2
-	   #:identity-ordering-mixin
+	   #:identity-equality-mixin #:identity-ordering-mixin
 	   #:define-cross-type-compare-methods
 	   #:compare-lexicographically
 	   #:empty? #:nonempty? #:size #:set-size #:arb
@@ -173,7 +172,7 @@
 	   #:first #:last
 	   #:lastcons #:head #:tail
 	   #:with-first #:less-first #:push-first #:pop-first
-	   #:with-last #:less-last #:push-last #:pop-last #:appendf #:prependf
+	   #:with-last #:less-last #:push-last #:pop-last #:appendf #:prependf #:insertf
 	   #:insert #:splice #:subseq #:concat #:reverse #:sort #:stable-sort #:sort-and-group
 	   #:find #:find-if #:find-if-not
 	   #:count #:count-if #:count-if-not
