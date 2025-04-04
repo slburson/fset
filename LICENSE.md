@@ -4,13 +4,13 @@ FSet is distributed under the Lisp Lesser General Public License
 following preamble prepended:
 
 > The concept of the GNU Lesser General Public License version 2.1 ("LGPL") has been adopted
-> to govern the use and distribution of above-mentioned application. However, the LGPL uses
-> terminology that is more appropriate for a program written in C than one written in
-> Lisp. Nevertheless, the LGPL can still be applied to a Lisp program if certain
-> clarifications are made. This document details those clarifications. Accordingly, the
-> license for the open-source Lisp applications consists of this document plus the
-> LGPL. Wherever there is a conflict between this document and the LGPL, this document takes
-> precedence over the LGPL.
+to govern the use and distribution of above-mentioned application. However, the LGPL uses
+terminology that is more appropriate for a program written in C than one written in
+Lisp. Nevertheless, the LGPL can still be applied to a Lisp program if certain
+clarifications are made. This document details those clarifications. Accordingly, the
+license for the open-source Lisp applications consists of this document plus the
+LGPL. Wherever there is a conflict between this document and the LGPL, this document takes
+precedence over the LGPL.
 >
 > A "Library" in Lisp is a collection of Lisp functions, data, and foreign modules. The form
 of the Library can be Lisp source code (for processing by an interpreter) or object code
@@ -21,7 +21,7 @@ addition, methods and unnamed functions. Lisp "data" is also a general term that
 the data structures resulting from defining Lisp classes. A Lisp application may include
 the same set of Lisp objects as does a Library, but this does not mean that the
 application is necessarily a "work based on the Library" it contains.
-
+>
 > The Library consists of everything in the distribution file set before any modifications
 are made to the files. If any of the functions or classes in the Library are redefined in
 other files, then those redefinitions ARE considered a work based on the Library. If
@@ -32,7 +32,7 @@ explicitly call other functions that are neither part of Lisp itself nor an avai
 add-on module to Lisp, then the functions called by the modified Library ARE considered a
 work based on the Library. The goal is to ensure that the Library will compile and run
 without getting undefined function errors.
-
+>
 > It is permitted to add proprietary source code to the Library, but it must be done in a
 way such that the Library will still run without that proprietary code present. Section 5
 of the LGPL distinguishes between the case of a library being dynamically linked at
@@ -44,7 +44,7 @@ link the Library into an executable at build time, we declare that, for the purp
 applying the LGPL to the Library, an executable that results from linking a "work that
 uses the Library" with the Library is considered a "work that uses the Library" and is
 therefore NOT covered by the LGPL.
-
+>
 > Because of this declaration, section 6 of LGPL is not applicable to the Library. However,
 in connection with each distribution of this executable, you must also deliver, in
 accordance with the terms and conditions of the LGPL, the source code of Library (or your
