@@ -1242,6 +1242,19 @@ Also works on an FSet seq."))
 (defmethod image ((fn set) (l list))
   (mapcar (lambda (x) (lookup fn x)) l))
 
+(defmethod image ((fn function) (l vector))
+  (cl:map 'vector fn l))
+
+(defmethod image ((fn symbol) (l vector))
+  (cl:map 'vector (coerce fn 'function) l))
+
+(defmethod image ((fn map) (l vector))
+  (cl:map 'vector (lambda (x) (lookup fn x)) l))
+
+(defmethod image ((fn set) (l vector))
+  (cl:map 'vector (lambda (x) (lookup fn x)) l))
+
+
 ;;; ----------------
 ;;; This series of methods provides an elegant way to do functional update on small lists.
 ;;; E.g., (incf (@ x 'first)) --> (setq x (cons (1+ (car x)) (cdr x))).
@@ -2782,6 +2795,22 @@ symbols."))
   (make-wb-map (WB-Map-Tree-Restrict-Not (wb-map-contents m) (wb-set-contents s))
 	       (map-default m)))
 
+(declaim (inline compose-functions))
+(defun compose-functions (f1 f2)
+  (lambda (&rest args) (multiple-value-call f2 (apply f1 args))))
+
+(defmethod compose ((f1 function) (f2 function))
+  (compose-functions f1 f2))
+
+(defmethod compose ((f1 symbol) (f2 function))
+  (compose-functions f1 f2))
+
+(defmethod compose ((f1 function) (f2 symbol))
+  (compose-functions f1 f2))
+
+(defmethod compose ((f1 symbol) (f2 symbol))
+  (compose-functions f1 f2))
+
 (defmethod compose ((map1 wb-map) (map2 wb-map))
   (let ((tree2 (wb-map-contents map2)))
     (make-wb-map (WB-Map-Tree-Compose (wb-map-contents map1)
@@ -3853,27 +3882,69 @@ not symbols."))
 
 
 ;;; ================================================================================
-;;; CL Sequences
+;;; CL Sequences and Functions
 
 ;;; Convenience methods for some of the FSet generic functions.
 
 (defmethod empty? ((l list))
+  (declare (optimize (speed 3) (safety 0)))
   (null l))
 
 (defmethod empty? ((s sequence))
+  (declare (optimize (speed 3) (safety 0)))
   (zerop (length s)))
 
 (defmethod size ((s sequence))
+  (declare (optimize (speed 3) (safety 0)))
   (length s))
 
 (defmethod lookup ((s sequence) (idx integer))
   (values (elt s idx) t))
 
+(defmethod lookup ((fn function) (v t))
+  (funcall fn v))
+
+(defmethod lookup ((fn symbol) (v t))
+  (funcall fn v))
+
+(defmethod convert ((to-type (eql 'list)) (v vector) &key)
+  (declare (optimize (speed 3) (safety 0)))
+  (coerce v 'list))
+
 (defmethod convert ((to-type (eql 'vector)) (l list) &key)
+  (declare (optimize (speed 3) (safety 0)))
   (coerce l 'vector))
 
 (defmethod convert ((to-type (eql 'list)) (s sequence) &key)
-  (coerce s 'list))
+  (declare (optimize (speed 3) (safety 0)))
+  (let ((result nil))
+    (dotimes (i (length s))
+      (push (elt s i) result))
+    (nreverse result)))
+
+(defmethod convert ((to-type (eql 'vector)) (s sequence) &key)
+  (declare (optimize (speed 3) (safety 0)))
+  (let* ((seq-len (length s))
+         (result (make-array seq-len)))
+    (dotimes (i seq-len result)
+      (setf (svref result i) (elt s i)))))
+
+(declaim (inline compose-with-key-fn))
+(defun compose-with-key-fn (fn collection)
+  (lambda (key) (lookup collection (funcall fn key))))
+
+(defmethod compose ((fn function) (m wb-map))
+  (compose-with-key-fn fn m))
+
+(defmethod compose ((fn symbol) (m wb-map))
+  (compose-with-key-fn fn m))
+
+(defmethod compose ((fn function) (s seq))
+  (compose-with-key-fn fn s))
+
+(defmethod compose ((fn symbol) (s seq))
+  (compose-with-key-fn fn s))
+
 
 
 ;;; ================================================================================
