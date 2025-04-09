@@ -373,6 +373,24 @@ and thus of types named by those symbols.")
 			((eq cmp ':unequal)
 			 (setq unequal? t))))))))))))
 
+;; Fallback for generic sequences
+(defmethod compare ((a sequence) (b sequence))
+  (if (eq a b) ':equal
+    (if (not (eq (class-of a) (class-of b)))
+	  ;; Since their types don't overlap, fallback to another handler
+	  (call-next-method)
+	(let ((dims-cmp (compare (length a) (length b))))
+	  (if (member dims-cmp '(:less :greater))
+	      dims-cmp
+	    (let ((unequal? nil)
+		  (size (length a)))
+	      (dotimes (i size (if unequal? ':unequal ':equal))
+		(let ((cmp (compare (elt a i) (elt b i))))
+		  (cond ((member cmp '(:less :greater))
+			 (return cmp))
+			((eq cmp ':unequal)
+			 (setq unequal? t)))))))))))
+
 
 ;;; ================================================================================
 ;;; Lexicographic comparison of sequences
