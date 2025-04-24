@@ -107,6 +107,9 @@
            ;; named-readtable readtables
            #:fset-readtable #:fset-rereading-readtable))
 
+;;; Since we've shadowed `cl:count', we need to do this.
+(gmap:copy-gmap-type 'cl:count 'fset:count)
+
 
 ;;; The need has arisen to define a second FSet package.  There are two motivations:
 ;;; () the planned introduction of the CHAMP data structure for sets, maps, and bags,
@@ -214,6 +217,9 @@
 
            ;; named-readtable readtables
            #:fset-readtable #:fset-rereading-readtable))
+
+;;; Since we've shadowed `cl:count', we need to do this.
+(gmap:copy-gmap-type 'cl:count 'fset2:count)
 
 
 ;;; A convenient package for experimenting with FSet.  Also serves as an example
