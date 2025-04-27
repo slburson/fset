@@ -392,14 +392,15 @@ you can write `(@ fn arg1 arg2 ...)' when you just want a shorter name for
 side-effect-free functions.  Also, though this doc string has spoken only of
 FSet maps, `@' can be used with any type that `lookup' works on.  Can be used
 with `setf', but only on collections, not functions, of course."
-  (if (or (null args)
-	  (> (length args) 1))
-      `(funcall ,fn-or-collection . ,args)
-    (let ((fn-var (gensym "FN-")))
-      `(let ((,fn-var ,fn-or-collection))
-	 (if (functionp ,fn-var)
-	     (funcall ,fn-var . ,args)
-	   (lookup ,fn-var . ,args))))))
+  (if (= (length args) 1)
+      (let ((fn-var (gensym "FN-"))
+	    (arg-var (gensym "ARG-")))
+	`(let ((,fn-var ,fn-or-collection)
+	       (,arg-var ,(car args)))
+	   (if (functionp ,fn-var)
+	       (funcall ,fn-var ,arg-var)
+	     (lookup ,fn-var ,arg-var))))
+    `(funcall ,fn-or-collection . ,args)))
 
 (defmacro check-two-arguments (arg2? op type)
   `(when ,arg2?
