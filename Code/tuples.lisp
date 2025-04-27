@@ -118,10 +118,12 @@ reordered key vectors.  This is the default implementation of tuples in FSet."
 	    (:constructor make-tuple-key (name default-fn number))
 	    (:predicate tuple-key?)
 	    (:print-function print-tuple-key))
-  (name nil :read-only t)	; a symbol (normally, but actually can be anything)
-  (default-fn nil :read-only t)	; default function for tuples with no explicit entry for this key
+  (name nil :read-only t)	; a symbol (normally, but actually can be any type known to FSet)
+  (default-fn nil :type (or null function)
+		  :read-only t)	; default function for tuples with no explicit entry for this key
 				;   (called with one argument, the tuple), or nil
-  (number nil :read-only t))	; used for lookup and sorting
+  (number nil :type fixnum
+	      :read-only t))	; used for lookup and sorting
 
 (deflex +Tuple-Key-Name-Map+ (empty-map))
 
@@ -129,38 +131,47 @@ reordered key vectors.  This is the default implementation of tuples in FSet."
 
 (deflex +Tuple-Key-Lock+ (make-lock "Tuple Key Lock"))
 
-(defun get-tuple-key (name &optional default-fn)
-  "Finds or creates a tuple key named `name'.  If the key did not already exist,
-and `default-fn' is supplied, it is used to compute a value for lookups where
-the tuple has no explicit pair with this key; it is called with one argument,
-the tuple."
-  (assert (or (null default-fn) (typep default-fn 'function)))
-  (with-lock (+Tuple-Key-Lock+)
-    (let ((key (lookup +Tuple-Key-Name-Map+ name))
-	  (key-idx (size +Tuple-Key-Seq+)))
-      (or key
-	  (if (<= key-idx Tuple-Key-Number-Mask)
-	      (let ((key (make-tuple-key name default-fn key-idx)))
-		(setf (lookup +Tuple-Key-Name-Map+ name) key)
-		(push-last +Tuple-Key-Seq+ key)
-		key)
-	    (error "Tuple key space exhausted"))))))
+(defun get-tuple-key (name &optional default)
+  "Finds or creates a tuple key named `name'.  If `default' is supplied and
+nonnull, it will be returned from `lookup' when the tuple has no explicit pair
+with this key.  EXCEPTION: for backward compatibility, if `default' is a
+function, then instead of being returned itself, it will be called on the tuple
+to get the value returned.  So, if you want the default value to be a function,
+you have to wrap it in an extra lambda."
+  (let ((default-fn (and default
+			 (if (functionp default) default
+			   (lambda (tup)
+			     (declare (ignore tup))
+			     default)))))
+    (with-lock (+Tuple-Key-Lock+)
+      (let ((key (lookup +Tuple-Key-Name-Map+ name))
+	    (key-idx (size +Tuple-Key-Seq+)))
+	(or key
+	    (if (<= key-idx Tuple-Key-Number-Mask)
+		(let ((key (make-tuple-key name default-fn key-idx)))
+		  (setf (lookup +Tuple-Key-Name-Map+ name) key)
+		  (push-last +Tuple-Key-Seq+ key)
+		  key)
+	      (error "Tuple key space exhausted")))))))
 
-(defmacro def-tuple-key (name &optional default-fn)
+(defmacro def-tuple-key (name &optional default)
   "Deprecated; use `define-tuple-key'."
   ;; What this should have been called to begin with.
-  `(define-tuple-key ,name ,default-fn))
+  `(define-tuple-key ,name ,default))
 
-(defmacro define-tuple-key (name &optional default-fn doc-string)
-  "Defines a tuple key named `name' as a global lexical variable (see `deflex').
-If `default-fn' is supplied, it is used to compute a value for lookups where
-the tuple has no explicit pair with this key; it is called with one argument,
-the tuple.  To supply a doc string without a default-fn, supply `nil' for
-`default-fn'."
+(defmacro define-tuple-key (name &optional default doc-string)
+  "Defines a tuple key named `name' as a global lexical variable (see
+`deflex').  If `default' is supplied and nonnull, it will be returned from
+`lookup' when the tuple has no explicit pair with this key.  EXCEPTION: for
+backward compatibility, if `default' is a function, then instead of being
+returned itself, it will be called on the tuple to get the value returned.
+So, if you want the default value to be a function, you have to wrap it in
+an extra lambda.  To supply a doc string without a default, supply `nil'
+for `default'."
   (assert (symbolp name))
   (when doc-string
     (setf (get name 'tuple-key-doc-string) doc-string))
-  `(deflex ,name (get-tuple-key ',name ,default-fn)))
+  `(deflex ,name (get-tuple-key ',name ,default)))
 
 (defun print-tuple-key (key stream level)
   (declare (ignore level))
