@@ -928,6 +928,9 @@ positions in the original pattern."
 ;;; --------------------------------------------------------------------------------
 ;;; Assertion DB
 
+;;; A simple, functional in-memory assertion "database" with pattern query capability.
+;;; Contains one `list-relation' for each arity of tuples that have been added to it.
+
 (defstruct (assertion-db
 	     (:constructor nil)
 	     (:predicate assertion-db?)
@@ -949,7 +952,7 @@ positions in the original pattern."
 
 (defmethod with ((adb assertion-db) tuple &optional (arg2 nil arg2?))
   (declare (ignore arg2))
-  (check-two-arguments arg2? 'with 'wb-list-relation)
+  (check-two-arguments arg2? 'with 'assertion-db)
   (let ((arity (length tuple)))
     (make-wb-assertion-db (with (wb-assertion-db-list-rels adb) arity
 				(with (@ (wb-assertion-db-list-rels adb) arity)
