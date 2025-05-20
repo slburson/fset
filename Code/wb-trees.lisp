@@ -2736,6 +2736,35 @@ between equal trees."
 
 
 ;;; ================================================================================
+;;; Disjointness testing
+
+(defun WB-Bag-Tree-Disjoint? (tree1 tree2)
+  (WB-Bag-Tree-Disjoint?-Rng tree1 tree2
+			     Hedge-Negative-Infinity Hedge-Positive-Infinity))
+
+(defun WB-Bag-Tree-Disjoint?-Rng (tree1 tree2 lo hi)
+  (cond ((or (null tree1) (null tree2))
+	 t)
+	((eq tree1 tree2)
+	 nil)
+	((and (consp tree1) (consp tree2))
+	 (Vector-Set-Disjoint? (car tree1) (car tree2) lo hi))
+	((consp tree1)
+	 (WB-Bag-Tree-Disjoint?-Rng (WB-Bag-Tree-Trim tree2 lo hi)
+				    tree1 lo hi))
+	(t
+	 (let ((val1 (WB-Bag-Tree-Node-Value tree1))
+	       ((eqvv2? eqvv2 (WB-Bag-Tree-Find-Equivalent tree2 val1))))
+	   (and (or (null eqvv2?) (Equivalent-Bag-Disjoint? val1 eqvv2))
+		(WB-Bag-Tree-Disjoint?-Rng (WB-Bag-Tree-Node-Left tree1)
+					   (WB-Bag-Tree-Trim tree2 lo val1)
+					   lo val1)
+		(WB-Bag-Tree-Disjoint?-Rng (WB-Bag-Tree-Node-Right tree1)
+					   (WB-Bag-Tree-Trim tree2 val1 hi)
+					   val1 hi))))))
+
+
+;;; ================================================================================
 ;;; Miscellany
 
 (defun WB-Bag-Tree-From-List (lst pairs?)
@@ -4026,6 +4055,20 @@ value and `count-var' to its member count."
 	  (and pr2 (gen <= count1 (cdr pr2))))
       (and (equal? val1 val2)
 	   (gen <= count1 count2)))))
+
+(defun Equivalent-Bag-Disjoint? (val1 val2)
+  "Both `val1' and `val2' may be single values or `Equivalent-Bag's of values.
+If their intersection is null, returns true, else false."
+  (declare (optimize (speed 3) (safety 0)))
+  (if (Equivalent-Bag? val1)
+      (if (Equivalent-Bag? val2)
+	  (dolist (m1 (Equivalent-Bag-Alist val1) t)
+	    (when (assoc m1 (Equivalent-Bag-Alist val2) :test #'equal?)
+	      (return nil)))
+	(not (assoc val2 (Equivalent-Bag-Alist val1) :test #'equal?)))
+    (if (Equivalent-Bag? val2)
+	(not (assoc val1 (Equivalent-Bag-Alist val2) :test #'equal?))
+      (not (equal? val1 val2)))))
 
 (defun Equivalent-Bag-Compare (val1 count1 val2 count2)
   "Compares two pairs where the key of either or both may be an `Equivalent-Bag'."

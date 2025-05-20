@@ -2217,6 +2217,26 @@ multiplicity, but the two bags are not equal."
   (and (subbag? sub super)
        (< (size sub) (size super))))
 
+(defmethod disjoint? ((b1 wb-bag) (b2 wb-bag))
+  (WB-Bag-Tree-Disjoint? (wb-bag-contents b1) (wb-bag-contents b2)))
+
+(defmethod disjoint? ((b wb-bag) (s wb-set))
+  (bag-set-disjoint? b s))
+
+(defmethod disjoint? ((s wb-set) (b wb-bag))
+  (bag-set-disjoint? b s))
+
+(defun bag-set-disjoint? (b s)
+  ;; Too lazy to write the WB hedge algorithm.  Maybe l8r.
+  (if (< (size s) (set-size b))
+      (do-set (x s t)
+	(when (contains? b x)
+	  (return nil)))
+    (do-bag-pairs (x c b t)
+      (declare (ignore c))
+      (when (contains? s x)
+	(return nil)))))
+
 (defmethod compare ((b1 wb-bag) (b2 wb-bag))
   (WB-Bag-Tree-Compare (wb-bag-contents b1) (wb-bag-contents b2)))
 
