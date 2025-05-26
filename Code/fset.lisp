@@ -3907,15 +3907,12 @@ not symbols."))
 ;;; Convenience methods for some of the FSet generic functions.
 
 (defmethod empty? ((l list))
-  (declare (optimize (speed 3) (safety 0)))
   (null l))
 
 (defmethod empty? ((s sequence))
-  (declare (optimize (speed 3) (safety 0)))
   (zerop (length s)))
 
 (defmethod size ((s sequence))
-  (declare (optimize (speed 3) (safety 0)))
   (length s))
 
 (defmethod lookup ((s sequence) (idx integer))
@@ -3928,22 +3925,18 @@ not symbols."))
   (funcall fn v))
 
 (defmethod convert ((to-type (eql 'list)) (v vector) &key)
-  (declare (optimize (speed 3) (safety 0)))
   (coerce v 'list))
 
 (defmethod convert ((to-type (eql 'vector)) (l list) &key)
-  (declare (optimize (speed 3) (safety 0)))
   (coerce l 'vector))
 
 (defmethod convert ((to-type (eql 'list)) (s sequence) &key)
-  (declare (optimize (speed 3) (safety 0)))
   (let ((result nil))
     (dotimes (i (length s))
       (push (elt s i) result))
     (nreverse result)))
 
 (defmethod convert ((to-type (eql 'vector)) (s sequence) &key)
-  (declare (optimize (speed 3) (safety 0)))
   (let* ((seq-len (length s))
          (result (make-array seq-len)))
     (dotimes (i seq-len result)
