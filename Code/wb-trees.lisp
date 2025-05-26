@@ -491,6 +491,12 @@ on `vec', which it assumes is simple."
 (defconstant Hedge-Positive-Infinity
   '|&*$ Hedge positive infinity $*&|)
 
+(defun WB-Set-Tree-Split-Above (tree value &optional (cmp-fn #'compare))
+  (WB-Set-Tree-Split tree value Hedge-Positive-Infinity cmp-fn))
+
+(defun WB-Set-Tree-Split-Below (tree value &optional (cmp-fn #'compare))
+  (WB-Set-Tree-Split tree Hedge-Negative-Infinity value cmp-fn))
+
 
 ;;; ================================================================================
 ;;; Union, intersection, and set difference
@@ -1932,6 +1938,39 @@ true, else false."
 	(if (Equivalent-Node? val2)
 	    ':greater
 	  comp)))))
+
+
+;;; When called on a value and an `Equivalent-Node', or on two `Equivalent-Node's,
+;;; the result of `compare' is meaningful only for ordering; the distinction between
+;;; `:equal' and `:unequal' is not meaningful.  Code that may care about the latter
+;;; has more work to do anyway, such as calling `Equivalent-Set-Union' etc.
+(defmethod compare (x (eqvn Equivalent-Node))
+  "Returns `:less' or `:greater' if `x' is less than resp. greater than the
+values in `eqvs'; or EITHER `:equal' or `:unequal' if `x' is equivalent to any
+value in `eqvs'."
+  (compare x (if (Equivalent-Node-Set? eqvn)
+		 (car (Equivalent-Node-List eqvn))
+	       (caar (Equivalent-Node-List eqvn)))))
+
+(defmethod compare ((eqvn Equivalent-Node) x)
+  "Returns `:less' or `:greater' if the values in `eqvs' are less than resp.
+greater than `x'; or EITHER `:equal' or `:unequal' if `x' is equivalent to
+any value in `eqvs'."
+  (compare (if (Equivalent-Node-Set? eqvn)
+	       (car (Equivalent-Node-List eqvn))
+	     (caar (Equivalent-Node-List eqvn)))
+	   x))
+
+(defmethod compare ((eqvn1 Equivalent-Node) (eqvn2 Equivalent-Node))
+  "Returns `:less' or `:greater' if the values in `eqvs1' are less than resp.
+greater than those in `eqvs2'; returns EITHER `:equal' or `:unequal' if those
+in `eqvs1' are equivalent to those in `eqvs2'."
+  (compare (if (Equivalent-Node-Set? eqvn1)
+	       (car (Equivalent-Node-List eqvn1))
+	     (caar (Equivalent-Node-List eqvn1)))
+	   (if (Equivalent-Node-Set? eqvn2)
+	       (car (Equivalent-Node-List eqvn2))
+	     (caar (Equivalent-Node-List eqvn2)))))
 
 
 ;;; ================================================================================
@@ -4056,15 +4095,15 @@ If their intersection is null, returns true, else false."
 	  (if (Equivalent-Node? val2)
 	      (let ((mems1 (Equivalent-Node-List val1))
 		    (mems2 (Equivalent-Node-List val2))
-		    ((total-ct1 (without-optimization (gmap (:result sum) #'cdr (:arg list mems1))))
-		     (total-ct2 (without-optimization (gmap (:result sum) #'cdr (:arg list mems2))))))
-		(declare (type integer total-ct1 total-ct2))
+		    ((len1 (length mems2))
+		     (len2 (length mems2))))
+		(declare (type integer len1 len2))
 		;; The reason these are "backward": in order for us to have gotten here, everything to
 		;; our left must have been equal, and we know that the total sizes of the two bags are
 		;; equal, so if, say, bag 1 has a smaller total here, then it must have some element
 		;; greater than these following this node.
-		(cond ((gen < total-ct1 total-ct2) ':greater)
-		      ((gen > total-ct1 total-ct2) ':less)
+		(cond ((gen < len1 len2) ':greater)
+		      ((gen > len1 len2) ':less)
 		      ((cl:every #'(lambda (pr1)
 				     (let ((pr2 (assoc (car pr1) mems2 :test (equal?-fn cmp-fn))))
 				       (and pr2 (equal?-cmp (cdr pr1) (cdr pr2) cmp-fn))))
@@ -4627,7 +4666,7 @@ pair removed."
 				     key-cmp-fn)))))
 
 
-(defun WB-Map-Tree-Diff-2 (tree1 tree2 &optional key-cmp-fn val-cmp-fn)
+(defun WB-Map-Tree-Diff-2 (tree1 tree2 &optional (key-cmp-fn #'compare) (val-cmp-fn #'compare))
   "Returns two values: one containing the pairs that are in `tree1' but not
 `tree2', and the other containing the pairs that are in `tree2' but not
 `tree1'."
