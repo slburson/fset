@@ -377,6 +377,11 @@
 	 (,op . ,(mapcar (lambda (var arg) (or var arg))
 			 vars args))))))
 
+(defmacro without-optimization (&body body)
+  "Turns off optimization, and thus the compiler's complaints when it can't."
+  `(locally (declare (optimize (speed 1) (safety 1)))
+     . ,body))
+
 
 ;;; This little oddity exists because of a limitation in Python (that's the
 ;;; CMUCL compiler).  Given a call to `length' on type `(or null simple-vector)',

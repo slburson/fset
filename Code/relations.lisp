@@ -539,7 +539,7 @@ Note that `filterp', if supplied, must take two arguments."
 	  ((> a-size b-size) ':greater)
 	  (t
 	   (WB-Map-Tree-Compare (wb-2-relation-map0 a) (wb-2-relation-map0 b)
-				#'WB-Set-Tree-Compare)))))
+				#'compare #'WB-Set-Tree-Compare)))))
 
 
 (defgeneric transitive-closure (2-relation set)

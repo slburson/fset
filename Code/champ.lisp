@@ -832,8 +832,7 @@ It occurs to me that with a little tweaking, we could arrange for `domain' to be
 				   (if (= hash-shifted wb-hash-shifted)
 				       ;; Update the collision node.
 				       (let ((new-wb-tree (wb-map-tree-with (cdr subnode) key value)))
-					 (cond (;; The map code doesn't promise not to return an equal-but-not-eq tree.
-						(eq (wb-map-tree-compare new-wb-tree (cdr subnode)) ':equal)
+					 (cond ((eq new-wb-tree (cdr subnode))
 						subnode)
 					       ((= (wb-map-tree-size new-wb-tree) (wb-map-tree-size (cdr subnode)))
 						;; The key was already present, but the value was updated.
