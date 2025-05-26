@@ -267,7 +267,7 @@ containing the values; otherwise `nil'."
 	   (type function cmp-fn))
   (cond ((null tree) nil)
 	((simple-vector-p tree)
-	 (let ((found? idx (Vector-Set-Binary-Search tree value)))
+	 (let ((found? idx (Vector-Set-Binary-Search tree value cmp-fn)))
 	   (and found? (values t (svref tree idx)))))
 	(t
 	 (let ((node-val (WB-Set-Tree-Node-Value tree))
@@ -301,7 +301,7 @@ containing the values; otherwise `nil'."
 	   (type function cmp-fn))
   (cond ((null tree) nil)
 	((simple-vector-p tree)
-	 (let ((found? idx (Vector-Set-Binary-Search tree value)))
+	 (let ((found? idx (Vector-Set-Binary-Search tree value cmp-fn)))
 	   (and found?
 		(let ((v (svref tree idx)))
 		  (and (equal?-cmp v value cmp-fn)
@@ -483,19 +483,13 @@ on `vec', which it assumes is simple."
 
 
 ;;; ================================================================================
-;;; Split-Above/Below
+;;; Hedge algorithm constants
 
 (defconstant Hedge-Negative-Infinity
   '|&*$ Hedge negative infinity $*&|)
 
 (defconstant Hedge-Positive-Infinity
   '|&*$ Hedge positive infinity $*&|)
-
-(defun WB-Set-Tree-Split-Above (tree value)
-  (WB-Set-Tree-Split tree value Hedge-Positive-Infinity))
-
-(defun WB-Set-Tree-Split-Below (tree value)
-  (WB-Set-Tree-Split tree Hedge-Negative-Infinity value))
 
 
 ;;; ================================================================================
@@ -645,11 +639,10 @@ of `tree1' and `tree2' are in this range."
 	     (WB-Set-Tree-Join new-left new-right cmp-fn))))))
 
 
-(defun WB-Set-Tree-Diff-2 (tree1 tree2)
+(defun WB-Set-Tree-Diff-2 (tree1 tree2 &optional (cmp-fn #'compare))
   "Returns two values: the set difference of `tree1' less `tree2', and that of
 `tree2' less `tree1'.  Runs in time linear in the total sizes of the two trees."
-  (WB-Set-Tree-Diff-2-Rng tree1 tree2
-			  Hedge-Negative-Infinity Hedge-Positive-Infinity))
+  (WB-Set-Tree-Diff-2-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn))
 
 (defun WB-Set-Tree-Diff-2-Rng (tree1 tree2 lo hi cmp-fn)
   "Returns two values: the set difference of `tree1' less `tree2', and that of
@@ -812,7 +805,7 @@ between equal trees."
   (labels ((rec (tree value base)
 	     (cond ((null tree) (values nil base))
 		   ((simple-vector-p tree)
-		    (let ((found? idx (Vector-Set-Binary-Search tree value)))
+		    (let ((found? idx (Vector-Set-Binary-Search tree value cmp-fn)))
 		      (values found? (+ idx base))))
 		   (t
 		    (let ((node-val (WB-Set-Tree-Node-Value tree))
@@ -1148,7 +1141,7 @@ in `left' are less than any value in `right'."
   (if (null left) right
     (if (null right) left
       (let ((val (WB-Set-Tree-Minimum-Value right)))
-	(WB-Set-Tree-Concat val left (WB-Set-Tree-Less-Minimum right) cmp-fn)))))
+	(WB-Set-Tree-Concat val left (WB-Set-Tree-Less-Minimum right cmp-fn) cmp-fn)))))
 
 (defun WB-Set-Tree-Minimum-Value (tree)
   "Assumes `tree' is nonempty.  Returns the minimum value.  This may be an
@@ -1162,7 +1155,7 @@ in `left' are less than any value in `right'."
 	  (WB-Set-Tree-Minimum-Value left)
 	(WB-Set-Tree-Node-Value tree)))))
 
-(defun WB-Set-Tree-Less-Minimum (tree)
+(defun WB-Set-Tree-Less-Minimum (tree &optional (cmp-fn #'compare))
   "Assumes `tree' is nonempty.  Returns a new tree with the minimum value
 or `Equivalent-Set' removed."
   (declare (optimize (speed 3) (safety 0))
@@ -1171,9 +1164,8 @@ or `Equivalent-Set' removed."
       (and (> (length (the simple-vector tree)) 1) (Vector-Subseq tree 1))
     (let ((left (WB-Set-Tree-Node-Left tree)))
       (if left
-	  (WB-Set-Tree-Concat (WB-Set-Tree-Node-Value tree)
-			      (WB-Set-Tree-Less-Minimum left)
-			      (WB-Set-Tree-Node-Right tree))
+	  (WB-Set-Tree-Concat (WB-Set-Tree-Node-Value tree) (WB-Set-Tree-Less-Minimum left cmp-fn)
+			      (WB-Set-Tree-Node-Right tree) cmp-fn)
 	(WB-Set-Tree-Node-Right tree)))))
 
 (defun WB-Set-Tree-Build-Node (value left right)
@@ -2953,7 +2945,7 @@ between equal trees."
     (if (null right) left
       (let ((min-val min-count (WB-Bag-Tree-Minimum-Pair right)))
 	(WB-Bag-Tree-Concat min-val min-count
-			    left (WB-Bag-Tree-Less-Minimum right) cmp-fn)))))
+			    left (WB-Bag-Tree-Less-Minimum right cmp-fn) cmp-fn)))))
 
 (defun WB-Bag-Tree-Minimum-Pair (tree)
   "Assumes `tree' is nonempty.  Returns the minimum value and count as two
@@ -2970,7 +2962,7 @@ count is not meaningful."
 	(values (WB-Bag-Tree-Node-Value tree)
 		(WB-Bag-Tree-Node-Count tree))))))
 
-(defun WB-Bag-Tree-Less-Minimum (tree)
+(defun WB-Bag-Tree-Less-Minimum (tree &optional (cmp-fn #'compare))
   "Assumes `tree' is nonempty.  Returns a new tree with the minimum value
 removed."
   (declare (optimize (speed 3) (safety 0))
@@ -2981,10 +2973,8 @@ removed."
 		 (Vector-Subseq (cdr tree) 1)))
     (let ((left (WB-Bag-Tree-Node-Left tree)))
       (if left
-	  (WB-Bag-Tree-Concat (WB-Bag-Tree-Node-Value tree)
-			      (WB-Bag-Tree-Node-Count tree)
-			      (WB-Bag-Tree-Less-Minimum left)
-			      (WB-Bag-Tree-Node-Right tree))
+	  (WB-Bag-Tree-Concat (WB-Bag-Tree-Node-Value tree) (WB-Bag-Tree-Node-Count tree)
+			      (WB-Bag-Tree-Less-Minimum left cmp-fn) (WB-Bag-Tree-Node-Right tree) cmp-fn)
 	(WB-Bag-Tree-Node-Right tree)))))
 
 (defun WB-Bag-Tree-Build-Node (value count left right)
@@ -3096,7 +3086,7 @@ removed."
 
 (defun WB-Bag-Tree-Vector-Pair-Union (pr1 pr2 lo hi cmp-fn)
   (declare (type function cmp-fn))
-  (let ((new-pr any-equivalent? (Vector-Pair-Bag-Union pr1 pr2 lo hi)))
+  (let ((new-pr any-equivalent? (Vector-Pair-Bag-Union pr1 pr2 lo hi cmp-fn)))
     (if any-equivalent?
 	;; Let's just do it the slow way -- it's not supposed to happen often.
 	(let ((result nil))
@@ -4396,7 +4386,7 @@ or else `default'."
   (cond ((null tree)
 	 (cons (vector key) (vector (funcall value-fn default))))
 	((consp tree)
-	 (let ((found? idx (Vector-Set-Binary-Search (car tree) key))
+	 (let ((found? idx (Vector-Set-Binary-Search (car tree) key key-cmp-fn))
 	       ((right-start (if found? (1+ idx) idx))))
 	   (if (eq found? ':equal)
 	       (let ((value (funcall value-fn (svref (cdr tree) idx))))
@@ -4434,11 +4424,12 @@ or else `default'."
 			(Equivalent-Map-Update node-key node-val key value-fn default key-cmp-fn val-cmp-fn)))
 		  (Make-WB-Map-Tree-Node new-key new-val node-left node-right))))
 	     ((:less)
-	      (WB-Map-Tree-Build-Node node-key node-val (WB-Map-Tree-Update node-left key value-fn default)
+	      (WB-Map-Tree-Build-Node node-key node-val
+				      (WB-Map-Tree-Update node-left key value-fn default key-cmp-fn val-cmp-fn)
 				      node-right))
 	     ((:greater)
 	      (WB-Map-Tree-Build-Node node-key node-val node-left
-				      (WB-Map-Tree-Update node-right key value-fn default))))))))
+				      (WB-Map-Tree-Update node-right key value-fn default key-cmp-fn val-cmp-fn))))))))
 
 
 ;;; ================================================================================
@@ -4503,7 +4494,7 @@ value is not meaningful."
 	(values (WB-Map-Tree-Node-Key tree)
 		(WB-Map-Tree-Node-Value tree))))))
 
-(defun WB-Map-Tree-Less-Minimum (tree)
+(defun WB-Map-Tree-Less-Minimum (tree &optional (key-cmp-fn #'compare))
   "Assumes `tree' is nonempty.  Returns a new tree with the minimum key/value
 pair removed."
   (declare (optimize (speed 3) (safety 0))
@@ -4514,10 +4505,9 @@ pair removed."
 		 (Vector-Subseq (cdr tree) 1)))
     (let ((left (WB-Map-Tree-Node-Left tree)))
       (if left
-	  (WB-Map-Tree-Concat (WB-Map-Tree-Node-Key tree)
-			      (WB-Map-Tree-Node-Value tree)
-			      (WB-Map-Tree-Less-Minimum left)
-			      (WB-Map-Tree-Node-Right tree))
+	  (WB-Map-Tree-Concat (WB-Map-Tree-Node-Key tree) (WB-Map-Tree-Node-Value tree)
+			      (WB-Map-Tree-Less-Minimum left key-cmp-fn) (WB-Map-Tree-Node-Right tree)
+			      key-cmp-fn)
 	(WB-Map-Tree-Node-Right tree)))))
 
 
@@ -4573,7 +4563,8 @@ pair removed."
 				    val-fn lo key2 key-cmp-fn)
 	     (WB-Map-Tree-Union-Rng (WB-Map-Tree-Trim tree1 key2 hi key-cmp-fn)
 				    (WB-Map-Tree-Trim (WB-Map-Tree-Node-Right tree2) key2 hi key-cmp-fn)
-				    val-fn key2 hi key-cmp-fn))))
+				    val-fn key2 hi key-cmp-fn)
+	     key-cmp-fn)))
 	(t
 	 (let ((key1 (WB-Map-Tree-Node-Key tree1))
 	       (val1 (WB-Map-Tree-Node-Value tree1))
@@ -4902,7 +4893,7 @@ between equal trees."
   (labels ((rec (tree key base)
 	     (cond ((null tree) (values nil base))
 		   ((consp tree)
-		    (let ((found? idx (Vector-Set-Binary-Search (car tree) key)))
+		    (let ((found? idx (Vector-Set-Binary-Search (car tree) key key-cmp-fn)))
 		      (values found? (+ idx base))))
 		   (t
 		    (let ((node-val (WB-Map-Tree-Node-Key tree))
@@ -5101,9 +5092,12 @@ between equal trees."
 	   (type WB-Map-Tree left right)
 	   (type function key-cmp-fn))
   (cond ((null left)
-	 (WB-Map-Tree-With right key value key-cmp-fn))
+	 ;; To avoid needing `val-cmp-fn' absolutely everywhere, and because the only reason it's
+	 ;; needed here is to optimize out a redundant `with', and we know this `with' can't be
+	 ;; redundant, we just pass a `val-cmp-fn' that disables the optimization.
+	 (WB-Map-Tree-With right key value key-cmp-fn (fn (_x _y) ':unequal)))
 	((null right)
-	 (WB-Map-Tree-With left key value key-cmp-fn))
+	 (WB-Map-Tree-With left key value key-cmp-fn (fn (_x _y) ':unequal)))
 	((and (WB-Map-Tree-Node? left)
 	      (> (WB-Map-Tree-Node-Size left)
 		 (the fixnum (* (WB-Map-Tree-Size right) WB-Tree-Balance-Factor))))
@@ -5129,7 +5123,7 @@ between equal trees."
     (if (null right) left
       (let ((min-key min-val (WB-Map-Tree-Minimum-Pair right)))
 	(WB-Map-Tree-Concat min-key min-val
-			    left (WB-Map-Tree-Less-Minimum right) key-cmp-fn)))))
+			    left (WB-Map-Tree-Less-Minimum right key-cmp-fn) key-cmp-fn)))))
 
 (defun WB-Map-Tree-Build-Node (key value left right)
   "Constructs a `WB-Map-Tree', performing one rebalancing step if required.
@@ -5230,8 +5224,9 @@ between equal trees."
 	(let ((tree nil))
 	  ;; Let's just do it the stupid way -- it's not supposed to happen often.
 	  (dotimes (i (length (car new-pr)))
+	    ;; As above -- the funny `val-cmp-fn' value just blocks an optimization that can't fire anyway.
 	    (setq tree (WB-Map-Tree-With tree (svref (car new-pr) i)
-					 (svref (cdr new-pr) i) key-cmp-fn)))
+					 (svref (cdr new-pr) i) key-cmp-fn (fn (_x _y) ':unequal))))
 	  tree)
       (if (> (length (car new-pr)) *WB-Tree-Max-Vector-Length*)
 	  (let ((split-point (floor (length (car new-pr)) 2)))
