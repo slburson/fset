@@ -298,9 +298,11 @@ argument subforms.  Each argument subform can be a list of the form (`key-expr'
 `value-expr'; or a list of the form ($ `expression'), in which case the
 expression must evaluate to a map, denoting all its mappings; or the symbol
 `:default', in which case the next argument subform is a form whose value will
-become the map's default.  The result is constructed from the denoted mappings
-in left-to-right order; so if a given key is supplied by more than one argument
-subform, its associated value will be given by the rightmost such subform."
+become the map's default.  As a convenience, if a subform is ($ `expression')
+and the expression evaluates to `nil', it will be treated as an empty map.
+The result is constructed from the denoted mappings in left-to-right order; so
+if a given key is supplied by more than one argument subform, its associated
+value will be given by the rightmost such subform."
   (expand-map-constructor-form 'map args))
 
 (defmacro wb-map (&rest args)
@@ -309,10 +311,12 @@ argument subform can be a list of the form (`key-expr' `value-expr'), denoting
 a mapping from the value of `key-expr' to the value of `value-expr'; or a list
 of the form ($ `expression'), in which case the expression must evaluate to a
 map, denoting all its mappings; or the symbol `:default', in which case the
-next argument subform is a form whose value will become the map's default.  The
-result is constructed from the denoted mappings in left-to-right order; so if a
-given key is supplied by more than one argument subform, its associated value
-will be given by the rightmost such subform."
+next argument subform is a form whose value will become the map's default.  As
+a convenience, if a subform is ($ `expression') and the expression evaluates to
+`nil', it will be treated as an empty map.  The result is constructed from the
+denoted mappings in left-to-right order; so if a given key is supplied by more
+than one argument subform, its associated value will be given by the rightmost
+such subform."
   (expand-map-constructor-form 'wb-map args))
 
 (defmacro ch-map (&rest args)
@@ -321,10 +325,12 @@ argument subform can be a list of the form (`key-expr' `value-expr'), denoting
 a mapping from the value of `key-expr' to the value of `value-expr'; or a list
 of the form ($ `expression'), in which case the expression must evaluate to a
 map, denoting all its mappings; or the symbol `:default', in which case the
-next argument subform is a form whose value will become the map's default.  The
-result is constructed from the denoted mappings in left-to-right order; so if a
-given key is supplied by more than one argument subform, its associated value
-will be given by the rightmost such subform."
+next argument subform is a form whose value will become the map's default.  As
+a convenience, if a subform is ($ `expression') and the expression evaluates to
+`nil', it will be treated as an empty map.  The result is constructed from the
+denoted mappings in left-to-right order; so if a given key is supplied by more
+than one argument subform, its associated value will be given by the rightmost
+such subform."
   (expand-map-constructor-form 'ch-map args))
 
 (defun expand-map-constructor-form (type-name args)
@@ -342,7 +348,10 @@ will be given by the rightmost such subform."
 		     ((eq (caar args) '$)
 		      (if (eq result empty-form)
 			  (recur (cdr args) (cadar args))
-			(recur (cdr args) `(map-union ,result ,(cadar args)))))
+			(recur (cdr args) `(let ((submap ,(cadar args))
+						 (result ,result))
+					     (if submap (map-union result submap)
+					       result)))))
 		     (t
 		      (recur (cdr args) `(with ,result ,(caar args) ,(cadar args)))))))
       (recur args empty-form))))
