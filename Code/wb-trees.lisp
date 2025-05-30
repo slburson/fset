@@ -2324,12 +2324,12 @@ present, its count is incremented by `count').  `value' may be an `Equivalent-Ba
 				    (WB-Bag-Tree-Node-Right tree)))))
 	     ((:less)
 	      (let ((left (WB-Bag-Tree-Node-Left tree))
-		    ((new-left (WB-Bag-Tree-Less left value))))
+		    ((new-left (WB-Bag-Tree-Less left value count))))
 		(WB-Bag-Tree-Build-Node node-val node-count new-left
 					(WB-Bag-Tree-Node-Right tree))))
 	     ((:greater)
 	      (let ((right (WB-Bag-Tree-Node-Right tree))
-		    ((new-right (WB-Bag-Tree-Less right value))))
+		    ((new-right (WB-Bag-Tree-Less right value count))))
 		(WB-Bag-Tree-Build-Node node-val node-count
 					(WB-Bag-Tree-Node-Left tree)
 					new-right))))))))
