@@ -82,13 +82,13 @@ sets are printed as \"#{= ... }\"."
 (defmethod contains? ((s wb-replay-set) x &optional (y nil y?))
   (declare (ignore y))
   (check-two-arguments y? 'contains? 'wb-set)
-  (wb-set-tree-member? (wb-replay-set-contents s) x))
+  (wb-set-tree-member? (wb-replay-set-contents s) x #'compare))
 
 (defmethod lookup ((s wb-replay-set) value)
-  (wb-set-tree-find-equal (wb-replay-set-contents s) value))
+  (wb-set-tree-find-equal (wb-replay-set-contents s) value #'compare))
 
 (defmethod compare ((set1 wb-replay-set) (set2 wb-replay-set))
-  (let ((comp (wb-set-tree-compare (wb-replay-set-contents set1) (wb-replay-set-contents set2))))
+  (let ((comp (wb-set-tree-compare (wb-replay-set-contents set1) (wb-replay-set-contents set2) #'compare)))
     (if (member comp '(:less :greater))
 	comp
       (let ((ord-comp (wb-seq-tree-compare (wb-replay-set-ordering set1) (wb-replay-set-ordering set2))))
@@ -132,7 +132,7 @@ sets are printed as \"#{= ... }\"."
 	(ordering nil))
     ;; Make sure the ordering doesn't wind up with duplicates!
     (dolist (x l)
-      (let ((new-contents (wb-set-tree-with contents x)))
+      (let ((new-contents (wb-set-tree-with contents x #'compare)))
 	(unless (eq new-contents contents)
 	  (setq ordering (wb-seq-tree-append ordering x))
 	  (setq contents new-contents))))
@@ -146,7 +146,7 @@ sets are printed as \"#{= ... }\"."
   (let ((contents nil)
 	(ordering nil))
     (do-seq (x s)
-      (let ((new-contents (wb-set-tree-with contents x)))
+      (let ((new-contents (wb-set-tree-with contents x #'compare)))
 	(unless (eq new-contents contents)
 	  (setq ordering (wb-seq-tree-append ordering x))
 	  (setq contents new-contents))))
@@ -161,7 +161,7 @@ sets are printed as \"#{= ... }\"."
 	(ordering nil))
     (dotimes (i (length s))
       (let ((x (elt s i))
-	    ((new-contents (wb-set-tree-with contents x))))
+	    ((new-contents (wb-set-tree-with contents x #'compare))))
 	(unless (eq new-contents contents)
 	  (setq ordering (wb-seq-tree-append ordering x))
 	  (setq contents new-contents))))
@@ -171,7 +171,7 @@ sets are printed as \"#{= ... }\"."
   (declare (ignore arg2))
   (check-two-arguments arg2? 'with 'wb-replay-set)
   (let ((contents (wb-replay-set-contents s))
-	((new-contents (wb-set-tree-with contents value))))
+	((new-contents (wb-set-tree-with contents value #'compare))))
     (if (eq new-contents contents)
 	s
       (make-wb-replay-set new-contents (wb-seq-tree-append (wb-replay-set-ordering s) value)))))
@@ -189,7 +189,7 @@ new members appended."
 	       (ordering (wb-replay-set-ordering s1)))
 	   ;; This is O(n log m), rather than the usual O(m + n).
 	   (do-set (x s2)
-	     (let ((tmp (wb-set-tree-with contents x)))
+	     (let ((tmp (wb-set-tree-with contents x #'compare)))
 	       (unless (eq tmp contents)
 		 (setq contents tmp)
 		 (setq ordering (wb-seq-tree-append ordering x)))))
@@ -209,7 +209,7 @@ result is that of `s1', filtered by membership in `s2'."
   (declare (ignore arg2))
   (check-two-arguments arg2? 'less 'wb-replay-set)
   (let ((contents (wb-replay-set-contents s))
-	((new-contents (wb-set-tree-less contents value))))
+	((new-contents (wb-set-tree-less contents value #'compare))))
     (if (eq new-contents contents)
 	s
       (make-wb-replay-set new-contents
@@ -229,7 +229,7 @@ result is that of `s1', filtered by membership in `s2'."
 (defmethod compare ((a wb-replay-set) (b wb-replay-set))
   ;; The ordering is considered metadata, not part of the set value.  If you want to compare
   ;; the orderings, convert them to seqs.
-  (wb-set-tree-compare (wb-replay-set-contents a) (wb-replay-set-contents b)))
+  (wb-set-tree-compare (wb-replay-set-contents a) (wb-replay-set-contents b) #'compare))
 
 (defun print-wb-replay-set (set stream level)
   (declare (ignore level))

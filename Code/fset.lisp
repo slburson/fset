@@ -171,7 +171,11 @@ down, returning the updated seq."))
     "Returns the union of the two sets/bags.  The result is a set if both
 arguments are sets; otherwise a bag.  The union of two bags is a bag whose
 multiplicity, for any value, is the maximum of its multiplicities in the
-two argument bags."))
+two argument bags.
+
+If the collections are of different implementations or use different custom
+compare or hash functions, the returned collection will be like the first
+argument."))
 
 (defgeneric bag-sum (bag1 bag2)
   (:documentation
@@ -183,7 +187,11 @@ multiplicities in the two argument bags."))
     "Returns the intersection of the two sets/bags.  The result is a bag
 if both arguments are bags; otherwise a set.  The intersection of two bags
 is the bag whose multiplicity, for any value, is the minimum of its
-multiplicities in the two argument bags."))
+multiplicities in the two argument bags.
+
+If the collections are of different implementations or use different custom
+compare or hash functions, the returned collection will be like the first
+argument."))
 
 (defgeneric bag-product (bag1 bag2)
   (:documentation
@@ -193,11 +201,19 @@ its multiplicities in the two argument bags."))
 (defgeneric set-difference (set1 set2 &key)
   (:documentation
     "Returns the set difference of set1 and set2, i.e., the set containing
-every member of `set1' that is not in `set2'."))
+every member of `set1' that is not in `set2'.
+
+If the collections are of different implementations or use different custom
+compare or hash functions, the returned collection will be like the first
+argument."))
 
 (defgeneric set-difference-2 (set1 set2)
   (:documentation
-    "Returns `set1 - set2' and `set2 - set1' as two values."))
+    "Returns `set1 - set2' and `set2 - set1' as two values.
+
+If the collections are of different implementations or use different custom
+compare or hash functions, the first value will be like the first argument,
+and the second value like the second."))
 
 (defgeneric bag-difference (bag1 bag2)
   (:documentation
@@ -1431,7 +1447,7 @@ anyway.  `fn' can be a function object, an fbound symbol, or a map."
 ;;; written generically; I have left these defined on `set'.  Also, the assumption
 ;;; that `wb-set' is the default implementation is hard-coded at the moment.
 
-(declaim (inline make-wb-set))
+(declaim (inline make-wb-set make-wb-custom-set))
 
 (defstruct (wb-set
 	    (:include set)
@@ -1443,6 +1459,30 @@ anyway.  `fn' can be a function object, an fbound symbol, or a map."
 the default implementation of sets in FSet."
   (contents nil :read-only t))
 
+(defstruct (wb-custom-set
+	    (:include set)
+	    (:constructor make-wb-custom-set (contents compare-fn-name))
+	    (:predicate wb-custom-set?)
+	    (:print-function print-wb-custom-set)
+	    (:copier nil))
+  "A class of functional sets represented as weight-balanced binary trees, with a
+custom comparison function.  The comparison function must take two arguments and
+return one of { :less, :equal, :greater, :unequal }, and must implement a strict
+weak ordering.  It is supplied as a symbol."
+  (contents nil :read-only t)
+  ;; We keep `compare-fn' in symbol form, dereferencing it via `symbol-function' when an
+  ;; operation is invoked.  This is for two reasons: (1) it allows us to produce an intelligible
+  ;; (and rereadable) printed representation; and (2) since operations on two sets require them
+  ;; to use the same ordering, at least to use the linear-time algorithms, we want to avoid a
+  ;; scenario in which mere recompilation of the comparison function (as could easily happen on
+  ;; an ASDF rebuild, for instance) would break existing instances.  The downside, of course,
+  ;; is that an actual modification to the comparison function won't be detected.
+  (compare-fn-name nil :read-only t :type symbol))
+
+(declaim (inline wb-custom-set-compare-fn))
+(defun wb-custom-set-compare-fn (s)
+  (declare (optimize (speed 3) (safety 0)))
+  (symbol-function (wb-custom-set-compare-fn-name s)))
 
 (defparameter *empty-wb-set* (make-wb-set nil))
 
@@ -1463,35 +1503,53 @@ the default implementation of sets in FSet."
 (defmethod empty-instance-form ((type-name (eql 'wb-set)))
   '(empty-wb-set))
 
-(defmethod empty? ((s wb-set))
-  (null (wb-set-contents s)))
+(declaim (inline empty-wb-custom-set))
 
-(defmethod size ((s wb-set))
-  (WB-Set-Tree-Size (wb-set-contents s)))
+(defun empty-wb-custom-set (compare-fn-name)
+  "Returns an empty wb-set that uses the function named `compare-fn-name' for ordering."
+  (check-type compare-fn-name (and symbol (not null)))
+  (make-wb-custom-set nil compare-fn-name))
 
-(defmethod set-size ((s wb-set))
-  (WB-Set-Tree-Size (wb-set-contents s)))
+(defgeneric empty-set-like (s)
+  (:documentation
+    "Returns an empty set of the same implementation, and using the same compare
+or hash function, as `s'."))
 
-(defmethod arb ((s wb-set))
-  (let ((tree (wb-set-contents s)))
+(defmethod empty-set-like ((s wb-set))
+  (empty-set))
+
+(defmethod empty-set-like ((s wb-custom-set))
+  (empty-wb-custom-set (wb-custom-set-compare-fn-name s)))
+
+(define-wb-methods empty? ((s wb-set))
+  (null (contents s)))
+
+(define-wb-methods size ((s wb-set))
+  (WB-Set-Tree-Size (contents s)))
+
+(define-wb-methods set-size ((s wb-set))
+  (WB-Set-Tree-Size (contents s)))
+
+(define-wb-methods arb ((s wb-set))
+  (let ((tree (contents s)))
     (if tree (values (WB-Set-Tree-Arb tree) t)
       (values nil nil))))
 
-(defmethod contains? ((s wb-set) x &optional (y nil y?))
+(define-wb-methods contains? ((s wb-set) x &optional (y nil y?))
   (declare (ignore y))
   (check-two-arguments y? 'contains? 'wb-set)
-  (WB-Set-Tree-Member? (wb-set-contents s) x))
+  (WB-Set-Tree-Member? (contents s) x (compare-fn s)))
 
 ;;; Note, first value is `t' or `nil'.
-(defmethod lookup ((s wb-set) key)
-  (WB-Set-Tree-Find-Equal (wb-set-contents s) key))
+(define-wb-methods lookup ((s wb-set) key)
+  (WB-Set-Tree-Find-Equal (contents s) key (compare-fn s)))
 
-(defmethod rank ((s wb-set) x)
-  (let ((found? rank (WB-Set-Tree-Rank (wb-set-contents s) x)))
+(define-wb-methods rank ((s wb-set) x)
+  (let ((found? rank (WB-Set-Tree-Rank (contents s) x (compare-fn s))))
     (values (if found? rank (1- rank)) found?)))
 
-(defmethod at-rank ((s wb-set) rank)
-  (let ((contents (wb-set-contents s))
+(define-wb-methods at-rank ((s wb-set) rank)
+  (let ((contents (contents s))
 	((size (WB-Set-Tree-Size contents))))
     (unless (and (>= rank 0) (< rank size))
       (error 'simple-type-error :datum rank :expected-type `(integer 0 (,size))
@@ -1499,67 +1557,124 @@ the default implementation of sets in FSet."
 	     :format-arguments (list rank s)))
     (WB-Set-Tree-Rank-Element contents rank)))
 
-(defmethod least ((s wb-set))
-  (let ((tree (wb-set-contents s)))
+(define-wb-methods least ((s wb-set))
+  (let ((tree (contents s)))
     (if tree (values (WB-Set-Tree-Least tree) t)
       (values nil nil))))
 
-(defmethod greatest ((s wb-set))
-  (let ((tree (wb-set-contents s)))
+(define-wb-methods greatest ((s wb-set))
+  (let ((tree (contents s)))
     (if tree (values (WB-Set-Tree-Greatest tree) t)
         (values nil nil))))
 
-(defmethod with ((s wb-set) value &optional (arg2 nil arg2?))
+(define-wb-methods with ((s wb-set) value &optional (arg2 nil arg2?))
   (declare (ignore arg2))
   (check-two-arguments arg2? 'with 'wb-set)
-  (let ((contents (wb-set-contents s))
-	((new-contents (WB-Set-Tree-With contents value))))
+  (let ((contents (contents s))
+	((new-contents (WB-Set-Tree-With contents value (compare-fn s)))))
     (if (eq new-contents contents)
 	s
-      (make-wb-set new-contents))))
+      (make s new-contents))))
 
-(defmethod less ((s wb-set) value &optional (arg2 nil arg2?))
+(define-wb-methods less ((s wb-set) value &optional (arg2 nil arg2?))
   (declare (ignore arg2))
   (check-two-arguments arg2? 'less 'wb-set)
-  (let ((contents (wb-set-contents s))
-	((new-contents (WB-Set-Tree-Less contents value))))
+  (let ((contents (contents s))
+	((new-contents (WB-Set-Tree-Less contents value (compare-fn s)))))
     (if (eq new-contents contents)
 	s
-      (make-wb-set new-contents))))
+      (make s new-contents))))
 
-(defmethod split-from ((s wb-set) value)
-  (let ((new-contents (WB-Set-Tree-Split-Above (wb-set-contents s) value)))
-    (make-wb-set (if (WB-Set-Tree-Member? (wb-set-contents s) value)
-		     (WB-Set-Tree-With new-contents value)
-		   new-contents))))
+(define-wb-methods split-from ((s wb-set) value)
+  (let ((new-contents (WB-Set-Tree-Split-Above (contents s) value (compare-fn s))))
+    (make s (if (WB-Set-Tree-Member? (contents s) value (compare-fn s))
+		(WB-Set-Tree-With new-contents value (compare-fn s))
+	      new-contents))))
 
-(defmethod split-above ((s wb-set) value)
-  (make-wb-set (WB-Set-Tree-Split-Above (wb-set-contents s) value)))
+(define-wb-methods split-above ((s wb-set) value)
+  (make s (WB-Set-Tree-Split-Above (contents s) value (compare-fn s))))
 
-(defmethod split-through ((s wb-set) value)
-  (let ((new-contents (WB-Set-Tree-Split-Below (wb-set-contents s) value)))
-    (make-wb-set (if (WB-Set-Tree-Member? (wb-set-contents s) value)
-		     (WB-Set-Tree-With new-contents value)
-		   new-contents))))
+(define-wb-methods split-through ((s wb-set) value)
+  (let ((new-contents (WB-Set-Tree-Split-Below (contents s) value (compare-fn s))))
+    (make s (if (WB-Set-Tree-Member? (contents s) value (compare-fn s))
+		(WB-Set-Tree-With new-contents value (compare-fn s))
+	      new-contents))))
 
-(defmethod split-below ((s wb-set) value)
-  (make-wb-set (WB-Set-Tree-Split-Below (wb-set-contents s) value)))
+(define-wb-methods split-below ((s wb-set) value)
+  (make s (WB-Set-Tree-Split-Below (contents s) value (compare-fn s))))
 
-(defmethod union ((s1 wb-set) (s2 wb-set) &key)
-  (make-wb-set (WB-Set-Tree-Union (wb-set-contents s1) (wb-set-contents s2))))
+(defmethod union ((s1 set) (s2 set) &key)
+  "Fallback method for mixed implementations."
+  (let ((s1 s2 (if (< (size s1) (size s2))
+		   (values s2 s1)
+		 (values s1 s2)))
+	((result s1)))
+    (do-set (x s2)
+      (includef result x))
+    result))
 
-(defmethod intersection ((s1 wb-set) (s2 wb-set) &key)
-  (make-wb-set (WB-Set-Tree-Intersect (wb-set-contents s1) (wb-set-contents s2))))
+(define-wb-methods union ((s1 wb-set) (s2 wb-set) &key)
+  (if-same-compare-fns (s1 s2)
+      (make s1 (WB-Set-Tree-Union (contents s1) (contents s2) (compare-fn s1)))
+    (call-next-method)))
 
-(defmethod set-difference ((s1 wb-set) (s2 wb-set) &key)
-  (make-wb-set (WB-Set-Tree-Diff (wb-set-contents s1) (wb-set-contents s2))))
+(defmethod intersection ((s1 set) (s2 set) &key)
+  "Fallback method for mixed implementations."
+  (let ((s1 s2 (if (< (size s1) (size s2))
+		   (values s2 s1)
+		 (values s1 s2)))
+	((result (empty-set-like s1))))
+    (do-set (x s2)
+      (when (contains? s1 x)
+	(includef result x)))
+    result))
 
-(defmethod set-difference-2 ((s1 wb-set) (s2 wb-set))
-  (let ((newc1 newc2 (WB-Set-Tree-Diff-2 (wb-set-contents s1) (wb-set-contents s2))))
-    (values (make-wb-set newc1) (make-wb-set newc2))))
+(define-wb-methods intersection ((s1 wb-set) (s2 wb-set) &key)
+  (if-same-compare-fns (s1 s2)
+      (make s1 (WB-Set-Tree-Intersect (contents s1) (contents s2) (compare-fn s1)))
+    (call-next-method)))
 
-(defmethod subset? ((s1 wb-set) (s2 wb-set))
-  (WB-Set-Tree-Subset? (wb-set-contents s1) (wb-set-contents s2)))
+(defmethod set-difference ((s1 set) (s2 set) &key)
+  "Fallback method for mixed implementations."
+  (let ((s1 s2 (if (< (size s1) (size s2))
+		   (values s2 s1)
+		 (values s1 s2)))
+	((result s1)))
+    (do-set (x s2)
+      (excludef result x))
+    result))
+
+(define-wb-methods set-difference ((s1 wb-set) (s2 wb-set) &key)
+  (if-same-compare-fns (s1 s2)
+      (make s1 (WB-Set-Tree-Diff (contents s1) (contents s2) (compare-fn s1)))
+    (call-next-method)))
+
+(defmethod set-difference-2 ((s1 set) (s2 set))
+  "Fallback method for mixed implementations."
+  (let ((res1 s1)
+	(res2 s2))
+    (do-set (x s2)
+      (excludef res1 x))
+    (do-set (x s1)
+      (excludef res2 x))
+    (values res1 res2)))
+
+(define-wb-methods set-difference-2 ((s1 wb-set) (s2 wb-set))
+  (if-same-compare-fns (s1 s2)
+      (let ((newc1 newc2 (WB-Set-Tree-Diff-2 (contents s1) (contents s2) (compare-fn s1))))
+	(values (make s1 newc1) (make s2 newc2)))
+    (call-next-method)))
+
+(defmethod subset? ((s1 set) (s2 set))
+  "Fallback method for mixed implementations."
+  (do-set (x s1 t)
+    (unless (contains? s2 x)
+      (return nil))))
+
+(define-wb-methods subset? ((s1 wb-set) (s2 wb-set))
+  (if-same-compare-fns (s1 s2)
+      (WB-Set-Tree-Subset? (contents s1) (contents s2) (compare-fn s1))
+    (call-next-method)))
 
 (defun proper-subset? (sub super)
   "Returns true iff `sub' is a proper subset of `super', that is, `sub' is
@@ -1567,11 +1682,37 @@ a subset of `super' and the two are not equal."
   (and (subset? sub super)
        (< (size sub) (size super))))
 
-(defmethod disjoint? ((s1 wb-set) (s2 wb-set))
-  (WB-Set-Tree-Disjoint? (wb-set-contents s1) (wb-set-contents s2)))
+(defmethod disjoint? ((s1 set) (s2 set))
+  "Fallback method for mixed implementations."
+  (let ((s1 s2 (if (< (size s1) (size s2))
+		   (values s2 s1)
+		 (values s1 s2))))
+    (do-set (x s2 t)
+      (when (contains? s1 x)
+	(return nil)))))
 
-(defmethod compare ((s1 wb-set) (s2 wb-set))
-  (WB-Set-Tree-Compare (wb-set-contents s1) (wb-set-contents s2)))
+(define-wb-methods disjoint? ((s1 wb-set) (s2 wb-set))
+  (if-same-compare-fns (s1 s2)
+      (WB-Set-Tree-Disjoint? (contents s1) (contents s2) (compare-fn s1))
+    (call-next-method)))
+
+;;; This is a little inconsistent with FSet's past practice, though not in a way that could
+;;; break existing code (unless it uses CH-sets, which are still in a pre-alpha state).
+;;; But it's in the direction FSet is going.  Specifically, it will report two sets as equal
+;;; iff they contain the same elements; the root method on `compare' distinguishes by class,
+;;; so that two sets of different classes could never be equal.
+(defmethod compare ((s1 set) (s2 set))
+  (if (and (= (size s1) (size s2))
+	   (do-set (x s1 t)
+	     (unless (contains? s2 x)
+	       (return nil))))
+      ':equal
+    ':unequal))
+
+(define-wb-methods compare ((s1 wb-set) (s2 wb-set))
+  (if-same-compare-fns (s1 s2)
+      (WB-Set-Tree-Compare (contents s1) (contents s2) (compare-fn s1))
+    (call-next-method)))
 
 (defgeneric internal-do-set (set elt-fn value-fn)
   (:documentation
@@ -1580,59 +1721,60 @@ on no arguments and returns the result(s).  This is called by `do-set' to provid
 for the possibility of different set implementations; it is not for public use.
 `elt-fn' and `value-fn' must be function objects, not symbols."))
 
-(defmethod internal-do-set ((s wb-set) elt-fn value-fn)
+(define-wb-methods internal-do-set ((s wb-set) elt-fn value-fn)
   (declare (optimize (speed 3) (safety 0))
 	   (type function elt-fn value-fn))
-  ;; Expect Python note about "can't use known return convention"
-  (Do-WB-Set-Tree-Members (x (wb-set-contents s) (funcall value-fn))
+  (Do-WB-Set-Tree-Members (x (contents s) (funcall value-fn))
     (funcall elt-fn x)))
 
-(defmethod iterator ((s wb-set) &key)
-  (Make-WB-Set-Tree-Iterator (wb-set-contents s)))
+(define-wb-methods iterator ((s wb-set) &key)
+  (Make-WB-Set-Tree-Iterator (contents s)))
 
-(defmethod fun-iterator ((s wb-set) &key from-end?)
+(define-wb-methods fun-iterator ((s wb-set) &key from-end?)
   (if from-end?
-      (WB-Set-Tree-Rev-Fun-Iter (wb-set-contents s))
-    (WB-Set-Tree-Fun-Iter (wb-set-contents s))))
+      (WB-Set-Tree-Rev-Fun-Iter (contents s))
+    (WB-Set-Tree-Fun-Iter (contents s))))
 
-(defmethod filter ((pred function) (s wb-set))
-  (wb-set-filter pred s))
+(define-wb-methods filter ((pred function) (s wb-set))
+  (make s (wb-set-filter pred (contents s) (compare-fn s))))
 
-(defmethod filter ((pred symbol) (s wb-set))
-  (wb-set-filter (coerce-to-function pred) s))
+(define-wb-methods filter ((pred symbol) (s wb-set))
+  (make s (wb-set-filter (coerce-to-function pred) (contents s) (compare-fn s))))
 
-(defmethod filter ((pred map) (s wb-set))
-  (wb-set-filter #'(lambda (x) (lookup pred x)) s))
+(define-wb-methods filter ((pred map) (s wb-set))
+  (make s (wb-set-filter #'(lambda (x) (lookup pred x)) (contents s) (compare-fn s))))
 
-(defun wb-set-filter (pred s)
+(defun wb-set-filter (pred contents compare-fn)
   (declare (optimize (speed 3) (safety 0))
 	   (type function pred))
   (let ((result nil))
-    (do-set (x s)
+    (do-wb-set-tree-members (x contents)
       (when (funcall pred x)
-	(setq result (WB-Set-Tree-With result x))))
-    (make-wb-set result)))
+	(setq result (WB-Set-Tree-With result x compare-fn))))
+    result))
 
-(defmethod partition ((pred function) (s wb-set))
-  (wb-set-partition pred s))
+(define-wb-methods partition ((pred function) (s wb-set))
+  (let ((res1 res2 (wb-set-partition pred (contents s) (compare-fn s))))
+    (values (make s res1) (make s res2))))
 
-(defmethod partition ((pred symbol) (s wb-set))
-  (wb-set-partition (coerce-to-function pred) s))
+(define-wb-methods partition ((pred symbol) (s wb-set))
+  (let ((res1 res2 (wb-set-partition (coerce-to-function pred) (contents s) (compare-fn s))))
+    (values (make s res1) (make s res2))))
 
-(defmethod partition ((pred map) (s wb-set))
-  (wb-set-partition #'(lambda (x) (lookup pred x)) s))
+(define-wb-methods partition ((pred map) (s wb-set))
+  (let ((res1 res2 (wb-set-partition #'(lambda (x) (lookup pred x)) (contents s) (compare-fn s))))
+    (values (make s res1) (make s res2))))
 
-(defun wb-set-partition (pred s)
+(defun wb-set-partition (pred contents compare-fn)
   (declare (optimize (speed 3) (safety 0))
 	   (type function pred))
   (let ((result-1 nil)
 	(result-2 nil))
-    (do-set (x s)
+    (do-wb-set-tree-members (x contents)
       (if (funcall pred x)
-	  (setq result-1 (WB-Set-Tree-With result-1 x))
-	(setq result-2 (WB-Set-Tree-With result-2 x))))
-    (values (make-wb-set result-1)
-	    (make-wb-set result-2))))
+	  (setq result-1 (WB-Set-Tree-With result-1 x compare-fn))
+	(setq result-2 (WB-Set-Tree-With result-2 x compare-fn))))
+    (values result-1 result-2)))
 
 ;;; A set is another kind of boolean-valued map.
 (defmethod filter ((pred set) (s set))
@@ -1642,26 +1784,26 @@ for the possibility of different set implementations; it is not for public use.
 (defmethod filter ((pred bag) (s set))
   (intersection pred s))
 
-(defmethod image ((fn function) (s wb-set))
-  (wb-set-image fn s))
+(define-wb-methods image ((fn function) (s wb-set))
+  (make s (wb-set-image fn (contents s) (compare-fn s))))
 
-(defmethod image ((fn symbol) (s wb-set))
-  (wb-set-image (coerce-to-function fn) s))
+(define-wb-methods image ((fn symbol) (s wb-set))
+  (make s (wb-set-image (coerce-to-function fn) (contents s) (compare-fn s))))
 
-(defmethod image ((fn map) (s wb-set))
-  (wb-set-image fn s))
+(define-wb-methods image ((fn map) (s wb-set))
+  (make s (wb-set-image fn (contents s) (compare-fn s))))
 
-(defmethod image ((fn set) (s wb-set))
-  (wb-set-image fn s))
+(define-wb-methods image ((fn set) (s wb-set))
+  (make s (wb-set-image fn (contents s) (compare-fn s))))
 
-(defmethod image ((fn bag) (s wb-set))
-  (wb-set-image fn s))
+(define-wb-methods image ((fn bag) (s wb-set))
+  (make s (wb-set-image fn (contents s) (compare-fn s))))
 
-(defun wb-set-image (fn s)
+(defun wb-set-image (fn contents compare-fn)
   (let ((result nil))
-    (do-set (x s)
-      (setq result (WB-Set-Tree-With result (@ fn x))))
-    (make-wb-set result)))
+    (do-wb-set-tree-members (x contents)
+      (setq result (WB-Set-Tree-With result (@ fn x) compare-fn)))
+    result))
 
 (defmethod reduce ((fn function) (s set) &key key (initial-value nil init?))
   (set-reduce fn s initial-value (and key (coerce-to-function key)) init?))
@@ -1699,6 +1841,16 @@ for the possibility of different set implementations; it is not for public use.
 (defmethod convert ((to-type (eql 'wb-set)) (s wb-set) &key)
   s)
 
+(defmethod convert ((to-type (eql 'wb-custom-set)) (s set) &key compare-fn-name)
+  (check-type compare-fn-name (and symbol (not null)))
+  (if (and (wb-custom-set? s) (eq (wb-custom-set-compare-fn-name s) compare-fn-name))
+      s
+    (let ((result nil)
+	  (compare-fn (symbol-function compare-fn-name)))
+      (do-set (x s)
+	(setq result (WB-Set-Tree-With result x compare-fn)))
+      (make-wb-custom-set result compare-fn-name))))
+
 (defmethod convert ((to-type (eql 'list)) (s set) &key)
   (declare (optimize (speed 3)))
   (let ((result nil))
@@ -1717,32 +1869,44 @@ for the possibility of different set implementations; it is not for public use.
     result))
 
 (defmethod convert ((to-type (eql 'set)) (l list) &key input-sorted?)
-  (wb-set-from-list l input-sorted?))
+  (make-wb-set (wb-set-from-list l input-sorted? #'compare)))
 
 (defmethod convert ((to-type (eql 'wb-set)) (l list) &key input-sorted?)
-  (wb-set-from-list l input-sorted?))
+  (make-wb-set (wb-set-from-list l input-sorted? #'compare)))
 
-(defun wb-set-from-list (l input-sorted?)
+(defmethod convert ((to-type (eql 'wb-custom-set)) (l list) &key compare-fn-name input-sorted?)
+  (make-wb-custom-set (wb-set-from-list l input-sorted? (symbol-function compare-fn-name))
+		      compare-fn-name))
+
+(defun wb-set-from-list (l input-sorted? compare-fn)
   (if input-sorted?
-      (make-wb-set (WB-Set-Tree-From-Sorted-Iterable (the function (iterator l)) (length l)))
-    (make-wb-set (WB-Set-Tree-From-List l))))
+      (WB-Set-Tree-From-Sorted-Iterable (the function (iterator l)) (length l) compare-fn)
+    (WB-Set-Tree-From-List l compare-fn)))
 
 (defmethod convert ((to-type (eql 'set)) (s seq) &key input-sorted?)
-  (wb-set-from-sequence s input-sorted?))
+  (make-wb-set (wb-set-from-sequence s input-sorted? #'compare)))
 
 (defmethod convert ((to-type (eql 'wb-set)) (s seq) &key input-sorted?)
-  (wb-set-from-sequence s input-sorted?))
+  (make-wb-set (wb-set-from-sequence s input-sorted? #'compare)))
+
+(defmethod convert ((to-type (eql 'wb-custom-set)) (s seq) &key compare-fn-name input-sorted?)
+  (make-wb-custom-set (wb-set-from-sequence s input-sorted? (symbol-function compare-fn-name))
+		      compare-fn-name))
 
 (defmethod convert ((to-type (eql 'set)) (s sequence) &key input-sorted?)
-  (wb-set-from-sequence s input-sorted?))
+  (make-wb-set (wb-set-from-sequence s input-sorted? #'compare)))
 
 (defmethod convert ((to-type (eql 'wb-set)) (s sequence) &key input-sorted?)
-  (wb-set-from-sequence s input-sorted?))
+  (make-wb-set (wb-set-from-sequence s input-sorted? #'compare)))
 
-(defun wb-set-from-sequence (s input-sorted?)
+(defmethod convert ((to-type (eql 'wb-custom-set)) (s sequence) &key compare-fn-name input-sorted?)
+  (make-wb-custom-set (wb-set-from-sequence s input-sorted? (symbol-function compare-fn-name))
+		      compare-fn-name))
+
+(defun wb-set-from-sequence (s input-sorted? compare-fn)
   (if input-sorted?
-      (make-wb-set (WB-Set-Tree-From-Sorted-Iterable (the function (iterator s)) (size s)))
-    (make-wb-set (WB-Set-Tree-From-Iterable (the function (iterator s))))))
+      (WB-Set-Tree-From-Sorted-Iterable (the function (iterator s)) (size s) compare-fn)
+    (WB-Set-Tree-From-Iterable (the function (iterator s)) compare-fn)))
 
 (defmethod find (item (s set) &key key test)
   (declare (optimize (speed 3) (safety 0)))
@@ -1821,6 +1985,16 @@ for the possibility of different set implementations; it is not for public use.
       (pprint-newline :linear stream)
       (write x :stream stream))))
 
+(defun print-wb-custom-set (set stream level)
+  (declare (ignore level))
+  (pprint-logical-block (stream nil :prefix "#{"
+				    :suffix (format nil " }[~S]" (wb-custom-set-compare-fn-name set)))
+    (do-set (x set)
+      (pprint-pop)
+      (write-char #\Space stream)
+      (pprint-newline :linear stream)
+      (write x :stream stream))))
+
 (gmap:def-gmap-arg-type set (set)
   "Yields the elements of `set'."
   `((the function (iterator ,set))
@@ -1829,7 +2003,7 @@ for the possibility of different set implementations; it is not for public use.
 
 (gmap:def-gmap-res-type set (&key filterp)
   "Returns a set of the values, optionally filtered by `filterp'."
-  `(nil #'WB-Set-Tree-With #'make-wb-set ,filterp))
+  `(nil #'(lambda (s x) (WB-Set-Tree-With s x #'compare)) #'make-wb-set ,filterp))
 
 
 ;;; A bit faster than `set', if you know it's a `wb-set'.
@@ -1841,7 +2015,18 @@ for the possibility of different set implementations; it is not for public use.
 
 (gmap:def-gmap-res-type wb-set (&key filterp)
   "Returns a set of the values, optionally filtered by `filterp'."
-  `(nil #'WB-Set-Tree-With #'make-wb-set ,filterp))
+  `(nil #'(lambda (s x) (WB-Set-Tree-With s x #'compare)) #'make-wb-set ,filterp))
+
+(gmap:def-gmap-res-type wb-custom-set (compare-fn-name &key filterp)
+  "Returns a `wb-custom-set' of the values, ordered by `compare-fn-name', and
+optionally filtered by `filterp'."
+  (let ((cfn-name-var (gensym "CFN-NAME-"))
+	(cfn-var (gensym "CFN-")))
+    `(nil #'(lambda (s x) (WB-Set-Tree-With s x ,cfn-var))
+	  #'(lambda (s) (make-wb-custom-set s ,cfn-name-var))
+	  ,filterp
+	  ((,cfn-name-var ,compare-fn-name)
+	    ((,cfn-var (symbol-function ,cfn-name-var)))))))
 
 
 (gmap:def-gmap-res-type union (&key filterp)
@@ -1855,6 +2040,10 @@ for the possibility of different set implementations; it is not for public use.
 (defmethod make-load-form ((s wb-set) &optional environment)
   (declare (ignore environment))
   `(convert 'wb-set ',(convert 'list s)))
+
+(defmethod make-load-form ((s wb-custom-set) &optional environment)
+  (declare (ignore environment))
+  `(convert 'wb-custom-set ',(convert 'list s) :compare-fn-name (wb-custom-set-compare-fn-name s)))
 
 
 ;;; ================================================================================
@@ -1878,6 +2067,9 @@ for the possibility of different set implementations; it is not for public use.
 
 (defmethod empty-instance-form ((type-name (eql 'ch-set)))
   '(empty-ch-set))
+
+(defmethod empty-set-like ((s ch-set))
+  (empty-ch-set))
 
 (defmethod empty? ((s ch-set))
   (null (ch-set-contents s)))
@@ -2025,7 +2217,7 @@ for the possibility of different set implementations; it is not for public use.
 (defmethod convert ((to-type (eql 'wb-set)) (s ch-set) &key)
   (let ((wb-tree nil))
     (do-ch-set-tree-members (x (ch-set-contents s))
-      (setq wb-tree (WB-Set-Tree-With wb-tree x)))
+      (setq wb-tree (WB-Set-Tree-With wb-tree x #'compare)))
     (make-wb-set wb-tree)))
 
 (defun print-ch-set (set stream level)
@@ -2173,11 +2365,12 @@ trees.  This is the default implementation of bags in FSet."
 
 (defmethod intersection ((s wb-set) (b wb-bag) &key)
   (make-wb-set (WB-Set-Tree-Intersect (wb-set-contents s)
-				      (WB-Bag-Tree-To-Set-Tree (wb-bag-contents b)))))
+				      (WB-Bag-Tree-To-Set-Tree (wb-bag-contents b))
+				      #'compare)))
 
 (defmethod intersection ((b wb-bag) (s wb-set) &key)
   (make-wb-set (WB-Set-Tree-Intersect (WB-Bag-Tree-To-Set-Tree (wb-bag-contents b))
-				      (wb-set-contents s))))
+				      (wb-set-contents s) #'compare)))
 
 (defmethod bag-product ((b1 wb-bag) (b2 wb-bag))
   (make-wb-bag (WB-Bag-Tree-Product (wb-bag-contents b1) (wb-bag-contents b2))))
@@ -2774,7 +2967,7 @@ symbols."))
   (let ((s nil))
     (do-map (key val m)
       (declare (ignore key))
-      (setq s (WB-Set-Tree-With s val)))
+      (setq s (WB-Set-Tree-With s val #'compare)))
     (make-wb-set s)))
 
 (defmethod domain-contains? ((m wb-map) x)
@@ -2883,7 +3076,7 @@ symbols."))
 (defmethod convert ((to-type (eql 'set)) (m map) &key (pair-fn #'cons))
   (let ((result nil))
     (do-map (key val m)
-      (setq result (WB-Set-Tree-With result (funcall pair-fn key val))))
+      (setq result (WB-Set-Tree-With result (funcall pair-fn key val) #'compare)))
     (make-wb-set result)))
 
 ;;; &&& Plist support?  The `key-fn' / `value-fn' thing is not very useful.
@@ -3035,6 +3228,7 @@ symbols."))
       ;; There might be a map entry for 'quote or 'function...
       (let (#+sbcl (sb-pretty:*pprint-quote-with-syntactic-sugar* nil))
 	(write (list x y) :stream stream)))
+    ;; &&& Should this have been the `:suffix'?
     (format stream " |}~:[~;/~:*~S~]" (map-default map))))
 
 (gmap:def-gmap-arg-type map (map)
@@ -3363,7 +3557,7 @@ This is the default implementation of seqs in FSet."
 (defmethod domain ((s wb-seq))
   (let ((result nil))
     (dotimes (i (size s))
-      (setq result (WB-Set-Tree-With result i)))
+      (setq result (WB-Set-Tree-With result i #'compare)))
     (make-wb-set result)))
 
 (defmethod range ((s wb-seq))

@@ -101,7 +101,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 		  (declare (fixnum wb-hash-shifted hash-shifted size))
 		  (if (= hash-shifted wb-hash-shifted)
 		      ;; Update the collision node.
-		      (let ((new-wb-tree (wb-set-tree-with (cdr node) value)))
+		      (let ((new-wb-tree (wb-set-tree-with (cdr node) value #'compare)))
 			(if (eq new-wb-tree (cdr node))
 			    node
 			  ;; New entry in collision node
@@ -139,7 +139,8 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 			       ((n2 (if (= hash-shifted ex-value-hash-shifted)
 					;; Collision!  Fall back to WB-tree.
 					(cons (logxor value-hash ex-value-hash)
-					      (wb-set-tree-with (wb-set-tree-with nil ex-value) value))
+					      (wb-set-tree-with (wb-set-tree-with nil ex-value #'compare)
+								value #'compare))
 				      ;; Creates a little garbage; &&& hand-integrate later.
 				      (rec (vector (ash 1 (logand ex-value-hash-shifted champ-hash-level-mask))
 						   0 1 ex-value-hash ex-value)
@@ -235,7 +236,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 		       (values node 0)
 		     (let ((subnode (svref node subnode-idx)))
 		       (if (consp subnode)
-			   (let ((new-wb-tree (wb-set-tree-less (cdr subnode) value)))
+			   (let ((new-wb-tree (wb-set-tree-less (cdr subnode) value #'compare)))
 			     (if (eq new-wb-tree (cdr subnode))
 				 (values node 0)
 			       (if (= 1 (wb-set-tree-size new-wb-tree))
@@ -322,7 +323,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 	(declare (fixnum hash-shifted))
 	(and node
 	     (if (consp node)
-		 (wb-set-tree-member? (cdr node) value)
+		 (wb-set-tree-member? (cdr node) value #'compare)
 	       (let ((hash-bits (logand hash-shifted champ-hash-level-mask))
 		     (entry-mask (ch-set-node-entry-mask node)))
 		 (if (logbitp hash-bits entry-mask)
@@ -350,7 +351,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 	       (cond ((< hash1 hash2) ':less)
 		     ((> hash1 hash2) ':greater)
 		     ((consp tree1)
-		      (if (consp tree2) (wb-set-tree-compare (cdr tree1) (cdr tree2))
+		      (if (consp tree2) (wb-set-tree-compare (cdr tree1) (cdr tree2) #'compare)
 			':less))
 		     ((consp tree2) ':greater)
 		     (t
@@ -421,7 +422,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
       (cond ((null tree1) tree2)
 	    ((null tree2) tree1)
 	    ((and (consp tree1) (consp tree2))
-	     (let ((tree-result (wb-set-tree-union (cdr tree1) (cdr tree2)))
+	     (let ((tree-result (wb-set-tree-union (cdr tree1) (cdr tree2) #'compare))
 		   (chash 0))
 	       (do-wb-set-tree-members (v tree-result)
 		 (logxorf chash (hash-value-fixnum v)))
@@ -514,7 +515,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
     (rec (tree1 tree2 depth)
       (cond ((or (null tree1) (null tree2)) nil)
 	    ((and (consp tree1) (consp tree2))
-	     (let ((tree-result (wb-set-tree-intersect (cdr tree1) (cdr tree2)))
+	     (let ((tree-result (wb-set-tree-intersect (cdr tree1) (cdr tree2) #'compare))
 		   (chash 0))
 	       (do-wb-set-tree-members (v tree-result)
 		 (logxorf chash (hash-value-fixnum v)))
@@ -607,7 +608,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
     (rec (tree1 tree2 depth)
       (cond ((or (null tree1) (null tree2)) t)
 	    ((and (consp tree1) (consp tree2))
-	     (wb-set-tree-disjoint? (cdr tree1) (cdr tree2)))
+	     (wb-set-tree-disjoint? (cdr tree1) (cdr tree2) #'compare))
 	    ((or (consp tree1) (consp tree2))
 	     (let ((collision-node normal-node (if (consp tree1) (values tree1 tree2) (values tree2 tree1))))
 	       (do-wb-set-tree-members (x (cdr collision-node)

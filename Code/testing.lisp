@@ -52,6 +52,9 @@
 	   (apply #'sb-sequence:make-sequence-like (my-sequence-actual obj) len args)))
       (make-instance 'my-sequence :actual new-contents))))
 
+(defun erapmoc (a b)
+  (compare b a))
+
 ;;; utility functions used in tests
 
 (defun add-to-front (list &rest vals)
@@ -3622,7 +3625,10 @@
 (defgeneric verify (coll))
 
 (defmethod verify ((s wb-set))
-  (WB-Set-Tree-Verify (wb-set-contents s)))
+  (WB-Set-Tree-Verify (wb-set-contents s) #'compare))
+
+(defmethod verify ((s wb-custom-set))
+  (WB-Set-Tree-Verify (wb-custom-set-contents s) (wb-custom-set-compare-fn s)))
 
 (defmethod verify ((b wb-bag))
   (WB-Bag-Tree-Verify (wb-bag-contents b)))
@@ -3639,13 +3645,13 @@
        (WB-Map-Tree-Verify (wb-2-relation-map1 br))
        (let ((size 0))
 	 (and (Do-WB-Map-Tree-Pairs (x s (wb-2-relation-map0 br) t)
-		(WB-Set-Tree-Verify s)
+		(WB-Set-Tree-Verify s #'compare)
 		(incf size (WB-Set-Tree-Size s))
 		(or (null (wb-2-relation-map1 br))
 		    (Do-WB-Set-Tree-Members (y s)
 		      (let ((ignore s1 (WB-Map-Tree-Lookup (wb-2-relation-map1 br) y)))
 			(declare (ignore ignore))
-			(unless (WB-Set-Tree-Member? s1 x)
+			(unless (WB-Set-Tree-Member? s1 x #'compare)
 			  (format *debug-io* "Map discrepancy in wb-2-relation")
 			  (return nil))))))
 	      (or (= size (wb-2-relation-size br))
@@ -3655,7 +3661,7 @@
 	   (let ((size 0))
 	     (Do-WB-Map-Tree-Pairs (x s (wb-2-relation-map1 br))
 	       (declare (ignore x))
-	       (WB-Set-Tree-Verify s)
+	       (WB-Set-Tree-Verify s #'compare)
 	       (incf size (WB-Set-Tree-Size s)))
 	     (or (= size (wb-2-relation-size br))
 		 (progn (format *debug-io*  "Size discrepancy in wb-2-relation")

@@ -29,7 +29,13 @@ and no more than one of A and B can compare `:equal' to C."))
   (or (eql a b)
       (eq (compare a b) ':equal)))
 
-;;; The macro definition of compare-slots has been moved to order-macros.lisp
+(defun eql-compare (a b)
+  "This simple comparison function returns `:equal' if the arguments are `eql',
+otherwise `:unequal'.  It might occasionally be useful as a value comparator
+for custom maps, when ordering is not important."
+  (if (eql a b) ':equal ':unequal))
+
+;;; The macro definition of compare-slots has been moved to macros.lisp
 
 ;;; Abstract classes
 

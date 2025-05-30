@@ -237,7 +237,7 @@ greatest member if there are more than one."
 	      (car (cl:last (Equivalent-Node-List val)))
 	    val))))))
 
-(defun WB-Set-Tree-Member? (tree value &optional (cmp-fn #'compare))
+(defun WB-Set-Tree-Member? (tree value cmp-fn)
   "Returns true iff `value' is a member of `tree'."
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Set-Tree tree)
@@ -291,9 +291,7 @@ containing the values; otherwise `nil'."
 (defmacro greater-than?-cmp (a b cmp-fn)
   `(eq (funcall ,cmp-fn ,a ,b) ':greater))
 
-;;; Not used internally, but clients can use this to let a set be its own identity
-;;; map (for canonicalization, e.g.).
-(defun WB-Set-Tree-Find-Equal (tree value &optional (cmp-fn #'compare))
+(defun WB-Set-Tree-Find-Equal (tree value cmp-fn)
   "If `tree' contains a value equal to `value', returns (first value) true and
 \(second value) the value; otherwise `nil'."
   (declare (optimize (speed 3) (safety 0))
@@ -327,7 +325,7 @@ containing the values; otherwise `nil'."
 
 (declaim (ftype (function (simple-vector t function) (values t fixnum)) Vector-Set-Binary-Search))
 
-(defun WB-Set-Tree-With (tree value &optional (cmp-fn #'compare))
+(defun WB-Set-Tree-With (tree value cmp-fn)
   "If `value' is in `tree', returns `tree'; otherwise returns `tree' with
 `value' added.  `value' may be an `Equivalent-Node'."
   ;; The case where `value' is an `Equivalent-Node' is used by `WB-Set-Tree-Concat',
@@ -428,7 +426,7 @@ on `vec', which it assumes is simple."
 
 ;;; Currently doesn't handle the case where `value' is an `Equivalent-Set' --
 ;;; any need to?
-(defun WB-Set-Tree-Less (tree value &optional (cmp-fn #'compare))
+(defun WB-Set-Tree-Less (tree value cmp-fn)
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Set-Tree tree)
 	   (type function cmp-fn))
@@ -491,10 +489,10 @@ on `vec', which it assumes is simple."
 (defconstant Hedge-Positive-Infinity
   '|&*$ Hedge positive infinity $*&|)
 
-(defun WB-Set-Tree-Split-Above (tree value &optional (cmp-fn #'compare))
+(defun WB-Set-Tree-Split-Above (tree value cmp-fn)
   (WB-Set-Tree-Split tree value Hedge-Positive-Infinity cmp-fn))
 
-(defun WB-Set-Tree-Split-Below (tree value &optional (cmp-fn #'compare))
+(defun WB-Set-Tree-Split-Below (tree value cmp-fn)
   (WB-Set-Tree-Split tree Hedge-Negative-Infinity value cmp-fn))
 
 
@@ -507,7 +505,7 @@ on `vec', which it assumes is simple."
 ;;; up distinguished "negative infinity" and "positive infinity" values which, for
 ;;; all practical purposes, will never show up in sets.
 
-(defun WB-Set-Tree-Union (tree1 tree2 &optional (cmp-fn #'compare))
+(defun WB-Set-Tree-Union (tree1 tree2 cmp-fn)
   "Returns the union of `tree1' and `tree2'.  Runs in time linear in the total
 sizes of the two trees."
   (declare (type function cmp-fn))
@@ -556,7 +554,7 @@ and `tree2' are in this range."
 	     cmp-fn)))))
 
 
-(defun WB-Set-Tree-Intersect (tree1 tree2 &optional (cmp-fn #'compare))
+(defun WB-Set-Tree-Intersect (tree1 tree2 cmp-fn)
   "Returns the intersection of `tree1' and `tree2'.  Runs in time linear in
 the total sizes of the two trees."
   (declare (type function cmp-fn))
@@ -595,7 +593,7 @@ of `tree1' and `tree2' are in this range."
 	     (WB-Set-Tree-Join new-left new-right cmp-fn))))))
 
 
-(defun WB-Set-Tree-Diff (tree1 tree2 &optional (cmp-fn #'compare))
+(defun WB-Set-Tree-Diff (tree1 tree2 cmp-fn)
   "Returns the set difference of `tree1' less `tree2'.  Runs in time linear in
 the total sizes of the two trees."
   (declare (type function cmp-fn))
@@ -645,7 +643,7 @@ of `tree1' and `tree2' are in this range."
 	     (WB-Set-Tree-Join new-left new-right cmp-fn))))))
 
 
-(defun WB-Set-Tree-Diff-2 (tree1 tree2 &optional (cmp-fn #'compare))
+(defun WB-Set-Tree-Diff-2 (tree1 tree2 cmp-fn)
   "Returns two values: the set difference of `tree1' less `tree2', and that of
 `tree2' less `tree1'.  Runs in time linear in the total sizes of the two trees."
   (WB-Set-Tree-Diff-2-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn))
@@ -711,7 +709,7 @@ this range."
 ;;; ================================================================================
 ;;; Comparison
 
-(defun WB-Set-Tree-Compare (tree1 tree2 &optional (cmp-fn #'compare))
+(defun WB-Set-Tree-Compare (tree1 tree2 cmp-fn)
   (declare (type function cmp-fn))
   (if (eq tree1 tree2) ':equal
     (let ((size1 (WB-Set-Tree-Size tree1))
@@ -799,7 +797,7 @@ this range."
 				  (Set-Value-Size (WB-Set-Tree-Node-Value tree)))
 			       lo hi)))))
 
-(defun WB-Set-Tree-Rank (tree value &optional (cmp-fn #'compare))
+(defun WB-Set-Tree-Rank (tree value cmp-fn)
   "Searches a set tree `tree' for `value'.  Returns two values, a boolean and an
 index.  If `value', or a value equivalent to `value', is in `tree', the boolean
 is true, and the index is the rank of the value; otherwise, the boolean is false
@@ -867,7 +865,7 @@ between equal trees."
 ;;; ================================================================================
 ;;; Subset testing
 
-(defun WB-Set-Tree-Subset? (tree1 tree2 &optional (cmp-fn #'compare))
+(defun WB-Set-Tree-Subset? (tree1 tree2 cmp-fn)
   (declare (type function cmp-fn))
   (let ((size1 (WB-Set-Tree-Size tree1))
 	(size2 (WB-Set-Tree-Size tree2)))
@@ -910,7 +908,7 @@ between equal trees."
 ;;; ================================================================================
 ;;; Disjointness testing
 
-(defun WB-Set-Tree-Disjoint? (tree1 tree2 &optional (cmp-fn #'compare))
+(defun WB-Set-Tree-Disjoint? (tree1 tree2 cmp-fn)
   (declare (type function cmp-fn))
   (WB-Set-Tree-Disjoint?-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn))
 
@@ -939,13 +937,13 @@ between equal trees."
 ;;; ================================================================================
 ;;; Miscellany
 
-(defun WB-Set-Tree-From-List (lst &optional (cmp-fn #'compare))
+(defun WB-Set-Tree-From-List (lst cmp-fn)
   (let ((tree nil))
     (dolist (x lst)
       (setq tree (WB-Set-Tree-With tree x cmp-fn)))
     tree))
 
-(defun WB-Set-Tree-From-Iterable (it &optional (cmp-fn #'compare))
+(defun WB-Set-Tree-From-Iterable (it cmp-fn)
   (declare (type function it))
   (let ((tree nil))
     (while (funcall it ':more?)
@@ -954,7 +952,7 @@ between equal trees."
 
 ;;; Much faster than repeated `with' if the input is sorted.  Still correct if the
 ;;; input is not actually sorted, but if it isn't even close to sorted, this is slower.
-(defun WB-Set-Tree-From-Sorted-Iterable (it len &optional (cmp-fn #'compare))
+(defun WB-Set-Tree-From-Sorted-Iterable (it len cmp-fn)
   (declare (optimize (speed 3) (safety 0))
 	   (type function it cmp-fn))
   (labels ((recur (n)
@@ -1161,7 +1159,7 @@ in `left' are less than any value in `right'."
 	  (WB-Set-Tree-Minimum-Value left)
 	(WB-Set-Tree-Node-Value tree)))))
 
-(defun WB-Set-Tree-Less-Minimum (tree &optional (cmp-fn #'compare))
+(defun WB-Set-Tree-Less-Minimum (tree cmp-fn)
   "Assumes `tree' is nonempty.  Returns a new tree with the minimum value
 or `Equivalent-Set' removed."
   (declare (optimize (speed 3) (safety 0))
@@ -1232,7 +1230,7 @@ or `Equivalent-Set' removed."
 		  (Make-WB-Set-Tree-Node value left right)))))))
 
 
-(defun WB-Set-Tree-Verify (tree &optional (cmp-fn #'compare))
+(defun WB-Set-Tree-Verify (tree cmp-fn)
   (WB-Set-Tree-Verify-Rng tree Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn))
 
 (defun WB-Set-Tree-Verify-Rng (tree lo hi cmp-fn)
@@ -4113,11 +4111,11 @@ If their intersection is null, returns true, else false."
 		       ;; Odd-looking, but it's order-independent and implements a strict weak ordering
 		       ;; (because `WB-Set-Tree-Compare' does).  We don't pass down `cmp-fn' because we're
 		       ;; setifying the counts, not the elements.
-		       (let ((set1 (reduce #'WB-Set-Tree-With (mapcar #'cdr mems1)
-					   :initial-value nil))
-			     (set2 (reduce #'WB-Set-Tree-With (mapcar #'cdr mems2)
-					   :initial-value nil))
-			     ((comp (WB-Set-Tree-Compare set1 set2))))
+		       (let ((set1 (cl:reduce (fn (s x) (WB-Set-Tree-With s x #'compare)) (mapcar #'cdr mems1)
+					      :initial-value nil))
+			     (set2 (cl:reduce (fn (s x) (WB-Set-Tree-With s x #'compare)) (mapcar #'cdr mems2)
+					      :initial-value nil))
+			     ((comp (WB-Set-Tree-Compare set1 set2 #'compare))))
 			 (if (eq comp ':equal) ':unequal comp)))))
 	    ':less)
 	(cond ((Equivalent-Node? val2)
@@ -5934,7 +5932,7 @@ empty, returns false."
 	  (declare (type list alist2))
 	  (dolist (pr1 alist1)
 	    (let ((pr2 (cl:find (car pr1) alist2 :test (equal?-fn key-cmp-fn) :key #'car)))
-	      (when (or (null pr2) (not (equal?-cmp (cdr pr1) (cdr pr2) key-cmp-fn)))
+	      (when (or (null pr2) (not (equal?-cmp (cdr pr1) (cdr pr2) val-cmp-fn)))
 		(push pr1 result))))
 	  (and result
 	       (if (cdr result)

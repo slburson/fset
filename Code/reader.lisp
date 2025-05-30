@@ -186,6 +186,9 @@ expression must evaluate to a set, all of whose members become members of the
 result set."
   (expand-set-constructor-form 'wb-set args))
 
+(defmacro wb-custom-set (compare-fn &rest args)
+  (expand-set-constructor-form 'wb-custom-set args compare-fn))
+
 (defmacro ch-set (&rest args)
   "Constructs a ch-set according to the supplied argument subforms.  Each
 argument subform can be an expression, whose value will be a member of the
@@ -194,12 +197,13 @@ expression must evaluate to a set, all of whose members become members of the
 result set."
   (expand-set-constructor-form 'ch-set args))
 
-(defun expand-set-constructor-form (type-name args)
+(defun expand-set-constructor-form (type-name args &optional compare-fn)
   (let ((normal-args (remove-if #'(lambda (arg) (and (listp arg) (eq (car arg) '$)))
 				args))
 	(splice-args (remove-if-not #'(lambda (arg) (and (listp arg) (eq (car arg) '$)))
 				    args))
-	((start (if normal-args `(convert ',type-name (list . ,normal-args))
+	((start (if normal-args `(convert ',type-name (list . ,normal-args)
+					  ,@(and compare-fn `(:compare-fn ,compare-fn)))
 		  (empty-instance-form type-name)))))
     (labels ((recur (splice-args result)
 	       (if (null splice-args) result

@@ -414,6 +414,85 @@ with `setf', but only on collections, not functions, of course."
 	    :format-control "~A on a ~A takes three arguments"
 	    :format-arguments (list ,(copy-tree op) ,(copy-tree type)))))
 
+(deflex-reinit +wb-custom-type-alist+
+    '((wb-set . (wb-set-contents wb-custom-set wb-custom-set-contents wb-custom-set-compare-fn
+		  make-wb-set make-wb-custom-set wb-custom-set-compare-fn-name))
+      (wb-bag . (wb-bag-contents wb-custom-bag wb-custom-bag-contents wb-custom-bag-compare-fn
+		 make-wb-bag make-wb-custom-bag wb-custom-bag-compare-fn-name))
+      (wb-map . (wb-map-contents wb-custom-map wb-custom-map-contents wb-custom-map-compare-fn
+		 make-wb-map make-wb-custom-map wb-custom-map-compare-fn-name))))
+
+(defmacro define-wb-methods (name param-list &body body)
+  (let ((decls nil)
+	(doc-string body (if (stringp (car body)) (values (car body) (cdr body))
+			   (values nil body))))
+    (while (and (listp (car body)) (eq (caar body) 'declare))
+      (push (pop body) decls))
+    (setq decls (nreverse decls))
+    (flet ((mod-param-list (custom?)
+	     (do ((param-list param-list (cdr param-list))
+		  (new-pl nil))
+		 ((or (null param-list) (member (car param-list) '(&optional &key &rest)))
+		  (revappend new-pl param-list))
+	       (let ((plelt (car param-list)))
+		 (push (or (and (listp plelt) custom?
+				(let ((custom-type (cl:second (cdr (assoc (cadr plelt) +wb-custom-type-alist+)))))
+				  (and custom-type `(,(car plelt) ,custom-type))))
+			   plelt)
+		       new-pl)))))
+      `(progn
+	 (defmethod ,name ,(mod-param-list nil)
+	   ,@(and doc-string (list doc-string))
+	   ,@decls
+	   (macrolet ((contents (coll)
+			`(,(cl:first (lookup-wb-custom-type (find-param-type coll ',param-list)))
+			   ,coll))
+		      (compare-fn (coll)
+			(declare (ignore coll))
+			'#'compare)
+		      ;; Done this way so we don't get unreachable-code warnings for the `else' branch.
+		      (if-same-compare-fns ((coll1 coll2) then else)
+			(declare (ignore coll1 coll2 else))
+			then)
+		      (make (like-coll contents)
+			(let ((coll-type (find-param-type like-coll ',param-list)))
+			  `(,(cl:fifth (lookup-wb-custom-type coll-type)) ,contents))))
+	     . ,body))
+	 (defmethod ,name ,(mod-param-list t)
+	   ,@(and doc-string (list doc-string))
+	   ,@decls
+	   (macrolet ((contents (coll)
+			`(,(cl:third (lookup-wb-custom-type (find-param-type coll ',param-list)))
+			   ,coll))
+		      (compare-fn (coll)
+			`(,(cl:fourth (lookup-wb-custom-type (find-param-type coll ',param-list)))
+			   ,coll))
+		      (if-same-compare-fns ((coll1 coll2) then else)
+			(let ((coll1-type (find-param-type coll1 ',param-list))
+			      (coll2-type (find-param-type coll2 ',param-list))
+			      ((acc1 (cl:seventh (lookup-wb-custom-type coll1-type)))
+			       (acc2 (cl:seventh (lookup-wb-custom-type coll2-type)))))
+			  `(if (eq (,acc1 ,coll1) (,acc2 ,coll2)) ,then ,else)))
+		      (make (like-coll contents)
+			(let ((coll-type  (find-param-type like-coll ',param-list)))
+			  `(,(cl:sixth (lookup-wb-custom-type coll-type)) ,contents
+			    (,(cl:seventh (lookup-wb-custom-type coll-type))
+			     ,like-coll)))))
+	     . ,body))))))
+
+;;; These ironically have to be global so they can be called by the local macros above.
+(defun find-param-type (param param-list)
+  (or (dolist (plelt param-list)
+	(when (member plelt '(&optional &key &rest))
+	  (return nil))
+	(when (and (listp plelt) (eq (car plelt) param))
+	  (return (cadr plelt))))
+      (error "Can't find parameter ~S in GF parameter list ~S" param param-list)))
+
+(defun lookup-wb-custom-type (type)
+  (cdr (or (assoc type +wb-custom-type-alist+)
+	   (error "Invalid type ~S" type))))
+
 (defmacro do-set ((var set &optional value) &body body)
   "For each member of `set', binds `var' to it and executes `body'.  When done,
 returns `value'."

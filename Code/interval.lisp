@@ -160,8 +160,8 @@
 (defmethod with-interval ((s interval-set) lower upper lower-closed? upper-closed?)
   (let ((contents (interval-set-contents s)))
     (let ((size (WB-Set-Tree-Size contents))
-	  ((lower-found? raw-lower-rank (WB-Set-Tree-Rank contents lower))
-	   (upper-found? raw-upper-rank (WB-Set-Tree-Rank contents upper))
+	  ((lower-found? raw-lower-rank (WB-Set-Tree-Rank contents lower #'compare))
+	   (upper-found? raw-upper-rank (WB-Set-Tree-Rank contents upper #'compare))
 	   ((lower-rank (if lower-found? (1+ raw-lower-rank) raw-lower-rank))
 	    (upper-rank (if upper-found? (1- raw-upper-rank) raw-upper-rank))
 	    ((removed (gmap (:result set) (fn (i) (WB-Set-Tree-Rank-Element contents i))
@@ -200,17 +200,18 @@
 	       (when (interval-upper-closed? next-iv)
 		 (setq new-upper-closed? t)))))))
       (make-interval-set
-	(WB-Set-Tree-With (WB-Set-Tree-Diff contents (wb-set-contents removed))
+	(WB-Set-Tree-With (WB-Set-Tree-Diff contents (wb-set-contents removed) #'compare)
 			  (make-interval new-lower new-upper
-					 new-lower-closed? new-upper-closed?))))))
+					 new-lower-closed? new-upper-closed?)
+			  #'compare)))))
 
 ;;; Internal.
 (defgeneric less-interval (interval-set lower upper lower-closed? upper-closed?))
 
 (defmethod less-interval ((s interval-set) lower upper lower-closed? upper-closed?)
   (let ((contents (interval-set-contents s)))
-    (let ((lower-found? lower-rank (WB-Set-Tree-Rank contents lower))
-	  (upper-found? upper-rank (WB-Set-Tree-Rank contents upper))
+    (let ((lower-found? lower-rank (WB-Set-Tree-Rank contents lower #'compare))
+	  (upper-found? upper-rank (WB-Set-Tree-Rank contents upper #'compare))
 	  ((removed (gmap (:result set) (fn (i) (WB-Set-Tree-Rank-Element contents i))
 			  (:arg index lower-rank upper-rank))))
 	  (new (set)))
@@ -244,8 +245,8 @@
 					    (not upper-closed?)
 					    (interval-upper-closed? upper-iv))))))))
       (make-interval-set
-	(WB-Set-Tree-Union (WB-Set-Tree-Diff contents (wb-set-contents removed))
-			   (wb-set-contents new))))))
+	(WB-Set-Tree-Union (WB-Set-Tree-Diff contents (wb-set-contents removed) #'compare)
+			   (wb-set-contents new) #'compare)))))
 
 (defmethod union ((s0 interval-set) (s1 interval-set) &key)
   ;; Works, but needs to be rewritten to run in linear time and cons less.
@@ -261,10 +262,10 @@
 	      ((comp (if abut? ':equal comp))))
 	  (ecase comp
 	    ((:less)
-	     (setq result (WB-Set-Tree-With result cur0))
+	     (setq result (WB-Set-Tree-With result cur0 #'compare))
 	     (setq cur0 (WB-Set-Tree-Iterator-Get iter0)))
 	    ((:greater)
-	     (setq result (WB-Set-Tree-With result cur1))
+	     (setq result (WB-Set-Tree-With result cur1 #'compare))
 	     (setq cur1 (WB-Set-Tree-Iterator-Get iter1)))
 	    ((:equal)		; they overlap or abut
 	     (let ((lcomp (compare (interval-lower cur0) (interval-lower cur1)))
@@ -292,10 +293,10 @@
 				  (interval-upper-closed? cur0))))
 		   (setq cur0 (WB-Set-Tree-Iterator-Get iter0)))))))))
       (while cur0
-	(setq result (WB-Set-Tree-With result cur0))
+	(setq result (WB-Set-Tree-With result cur0 #'compare))
 	(setq cur0 (WB-Set-Tree-Iterator-Get iter0)))
       (while cur1
-	(setq result (WB-Set-Tree-With result cur1))
+	(setq result (WB-Set-Tree-With result cur1 #'compare))
 	(setq cur1 (WB-Set-Tree-Iterator-Get iter1)))
       (make-interval-set result))))
 
@@ -329,7 +330,7 @@
 				    (interval-lower cur1) (interval-upper cur0)
 				    (interval-lower-closed? cur1)
 				    (interval-upper-closed? cur0))))
-		     (setq result (WB-Set-Tree-With result cur0))
+		     (setq result (WB-Set-Tree-With result cur0 #'compare))
 		     (setq cur0 (WB-Set-Tree-Iterator-Get iter0)))
 		 (progn
 		   (when (or (eq lcomp ':greater)
@@ -340,7 +341,7 @@
 				  (interval-lower cur0) (interval-upper cur1)
 				  (interval-lower-closed? cur0)
 				  (interval-upper-closed? cur1))))
-		   (setq result (WB-Set-Tree-With result cur1))
+		   (setq result (WB-Set-Tree-With result cur1 #'compare))
 		   (setq cur1 (WB-Set-Tree-Iterator-Get iter1)))))))))
       (make-interval-set result))))
 
@@ -357,7 +358,7 @@
 	(let ((comp (compare-intervals cur0 cur1)))
 	  (ecase comp
 	    ((:less)
-	     (setq result (WB-Set-Tree-With result cur0))
+	     (setq result (WB-Set-Tree-With result cur0 #'compare))
 	     (setq cur0 (WB-Set-Tree-Iterator-Get iter0)))
 	    ((:greater)
 	     (setq cur1 (WB-Set-Tree-Iterator-Get iter1)))
@@ -371,14 +372,14 @@
 		 (let ((iv (make-interval (interval-lower cur0) (interval-lower cur1)
 					  (interval-lower-closed? cur0)
 					  (not (interval-lower-closed? cur1)))))
-		   (setq result (WB-Set-Tree-With result iv))))
+		   (setq result (WB-Set-Tree-With result iv #'compare))))
 	       (if (eq ucomp ':greater)
 		   (setq cur0 (make-interval (interval-upper cur1) (interval-upper cur0)
 					     (not (interval-upper-closed? cur1))
 					     (interval-upper-closed? cur0)))
 		 (setq cur0 (WB-Set-Tree-Iterator-Get iter0))))))))
       (while cur0
-	(setq result (WB-Set-Tree-With result cur0))
+	(setq result (WB-Set-Tree-With result cur0 #'compare))
 	(setq cur0 (WB-Set-Tree-Iterator-Get iter0)))
       (make-interval-set result))))
 
