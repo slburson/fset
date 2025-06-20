@@ -697,7 +697,7 @@ of calling `val-fn' on the value from `tuple1' and the value from `tuple2'.
 
 ;;; ================================================================================
 
-(define-wb-methods image ((key tuple-key) (s wb-set))
+(define-wb-set-methods image ((key tuple-key) (s wb-set))
   (make s (wb-set-image #'(lambda (x) (lookup x key)) (contents s) (compare-fn s))))
 
 (defmethod image ((key tuple-key) (s seq))

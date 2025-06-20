@@ -181,7 +181,14 @@ This is the right choice for the vast majority of mutable classes."
 (define-cross-type-compare-methods tuple)
 
 ;;; For users
+(define-cross-type-compare-methods identity-equality-mixin)
 (define-cross-type-compare-methods identity-ordering-mixin)
+
+(defmethod compare ((obj1 identity-ordering-mixin) (obj2 identity-equality-mixin))
+  (compare-slots obj1 obj2 'serial-number))
+
+(defmethod compare ((obj1 identity-equality-mixin) (obj2 identity-ordering-mixin))
+  (compare-slots obj1 obj2 'serial-number))
 
 
 ;;; Nil

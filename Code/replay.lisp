@@ -35,8 +35,8 @@ sets are printed as \"#{= ... }\"."
 (defun empty-wb-replay-set ()
   *empty-wb-replay-set*)
 
-(defmethod empty-instance-form ((type-name (eql 'wb-replay-set)))
-  '(empty-wb-replay-set))
+(defmethod empty-instance-function ((class-name (eql 'wb-replay-set)))
+  'empty-wb-replay-set)
 
 (defmethod empty? ((s wb-replay-set))
   (null (wb-replay-set-contents s)))

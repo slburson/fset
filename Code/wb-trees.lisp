@@ -2165,7 +2165,7 @@ multiplicity."
 		(values (car pr) (cdr pr)))
 	    (values val (WB-Bag-Tree-Node-Count tree))))))))
 
-(defun WB-Bag-Tree-Multiplicity (tree value &optional (cmp-fn #'compare))
+(defun WB-Bag-Tree-Multiplicity (tree value cmp-fn)
   "Returns the multiplicity of `value' in `tree', or 0 if `value' does not
 appear in `tree'.  As a second value, returns the value found, if any."
   (declare (optimize (speed 3) (safety 0))
@@ -2221,7 +2221,7 @@ value, the corresponding count; otherwise `nil'."
 ;;; ================================================================================
 ;;; With
 
-(defun WB-Bag-Tree-With (tree value &optional (count 1) (cmp-fn #'compare))
+(defun WB-Bag-Tree-With (tree value cmp-fn &optional (count 1))
   "Returns `tree' with `value' added with a count of `count' (if it was already
 present, its count is incremented by `count').  `value' may be an `Equivalent-Bag'."
   ;; The case where `value' is an `Equivalent-Bag' is used by `WB-Bag-Tree-Concat',
@@ -2276,19 +2276,19 @@ present, its count is incremented by `count').  `value' may be an `Equivalent-Ba
 	     ((:less)
 	      (WB-Bag-Tree-Build-Node node-val node-count
 				      (WB-Bag-Tree-With (WB-Bag-Tree-Node-Left tree)
-							value count cmp-fn)
+							value cmp-fn count)
 				      (WB-Bag-Tree-Node-Right tree)))
 	     ((:greater)
 	      (WB-Bag-Tree-Build-Node node-val node-count
 				      (WB-Bag-Tree-Node-Left tree)
 				      (WB-Bag-Tree-With (WB-Bag-Tree-Node-Right tree)
-							value count cmp-fn))))))))
+							value cmp-fn count))))))))
 
 
 ;;; ================================================================================
 ;;; Less
 
-(defun WB-Bag-Tree-Less (tree value &optional (count 1) (cmp-fn #'compare))
+(defun WB-Bag-Tree-Less (tree value cmp-fn &optional (count 1))
   "Returns `tree' with the count for `value' decremented; if that count was
 1, `value' is removed entirely."
   (declare (optimize (speed 3) (safety 0))
@@ -2322,13 +2322,13 @@ present, its count is incremented by `count').  `value' may be an `Equivalent-Ba
 		  (WB-Bag-Tree-Join (WB-Bag-Tree-Node-Left tree) (WB-Bag-Tree-Node-Right tree) cmp-fn))))
 	     ((:less)
 	      (let ((left (WB-Bag-Tree-Node-Left tree))
-		    ((new-left (WB-Bag-Tree-Less left value count cmp-fn))))
+		    ((new-left (WB-Bag-Tree-Less left value cmp-fn count))))
 		(if (eq new-left left) tree
 		  (WB-Bag-Tree-Build-Node node-val node-count new-left
 					  (WB-Bag-Tree-Node-Right tree)))))
 	     ((:greater)
 	      (let ((right (WB-Bag-Tree-Node-Right tree))
-		    ((new-right (WB-Bag-Tree-Less right value count cmp-fn))))
+		    ((new-right (WB-Bag-Tree-Less right value cmp-fn count))))
 		(if (eq new-right right) tree
 		  (WB-Bag-Tree-Build-Node node-val node-count
 					  (WB-Bag-Tree-Node-Left tree)
@@ -2338,7 +2338,7 @@ present, its count is incremented by `count').  `value' may be an `Equivalent-Ba
 ;;; ================================================================================
 ;;; Union, sum, intersection, and bag difference
 
-(defun WB-Bag-Tree-Union (tree1 tree2 &optional (cmp-fn #'compare))
+(defun WB-Bag-Tree-Union (tree1 tree2 cmp-fn)
   "Returns the union of `tree' and `tree2'."
   (if (eq tree1 tree2)
       tree1
@@ -2373,7 +2373,7 @@ present, its count is incremented by `count').  `value' may be an `Equivalent-Ba
 				    val1 hi cmp-fn)
 	     cmp-fn)))))
 
-(defun WB-Bag-Tree-Sum (tree1 tree2 &optional (cmp-fn #'compare))
+(defun WB-Bag-Tree-Sum (tree1 tree2 cmp-fn)
   "Returns the sum of `tree' and `tree2'."
   (WB-Bag-Tree-Sum-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn))
 
@@ -2406,7 +2406,7 @@ present, its count is incremented by `count').  `value' may be an `Equivalent-Ba
 	     cmp-fn)))))
 
 
-(defun WB-Bag-Tree-Intersect (tree1 tree2 &optional (cmp-fn #'compare))
+(defun WB-Bag-Tree-Intersect (tree1 tree2 cmp-fn)
   (if (eq tree1 tree2)
       tree1
     (WB-Bag-Tree-Intersect-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn)))
@@ -2445,7 +2445,7 @@ of `tree1' and `tree2' are in this range."
 	     (WB-Bag-Tree-Join new-left new-right cmp-fn))))))
 
 
-(defun WB-Bag-Tree-Product (tree1 tree2 &optional (cmp-fn #'compare))
+(defun WB-Bag-Tree-Product (tree1 tree2 cmp-fn)
   (WB-Bag-Tree-Product-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn))
 
 (defun WB-Bag-Tree-Product-Rng (tree1 tree2 lo hi cmp-fn)
@@ -2480,7 +2480,7 @@ of `tree1' and `tree2' are in this range."
 	     (WB-Bag-Tree-Join new-left new-right cmp-fn))))))
 
 
-(defun WB-Bag-Tree-Diff (tree1 tree2 &optional (cmp-fn #'compare))
+(defun WB-Bag-Tree-Diff (tree1 tree2 cmp-fn)
   "Returns the set difference of `tree1' less `tree2'.  Runs in time linear in
 the total sizes of the two trees."
   (and (not (eq tree1 tree2))
@@ -2535,12 +2535,16 @@ of `tree1' and `tree2' are in this range."
 ;;; ================================================================================
 ;;; Comparison
 
-(defun WB-Bag-Tree-Compare (tree1 tree2 &optional (cmp-fn #'compare))
+(defun WB-Bag-Tree-Compare (tree1 tree2 cmp-fn)
   (declare (type function cmp-fn))
   (if (eq tree1 tree2) ':equal
-    (let ((size1 (WB-Bag-Tree-Size tree1))
+    (let ((totct1 (WB-Bag-Tree-Total-Count tree1))
+	  (totct2 (WB-Bag-Tree-Total-Count tree2))
+	  (size1 (WB-Bag-Tree-Size tree1))
 	  (size2 (WB-Bag-Tree-Size tree2)))
-      (cond ((< size1 size2) ':less)
+      (cond ((< totct1 totct2) ':less)
+	    ((> totct1 totct2) ':greater)
+	    ((< size1 size2) ':less)
 	    ((> size1 size2) ':greater)
 	    (t (WB-Bag-Tree-Compare-Rng tree1 0 tree2 0 0 size1 cmp-fn))))))
 
@@ -2620,7 +2624,7 @@ of `tree1' and `tree2' are in this range."
 				  (Bag-Value-Size (WB-Bag-Tree-Node-Value tree)))
 			       lo hi)))))
 
-(defun WB-Bag-Tree-Rank (tree value &optional (cmp-fn #'compare))
+(defun WB-Bag-Tree-Rank (tree value cmp-fn)
   "Searches a bag tree `tree' for `value'.  Returns two values, a boolean and an
 index.  If `value', or a value equivalent to `value', is in `tree', the symbol
 is true, and the index is the rank of the value; otherwise, the boolean is false
@@ -2689,7 +2693,7 @@ between equal trees."
 ;;; ================================================================================
 ;;; Subbag testing
 
-(defun WB-Bag-Tree-Subbag? (tree1 tree2 &optional (cmp-fn #'compare))
+(defun WB-Bag-Tree-Subbag? (tree1 tree2 cmp-fn)
   (declare (type function cmp-fn))
   (let ((size1 (WB-Bag-Tree-Size tree1))
 	(size2 (WB-Bag-Tree-Size tree2)))
@@ -2734,7 +2738,7 @@ between equal trees."
 ;;; ================================================================================
 ;;; Disjointness testing
 
-(defun WB-Bag-Tree-Disjoint? (tree1 tree2 &optional (cmp-fn #'compare))
+(defun WB-Bag-Tree-Disjoint? (tree1 tree2 cmp-fn)
   (declare (type function cmp-fn))
   (WB-Bag-Tree-Disjoint?-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn))
 
@@ -2764,7 +2768,7 @@ between equal trees."
 ;;; ================================================================================
 ;;; Miscellany
 
-(defun WB-Bag-Tree-From-List (lst pairs? &optional (cmp-fn #'compare))
+(defun WB-Bag-Tree-From-List (lst pairs? cmp-fn)
   (let ((tree nil))
     (if pairs?
 	(dolist (x lst)
@@ -2772,12 +2776,12 @@ between equal trees."
 	    (error 'simple-type-error :datum (cdr x) :expected-type '(integer 0 *)
 				      :format-control "Supplied count is not a positive integer: ~S"
 				      :format-arguments (list (cdr x))))
-	  (setq tree (WB-Bag-Tree-With tree (car x) (cdr x) cmp-fn)))
+	  (setq tree (WB-Bag-Tree-With tree (car x) cmp-fn (cdr x))))
       (dolist (x lst)
-	(setq tree (WB-Bag-Tree-With tree x 1 cmp-fn))))
+	(setq tree (WB-Bag-Tree-With tree x cmp-fn))))
     tree))
 
-(defun WB-Bag-Tree-From-Iterable (it pairs? &optional (cmp-fn #'compare))
+(defun WB-Bag-Tree-From-Iterable (it pairs? cmp-fn)
   (declare (type function it))
   (let ((tree nil))
     (if pairs?
@@ -2787,13 +2791,13 @@ between equal trees."
 	      (error 'simple-type-error :datum (cdr x) :expected-type '(integer 0 *)
 					:format-control "Supplied count is not a positive integer: ~S"
 					:format-arguments (list (cdr x))))
-	    (setq tree (WB-Bag-Tree-With tree (car x) (cdr x) cmp-fn))))
+	    (setq tree (WB-Bag-Tree-With tree (car x) cmp-fn (cdr x)))))
       (while (funcall it ':more?)
-	(setq tree (WB-Bag-Tree-With tree (funcall it ':get) 1 cmp-fn))))
+	(setq tree (WB-Bag-Tree-With tree (funcall it ':get) cmp-fn))))
     tree))
 
 ;;; See `WB-Set-Tree-From-Sorted-Iterable'.
-(defun WB-Bag-Tree-From-Sorted-Iterable (it size pairs? &optional (cmp-fn #'compare))
+(defun WB-Bag-Tree-From-Sorted-Iterable (it size pairs? cmp-fn)
   (declare (type function it cmp-fn))
   (labels ((recur (n)
 	     (declare (fixnum n))
@@ -2819,7 +2823,7 @@ between equal trees."
 			(:equal (values (cons (vector a) (vector (+ na nb))) a a))
 			(:less (values (cons (vector a b) (vector na nb)) a b))
 			(:greater (values (cons (vector b a) (vector nb na)) b a))
-			(:unequal (values (WB-Bag-Tree-With (cons (vector a) (vector na)) b nb cmp-fn) a a)))))
+			(:unequal (values (WB-Bag-Tree-With (cons (vector a) (vector na)) b cmp-fn nb) a a)))))
 		   (t
 		    (let ((n2 (floor (1- n) 2))
 			  ((left left-first left-last (recur n2))
@@ -2836,7 +2840,7 @@ between equal trees."
 			       (less-than?-cmp e right-first cmp-fn))
 			  (values (WB-Bag-Tree-Build-Node e ne left right) left-first right-last)
 			;; Fall back to general case.
-			(values (WB-Bag-Tree-With (WB-Bag-Tree-Sum left right cmp-fn) e ne cmp-fn)
+			(values (WB-Bag-Tree-With (WB-Bag-Tree-Sum left right cmp-fn) e cmp-fn ne)
 				(if (less-than?-cmp left-first right-first cmp-fn) left-first right-first)
 				(if (less-than?-cmp left-last right-last cmp-fn) right-last left-last)))))))
 	   (check-count (n)
@@ -2955,9 +2959,9 @@ between equal trees."
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Bag-Tree left right))
   (cond ((null left)
-	 (WB-Bag-Tree-With right value count cmp-fn))
+	 (WB-Bag-Tree-With right value cmp-fn count))
 	((null right)
-	 (WB-Bag-Tree-With left value count cmp-fn))
+	 (WB-Bag-Tree-With left value cmp-fn count))
 	((and (WB-Bag-Tree-Node? left)
 	      (> (WB-Bag-Tree-Size left)
 		 (the fixnum (* (WB-Bag-Tree-Size right) WB-Tree-Balance-Factor))))
@@ -3130,7 +3134,7 @@ removed."
 	  ;; Hmm -- need a generalization of `reduce' to multiple sequences.
 	  (dotimes (i (length (car new-pr)))
 	    (setq result (WB-Bag-Tree-With result (svref (car new-pr) i)
-					   (svref (cdr new-pr) i) cmp-fn)))
+					   cmp-fn (svref (cdr new-pr) i))))
 	  result)
       (if (> (length (car new-pr)) *WB-Tree-Max-Vector-Length*)
 	  (let ((split-point (floor (length (car new-pr)) 2)))
@@ -3222,7 +3226,7 @@ removed."
 	  ;; Hmm -- need a generalization of `reduce' to multiple sequences.
 	  (dotimes (i len)
 	    (setq result (WB-Bag-Tree-With result (svref (car new-pr) i)
-					   (svref (cdr new-pr) i) cmp-fn)))
+					   cmp-fn (svref (cdr new-pr) i))))
 	  result)
       (if (> len *WB-Tree-Max-Vector-Length*)
 	  (let ((split-point (floor len 2)))

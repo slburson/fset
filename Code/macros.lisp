@@ -414,15 +414,16 @@ with `setf', but only on collections, not functions, of course."
 	    :format-control "~A on a ~A takes three arguments"
 	    :format-arguments (list ,(copy-tree op) ,(copy-tree type)))))
 
-(deflex-reinit +wb-custom-type-alist+
-    '((wb-set . (wb-set-contents wb-custom-set wb-custom-set-contents wb-custom-set-compare-fn
-		  make-wb-set make-wb-custom-set wb-custom-set-compare-fn-name))
-      (wb-bag . (wb-bag-contents wb-custom-bag wb-custom-bag-contents wb-custom-bag-compare-fn
-		 make-wb-bag make-wb-custom-bag wb-custom-bag-compare-fn-name))
-      (wb-map . (wb-map-contents wb-custom-map wb-custom-map-contents wb-custom-map-compare-fn
-		 make-wb-map make-wb-custom-map wb-custom-map-compare-fn-name))))
+(defmacro define-tree-set-type (name compare-fn-name)
+  "Defines the `tree-set-type' named `name' to use the specified comparison
+function \(supplied as a symbol\).  The comparison function must take two
+arguments and return one of { :less, :equal, :greater, :unequal }, and must
+implement a strict weak ordering."
+  (check-type name symbol)
+  (check-type compare-fn-name symbol)
+  `(setf (get ',name 'tree-set-type) ',compare-fn-name))
 
-(defmacro define-wb-methods (name param-list &body body)
+(defmacro define-wb-set-methods (name param-list &body body)
   (let ((decls nil)
 	(doc-string body (if (stringp (car body)) (values (car body) (cdr body))
 			   (values nil body))))
@@ -435,18 +436,15 @@ with `setf', but only on collections, not functions, of course."
 		 ((or (null param-list) (member (car param-list) '(&optional &key &rest)))
 		  (revappend new-pl param-list))
 	       (let ((plelt (car param-list)))
-		 (push (or (and (listp plelt) custom?
-				(let ((custom-type (cl:second (cdr (assoc (cadr plelt) +wb-custom-type-alist+)))))
-				  (and custom-type `(,(car plelt) ,custom-type))))
-			   plelt)
+		 (push (if (and (listp plelt) custom? (eq (cadr plelt) 'wb-set)) `(,(car plelt) wb-custom-set)
+			 plelt)
 		       new-pl)))))
       `(progn
 	 (defmethod ,name ,(mod-param-list nil)
 	   ,@(and doc-string (list doc-string))
 	   ,@decls
 	   (macrolet ((contents (coll)
-			`(,(cl:first (lookup-wb-custom-type (find-param-type coll ',param-list)))
-			   ,coll))
+			`(wb-set-contents ,coll))
 		      (compare-fn (coll)
 			(declare (ignore coll))
 			'#'compare)
@@ -455,43 +453,74 @@ with `setf', but only on collections, not functions, of course."
 			(declare (ignore coll1 coll2 else))
 			then)
 		      (make (like-coll contents)
-			(let ((coll-type (find-param-type like-coll ',param-list)))
-			  `(,(cl:fifth (lookup-wb-custom-type coll-type)) ,contents))))
+			(declare (ignore like-coll))
+			`(raw-make-wb-set ,contents)))
 	     . ,body))
 	 (defmethod ,name ,(mod-param-list t)
 	   ,@(and doc-string (list doc-string))
 	   ,@decls
 	   (macrolet ((contents (coll)
-			`(,(cl:third (lookup-wb-custom-type (find-param-type coll ',param-list)))
-			   ,coll))
+			`(wb-custom-set-contents ,coll))
 		      (compare-fn (coll)
-			`(,(cl:fourth (lookup-wb-custom-type (find-param-type coll ',param-list)))
-			   ,coll))
+			`(wb-set-compare-fn ,coll))
 		      (if-same-compare-fns ((coll1 coll2) then else)
-			(let ((coll1-type (find-param-type coll1 ',param-list))
-			      (coll2-type (find-param-type coll2 ',param-list))
-			      ((acc1 (cl:seventh (lookup-wb-custom-type coll1-type)))
-			       (acc2 (cl:seventh (lookup-wb-custom-type coll2-type)))))
-			  `(if (eq (,acc1 ,coll1) (,acc2 ,coll2)) ,then ,else)))
+		        ;; I originally thought I would compare the names instead of the function objects.
+			;; That would have had the advantage that merely recompiling the function without
+			;; changing it (as tends to happen during development) would still allow use of
+			;; the O(n) algorithms.  The downside, of course, would have been that if you did
+			;; actually change the function, things would have broken badly.  This way, changing
+			;; the function could cause reduced performance, but correctness is maintained
+			;; (unless you're depending on how `compare` orders two sets).
+			`(if (eq (wb-set-compare-fn ,coll1)
+				 (wb-set-compare-fn ,coll2))
+			     ,then
+			   ,else))
 		      (make (like-coll contents)
-			(let ((coll-type  (find-param-type like-coll ',param-list)))
-			  `(,(cl:sixth (lookup-wb-custom-type coll-type)) ,contents
-			    (,(cl:seventh (lookup-wb-custom-type coll-type))
-			     ,like-coll)))))
+			`(make-wb-custom-set ,contents (wb-custom-set-type ,like-coll))))
 	     . ,body))))))
 
-;;; These ironically have to be global so they can be called by the local macros above.
-(defun find-param-type (param param-list)
-  (or (dolist (plelt param-list)
-	(when (member plelt '(&optional &key &rest))
-	  (return nil))
-	(when (and (listp plelt) (eq (car plelt) param))
-	  (return (cadr plelt))))
-      (error "Can't find parameter ~S in GF parameter list ~S" param param-list)))
+(defmacro define-hash-set-type (name hash-fn-name compare-fn-name)
+  "Defines the `hash-set-type' named `name' to use the specified hash and
+comparison functions \(specified as symbols\).  The comparison function must
+take two arguments and return one of { :less, :equal, :greater, :unequal },
+and must implement a strict weak ordering.  Also, the two must be mutually
+consistent (two values that compare `:equal' must hash to the same value)."
+  (check-type name symbol)
+  (check-type hash-fn-name symbol)
+  (check-type compare-fn-name symbol)
+  `(setf (get ',name 'hash-set-type)
+	 (list ',hash-fn-name ',compare-fn-name)))
 
-(defun lookup-wb-custom-type (type)
-  (cdr (or (assoc type +wb-custom-type-alist+)
-	   (error "Invalid type ~S" type))))
+(defmacro if-same-ch-set-types ((s1 s2 hst-var) then else)
+  (let ((s1-var (gensym "S1-"))
+	(s2-var (gensym "S2-"))
+	(hst1-var (gensym "HST1-"))
+	(hst2-var (gensym "HST2-")))
+    `(let ((,s1-var ,s1)
+	   (,s2-var ,s2)
+	   ((,hst1-var (ch-set-type ,s1-var))
+	    (,hst2-var (ch-set-type ,s2-var))))
+       (if (or (eq ,hst1-var ,hst2-var)
+	       (and (eq (hash-set-type-hash-fn ,hst1-var) (hash-set-type-hash-fn ,hst2-var))
+		    (eq (hash-set-type-compare-fn ,hst1-var) (hash-set-type-compare-fn ,hst2-var))))
+	   (let ((,hst-var ,hst1-var))
+	     ,then)
+	 ,else))))
+
+(defmacro if-same-wb-bag-types ((b1 b2 tst-var) then else)
+  (let ((b1-var (gensym "B1-"))
+	(b2-var (gensym "B2-"))
+	(tst1-var (gensym "TST1-"))
+	(tst2-var (gensym "TST2-")))
+    `(let ((,b1-var ,b1)
+	   (,b2-var ,b2)
+	   ((,tst1-var (wb-bag-type ,b1-var))
+	    (,tst2-var (wb-bag-type ,b2-var))))
+       (if (or (eq ,tst1-var ,tst2-var)
+	       (eq (tree-set-type-compare-fn ,tst1-var) (tree-set-type-compare-fn ,tst2-var)))
+	   (let ((,tst-var ,tst1-var))
+	     ,then)
+	 ,else))))
 
 (defmacro do-set ((var set &optional value) &body body)
   "For each member of `set', binds `var' to it and executes `body'.  When done,

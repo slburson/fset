@@ -3625,10 +3625,7 @@
 (defgeneric verify (coll))
 
 (defmethod verify ((s wb-set))
-  (WB-Set-Tree-Verify (wb-set-contents s) #'compare))
-
-(defmethod verify ((s wb-custom-set))
-  (WB-Set-Tree-Verify (wb-custom-set-contents s) (wb-custom-set-compare-fn s)))
+  (WB-Set-Tree-Verify (wb-set-contents s) (wb-set-compare-fn s)))
 
 (defmethod verify ((b wb-bag))
   (WB-Bag-Tree-Verify (wb-bag-contents b)))

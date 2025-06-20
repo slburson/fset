@@ -186,8 +186,14 @@ expression must evaluate to a set, all of whose members become members of the
 result set."
   (expand-set-constructor-form 'wb-set args))
 
-(defmacro wb-custom-set (compare-fn &rest args)
-  (expand-set-constructor-form 'wb-custom-set args compare-fn))
+(defmacro wb-custom-set (type-name &rest args)
+  "Constructs a wb-set with a custom ordering, according to the supplied
+argument subforms.  Use `define-tree-set-type' to associate `type-name' with
+a comparison function.  Each argument subform can be an expression, whose value
+will be a member of the result set; or a list of the form ($ `expression'),
+in which case the expression must evaluate to a set, all of whose members
+become members of the result set."
+  (expand-set-constructor-form 'wb-set args type-name))
 
 (defmacro ch-set (&rest args)
   "Constructs a ch-set according to the supplied argument subforms.  Each
@@ -197,20 +203,29 @@ expression must evaluate to a set, all of whose members become members of the
 result set."
   (expand-set-constructor-form 'ch-set args))
 
-(defun expand-set-constructor-form (type-name args &optional compare-fn)
+(defmacro ch-custom-set (type-name &rest args)
+  "Constructs a ch-set of a custom type, according to the supplied argument
+subforms.  Use `define-hash-set-type' to associate `type-name' with hash and
+comparison functions.  Each argument subform can be an expression, whose value
+will be a member of the result set; or a list of the form ($ `expression'),
+in which case the expression must evaluate to a set, all of whose members become
+members of the result set."
+  (expand-set-constructor-form 'ch-set args type-name))
+
+(defun expand-set-constructor-form (class-name args &optional type-name)
   (let ((normal-args (remove-if #'(lambda (arg) (and (listp arg) (eq (car arg) '$)))
 				args))
 	(splice-args (remove-if-not #'(lambda (arg) (and (listp arg) (eq (car arg) '$)))
 				    args))
-	((start (if normal-args `(convert ',type-name (list . ,normal-args)
-					  ,@(and compare-fn `(:compare-fn ,compare-fn)))
-		  (empty-instance-form type-name)))))
+	((start (if normal-args `(convert ',class-name (list . ,normal-args)
+					  ,@(and type-name `(:type-name ,type-name)))
+		  `(,(empty-instance-function class-name) ,type-name)))))
     (labels ((recur (splice-args result)
 	       (if (null splice-args) result
 		 (if (= (length (car splice-args)) 2)
 		     (recur (cdr splice-args) `(union ,(cadar splice-args) ,result))
 		   (error "A splice-arg to the `~S' macro must be of the form ~@
-			   ($ <sub-set>) -- not ~S" type-name (car splice-args))))))
+			   ($ <sub-set>) -- not ~S" class-name (car splice-args))))))
       (recur splice-args start))))
 
 (defmacro replay-set (&rest args)
@@ -227,8 +242,7 @@ argument subform can be an expression, whose value will be a member of the
 result set; or a list of the form ($ `expression'), in which case the
 expression must evaluate to a set, all of whose members become members of the
 result set."
-  ;; We MUST maintain ORDER!!!  Yow!!!
-  (let ((result (empty-instance-form 'wb-replay-set)))
+  (let ((result `(,(empty-instance-function 'wb-replay-set))))
     (dolist (arg args result)
       (if (and (listp arg) (eq (car arg) '$))
 	  (let ((tmp (gensym "TMP-")))
@@ -264,7 +278,21 @@ is, the multiplicity of each member of the result bag is the sum of its
 multiplicities as supplied by each of the argument subforms."
   (expand-bag-constructor-form 'wb-bag args))
 
-(defun expand-bag-constructor-form (type-name args)
+(defmacro wb-custom-bag (type-name &rest args)
+  "Constructs a wb-bag with a custom ordering, according to the supplied
+argument subforms.  Use `define-tree-set-type' to associate `type-name' with
+a comparison function.  Each argument subform can be an expression, whose value
+will be added to the bag with multiplicity 1; or a list of the form
+\($ `expression'\), in which case the expression must evaluate to a bag \(or a
+set\), which is bag-summed into the result; or a list of the form
+\(% `expression1' `expression2'\) (called a \"multi-arg\"), which indicates
+that the value of `expression1' is bag-summed into the result with multiplicity
+given by the value of `expression2'.  That is, the multiplicity of each member
+of the result bag is the sum of its multiplicities as supplied by each of the
+argument subforms."
+  (expand-set-constructor-form 'wb-bag args type-name))
+
+(defun expand-bag-constructor-form (class-name args &optional type-name)
   (let ((normal-args (remove-if #'(lambda (arg) (and (listp arg)
 						     (member (car arg) '($ %))))
 				args))
@@ -272,8 +300,9 @@ multiplicities as supplied by each of the argument subforms."
 				    args))
 	(multi-args (remove-if-not #'(lambda (arg) (and (listp arg) (eq (car arg) '%)))
 				   args))
-	((start (if normal-args `(convert ',type-name (list . ,normal-args))
-		  (empty-instance-form type-name)))))
+	((start (if normal-args `(convert ',class-name (list . ,normal-args)
+					  :type-name ,type-name)
+		  `(,(empty-instance-function class-name) ,type-name)))))
     (labels ((add-splice-args (splice-args result)
 	       (if (null splice-args) result
 		 (if (= (length (car splice-args)) 2)
@@ -281,14 +310,14 @@ multiplicities as supplied by each of the argument subforms."
 			       ,(add-splice-args (cdr splice-args) result))
 		   (error "A splice-arg to the `~S' macro must be of the form~@
 			   ($ <sub-bag>) -- not ~S"
-			  type-name (car splice-args)))))
+			  class-name (car splice-args)))))
 	     (add-multi-args (multi-args result)
 	       (if (null multi-args) result
 		 (let ((m-arg (car multi-args)))
 		   (unless (and (listp m-arg) (= (length m-arg) 3))
 		     (error "A multi-arg to the `~S' macro must be of the form~@
 			     (% <element> <count>) -- not ~S"
-			    type-name m-arg))
+			    class-name m-arg))
 		 `(with ,(add-multi-args (cdr multi-args) result)
 			,(second m-arg) ,(third m-arg))))))
       (add-multi-args multi-args
@@ -337,9 +366,9 @@ than one argument subform, its associated value will be given by the rightmost
 such subform."
   (expand-map-constructor-form 'ch-map args))
 
-(defun expand-map-constructor-form (type-name args)
+(defun expand-map-constructor-form (class-name args)
   (let ((default (cadr (member ':default args)))
-	((empty-form (empty-map-instance-form type-name default))))
+	((empty-form `(,(empty-instance-function class-name default)))))
     (labels ((recur (args result)
 	       (cond ((null args) result)
 		     ((eq (car args) ':default)
@@ -348,7 +377,7 @@ such subform."
 				(= (length (car args)) 2)))
 		      (error "Arguments to ~S must all be pairs expressed as 2-element~@
 			      lists, or ($ x) subforms -- not ~S"
-			     type-name (car args)))
+			     class-name (car args)))
 		     ((eq (caar args) '$)
 		      (if (eq result empty-form)
 			  (recur (cdr args) (cadar args))
@@ -421,7 +450,7 @@ order of the result sequence reflects the order of the argument subforms."
 	     (cond ((null args)
 		    (if nonsplice-args
 			`(convert ',type-name (list . ,(cl:reverse nonsplice-args)))
-		      (empty-instance-form type-name)))
+		      `(,(empty-instance-function type-name))))
 		   ((and (listp (car args))
 			 (eq (caar args) '$))
 		    (unless (= (length (car args)) 2)
