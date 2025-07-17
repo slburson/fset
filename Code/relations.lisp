@@ -69,7 +69,7 @@ constructed."
 
 (defmethod contains? ((br wb-2-relation) x &optional (y nil y?))
   (check-three-arguments y? 'contains? 'wb-2-relation)
-  (let ((found? set-tree (WB-Map-Tree-Lookup (wb-2-relation-map0 br) x)))
+  (let ((found? set-tree (WB-Map-Tree-Lookup (wb-2-relation-map0 br) x #'compare)))
     (and found? (WB-Set-Tree-Member? set-tree y #'compare))))
 
 ;;; &&& Aaagh -- not sure this makes sense -- (setf (lookup rel x) ...) doesn't do
@@ -80,7 +80,7 @@ constructed."
 ;;; make sense on a relation, any more than it does on a set.
 (defmethod lookup ((br wb-2-relation) x)
   "Returns the set of values that the relation pairs `x' with."
-  (let ((found? set-tree (WB-Map-Tree-Lookup (wb-2-relation-map0 br) x)))
+  (let ((found? set-tree (WB-Map-Tree-Lookup (wb-2-relation-map0 br) x #'compare)))
     (if found? (make-wb-set set-tree)
       *empty-wb-set*)))
 
@@ -89,7 +89,7 @@ constructed."
 
 (defmethod lookup-inv ((br wb-2-relation) y)
   (get-inverse br)
-  (let ((found? set-tree (WB-Map-Tree-Lookup (wb-2-relation-map1 br) y)))
+  (let ((found? set-tree (WB-Map-Tree-Lookup (wb-2-relation-map1 br) y #'compare)))
     (if found? (make-wb-set set-tree)
       *empty-wb-set*)))
 
@@ -116,9 +116,9 @@ constructed."
     (when (and m0 (null m1))
       (Do-WB-Map-Tree-Pairs (x s m0)
 	(Do-WB-Set-Tree-Members (y s)
-	  (let ((ignore prev (WB-Map-Tree-Lookup m1 y)))
+	  (let ((ignore prev (WB-Map-Tree-Lookup m1 y #'compare)))
 	    (declare (ignore ignore))
-	    (setq m1 (WB-Map-Tree-With m1 y (WB-Set-Tree-With prev x #'compare) #'compare)))))
+	    (setq m1 (WB-Map-Tree-With m1 y (WB-Set-Tree-With prev x #'compare) #'compare #'compare)))))
       ;;; Look Ma, no locking!  Assuming the write is atomic.  -- Actually, we're assuming a little
       ;;; more than that: we're assuming other threads will see a fully initialized map object if
       ;;; they read the slot shortly after we write it.  Some kind of memory barrier is &&& needed.
@@ -154,31 +154,33 @@ constructed."
   ;; Try to provide a little support for the cons representation of pairs.
   (unless y?
     (setq y (cdr x) x (car x)))
-  (let ((found? set-tree (WB-Map-Tree-Lookup (wb-2-relation-map0 br) x))
+  (let ((found? set-tree (WB-Map-Tree-Lookup (wb-2-relation-map0 br) x #'compare))
 	(map1 (wb-2-relation-map1 br)))
     (if found?
 	(let ((new-set-tree (WB-Set-Tree-With set-tree y #'compare)))
 	  (if (eq new-set-tree set-tree)
 	      br			; `y' was already there
 	    (make-wb-2-relation (1+ (wb-2-relation-size br))
-				(WB-Map-Tree-With (wb-2-relation-map0 br) x new-set-tree #'compare)
+				(WB-Map-Tree-With (wb-2-relation-map0 br) x new-set-tree #'compare #'compare)
 				(and map1
-				     (let ((ignore set-tree-1 (WB-Map-Tree-Lookup map1 y)))
+				     (let ((ignore set-tree-1 (WB-Map-Tree-Lookup map1 y #'compare)))
 				       (declare (ignore ignore))
 				       (WB-Map-Tree-With map1 y (WB-Set-Tree-With set-tree-1 x #'compare)
-							 #'compare))))))
+							 #'compare #'compare))))))
       (make-wb-2-relation (1+ (wb-2-relation-size br))
-			  (WB-Map-Tree-With (wb-2-relation-map0 br) x (WB-Set-Tree-With nil y #'compare) #'compare)
+			  (WB-Map-Tree-With (wb-2-relation-map0 br) x (WB-Set-Tree-With nil y #'compare)
+					    #'compare #'compare)
 			  (and map1
-			       (let ((ignore set-tree-1 (WB-Map-Tree-Lookup map1 y)))
+			       (let ((ignore set-tree-1 (WB-Map-Tree-Lookup map1 y #'compare)))
 				 (declare (ignore ignore))
-				 (WB-Map-Tree-With map1 y (WB-Set-Tree-With set-tree-1 x #'compare) #'compare)))))))
+				 (WB-Map-Tree-With map1 y (WB-Set-Tree-With set-tree-1 x #'compare)
+						   #'compare #'compare)))))))
 
 (defmethod less ((br wb-2-relation) x &optional (y nil y?))
   ;; Try to provide a little support for the cons representation of pairs.
   (unless y?
     (setq y (cdr x) x (car x)))
-  (let ((found? set-tree (WB-Map-Tree-Lookup (wb-2-relation-map0 br) x))
+  (let ((found? set-tree (WB-Map-Tree-Lookup (wb-2-relation-map0 br) x #'compare))
 	(map1 (wb-2-relation-map1 br)))
     (if (not found?)
 	br
@@ -187,15 +189,15 @@ constructed."
 	    br
 	  (make-wb-2-relation (1- (wb-2-relation-size br))
 			      (if new-set-tree
-				  (WB-Map-Tree-With (wb-2-relation-map0 br) x new-set-tree #'compare)
+				  (WB-Map-Tree-With (wb-2-relation-map0 br) x new-set-tree #'compare #'compare)
 				(WB-Map-Tree-Less (wb-2-relation-map0 br) x #'compare))
 			      (and map1
 				   (let ((ignore set-tree
-					   (WB-Map-Tree-Lookup map1 y))
+					   (WB-Map-Tree-Lookup map1 y #'compare))
 					 ((new-set-tree (WB-Set-Tree-Less set-tree x #'compare))))
 				     (declare (ignore ignore))
 				     (if new-set-tree
-					 (WB-Map-Tree-With map1 y new-set-tree #'compare)
+					 (WB-Map-Tree-With map1 y new-set-tree #'compare #'compare)
 				       (WB-Map-Tree-Less map1 y #'compare))))))))))
 
 (defmethod union ((br1 wb-2-relation) (br2 wb-2-relation) &key)
@@ -206,14 +208,14 @@ constructed."
 					  (decf new-size
 						(- (+ (WB-Set-Tree-Size s1) (WB-Set-Tree-Size s2))
 						   (WB-Set-Tree-Size s)))
-					  s))))
+					  s))
+				      #'compare))
 	 (new-map1 (and (or (wb-2-relation-map1 br1) (wb-2-relation-map1 br2))
 			(progn
 			  (get-inverse br1)
 			  (get-inverse br2)
-			  (WB-Map-Tree-Union (wb-2-relation-map1 br1)
-					     (wb-2-relation-map1 br2)
-					     (fn (a b) (WB-Set-Tree-Union a b #'compare))))))))
+			  (WB-Map-Tree-Union (wb-2-relation-map1 br1) (wb-2-relation-map1 br2)
+					     (fn (a b) (WB-Set-Tree-Union a b #'compare)) #'compare))))))
     (make-wb-2-relation new-size new-map0 new-map1)))
 
 (defmethod intersection ((br1 wb-2-relation) (br2 wb-2-relation) &key)
@@ -223,16 +225,17 @@ constructed."
 					  (lambda (s1 s2)
 					    (let ((s (WB-Set-Tree-Intersect s1 s2 #'compare)))
 					      (incf new-size (WB-Set-Tree-Size s))
-					      (values s (and (null s) ':no-value))))))
+					      (values s (and (null s) ':no-value))))
+					  #'compare))
 	 (new-map1 (and (or (wb-2-relation-map1 br1) (wb-2-relation-map1 br2))
 			(progn
 			  (get-inverse br1)
 			  (get-inverse br2)
-			  (WB-Map-Tree-Intersect (wb-2-relation-map1 br1)
-						 (wb-2-relation-map1 br2)
+			  (WB-Map-Tree-Intersect (wb-2-relation-map1 br1) (wb-2-relation-map1 br2)
 						 (lambda (s1 s2)
 						   (let ((s (WB-Set-Tree-Intersect s1 s2 #'compare)))
-						     (values s (and (null s) ':no-value))))))))))
+						     (values s (and (null s) ':no-value))))
+						 #'compare))))))
     (make-wb-2-relation new-size new-map0 new-map1)))
 
 (defgeneric join (relation-a column-a relation-b column-b)
@@ -258,14 +261,14 @@ constructed."
 	(new-size 0))
     (Do-WB-Map-Tree-Pairs (x ys map0a)
       (Do-WB-Set-Tree-Members (y ys)
-	(let ((ignore s (WB-Map-Tree-Lookup map0b y)))
+	(let ((ignore s (WB-Map-Tree-Lookup map0b y #'compare)))
 	  (declare (ignore ignore))
 	  (when s
-	    (let ((ignore prev (WB-Map-Tree-Lookup new-map0 x))
+	    (let ((ignore prev (WB-Map-Tree-Lookup new-map0 x #'compare))
 		  ((new (WB-Set-Tree-Union prev s #'compare))))
 	      (declare (ignore ignore))
 	      (incf new-size (- (WB-Set-Tree-Size new) (WB-Set-Tree-Size prev)))
-	      (setq new-map0 (WB-Map-Tree-With new-map0 x new #'compare)))))))
+	      (setq new-map0 (WB-Map-Tree-With new-map0 x new #'compare #'compare)))))))
     (when (or map1a map1b)
       (when (null map1b)
 	(setq map1b (get-inverse brb)))
@@ -273,13 +276,13 @@ constructed."
 	(setq map1a (get-inverse bra)))
       (Do-WB-Map-Tree-Pairs (x ys map1b)
 	(Do-WB-Set-Tree-Members (y ys)
-	  (let ((ignore s (WB-Map-Tree-Lookup map1a y)))
+	  (let ((ignore s (WB-Map-Tree-Lookup map1a y #'compare)))
 	    (declare (ignore ignore))
 	    (when s
-	      (let ((ignore prev (WB-Map-Tree-Lookup new-map1 x)))
+	      (let ((ignore prev (WB-Map-Tree-Lookup new-map1 x #'compare)))
 		(declare (ignore ignore))
 		(setq new-map1
-		      (WB-Map-Tree-With new-map1 x (WB-Set-Tree-Union prev s #'compare) #'compare))))))))
+		      (WB-Map-Tree-With new-map1 x (WB-Set-Tree-Union prev s #'compare) #'compare #'compare))))))))
     (make-wb-2-relation new-size new-map0 new-map1)))
 
 
@@ -307,7 +310,7 @@ constructed."
 			       (setq result (WB-Set-Tree-With result (@ fn y) #'compare)))
 			     (incf new-size (WB-Set-Tree-Size result))
 			     (values x result)))
-			(:arg wb-map (make-wb-map (wb-2-relation-map0 rel)))))))
+			(:arg wb-map (make-wb-map (wb-2-relation-map0 rel) +fset-default-tree-map-type+ nil))))))
     (make-wb-2-relation new-size
 			(wb-map-contents new-map0)
 			nil)))
@@ -399,12 +402,12 @@ with the corresponding range element directly."
     (dolist (pr alist)
       (let ((k (funcall key-fn pr))
 	    (v (funcall value-fn pr))
-	    ((found? prev (WB-Map-Tree-Lookup m0 k))
+	    ((found? prev (WB-Map-Tree-Lookup m0 k #'compare))
 	     ((new (WB-Set-Tree-With prev v #'compare)))))
 	(declare (ignore found?))
 	(when (> (WB-Set-Tree-Size new) (WB-Set-Tree-Size prev))
 	  (incf size)
-	  (setq m0 (WB-Map-Tree-With m0 k new #'compare)))))
+	  (setq m0 (WB-Map-Tree-With m0 k new #'compare #'compare)))))
     (make-wb-2-relation size m0 nil)))
 
 (defmethod convert ((to-type (eql '2-relation))
@@ -412,8 +415,7 @@ with the corresponding range element directly."
 		    &key key-fn (value-fn #'identity))
   (convert 'wb-2-relation s :key-fn key-fn :value-fn value-fn))
 
-(defmethod convert ((to-type (eql 'wb-2-relation))
-		    (s seq)
+(defmethod convert ((to-type (eql 'wb-2-relation)) (s seq)
 		    &key key-fn (value-fn #'identity))
   (let ((m0 nil)
 	(size 0)
@@ -422,12 +424,12 @@ with the corresponding range element directly."
     (do-seq (row s)
       (let ((k (funcall key-fn row))
 	    (v (funcall value-fn row))
-	    ((found? prev (WB-Map-Tree-Lookup m0 k))
+	    ((found? prev (WB-Map-Tree-Lookup m0 k #'compare))
 	     ((new (WB-Set-Tree-With prev v #'compare)))))
 	(declare (ignore found?))
 	(when (> (WB-Set-Tree-Size new) (WB-Set-Tree-Size prev))
 	  (incf size)
-	  (setq m0 (WB-Map-Tree-With m0 k new #'compare)))))
+	  (setq m0 (WB-Map-Tree-With m0 k new #'compare #'compare)))))
     (make-wb-2-relation size m0 nil)))
 
 (defmethod convert ((to-type (eql 'map)) (br wb-2-relation) &key)
@@ -450,13 +452,14 @@ domain value to that range value."
       (let ((sz (WB-Set-Tree-Size s)))
 	(unless (= 1 sz)
 	  (error "2-relation maps ~A to ~D values" x sz))
-	(setq m (WB-Map-Tree-With m x (WB-Set-Tree-Arb s) #'compare))))
-    (make-wb-map m)))
+	(setq m (WB-Map-Tree-With m x (WB-Set-Tree-Arb s) #'compare #'compare))))
+    (make-wb-map m +fset-default-tree-map-type+ nil)))
 
 (defmethod convert ((to-type (eql 'map-to-sets)) (br wb-2-relation) &key)
   "This conversion returns a map mapping each domain value to the set of
 corresponding range values."
-  (make-wb-map (WB-Map-Tree-Compose (wb-2-relation-map0 br) #'make-wb-set)))
+  (make-wb-map (WB-Map-Tree-Compose (wb-2-relation-map0 br) #'make-wb-set)
+	       +fset-default-tree-map-type+ nil))
 
 (defgeneric conflicts (2-relation)
   (:documentation
@@ -468,7 +471,7 @@ is mapped to multiple range values."))
 	(size 0))
     (Do-WB-Map-Tree-Pairs (x s (wb-2-relation-map0 br))
       (when (> (WB-Set-Tree-Size s) 1)
-	(setq m0 (WB-Map-Tree-With m0 x s #'compare))
+	(setq m0 (WB-Map-Tree-With m0 x s #'compare #'compare))
 	(incf size (WB-Set-Tree-Size s))))
     (make-wb-2-relation size m0 nil)))
 

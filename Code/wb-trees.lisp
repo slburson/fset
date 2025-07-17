@@ -1562,8 +1562,8 @@ to those members above `lo' and below `hi'."
   ;; we're going to have a function call for every invocation of the body anyway?
   ;; First, this local call is faster, or should be, than a general funcall; and
   ;; second, some compilers may decide to inline `body-fn' if the body is small.
-  (let ((body-fn (gensym "BODY-"))
-	(recur-fn (gensym "RECUR-")))
+  (let ((body-fn (gensymx #:body-))
+	(recur-fn (gensymx #:recur-)))
     `(block nil
        (labels ((,body-fn (,var) . ,body)
 		(,recur-fn (tree)
@@ -2481,13 +2481,13 @@ of `tree1' and `tree2' are in this range."
 
 
 (defun WB-Bag-Tree-Diff (tree1 tree2 cmp-fn)
-  "Returns the set difference of `tree1' less `tree2'.  Runs in time linear in
+  "Returns the bag difference of `tree1' less `tree2'.  Runs in time linear in
 the total sizes of the two trees."
   (and (not (eq tree1 tree2))
        (WB-Bag-Tree-Diff-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn)))
 
 (defun WB-Bag-Tree-Diff-Rng (tree1 tree2 lo hi cmp-fn)
-  "Returns the set difference of `tree1' less `tree2', considering only those
+  "Returns the bag difference of `tree1' less `tree2', considering only those
 members that are above `lo' and below `hi', and assuming that the root values
 of `tree1' and `tree2' are in this range."
   (declare (optimize (speed 3) (safety 0))
@@ -3496,8 +3496,8 @@ removed."
 				&body body)
   "Iterates over the pairs of the bag, for each one binding `val-var' to the
 value and `count-var' to its member count."
-  (let ((body-fn (gensym "BODY-"))
-	(recur-fn (gensym "RECUR-")))
+  (let ((body-fn (gensymx #:body-))
+	(recur-fn (gensymx #:recur-)))
     `(block nil
        (labels ((,body-fn (,val-var ,count-var)
 		   (declare (type integer ,count-var))
@@ -4285,7 +4285,7 @@ arbitrary greatest key and its value if there are more than one."
 ;;; ================================================================================
 ;;; Lookup
 
-(defun WB-Map-Tree-Lookup (tree key &optional (key-cmp-fn #'compare))
+(defun WB-Map-Tree-Lookup (tree key key-cmp-fn)
   "If `tree' contains a pair whose key is `key', returns two values, true and
 the associated value; otherwise `nil'."
   (declare (optimize (speed 3) (safety 0))
@@ -4340,7 +4340,7 @@ key, the corresponding value; otherwise `nil'."
 ;;; This could almost just call `WB-Map-Tree-Update', except that it has to handle the case
 ;;; where `key' is an `Equivalent-Node', which can be generated internally by `WB-Map-Tree-Split'
 ;;; via `WB-Map-Tree-Concat'.
-(defun WB-Map-Tree-With (tree key value &optional (key-cmp-fn #'compare) (val-cmp-fn #'compare))
+(defun WB-Map-Tree-With (tree key value key-cmp-fn val-cmp-fn)
   "Returns a new tree like `tree' but with the pair < `key', `value' > added,
 shadowing any previous pair with the same key."
   (declare (optimize (speed 3) (safety 0))
@@ -4416,7 +4416,7 @@ shadowing any previous pair with the same key."
 
 ;;; Untested and currently unused, but not a bad idea.
 (defun WB-Map-Tree-Update (tree key value-fn default
-			   &optional (key-cmp-fn #'compare) (val-cmp-fn #'compare))
+   			   &optional (key-cmp-fn #'compare) (val-cmp-fn #'compare))
   "Returns a new tree like `tree', except that the value associated with `key'
 is the result of calling `value-fn' on either the existing such value, if any,
 or else `default'."
@@ -4476,7 +4476,7 @@ or else `default'."
 ;;; ================================================================================
 ;;; Map-less
 
-(defun WB-Map-Tree-Less (tree key &optional (key-cmp-fn #'compare))
+(defun WB-Map-Tree-Less (tree key key-cmp-fn)
   "Returns a new tree like `tree', but with any entry for `key' removed."
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Map-Tree tree)
@@ -4575,7 +4575,7 @@ pair removed."
 ;;; ================================================================================
 ;;; Union, intersection, and map difference
 
-(defun WB-Map-Tree-Union (tree1 tree2 val-fn &optional (key-cmp-fn #'compare))
+(defun WB-Map-Tree-Union (tree1 tree2 val-fn key-cmp-fn)
   (WB-Map-Tree-Union-Rng tree1 tree2 val-fn Hedge-Negative-Infinity Hedge-Positive-Infinity key-cmp-fn))
 
 (defun WB-Map-Tree-Union-Rng (tree1 tree2 val-fn lo hi key-cmp-fn)
@@ -4622,7 +4622,7 @@ pair removed."
 				    val-fn key1 hi key-cmp-fn)
 	     key-cmp-fn)))))
 
-(defun WB-Map-Tree-Intersect (tree1 tree2 val-fn &optional (key-cmp-fn #'compare))
+(defun WB-Map-Tree-Intersect (tree1 tree2 val-fn key-cmp-fn)
   (WB-Map-Tree-Intersect-Rng tree1 tree2 val-fn Hedge-Negative-Infinity Hedge-Positive-Infinity key-cmp-fn))
 
 (defun WB-Map-Tree-Intersect-Rng (tree1 tree2 val-fn lo hi key-cmp-fn)
@@ -4668,7 +4668,7 @@ pair removed."
 				     key-cmp-fn)))))
 
 
-(defun WB-Map-Tree-Diff-2 (tree1 tree2 &optional (key-cmp-fn #'compare) (val-cmp-fn #'compare))
+(defun WB-Map-Tree-Diff-2 (tree1 tree2 key-cmp-fn val-cmp-fn)
   "Returns two values: one containing the pairs that are in `tree1' but not
 `tree2', and the other containing the pairs that are in `tree2' but not
 `tree1'."
@@ -4832,7 +4832,7 @@ pair removed."
 ;;; ================================================================================
 ;;; Compare
 
-(defun WB-Map-Tree-Compare (tree1 tree2 &optional (key-cmp-fn #'compare) (val-cmp-fn #'compare))
+(defun WB-Map-Tree-Compare (tree1 tree2 key-cmp-fn val-cmp-fn)
   (if (eq tree1 tree2) ':equal
     (let ((size1 (WB-Map-Tree-Size tree1))
 	  (size2 (WB-Map-Tree-Size tree2)))
@@ -4922,7 +4922,7 @@ pair removed."
 			       (+ node-rank (Map-Key-Size (WB-Map-Tree-Node-Key tree)))
 			       lo hi)))))
 
-(defun WB-Map-Tree-Rank (tree key &optional (key-cmp-fn #'compare))
+(defun WB-Map-Tree-Rank (tree key key-cmp-fn)
   "Searches a map tree `tree' for `key'.  Returns two values, a boolean and an
 index.  If `key', or a value equivalent to `key', is in `tree', the boolean
 is true, and the index is the rank of the value; otherwise, the boolean is false
@@ -4992,14 +4992,14 @@ between equal trees."
 ;;; ================================================================================
 ;;; Miscellany
 
-(defun WB-Map-Tree-From-List (lst key-fn value-fn &optional (key-cmp-fn #'compare) (val-cmp-fn #'compare))
+(defun WB-Map-Tree-From-List (lst key-fn value-fn key-cmp-fn val-cmp-fn)
   (declare (type function key-fn value-fn))
   (let ((tree nil))
     (dolist (pr lst)
       (setq tree (WB-Map-Tree-With tree (funcall key-fn pr) (funcall value-fn pr) key-cmp-fn val-cmp-fn)))
     tree))
 
-(defun WB-Map-Tree-From-Iterable (it key-fn value-fn &optional (key-cmp-fn #'compare) (val-cmp-fn #'compare))
+(defun WB-Map-Tree-From-Iterable (it key-fn value-fn key-cmp-fn val-cmp-fn)
   (declare (type function it key-fn value-fn))
   (let ((tree nil))
     (while (funcall it ':more?)
@@ -5008,8 +5008,7 @@ between equal trees."
     tree))
 
 ;;; See `WB-Set-Tree-From-Sorted-Iterable'.
-(defun WB-Map-Tree-From-Sorted-Iterable (it len key-fn value-fn
-					 &optional (key-cmp-fn #'compare) (val-cmp-fn #'compare))
+(defun WB-Map-Tree-From-Sorted-Iterable (it len key-fn value-fn key-cmp-fn val-cmp-fn)
   (declare (optimize (speed 3) (safety 0))
 	   (type function it key-fn value-fn key-cmp-fn))
   (labels ((recur (n)
@@ -5566,8 +5565,8 @@ between equal trees."
 (defmacro Do-WB-Map-Tree-Pairs ((key-var value-var tree-form &optional value-form)
 				&body body)
   ;; See comment at `Do-WB-Set-Tree-Members'.
-  (let ((body-fn (gensym "BODY-"))
-	(recur-fn (gensym "RECUR-")))
+  (let ((body-fn (gensymx #:body-))
+	(recur-fn (gensymx #:recur-)))
     `(block nil
        (labels ((,body-fn (,key-var ,value-var)
 		  . ,body)
@@ -5588,7 +5587,6 @@ between equal trees."
 			(,recur-fn (WB-Map-Tree-Node-Right tree)))))))
 	 (,recur-fn ,tree-form))
        ,value-form)))
-
 
 (defun WB-Map-Tree-Compose (tree fn)
   (and tree
@@ -6596,11 +6594,55 @@ the result, inserts `val', returning the new vector."
 			     (build (WB-Seq-Tree-Node-Right tree) result))))))
       (build tree nil))))
 
+(defun WB-Seq-Tree-From-Iterable (it len)
+  ;; (declare (optimize (speed 3) (safety 0)))
+  (and (> len 0)
+       (let ((npieces (ceiling len *WB-Tree-Max-Vector-Length*))
+	     ((piece-len remainder (floor len npieces))
+	      ((tmp-piece (make-array (1+ piece-len))))))
+	 (declare (type fixnum npieces piece-len remainder))
+	 (do ((ipiece 0 (1+ ipiece))
+	      (stack nil))
+	     ((= ipiece npieces)
+	      (do () ((null (cdr stack)))
+		(let ((right (pop stack))
+		      (left (pop stack)))
+		  (push (Make-WB-Seq-Tree-Node left right) stack)))
+	      (car stack))
+	   (declare (type fixnum ipiece))
+	   (let ((piece-len (if (< ipiece remainder) (1+ piece-len) piece-len)))
+	     (dotimes (i piece-len)
+	       (setf (svref tmp-piece i) (funcall it ':get)))
+	     (let (((piece (cond ((gmap (:result and) (fn (x _y) (typep x 'base-char))
+					(:arg simple-vector tmp-piece)
+					(:arg index 0 piece-len))
+				  (let ((str (make-string piece-len :element-type 'base-char)))
+				    (dotimes (i piece-len)
+				      (setf (schar str i) (svref tmp-piece i)))
+				    str))
+				 #+FSet-Ext-Strings
+				 ((gmap (:result and) (fn (x _y) (typep x 'character))
+					(:arg simple-vector tmp-piece)
+					(:arg index 0 piece-len))
+				  (let ((str (make-string piece-len :element-type 'character)))
+				    (dotimes (i piece-len)
+				      (setf (char str i) (svref tmp-piece i)))
+				    str))
+				 (t
+				  (subseq tmp-piece 0 piece-len))))))
+	       (push piece stack)
+	       (do ((i ipiece (ash i -1)))
+		   ((evenp i))
+		 (declare (type fixnum i))
+		 (let ((right (pop stack))
+		       (left (pop stack)))
+		   (push (Make-WB-Seq-Tree-Node left right) stack)))))))))
+
 
 ;;; ================================================================================
 ;;; Compare
 
-(defun WB-Seq-Tree-Compare (tree1 tree2 &optional (cmp-fn #'compare))
+(defun WB-Seq-Tree-Compare (tree1 tree2 cmp-fn)
   (if (eq tree1 tree2) ':equal
     (let ((size1 (WB-Seq-Tree-Size tree1))
 	  (size2 (WB-Seq-Tree-Size tree2)))
@@ -6608,7 +6650,7 @@ the result, inserts `val', returning the new vector."
 	    ((> size1 size2) ':greater)
 	    (t (WB-Seq-Tree-Compare-Rng tree1 0 tree2 0 0 size1 cmp-fn))))))
 
-(defun WB-Seq-Tree-Compare-Lexicographically (tree1 tree2 &optional (cmp-fn #'compare))
+(defun WB-Seq-Tree-Compare-Lexicographically (tree1 tree2 cmp-fn)
   (let ((size1 (WB-Seq-Tree-Size tree1))
 	(size2 (WB-Seq-Tree-Size tree2)))
     (let ((comp (WB-Seq-Tree-Compare-Rng tree1 0 tree2 0 0 (min size1 size2) cmp-fn)))
@@ -6787,8 +6829,8 @@ the result, inserts `val', returning the new vector."
   ;; we're going to have a function call for every invocation of the body anyway?
   ;; First, this local call is faster, or should be, than a general funcall; and
   ;; second, some compilers may decide to inline `body-fn' if the body is small.
-  (let ((body-fn (gensym "BODY-"))
-	(recur-fn (gensym "RECUR-")))
+  (let ((body-fn (gensymx #:body-))
+	(recur-fn (gensymx #:recur-)))
     `(block nil
        (labels ((,body-fn (,var) . ,body)
 		(,recur-fn (tree)
@@ -6808,11 +6850,11 @@ the result, inserts `val', returning the new vector."
 (defmacro Do-WB-Seq-Tree-Members-Gen ((var tree-form start-form end-form from-end-form
 				       &optional value-form)
 				      &body body)
-  (let ((body-fn (gensym "BODY-"))
-	(recur-fn (gensym "RECUR-"))
-	(start-var (gensym "START-"))
-	(end-var (gensym "END-"))
-	(from-end-var (gensym "FROM-END-")))
+  (let ((body-fn (gensymx #:body-))
+	(recur-fn (gensymx #:recur-))
+	(start-var (gensymx #:start-))
+	(end-var (gensymx #:end-))
+	(from-end-var (gensymx #:from-end-)))
     `(block nil		; for `return' inside `body'
        (let ((,start-var ,start-form)
 	     (,end-var ,end-form)

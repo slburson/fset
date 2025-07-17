@@ -11,6 +11,26 @@
 
 
 ;;; ================================================================================
+;;; Miscellany
+
+;;; A small notational convenience.  I want to give `gensym' an uninterned symbol (in a
+;;; possibly futile effort to write case-mode-generic code), but it's not specified to
+;;; call `string' on a symbol argument.
+(defmacro gensymx (arg)
+  `(gensym (string ',arg)))
+
+(defmacro postincf (place &optional (delta 1) &environment env)
+  (let ((vars vals store-vars setter getter (get-setf-expansion place env))
+	(tmp (gensymx #:tmp-)))
+    `(let* (,@(mapcar #'list vars vals)
+	    (,(car store-vars) ,getter)
+	    (,tmp ,(car store-vars)))
+       (incf ,(car store-vars) ,delta)
+       ,setter
+       ,tmp)))
+
+
+;;; ================================================================================
 ;;; Macros related to order.lisp
 
 ;;; Makes it easy to define `compare' methods on new classes.  Just say:
@@ -43,10 +63,10 @@ example, if class `frob' has accessor `frob-foo' and slot `bar':
 If the symbol `:eql' is supplied as the last accessor, then if the comparisons
 by the other supplied accessors all return `:equal' but `obj1' and `obj2' are
 not eql, this returns `:unequal'."
-  (let ((default-var (gensym "DEFAULT-"))
-	(comp-var (gensym "COMP-"))
-	(obj1-var (gensym "OBJ1-"))
-	(obj2-var (gensym "OBJ2-")))
+  (let ((default-var (gensymx #:default-))
+	(comp-var (gensymx #:comp-))
+	(obj1-var (gensymx #:obj1-))
+	(obj2-var (gensymx #:obj2-)))
     (labels ((rec (accs)
 	       (if (or (null accs)
 		       (and (eq (car accs) ':eql)
@@ -104,9 +124,9 @@ example, if your objects have an `id' slot that holds a unique integer:
 
   (defmethod compare ((f1 frob) (f2 frob))
     (compare-slots-no-unequal f1 f2 (:compare 'id #'<))"
-  (let ((comp-var (gensym "COMP-"))
-	(obj1-var (gensym "OBJ1-"))
-	(obj2-var (gensym "OBJ2-")))
+  (let ((comp-var (gensymx #:comp-))
+	(obj1-var (gensymx #:obj1-))
+	(obj2-var (gensymx #:obj2-)))
     (labels ((rec (accs)
 	       (if (null accs)
 		   ':equal
@@ -118,8 +138,8 @@ example, if your objects have an `id' slot that holds a unique integer:
 			,(rec (cdr accs)))))))
 	     (comp (acc)
 	       (if (and (listp acc) (eq (car acc) ':compare))
-		   (let ((accval1-var (gensym "ACCVAL1-"))
-			 (accval2-var (gensym "ACCVAL2-")))
+		   (let ((accval1-var (gensymx #:accval1-))
+			 (accval2-var (gensymx #:accval2-)))
 		     `(let ((,accval1-var ,(call (second acc) obj1-var))
 			    (,accval2-var ,(call (second acc) obj2-var)))
 			(if ,(call (third acc) accval1-var accval2-var)
@@ -250,7 +270,7 @@ If you're using `define-class' from Misc-Extensions, you can just say:
 (defmacro hash-slots (obj &rest slots/accessors)
   (unless slots/accessors
     (error "At least one slot/accessor must be supplied"))
-  (let ((x-var (gensym "X-")))
+  (let ((x-var (gensymx #:x-)))
     (rlabels `(let ((,x-var ,obj))
 		,(rec `(hash-value ,(call (car slots/accessors) x-var)) (cdr slots/accessors)))
       (rec (value accs)
@@ -281,6 +301,9 @@ If you're using `define-class' from Misc-Extensions, you can just say:
 
 ;;; ================================================================================
 ;;; Macros related to fset.lisp
+
+;;; --------------------------------
+;;; Modify macros
 
 ;;; `adjoinf' / `removef', which don't form a good pair, are now deprecated
 ;;; in favor of `includef' / `excludef'.
@@ -379,6 +402,30 @@ If you're using `define-class' from Misc-Extensions, you can just say:
   (concat seq2 seq1))
 
 
+;;; --------------------------------
+;;; SETF expanders and `@'
+
+(define-setf-expander lookup (collection key &environment env)
+  "Adds a pair to a map or updates an existing pair, or adds an element to a
+sequence or updates an existing element.  This does NOT modify the map or
+sequence; it modifies the place (generalized variable) HOLDING the map or
+sequence (just like `(setf (ldb ...) ...)').  That is, the `collection' subform
+must be `setf'able itself."
+  (let ((temps vals stores store-form access-form
+	  (get-setf-expansion collection env))
+	(key-temp (gensymx #:key-))
+	(val-temp (gensymx #:val-))
+	((coll-temp (car stores))))
+    (when (cdr stores)
+      (error "Too many values required in `setf' of `lookup'"))
+    (values (cons key-temp temps)
+	    (cons key vals)
+	    (list val-temp)
+	    `(let ((,coll-temp (with ,access-form ,key-temp ,val-temp)))
+	       ,store-form
+	       ,val-temp)
+	    `(lookup ,access-form ,key-temp))))
+
 (defmacro @ (fn-or-collection &rest args)
   "A little hack with two purposes: (1) to make it easy to make FSet maps
 behave like Lisp functions in certain contexts; and (2) to somewhat lessen the
@@ -393,14 +440,211 @@ side-effect-free functions.  Also, though this doc string has spoken only of
 FSet maps, `@' can be used with any type that `lookup' works on.  Can be used
 with `setf', but only on collections, not functions, of course."
   (if (= (length args) 1)
-      (let ((fn-var (gensym "FN-"))
-	    (arg-var (gensym "ARG-")))
+      (let ((fn-var (gensymx #:fn-))
+	    (arg-var (gensymx #:arg-)))
 	`(let ((,fn-var ,fn-or-collection)
 	       (,arg-var ,(car args)))
 	   (if (functionp ,fn-var)
 	       (funcall ,fn-var ,arg-var)
 	     (lookup ,fn-var ,arg-var))))
     `(funcall ,fn-or-collection . ,args)))
+
+;;; Have to do the same thing for `@', since `setf' would not know what to
+;;; do with its normal expansion.
+(define-setf-expander @ (collection key &environment env)
+  "Adds a pair to a map or updates an existing pair, or adds an element to a
+sequence or updates an existing element.  This does NOT modify the map or
+sequence; it modifies the place (generalized variable) HOLDING the map or
+sequence (just like `(setf (ldb ...) ...)').  That is, the `collection' subform
+must be `setf'able itself."
+  (let ((temps vals stores store-form access-form
+	  (get-setf-expansion collection env))
+	(key-temp (gensymx #:key-))
+	(val-temp (gensymx #:val-))
+	((coll-temp (car stores))))
+    (when (cdr stores)
+      (error "Too many values required in `setf' of `@'"))
+    (values (cons key-temp temps)
+	    (cons key vals)
+	    (list val-temp)
+	    `(let ((,coll-temp (with ,access-form ,key-temp ,val-temp)))
+	       ,store-form
+	       ,val-temp)
+	    `(lookup ,access-form ,key-temp))))
+
+
+;;; --------------------------------
+;;; Collection type definition
+
+(defmacro define-tree-set-type (name compare-fn-name)
+  "Defines the `tree-set-type' named `name' to use the specified comparison
+function \(supplied as a symbol\).  The comparison function must take two
+arguments and return one of { :less, :equal, :greater, :unequal }, and must
+implement a strict weak ordering."
+  (check-type name symbol)
+  (check-type compare-fn-name symbol)
+  `(setf (get ',name 'tree-set-type) ',compare-fn-name))
+
+(defmacro define-hash-set-type (name hash-fn-name compare-fn-name)
+  "Defines the `hash-set-type' named `name' to use the specified hash and
+comparison functions \(specified as symbols\).  The comparison function must
+take two arguments and return one of { :less, :equal, :greater, :unequal },
+and must implement a strict weak ordering.  Also, the two must be mutually
+consistent (two values that compare `:equal' must hash to the same value)."
+  (check-type name symbol)
+  (check-type hash-fn-name symbol)
+  (check-type compare-fn-name symbol)
+  `(setf (get ',name 'hash-set-type)
+	 (list ',hash-fn-name ',compare-fn-name)))
+
+(defmacro define-tree-map-type (name key-compare-fn-name val-compare-fn-name)
+  "Defines the `tree-map-type' named `name' to use the specified key and
+value comparison functions \(specified as symbols\).  Each comparison function
+must take two arguments and return one of { :less, :equal, :greater, :unequal },
+and must implement a strict weak ordering."
+  (check-type name symbol)
+  (check-type key-compare-fn-name symbol)
+  (check-type val-compare-fn-name symbol)
+  `(setf (get ',name 'tree-map-type)
+	 (list ',key-compare-fn-name ',val-compare-fn-name)))
+
+(defmacro define-hash-map-type (name key-hash-fn-name key-compare-fn-name val-hash-fn-name val-compare-fn-name)
+  "Defines the `hash-map-type' named `name' to use the specified key and
+value hash and comparison functions \(specified as symbols\).  Each hash
+function takes one argument and returns an integer \(there is no requirement
+that it be nonnegative or a fixnum\).  Each comparison function must take
+two arguments and return one of { :less, :equal, :greater, :unequal },
+and must implement a strict weak ordering."
+  (check-type name symbol)
+  (check-type key-hash-fn-name symbol)
+  (check-type key-compare-fn-name symbol)
+  (check-type val-hash-fn-name symbol)
+  (check-type val-compare-fn-name symbol)
+  `(setf (get ',name 'hash-map-type)
+	 (list ',key-hash-fn-name ',key-compare-fn-name ',val-hash-fn-name ',val-compare-fn-name)))
+
+
+;;; --------------------------------
+;;; Iteration
+
+(defmacro do-set ((var set &optional value) &body body)
+  "For each member of `set', binds `var' to it and executes `body'.  When done,
+returns `value'."
+  `(block nil		; in case `body' contains `(return ...)'
+     (let ((elt-fn #'(lambda (,var) . ,body))
+	   (value-fn #'(lambda () ,value)))
+       ;; SBCL evidently figures this out without our help, but other implementations may benefit.
+       (declare (dynamic-extent elt-fn value-fn))
+       (internal-do-set ,set elt-fn value-fn))))
+
+
+(defmacro do-bag-pairs ((value-var mult-var bag &optional value)
+			&body body)
+  "For each member of `bag', binds `value-var' and `mult-var' to the member and
+its multiplicity respectively, and executes `body'.  When done, returns `value'."
+  `(block nil
+     (let ((elt-fn #'(lambda (,value-var ,mult-var) . ,body))
+	   (value-fn #'(lambda () ,value)))
+       (declare (dynamic-extent elt-fn value-fn))
+       (internal-do-bag-pairs ,bag elt-fn value-fn))))
+
+(defmacro do-bag ((value-var bag &optional value)
+		  &body body)
+  "For each member of `bag', binds `value-var' to it and and executes `body' a
+number of times equal to the member's multiplicity.  When done, returns `value'."
+  (let ((mult-var (gensymx #:mult-))
+	(idx-var (gensymx #:idx-)))
+    `(block nil
+       (let ((elt-fn #'(lambda (,value-var ,mult-var)
+			  ;; Seems safe to assume it's a fixnum here.
+			  (declare (type fixnum ,mult-var))
+			  (dotimes (,idx-var ,mult-var)
+			    (declare (type fixnum ,idx-var))
+			    . ,body)))
+	     (value-fn #'(lambda () ,value)))
+	 (declare (dynamic-extent elt-fn value-fn))
+	 (internal-do-bag-pairs ,bag elt-fn value-fn)))))
+
+(defmacro do-map ((key-var value-var map &optional value) &body body)
+  "For each pair of `map', binds `key-var' and `value-var' and executes `body'.
+When done, returns `value'."
+  `(block nil
+     (let ((elt-fn #'(lambda (,key-var ,value-var) . ,body))
+	   (value-fn #'(lambda () ,value)))
+       (declare (dynamic-extent elt-fn value-fn))
+       (internal-do-map ,map elt-fn value-fn))))
+
+(defmacro do-map-domain ((key-var map &optional value) &body body)
+  "For each pair of `map', binds `key-var' and executes `body'.  When done,
+returns `value'."
+  (let ((value-var (gensymx #:val-)))
+    `(block nil
+       (let ((elt-fn #'(lambda (,key-var ,value-var)
+			  (declare (ignore ,value-var))
+			  . ,body))
+	     (value-fn #'(lambda () ,value)))
+	 (declare (dynamic-extent elt-fn value-fn))
+	 (internal-do-map ,map elt-fn value-fn)))))
+
+(defmacro do-seq ((var seq
+		   &key (start nil start?) (end nil end?) (from-end? nil from-end??)
+		   (index nil index?) (value nil))
+		  &body body)
+  "For each element of `seq', possibly restricted by `start' and `end', and in
+reverse order if `from-end?' is true, binds `var' to it and executes `body'.
+If `index' is supplied, it names a variable that will be bound at each
+iteration to the index of the current element of `seq'.  When done, returns
+`value'."
+  `(block nil
+     (let ((elt-fn #'(lambda (,var . ,(and index? `(,index))) . ,body))
+	   (value-fn #'(lambda () ,value)))
+       (declare (dynamic-extent elt-fn value-fn))
+       (internal-do-seq ,seq elt-fn value-fn ,index?
+			,@(and start? `(:start ,start))
+			,@(and end? `(:end ,end))
+			,@(and from-end?? `(:from-end? ,from-end?))))))
+
+(defmacro do-elements ((var iterable &optional value) &body body)
+  "Here `iterable' is any object for which there is a method on `iterator', q.v.
+Calls `iterator' on `iterable', passing no keyword arguments, to obtain an
+iterator.  Binds `var' to the successive values returned by the iterator and
+executes `body'.  When done, returns `value'.
+
+\(To pass keyword arguments to the `iterator' call, use `do-iterator'.\)"
+  (let ((it-var (gensymx #:it-)))
+    `(do ((,it-var (iterator ,iterable)))
+	 ((funcall ,it-var ':done?)
+	  ,value)
+       (let ((,var (funcall ,it-var :get)))
+	 . ,body))))
+
+(defmacro do-iterator ((var iter &optional value) &body body)
+  "Here `iter' is any object that conforms to the FSet stateful iterator
+protocol; these are normally constructed by calling `iterator', q.v.
+Binds `var' to the successive values returned by the iterator and executes
+`body'.  When done, returns `value'."
+  (let ((it-var (gensymx #:it-)))
+    `(do ((,it-var ,iter))
+	 ((funcall ,it-var ':done?)
+	  ,value)
+       (let ((,var (funcall ,it-var :get)))
+	 . ,body))))
+
+(defmacro do-pair-iterator ((var-a var-b iter &optional value) &body body)
+  "Here `iter' is any object that conforms to the FSet stateful iterator
+protocol; these are normally constructed by calling `iterator', q.v.
+Binds `var-a' and `var-b' to the successive pairs returned by the iterator
+as two values, and executes `body'.  When done, returns `value'."
+  (let ((it-var (gensymx #:it-)))
+    `(do ((,it-var ,iter))
+	 ((funcall ,it-var ':done?)
+	  ,value)
+       (let ((,var-a ,var-b (funcall ,it-var :get)))
+	 . ,body))))
+
+
+;;; --------------------------------
+;;; For internal use only
 
 (defmacro check-two-arguments (arg2? op type)
   `(when ,arg2?
@@ -413,15 +657,6 @@ with `setf', but only on collections, not functions, of course."
      (error 'simple-program-error
 	    :format-control "~A on a ~A takes three arguments"
 	    :format-arguments (list ,(copy-tree op) ,(copy-tree type)))))
-
-(defmacro define-tree-set-type (name compare-fn-name)
-  "Defines the `tree-set-type' named `name' to use the specified comparison
-function \(supplied as a symbol\).  The comparison function must take two
-arguments and return one of { :less, :equal, :greater, :unequal }, and must
-implement a strict weak ordering."
-  (check-type name symbol)
-  (check-type compare-fn-name symbol)
-  `(setf (get ',name 'tree-set-type) ',compare-fn-name))
 
 (defmacro define-wb-set-methods (name param-list &body body)
   (let ((decls nil)
@@ -479,23 +714,11 @@ implement a strict weak ordering."
 			`(make-wb-custom-set ,contents (wb-custom-set-type ,like-coll))))
 	     . ,body))))))
 
-(defmacro define-hash-set-type (name hash-fn-name compare-fn-name)
-  "Defines the `hash-set-type' named `name' to use the specified hash and
-comparison functions \(specified as symbols\).  The comparison function must
-take two arguments and return one of { :less, :equal, :greater, :unequal },
-and must implement a strict weak ordering.  Also, the two must be mutually
-consistent (two values that compare `:equal' must hash to the same value)."
-  (check-type name symbol)
-  (check-type hash-fn-name symbol)
-  (check-type compare-fn-name symbol)
-  `(setf (get ',name 'hash-set-type)
-	 (list ',hash-fn-name ',compare-fn-name)))
-
 (defmacro if-same-ch-set-types ((s1 s2 hst-var) then else)
-  (let ((s1-var (gensym "S1-"))
-	(s2-var (gensym "S2-"))
-	(hst1-var (gensym "HST1-"))
-	(hst2-var (gensym "HST2-")))
+  (let ((s1-var (gensymx #:s1-))
+	(s2-var (gensymx #:s2-))
+	(hst1-var (gensymx #:hst1-))
+	(hst2-var (gensymx #:hst2-)))
     `(let ((,s1-var ,s1)
 	   (,s2-var ,s2)
 	   ((,hst1-var (ch-set-type ,s1-var))
@@ -508,10 +731,10 @@ consistent (two values that compare `:equal' must hash to the same value)."
 	 ,else))))
 
 (defmacro if-same-wb-bag-types ((b1 b2 tst-var) then else)
-  (let ((b1-var (gensym "B1-"))
-	(b2-var (gensym "B2-"))
-	(tst1-var (gensym "TST1-"))
-	(tst2-var (gensym "TST2-")))
+  (let ((b1-var (gensymx #:b1-))
+	(b2-var (gensymx #:b2-))
+	(tst1-var (gensymx #:tst1-))
+	(tst2-var (gensymx #:tst2-)))
     `(let ((,b1-var ,b1)
 	   (,b2-var ,b2)
 	   ((,tst1-var (wb-bag-type ,b1-var))
@@ -522,86 +745,19 @@ consistent (two values that compare `:equal' must hash to the same value)."
 	     ,then)
 	 ,else))))
 
-(defmacro do-set ((var set &optional value) &body body)
-  "For each member of `set', binds `var' to it and executes `body'.  When done,
-returns `value'."
-  `(block nil		; in case `body' contains `(return ...)'
-     (let ((elt-fn #'(lambda (,var) . ,body))
-	   (value-fn #'(lambda () ,value)))
-       ;; SBCL evidently figures this out without our help, but other implementations may benefit.
-       (declare (dynamic-extent elt-fn value-fn))
-       (internal-do-set ,set elt-fn value-fn))))
+(defmacro if-same-wb-map-types ((m2 b2 tmt-var) then else)
+  (let ((m2-var (gensymx #:m2-))
+	(b2-var (gensymx #:b2-))
+	(tmt1-var (gensymx #:tmt1-))
+	(tmt2-var (gensymx #:tmt2-)))
+    `(let ((,m2-var ,m2)
+	   (,b2-var ,b2)
+	   ((,tmt1-var (wb-map-type ,m2-var))
+	    (,tmt2-var (wb-map-type ,b2-var))))
+       (if (or (eq ,tmt1-var ,tmt2-var)
+	       (and (eq (tree-map-type-key-compare-fn ,tmt1-var) (tree-map-type-key-compare-fn ,tmt2-var))
+		    (eq (tree-map-type-val-compare-fn ,tmt1-var) (tree-map-type-val-compare-fn ,tmt2-var))))
+	   (let ((,tmt-var ,tmt1-var))
+	     ,then)
+	 ,else))))
 
-
-(defmacro do-bag-pairs ((value-var mult-var bag &optional value)
-			&body body)
-  "For each member of `bag', binds `value-var' and `mult-var' to the member and
-its multiplicity respectively, and executes `body'.  When done, returns `value'."
-  `(block nil
-     (let ((elt-fn #'(lambda (,value-var ,mult-var) . ,body))
-	   (value-fn #'(lambda () ,value)))
-       (declare (dynamic-extent elt-fn value-fn))
-       (internal-do-bag-pairs ,bag elt-fn value-fn))))
-
-(defmacro do-bag ((value-var bag &optional value)
-		  &body body)
-  "For each member of `bag', binds `value-var' to it and and executes `body' a
-number of times equal to the member's multiplicity.  When done, returns `value'."
-  (let ((mult-var (gensym "MULT-"))
-	(idx-var (gensym "IDX-")))
-    `(block nil
-       (let ((elt-fn #'(lambda (,value-var ,mult-var)
-			  ;; Seems safe to assume it's a fixnum here.
-			  (declare (type fixnum ,mult-var))
-			  (dotimes (,idx-var ,mult-var)
-			    (declare (type fixnum ,idx-var))
-			    . ,body)))
-	     (value-fn #'(lambda () ,value)))
-	 (declare (dynamic-extent elt-fn value-fn))
-	 (internal-do-bag-pairs ,bag elt-fn value-fn)))))
-
-(defmacro do-map ((key-var value-var map &optional value) &body body)
-  "For each pair of `map', binds `key-var' and `value-var' and executes `body'.
-When done, returns `value'."
-  `(block nil
-     (let ((elt-fn #'(lambda (,key-var ,value-var) . ,body))
-	   (value-fn #'(lambda () ,value)))
-       (declare (dynamic-extent elt-fn value-fn))
-       (internal-do-map ,map elt-fn value-fn))))
-
-(defmacro do-map-domain ((key-var map &optional value) &body body)
-  "For each pair of `map', binds `key-var' and executes `body'.  When done,
-returns `value'."
-  (let ((value-var (gensym "VAL-")))
-    `(block nil
-       (let ((elt-fn #'(lambda (,key-var ,value-var)
-			  (declare (ignore ,value-var))
-			  . ,body))
-	     (value-fn #'(lambda () ,value)))
-	 (declare (dynamic-extent elt-fn value-fn))
-	 (internal-do-map ,map elt-fn value-fn)))))
-
-(defmacro do-seq ((var seq
-		   &key (start nil start?) (end nil end?) (from-end? nil from-end??)
-		   (index nil index?) (value nil))
-		  &body body)
-  "For each element of `seq', possibly restricted by `start' and `end', and in
-reverse order if `from-end?' is true, binds `var' to it and executes `body'.
-If `index' is supplied, it names a variable that will be bound at each
-iteration to the index of the current element of `seq'.  When done, returns
-`value'."
-  `(block nil
-     (let ((elt-fn #'(lambda (,var . ,(and index? `(,index))) . ,body))
-	   (value-fn #'(lambda () ,value)))
-       (declare (dynamic-extent elt-fn value-fn))
-       (internal-do-seq ,seq elt-fn value-fn ,index?
-			,@(and start? `(:start ,start))
-			,@(and end? `(:end ,end))
-			,@(and from-end?? `(:from-end? ,from-end?))))))
-
-
-;;; ================================================================================
-;;; Miscellany
-
-(defmacro postincf (v)
-  `(prog1 ,v (incf ,v)))

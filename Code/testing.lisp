@@ -3646,7 +3646,7 @@
 		(incf size (WB-Set-Tree-Size s))
 		(or (null (wb-2-relation-map1 br))
 		    (Do-WB-Set-Tree-Members (y s)
-		      (let ((ignore s1 (WB-Map-Tree-Lookup (wb-2-relation-map1 br) y)))
+		      (let ((ignore s1 (WB-Map-Tree-Lookup (wb-2-relation-map1 br) y #'compare)))
 			(declare (ignore ignore))
 			(unless (WB-Set-Tree-Member? s1 x #'compare)
 			  (format *debug-io* "Map discrepancy in wb-2-relation")
@@ -3698,7 +3698,7 @@
 			(ldb (byte 2 0) val)))))))
 
 (defmethod verify ((s ch-set))
-  (ch-set-tree-verify (ch-set-contents s)))
+  (ch-set-tree-verify (ch-set-contents s) (hash-set-type-hash-fn (ch-set-type s))))
 
 (defvar *champ-set-test-values* (seq))
 

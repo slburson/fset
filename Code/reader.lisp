@@ -212,14 +212,14 @@ in which case the expression must evaluate to a set, all of whose members become
 members of the result set."
   (expand-set-constructor-form 'ch-set args type-name))
 
-(defun expand-set-constructor-form (class-name args &optional type-name)
+(defun expand-set-constructor-form (class-name args &optional (type-name nil type-name?))
   (let ((normal-args (remove-if #'(lambda (arg) (and (listp arg) (eq (car arg) '$)))
 				args))
 	(splice-args (remove-if-not #'(lambda (arg) (and (listp arg) (eq (car arg) '$)))
 				    args))
 	((start (if normal-args `(convert ',class-name (list . ,normal-args)
 					  ,@(and type-name `(:type-name ,type-name)))
-		  `(,(empty-instance-function class-name) ,type-name)))))
+		  `(,(empty-instance-function class-name) . ,(and type-name? `(,type-name)))))))
     (labels ((recur (splice-args result)
 	       (if (null splice-args) result
 		 (if (= (length (car splice-args)) 2)
@@ -245,7 +245,7 @@ result set."
   (let ((result `(,(empty-instance-function 'wb-replay-set))))
     (dolist (arg args result)
       (if (and (listp arg) (eq (car arg) '$))
-	  (let ((tmp (gensym "TMP-")))
+	  (let ((tmp (gensymx #:tmp-)))
 	    (setq result `(let ((,tmp ,result))
 			    (do-set (x ,(cadr arg))
 			      (includef ,tmp x))
@@ -292,7 +292,7 @@ of the result bag is the sum of its multiplicities as supplied by each of the
 argument subforms."
   (expand-set-constructor-form 'wb-bag args type-name))
 
-(defun expand-bag-constructor-form (class-name args &optional type-name)
+(defun expand-bag-constructor-form (class-name args &optional (type-name nil type-name?))
   (let ((normal-args (remove-if #'(lambda (arg) (and (listp arg)
 						     (member (car arg) '($ %))))
 				args))
@@ -302,7 +302,7 @@ argument subforms."
 				   args))
 	((start (if normal-args `(convert ',class-name (list . ,normal-args)
 					  :type-name ,type-name)
-		  `(,(empty-instance-function class-name) ,type-name)))))
+		  `(,(empty-instance-function class-name) . ,(and type-name? `(,type-name)))))))
     (labels ((add-splice-args (splice-args result)
 	       (if (null splice-args) result
 		 (if (= (length (car splice-args)) 2)
@@ -368,7 +368,7 @@ such subform."
 
 (defun expand-map-constructor-form (class-name args)
   (let ((default (cadr (member ':default args)))
-	((empty-form `(,(empty-instance-function class-name default)))))
+	((empty-form `(,(empty-instance-function class-name) ,default))))
     (labels ((recur (args result)
 	       (cond ((null args) result)
 		     ((eq (car args) ':default)
@@ -413,13 +413,13 @@ given key is supplied by more than one argument subform, its associated value
 will be given by the rightmost such subform."
   ;; We MUST maintain ORDER!!!  Yow!!!
   (let ((default (cadr (member ':default args)))
-	((result (empty-map-instance-form 'wb-replay-map default))))
+	((result `(empty-wb-replay-map ,default))))
     (do ((args args (cdr args)))
 	((null args) result)
       (let ((arg (car args)))
 	(cond ((eq arg ':default) (pop args))
 	      ((and (listp arg) (eq (car arg) '$))
-	       (let ((tmp (gensym "TMP-")))
+	       (let ((tmp (gensymx #:tmp-)))
 		 (setq result `(let ((,tmp ,result))
 				 (do-map (x y ,(cadr arg))
 				   (includef ,tmp x y))
@@ -562,8 +562,8 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
 			    (recur (cdr subforms) `(union ,result ,(cadr subform)))))
 			 ((and (listp (car subform)) (eq (caar subform) '$)
 			       (listp (cadr subform)) (eq (caadr subform) '$))
-			  (let ((key-var (gensym "KEY-"))
-				(vals-var (gensym "VALS-")))
+			  (let ((key-var (gensymx #:key-))
+				(vals-var (gensymx #:vals-)))
 			    (recur (cdr subforms)
 				   `(union ,result
 					   (let ((,vals-var ,(cadadr subform)))
@@ -574,8 +574,8 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
 							      :from-type 'map-to-sets))
 						   (:arg set ,(cadar subform))))))))
 			 ((and (listp (car subform)) (eq (caar subform) '$))
-			  (let ((key-var (gensym "KEY-"))
-				(val-var (gensym "VAL-")))
+			  (let ((key-var (gensymx #:key-))
+				(val-var (gensymx #:val-)))
 			    (recur (cdr subforms)
 				   `(union ,result
 					   (let ((,val-var ,(cadr subform)))
