@@ -3257,6 +3257,8 @@ the default implementation of maps in FSet."
 (defun empty-wb-custom-map (default key-compare-fn-name val-compare-fn-name)
   (check-type key-compare-fn-name symbol)
   (check-type val-compare-fn-name symbol)
+  (assert (or (and (null key-compare-fn-name) (null val-compare-fn-name))
+	      (and key-compare-fn-name val-compare-fn-name)))
   (if (and (or (null key-compare-fn-name) (eq key-compare-fn-name 'compare))
 	   (or (null val-compare-fn-name) (eq val-compare-fn-name 'compare)))
       (if (null default) *empty-wb-map*
@@ -3921,7 +3923,7 @@ symbols."))
 						   (val-cf-name (tree-map-org-val-compare-fn-name tmorg))
 						   ((key-default? (eq key-cf-name 'compare))
 						    (val-default? (eq val-cf-name 'compare)))))
-					      (format nil " |}~:[[~:[~S~;~*~]:~:[~S~;~*~]]~;~4*~]~@[/~S~]"
+					      (format nil " |}~:[[~:[~S~;~*~];~:[~S~;~*~]]~;~4*~]~@[/~S~]"
 						      (and key-default? val-default?)
 						      key-default? key-cf-name val-default? val-cf-name
 						      (map-default map))))
@@ -4047,6 +4049,8 @@ Note that `filterp', if supplied, must take two arguments."
 (defun empty-ch-custom-map (default key-compare-fn-name val-compare-fn-name)
   (check-type key-compare-fn-name symbol)
   (check-type val-compare-fn-name symbol)
+  (assert (or (and (null key-compare-fn-name) (null val-compare-fn-name))
+	      (and key-compare-fn-name val-compare-fn-name)))
   (if (and (or (null key-compare-fn-name) (eq key-compare-fn-name 'compare))
 	   (or (null val-compare-fn-name) (eq val-compare-fn-name 'compare)))
       (if (null default) *empty-ch-map*
@@ -4154,7 +4158,7 @@ Note that `filterp', if supplied, must take two arguments."
 						   (val-cf-name (hash-map-org-val-compare-fn-name hmorg))
 						   ((key-default? (eq key-cf-name 'compare))
 						    (val-default? (eq val-cf-name 'compare)))))
-					      (format nil " |}~:[[~:[~S~;~*~]:~:[~S~;~*~]]~;~4*~]~@[/~S~]"
+					      (format nil " |}~:[[~:[~S~;~*~];~:[~S~;~*~]]~;~4*~]~@[/~S~]"
 						      (and key-default? val-default?)
 						      key-default? key-cf-name val-default? val-cf-name
 						      (map-default map))))
