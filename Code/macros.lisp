@@ -474,16 +474,14 @@ must be `setf'able itself."
 
 
 ;;; --------------------------------
-;;; Collection type definition
+;;; Defining hash functions for comparison functions
 
-(defmacro define-tree-set-type (name compare-fn-name)
-  "Defines the `tree-set-type' named `name' to use the specified comparison
-function \(supplied as a symbol\).  The comparison function must take two
-arguments and return one of { :less, :equal, :greater, :unequal }, and must
-implement a strict weak ordering."
-  (check-type name symbol)
+(defmacro define-hash-function (compare-fn-name hash-fn-name)
+  "Specifies the hash function that hash-based collections are to use
+for a given comparison function."
   (check-type compare-fn-name symbol)
-  `(setf (get ',name 'tree-set-type) ',compare-fn-name))
+  (check-type hash-fn-name symbol)
+  `(setf (get ',compare-fn-name 'hash-function) ',hash-fn-name))
 
 (defmacro define-hash-set-type (name hash-fn-name compare-fn-name)
   "Defines the `hash-set-type' named `name' to use the specified hash and
@@ -711,53 +709,55 @@ as two values, and executes `body'.  When done, returns `value'."
 			     ,then
 			   ,else))
 		      (make (like-coll contents)
-			`(make-wb-custom-set ,contents (wb-custom-set-type ,like-coll))))
+			`(make-wb-custom-set ,contents (wb-custom-set-org ,like-coll))))
 	     . ,body))))))
 
-(defmacro if-same-ch-set-types ((s1 s2 hst-var) then else)
+(defmacro if-same-ch-set-orgs ((s1 s2 hscomp-var) then else)
   (let ((s1-var (gensymx #:s1-))
 	(s2-var (gensymx #:s2-))
-	(hst1-var (gensymx #:hst1-))
-	(hst2-var (gensymx #:hst2-)))
+	(hscomp1-var (gensymx #:hscomp1-))
+	(hscomp2-var (gensymx #:hscomp2-)))
     `(let ((,s1-var ,s1)
 	   (,s2-var ,s2)
-	   ((,hst1-var (ch-set-type ,s1-var))
-	    (,hst2-var (ch-set-type ,s2-var))))
-       (if (or (eq ,hst1-var ,hst2-var)
-	       (and (eq (hash-set-type-hash-fn ,hst1-var) (hash-set-type-hash-fn ,hst2-var))
-		    (eq (hash-set-type-compare-fn ,hst1-var) (hash-set-type-compare-fn ,hst2-var))))
-	   (let ((,hst-var ,hst1-var))
+	   ((,hscomp1-var (ch-set-org ,s1-var))
+	    (,hscomp2-var (ch-set-org ,s2-var))))
+       (if (or (eq ,hscomp1-var ,hscomp2-var)
+	       (and (eq (hash-set-org-hash-fn ,hscomp1-var) (hash-set-org-hash-fn ,hscomp2-var))
+		    (eq (hash-set-org-compare-fn ,hscomp1-var) (hash-set-org-compare-fn ,hscomp2-var))))
+	   (let ((,hscomp-var ,hscomp1-var))
 	     ,then)
 	 ,else))))
 
-(defmacro if-same-wb-bag-types ((b1 b2 tst-var) then else)
+(defmacro if-same-wb-bag-orgs ((b1 b2 tscomp-var) then else)
   (let ((b1-var (gensymx #:b1-))
 	(b2-var (gensymx #:b2-))
-	(tst1-var (gensymx #:tst1-))
-	(tst2-var (gensymx #:tst2-)))
+	(tscomp1-var (gensymx #:tscomp1-))
+	(tscomp2-var (gensymx #:tscomp2-)))
     `(let ((,b1-var ,b1)
 	   (,b2-var ,b2)
-	   ((,tst1-var (wb-bag-type ,b1-var))
-	    (,tst2-var (wb-bag-type ,b2-var))))
-       (if (or (eq ,tst1-var ,tst2-var)
-	       (eq (tree-set-type-compare-fn ,tst1-var) (tree-set-type-compare-fn ,tst2-var)))
-	   (let ((,tst-var ,tst1-var))
+	   ((,tscomp1-var (wb-bag-org ,b1-var))
+	    (,tscomp2-var (wb-bag-org ,b2-var))))
+       (if (or (eq ,tscomp1-var ,tscomp2-var)
+	       (eq (tree-set-org-compare-fn ,tscomp1-var) (tree-set-org-compare-fn ,tscomp2-var)))
+	   (let ((,tscomp-var ,tscomp1-var))
 	     ,then)
 	 ,else))))
 
-(defmacro if-same-wb-map-types ((m2 b2 tmt-var) then else)
+(defmacro if-same-wb-map-orgs ((m2 b2 tmcomp-var) then else)
   (let ((m2-var (gensymx #:m2-))
 	(b2-var (gensymx #:b2-))
-	(tmt1-var (gensymx #:tmt1-))
-	(tmt2-var (gensymx #:tmt2-)))
+	(tmcomp1-var (gensymx #:tmcomp1-))
+	(tmcomp2-var (gensymx #:tmcomp2-)))
     `(let ((,m2-var ,m2)
 	   (,b2-var ,b2)
-	   ((,tmt1-var (wb-map-type ,m2-var))
-	    (,tmt2-var (wb-map-type ,b2-var))))
-       (if (or (eq ,tmt1-var ,tmt2-var)
-	       (and (eq (tree-map-type-key-compare-fn ,tmt1-var) (tree-map-type-key-compare-fn ,tmt2-var))
-		    (eq (tree-map-type-val-compare-fn ,tmt1-var) (tree-map-type-val-compare-fn ,tmt2-var))))
-	   (let ((,tmt-var ,tmt1-var))
+	   ((,tmcomp1-var (wb-map-org ,m2-var))
+	    (,tmcomp2-var (wb-map-org ,b2-var))))
+       (if (or (eq ,tmcomp1-var ,tmcomp2-var)
+	       (and (eq (tree-map-org-key-compare-fn ,tmcomp1-var)
+			(tree-map-org-key-compare-fn ,tmcomp2-var))
+		    (eq (tree-map-org-val-compare-fn ,tmcomp1-var)
+			(tree-map-org-val-compare-fn ,tmcomp2-var))))
+	   (let ((,tmcomp-var ,tmcomp1-var))
 	     ,then)
 	 ,else))))
 

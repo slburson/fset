@@ -654,7 +654,7 @@ of calling `val-fn' on the value from `tuple1' and the value from `tuple2'.
   (let ((tree nil))
     (do-tuple (k v tup)
       (setq tree (WB-Map-Tree-With tree k v #'compare #'compare)))
-    (make-wb-map tree +fset-default-tree-map-type+ nil)))
+    (make-wb-map tree +fset-default-tree-map-org+ nil)))
 
 (defmethod convert ((to-type (eql 'list)) (tup tuple) &key (pair-fn #'cons))
   (let ((result nil)

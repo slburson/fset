@@ -310,7 +310,7 @@ constructed."
 			       (setq result (WB-Set-Tree-With result (@ fn y) #'compare)))
 			     (incf new-size (WB-Set-Tree-Size result))
 			     (values x result)))
-			(:arg wb-map (make-wb-map (wb-2-relation-map0 rel) +fset-default-tree-map-type+ nil))))))
+			(:arg wb-map (make-wb-map (wb-2-relation-map0 rel) +fset-default-tree-map-org+ nil))))))
     (make-wb-2-relation new-size
 			(wb-map-contents new-map0)
 			nil)))
@@ -453,13 +453,13 @@ domain value to that range value."
 	(unless (= 1 sz)
 	  (error "2-relation maps ~A to ~D values" x sz))
 	(setq m (WB-Map-Tree-With m x (WB-Set-Tree-Arb s) #'compare #'compare))))
-    (make-wb-map m +fset-default-tree-map-type+ nil)))
+    (make-wb-map m +fset-default-tree-map-org+ nil)))
 
 (defmethod convert ((to-type (eql 'map-to-sets)) (br wb-2-relation) &key)
   "This conversion returns a map mapping each domain value to the set of
 corresponding range values."
   (make-wb-map (WB-Map-Tree-Compose (wb-2-relation-map0 br) #'make-wb-set)
-	       +fset-default-tree-map-type+ nil))
+	       +fset-default-tree-map-org+ nil))
 
 (defgeneric conflicts (2-relation)
   (:documentation

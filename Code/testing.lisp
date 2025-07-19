@@ -3698,7 +3698,7 @@
 			(ldb (byte 2 0) val)))))))
 
 (defmethod verify ((s ch-set))
-  (ch-set-tree-verify (ch-set-contents s) (hash-set-type-hash-fn (ch-set-type s))))
+  (ch-set-tree-verify (ch-set-contents s) (hash-set-org-hash-fn (ch-set-org s))))
 
 (defvar *champ-set-test-values* (seq))
 
