@@ -483,44 +483,6 @@ for a given comparison function."
   (check-type hash-fn-name symbol)
   `(setf (get ',compare-fn-name 'hash-function) ',hash-fn-name))
 
-(defmacro define-hash-set-type (name hash-fn-name compare-fn-name)
-  "Defines the `hash-set-type' named `name' to use the specified hash and
-comparison functions \(specified as symbols\).  The comparison function must
-take two arguments and return one of { :less, :equal, :greater, :unequal },
-and must implement a strict weak ordering.  Also, the two must be mutually
-consistent (two values that compare `:equal' must hash to the same value)."
-  (check-type name symbol)
-  (check-type hash-fn-name symbol)
-  (check-type compare-fn-name symbol)
-  `(setf (get ',name 'hash-set-type)
-	 (list ',hash-fn-name ',compare-fn-name)))
-
-(defmacro define-tree-map-type (name key-compare-fn-name val-compare-fn-name)
-  "Defines the `tree-map-type' named `name' to use the specified key and
-value comparison functions \(specified as symbols\).  Each comparison function
-must take two arguments and return one of { :less, :equal, :greater, :unequal },
-and must implement a strict weak ordering."
-  (check-type name symbol)
-  (check-type key-compare-fn-name symbol)
-  (check-type val-compare-fn-name symbol)
-  `(setf (get ',name 'tree-map-type)
-	 (list ',key-compare-fn-name ',val-compare-fn-name)))
-
-(defmacro define-hash-map-type (name key-hash-fn-name key-compare-fn-name val-hash-fn-name val-compare-fn-name)
-  "Defines the `hash-map-type' named `name' to use the specified key and
-value hash and comparison functions \(specified as symbols\).  Each hash
-function takes one argument and returns an integer \(there is no requirement
-that it be nonnegative or a fixnum\).  Each comparison function must take
-two arguments and return one of { :less, :equal, :greater, :unequal },
-and must implement a strict weak ordering."
-  (check-type name symbol)
-  (check-type key-hash-fn-name symbol)
-  (check-type key-compare-fn-name symbol)
-  (check-type val-hash-fn-name symbol)
-  (check-type val-compare-fn-name symbol)
-  `(setf (get ',name 'hash-map-type)
-	 (list ',key-hash-fn-name ',key-compare-fn-name ',val-hash-fn-name ',val-compare-fn-name)))
-
 
 ;;; --------------------------------
 ;;; Iteration

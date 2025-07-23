@@ -968,7 +968,7 @@ It occurs to me that with a little tweaking, we could arrange for `domain' to be
 		     (cond ((not (equal?-cmp ex-key key key-cmp-fn))
 			    (values node 0))
 			   ((and (= (logcount entry-mask) 1) (= 0 subnode-mask))
-			    (values nil (logxor key-hash (hash-to-fixnum (svref node (1+ entry-idx)) key-hash-fn))))
+			    (values nil (logxor key-hash (hash-to-fixnum (svref node (1+ entry-idx)) val-hash-fn))))
 			   (t
 			    (let ((n (vector-remove-2-at node entry-idx))
 				  (ex-value-hash (hash-to-fixnum (svref node (1+ entry-idx)) val-hash-fn)))

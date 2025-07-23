@@ -180,7 +180,11 @@ argument."))
 (defgeneric bag-sum (bag1 bag2)
   (:documentation
     "Returns a bag whose multiplicity, for any value, is the sum of its
-multiplicities in the two argument bags."))
+multiplicities in the two argument bags.
+
+If the collections are of different implementations or use different custom
+compare or hash functions, the returned collection will be like the first
+argument."))
 
 (defgeneric intersection (set-or-bag1 set-or-bag2 &key)
   (:documentation
@@ -196,7 +200,11 @@ argument."))
 (defgeneric bag-product (bag1 bag2)
   (:documentation
     "Returns a bag whose multiplicity, for any value, is the product of
-its multiplicities in the two argument bags."))
+its multiplicities in the two argument bags.
+
+If the collections are of different implementations or use different custom
+compare or hash functions, the returned collection will be like the first
+argument."))
 
 (defgeneric set-difference (set1 set2 &key)
   (:documentation
@@ -218,7 +226,11 @@ and the second value like the second."))
 (defgeneric bag-difference (bag1 bag2)
   (:documentation
     "Returns a bag whose multiplicity, for any value, is its multiplicity
-in `bag1' less that in `bag2', but of course not less than zero."))
+in `bag1' less that in `bag2', but of course not less than zero.
+
+If the collections are of different implementations or use different custom
+compare or hash functions, the returned collection will be like the first
+argument."))
 
 (defgeneric subset? (sub super)
   (:documentation "Returns true iff `sub' is a subset of `super'."))
@@ -666,9 +678,9 @@ thread-safe.\)  The iterator is a function of one argument; given `:empty?', it
 returns true iff the iterator is exhausted; given `:more?', it returns true iff
 the iterator is _not_ exhausted.  Given `:first', if it is not exhausted, it
 returns the next element \(pair, for a map, as two values\), with an additional
-true value; if it is exhausted, it returns two \(three\) `nil' values.  Given
-`:rest', if it is not exhausted, it returns an iterator for the rest of the
-collection.
+true value; if it is exhausted, it returns two \(three, for a map\) `nil'
+values.  Given `:rest', if it is not exhausted, it returns an iterator for the
+rest of the collection.
 
 If `from-end?' is true, the collection is iterated in reverse order.  The bag
 method also takes a `pairs?' keyword argument; if true, it returns each element
@@ -2748,8 +2760,8 @@ must be a symbol."
     (unless (and (= n 1) (contains? s x))
       (return nil))))
 
-;;; I had specializations for (`wb-set' `wb-bag') and (`wb-bag' `wb-set') here, but they
-;;; were not well implemented, calling `WB-Set-Tree-To-Bag-Tree' first.  Although that's
+;;; I had `subbag?' specializations for (`wb-set' `wb-bag') and (`wb-bag' `wb-set') here, but
+;;; they were not well implemented, calling `WB-Set-Tree-To-Bag-Tree' first.  Although that's
 ;;; technically O(n), the constant factor is terrible (not to mention all the consing).
 
 (defun proper-subbag? (sub super)

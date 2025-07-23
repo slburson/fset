@@ -189,7 +189,7 @@ result set."
 (defmacro wb-custom-set (compare-fn-name &rest args)
   "Constructs a wb-set with a custom ordering, according to the supplied
 argument subforms.  `compare-fn-name' must be a symbol naming the desired
-comparison function.  Each argument subform can be an expression, whose value
+comparison function.  Each of `args' can be an expression, whose value
 will be a member of the result set; or a list of the form ($ `expression'),
 in which case the expression must evaluate to a set, all of whose members
 become members of the result set."
@@ -207,7 +207,7 @@ result set."
   "Constructs a ch-set of a custom type, according to the supplied argument
 subforms.  `compare-fn-name' must be a symbol naming the desired comparison
 function; a hash function must have been defined for it using
-`define-hash-function'.  Each argument subform can be an expression, whose value
+`define-hash-function'.  Each of `args' can be an expression, whose value
 will be a member of the result set; or a list of the form ($ `expression'),
 in which case the expression must evaluate to a set, all of whose members become
 members of the result set."
@@ -235,7 +235,7 @@ supplied argument subforms.  Each argument subform can be an expression,
 whose value will be a member of the result set; or a list of the form
 \($ `expression'), in which case the expression must evaluate to a set,
 all of whose members become members of the result set."
-  `(wb-replay-set . ,args))
+  (expand-replay-set-constructor-form 'replay-set args))
 
 (defmacro wb-replay-set (&rest args)
   "Constructs a wb-replay-set according to the supplied argument subforms.  Each
@@ -243,7 +243,21 @@ argument subform can be an expression, whose value will be a member of the
 result set; or a list of the form ($ `expression'), in which case the
 expression must evaluate to a set, all of whose members become members of the
 result set."
-  (let ((result `(,(empty-instance-function 'wb-replay-set))))
+  (expand-replay-set-constructor-form 'wb-replay-set args))
+
+(defmacro wb-custom-replay-set (compare-fn-name &rest args)
+  "Constructs a wb-replay-set with a custom ordering, according to the supplied
+argument subforms.  `compare-fn-name' must be a symbol naming the desired
+comparison function.  Each of `args' can be an expression, whose value
+will be a member of the result set; or a list of the form ($ `expression'),
+in which case the expression must evaluate to a set, all of whose members
+become members of the result set."
+  (expand-replay-set-constructor-form 'wb-replay-set args compare-fn-name))
+
+(defun expand-replay-set-constructor-form (type-name args &optional compare-fn-name)
+  ;; We MUST maintain ORDER!!!  Yow!!!
+  (let ((result `(,(empty-instance-function type-name)
+		  . ,(and compare-fn-name `(,compare-fn-name)))))
     (dolist (arg args result)
       (if (and (listp arg) (eq (car arg) '$))
 	  (let ((tmp (gensymx #:tmp-)))
@@ -439,7 +453,7 @@ expression must evaluate to a map, denoting all its mappings; or the symbol
 become the map's default.  The result is constructed from the denoted mappings
 in left-to-right order; so if a given key is supplied by more than one argument
 subform, its associated value will be given by the rightmost such subform."
-  `(wb-replay-map . ,args))
+  (expand-replay-map-constructor-form 'replay-map args))
 
 (defmacro wb-replay-map (&rest args)
   "Constructs a wb-replay-map according to the supplied argument subforms.  Each
@@ -451,9 +465,27 @@ next argument subform is a form whose value will become the map's default.  The
 result is constructed from the denoted mappings in left-to-right order; so if a
 given key is supplied by more than one argument subform, its associated value
 will be given by the rightmost such subform."
+  (expand-replay-map-constructor-form 'wb-replay-map args))
+
+(defmacro wb-custom-replay-map (key-compare-fn-name val-compare-fn-name &rest args)
+  "Constructs a wb-replay-map with a custom ordering, according to the supplied
+argument subforms.  Each of `args' can be a list of the form \(`key-expr'
+`value-expr'\), denoting a mapping from the value of `key-expr' to the value of
+`value-expr'; or a list of the form \($ `expression'\), in which case the
+expression must evaluate to a map, denoting all its mappings; or the symbol
+`:default', in which case the value of the next argument subform will become
+the map's default.  The result is constructed from the denoted mappings in
+left-to-right order; so if a given key is supplied by more than one argument
+subform, its associated value will be given by the rightmost such subform."
+  (expand-replay-map-constructor-form 'wb-replay-map args key-compare-fn-name val-compare-fn-name))
+
+(defun expand-replay-map-constructor-form (type-name args &optional key-compare-fn-name val-compare-fn-name)
+  (assert (or (and (null key-compare-fn-name) (null val-compare-fn-name))
+	      (and key-compare-fn-name val-compare-fn-name)))
   ;; We MUST maintain ORDER!!!  Yow!!!
   (let ((default (cadr (member ':default args)))
-	((result `(empty-wb-replay-map ,default))))
+	((result `(,(empty-instance-function type-name) ,default
+		   . ,(and key-compare-fn-name `(,key-compare-fn-name ,val-compare-fn-name))))))
     (do ((args args (cdr args)))
 	((null args) result)
       (let ((arg (car args)))

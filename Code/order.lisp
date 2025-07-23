@@ -439,10 +439,10 @@ can be strings, vectors, lists, or seqs."))
 	    (cond ((char< ca cb) (return ':less))
 		  ((char> ca cb) (return ':greater)))))))))
 
-(defmethod compare-lexicographically ((a list) (b list) &key (val-compare-fn #'compare))
+(defmethod compare-lexicographically ((a list) (b list) &key (val-compare-fn #'compare-lexicographically))
   (compare-lists-lexicographically a b val-compare-fn))
 
-(defmethod compare-lexicographically ((a vector) (b vector) &key (val-compare-fn #'compare))
+(defmethod compare-lexicographically ((a vector) (b vector) &key (val-compare-fn #'compare-lexicographically))
   (declare (type function val-compare-fn))
   (if (eq a b)
       ':equal

@@ -383,10 +383,9 @@
      . ,body))
 
 
-;;; This little oddity exists because of a limitation in Python (that's the
-;;; CMUCL compiler).  Given a call to `length' on type `(or null simple-vector)',
-;;; Python isn't quite smart enough to optimize the call unless we do the case
-;;; breakdown for it like this.
+;;; This little oddity exists because of a limitation in the SBCL/CMUCL compiler.
+;;; Given a call to `length' on type `(or null simple-vector)', it isn't quite
+;;; smart enough to optimize the call unless we do the case breakdown for it like this.
 #+(or cmu scl)
 (defmacro length-nv (x)
   (ext:once-only ((x x))
