@@ -34,6 +34,9 @@ sets are printed as \"#{= ... }\"."
   "Returns an empty replay set of the default implementation."
   *empty-wb-replay-set*)
 
+(defmethod empty-instance-function ((class-name (eql 'replay-set)))
+  'empty-replay-set)
+
 (declaim (inline empty-wb-replay-set))
 (defun empty-wb-replay-set (&optional compare-fn-name)
   (if (null compare-fn-name)
@@ -43,7 +46,7 @@ sets are printed as \"#{= ... }\"."
 (deflex +empty-wb-custom-replay-set-cache+ (make-hash-table :test 'equal))
 
 (defun empty-wb-custom-replay-set (compare-fn-name)
-  (check-type compare-fn-name symbol)
+  (assert (and (symbolp compare-fn-name) (not (null compare-fn-name))))
   (if (eq compare-fn-name 'compare)
       *empty-wb-replay-set*
     (let ((prev-instance (gethash compare-fn-name +empty-wb-custom-replay-set-cache+))
@@ -332,24 +335,26 @@ first.  Replay maps are printed as \"#{=| ... |}\"."
   (if default (make-wb-replay-map nil nil +fset-default-tree-map-org+ default)
     *empty-wb-replay-map*))
 
+(defmethod empty-instance-function ((class-name (eql 'replay-map)))
+  'empty-replay-map)
+
 (defun empty-wb-replay-map (&optional default key-compare-fn-name val-compare-fn-name)
   (if (and (null key-compare-fn-name) (null val-compare-fn-name))
       (if (null default)
 	  *empty-wb-replay-map*
 	(make-wb-replay-map nil nil +fset-default-tree-map-org+ default))
-    (empty-wb-custom-replay-map default key-compare-fn-name val-compare-fn-name)))
+    (empty-wb-custom-replay-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare))))
 
 (deflex +empty-wb-custom-replay-map-cache+ (make-hash-table :test 'equal))
 
 (defun empty-wb-custom-replay-map (default key-compare-fn-name val-compare-fn-name)
-  (check-type key-compare-fn-name symbol)
-  (check-type val-compare-fn-name symbol)
-  (if (and (or (null key-compare-fn-name) (eq key-compare-fn-name 'compare))
-	   (or (null val-compare-fn-name) (eq val-compare-fn-name 'compare)))
+  (assert (and (symbolp key-compare-fn-name) (not (null key-compare-fn-name))))
+  (assert (and (symbolp val-compare-fn-name) (not (null val-compare-fn-name))))
+  (if (and (eq key-compare-fn-name 'compare) (eq val-compare-fn-name 'compare))
       (if (null default) *empty-wb-replay-map*
 	(make-wb-replay-map nil nil +fset-default-tree-map-org+ default))
     (let ((cache-key (list key-compare-fn-name val-compare-fn-name))
-	  ((prev-instance (gethash cache-key +empty-wb-custom-map-cache+)))
+	  ((prev-instance (gethash cache-key +empty-wb-custom-replay-map-cache+)))
 	  (key-compare-fn (symbol-function key-compare-fn-name))
 	  (val-compare-fn (symbol-function val-compare-fn-name)))
       (if (and prev-instance
@@ -358,17 +363,28 @@ first.  Replay maps are printed as \"#{=| ... |}\"."
 		      (eq val-compare-fn (tree-map-org-val-compare-fn prev-comp))
 		      (equal?-cmp default (map-default prev-instance) val-compare-fn))))
 	  prev-instance
-	(setf (gethash cache-key +empty-wb-custom-map-cache+)
-	      (make-wb-replay-map nil (make-tree-map-org key-compare-fn-name key-compare-fn
-							 val-compare-fn-name val-compare-fn)
+	(setf (gethash cache-key +empty-wb-custom-replay-map-cache+)
+	      (make-wb-replay-map nil nil (make-tree-map-org key-compare-fn-name key-compare-fn
+							     val-compare-fn-name val-compare-fn)
 				  default))))))
+
+(defmethod empty-instance-function ((class-name (eql 'wb-replay-map)))
+  'empty-wb-replay-map)
 
 (defmethod with-default ((m wb-replay-map) new-default)
   (make-wb-replay-map (wb-replay-map-contents m) (wb-replay-map-ordering m) (wb-replay-map-org m) new-default))
 
-(defmethod compare-fns ((m wb-replay-map))
-  (let ((tmorg (wb-replay-map-org m)))
-    (values (tree-map-org-key-compare-fn tmorg) (tree-map-org-val-compare-fn tmorg))))
+(defmethod key-compare-fn ((m wb-replay-map))
+  (tree-map-org-key-compare-fn (wb-replay-map-org m)))
+
+(defmethod val-compare-fn ((m wb-replay-map))
+  (tree-map-org-val-compare-fn (wb-replay-map-org m)))
+
+(defmethod key-compare-fn-name ((m wb-replay-map))
+  (tree-map-org-key-compare-fn-name (wb-replay-map-org m)))
+
+(defmethod val-compare-fn-name ((m wb-replay-map))
+  (tree-map-org-val-compare-fn-name (wb-replay-map-org m)))
 
 (defmethod empty? ((m wb-replay-map))
   (null (wb-replay-map-contents m)))
@@ -534,14 +550,27 @@ first.  Replay maps are printed as \"#{=| ... |}\"."
 	(size2 (size map2)))
     (cond ((< size1 size2) ':less)
 	  ((> size1 size2) ':greater)
-	  ((let ((kcf1 vcf1 (compare-fns map1))
-		 (kcf2 vcf2 (compare-fns map2)))
-	     (unless (and (eq kcf1 kcf2) (eq vcf1 vcf2))
-	       ;; Fortunately, this should be a vanishingly rare thing to try to do.
-	       (error "Can't compare replay-maps with different compare-fns, ~A vs. ~A or ~A vs. ~A"
-		      kcf1 kcf2 vcf1 vcf2))
-	     (gmap :and (fn (k1 k2) (and (equal?-cmp k1 k2 kcf1)
-					 (equal?-cmp (lookup map1 k1) (lookup map2 k1) vcf1)))
+	  ((let ((kcf1 (key-compare-fn map1))
+		 (vcf1 (val-compare-fn map1))
+		 (kcf2 (key-compare-fn map2))
+		 (vcf2 (val-compare-fn map2)))
+	     (gmap :and (fn (k1 k2)
+			  (let ((eqk1? (equal?-cmp k1 k2 kcf1))
+				(eqk2? (equal?-cmp k1 k2 kcf2)))
+			    (unless (eqv eqk1? eqk2?)
+			      (error "Can't compare replay-maps with incompatible key-compare-fns, ~A vs. ~A"
+				     (tree-map-org-key-compare-fn-name (wb-replay-map-org map1))
+				     (tree-map-org-key-compare-fn-name (wb-replay-map-org map2))))
+			    (and eqk1?
+				 (let ((v1 (lookup map1 k1))
+				       (v2 (lookup map2 k2))
+				       ((eqv1? (equal?-cmp v1 v2 vcf1))
+					(eqv2? (equal?-cmp v1 v2 vcf2))))
+				   (unless (eqv eqv1? eqv2?)
+				     (error "Can't compare replay-maps with incompatible val-compare-fns, ~A vs. ~A"
+					    (tree-map-org-val-compare-fn-name (wb-replay-map-org map1))
+					    (tree-map-org-val-compare-fn-name (wb-replay-map-org map2))))
+				   eqv1?))))
 		   (:arg seq (key-ordering map1))
 		   (:arg seq (key-ordering map2))))
 	   ':equal)

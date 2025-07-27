@@ -1240,13 +1240,14 @@ or `Equivalent-Set' removed."
 	 (let ((len (length tree)))
 	   (and (<= len *WB-Tree-Max-Vector-Length*)
 		(do ((i 0 (1+ i))
-		     (prev Hedge-Negative-Infinity))
+		     (prev lo))
 		    ((= i len)
 		     (or (eq hi Hedge-Positive-Infinity)
 			 (less-than?-cmp prev hi cmp-fn)))
 		  (let ((elt (svref tree i)))
-		    (unless (or (eq prev Hedge-Negative-Infinity)
-				(less-than?-cmp prev elt cmp-fn))
+		    (unless (and (not (Equivalent-Node? elt))
+				 (or (eq prev Hedge-Negative-Infinity)
+				     (less-than?-cmp prev elt cmp-fn)))
 		      (return nil))
 		    (setq prev elt))))))
 	(t
@@ -1254,6 +1255,8 @@ or `Equivalent-Set' removed."
 	       (sizr (WB-Set-Tree-Size (WB-Set-Tree-Node-Right tree)))
 	       (value (WB-Set-Tree-Node-Value tree)))
 	   (and (= (WB-Set-Tree-Node-Size tree) (+ sizl sizr (Set-Value-Size value)))
+		(or (eq lo Hedge-Negative-Infinity) (less-than?-cmp lo value cmp-fn))
+		(or (eq hi Hedge-Positive-Infinity) (less-than?-cmp value hi cmp-fn))
 		(or (not (Equivalent-Node? value))
 		    (> (length (Equivalent-Node-List value)) 1))
 		(or (<= sizr 4)
@@ -2702,7 +2705,7 @@ between equal trees."
 	     (WB-Bag-Tree-Subbag?-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn)))))
 
 (defun WB-Bag-Tree-Subbag?-Rng (tree1 tree2 lo hi cmp-fn)
-  (declare (optimize (speed 3) (safety 0))
+  (declare ;(optimize (speed 3) (safety 0))
 	   (type WB-Bag-Tree tree1 tree2)
 	   (type function cmp-fn))
   (cond ((null tree1) t)
@@ -2915,10 +2918,10 @@ between equal trees."
 		  (cons (Vector-Subseq vals split-point-lo split-point-hi)
 			(Vector-Subseq counts split-point-lo split-point-hi))))))
 	((not (or (eq lo Hedge-Negative-Infinity)
-		  (greater-than? (WB-Bag-Tree-Node-Value tree) lo)))
+		  (greater-than?-cmp (WB-Bag-Tree-Node-Value tree) lo cmp-fn)))
 	 (WB-Bag-Tree-Split (WB-Bag-Tree-Node-Right tree) lo hi cmp-fn))
 	((not (or (eq hi Hedge-Positive-Infinity)
-		  (less-than? (WB-Bag-Tree-Node-Value tree) hi)))
+		  (less-than?-cmp (WB-Bag-Tree-Node-Value tree) hi cmp-fn)))
 	 (WB-Bag-Tree-Split (WB-Bag-Tree-Node-Left tree) lo hi cmp-fn))
 	(t
 	 (let ((new-left (WB-Bag-Tree-Split (WB-Bag-Tree-Node-Left tree)
@@ -2948,9 +2951,9 @@ between equal trees."
 	(t
 	 (let ((val (WB-Bag-Tree-Node-Value tree)))
 	   (if (or (eq lo Hedge-Negative-Infinity)
-		   (greater-than? val lo))
+		   (greater-than?-cmp val lo cmp-fn))
 	       (if (or (eq hi Hedge-Positive-Infinity)
-		       (less-than? val hi))
+		       (less-than?-cmp val hi cmp-fn))
 		   tree
 		 (WB-Bag-Tree-Trim (WB-Bag-Tree-Node-Left tree) lo hi cmp-fn))
 	     (WB-Bag-Tree-Trim (WB-Bag-Tree-Node-Right tree) lo hi cmp-fn))))))
@@ -3003,7 +3006,7 @@ count is not meaningful."
 	(values (WB-Bag-Tree-Node-Value tree)
 		(WB-Bag-Tree-Node-Count tree))))))
 
-(defun WB-Bag-Tree-Less-Minimum (tree &optional (cmp-fn #'compare))
+(defun WB-Bag-Tree-Less-Minimum (tree cmp-fn)
   "Assumes `tree' is nonempty.  Returns a new tree with the minimum value
 removed."
   (declare (optimize (speed 3) (safety 0))
@@ -3077,7 +3080,7 @@ removed."
 	     (Make-WB-Bag-Tree-Node value count left right))))))
 
 
-(defun WB-Bag-Tree-Verify (tree &optional (cmp-fn #'compare))
+(defun WB-Bag-Tree-Verify (tree cmp-fn)
   (WB-Bag-Tree-Verify-Rng tree Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn))
 
 (defun WB-Bag-Tree-Verify-Rng (tree lo hi cmp-fn)
@@ -3088,7 +3091,7 @@ removed."
 	   (and (> len 0)
 		(<= len *WB-Tree-Max-Vector-Length*)
 		(do ((i 0 (1+ i))
-		     (prev Hedge-Negative-Infinity))
+		     (prev lo))
 		    ((= i len)
 		     (or (eq hi Hedge-Positive-Infinity)
 			 (less-than?-cmp prev hi cmp-fn)))
@@ -4535,7 +4538,7 @@ value is not meaningful."
 	(values (WB-Map-Tree-Node-Key tree)
 		(WB-Map-Tree-Node-Value tree))))))
 
-(defun WB-Map-Tree-Less-Minimum (tree &optional (key-cmp-fn #'compare))
+(defun WB-Map-Tree-Less-Minimum (tree key-cmp-fn)
   "Assumes `tree' is nonempty.  Returns a new tree with the minimum key/value
 pair removed."
   (declare (optimize (speed 3) (safety 0))
@@ -4729,7 +4732,7 @@ pair removed."
 ;;; ================================================================================
 ;;; Restrict and restrict-not
 
-(defun WB-Map-Tree-Restrict (map-tree set-tree &optional (key-cmp-fn #'compare))
+(defun WB-Map-Tree-Restrict (map-tree set-tree key-cmp-fn)
   (WB-Map-Tree-Restrict-Rng map-tree set-tree Hedge-Negative-Infinity Hedge-Positive-Infinity key-cmp-fn))
 
 (defun WB-Map-Tree-Restrict-Rng (map-tree set-tree lo hi key-cmp-fn)
@@ -4778,7 +4781,7 @@ pair removed."
 	       (if rpr? (WB-Map-Tree-Concat rkey rval new-left new-right key-cmp-fn)
 		 (WB-Map-Tree-Join new-left new-right key-cmp-fn))))))))
 
-(defun WB-Map-Tree-Restrict-Not (map-tree set-tree &optional (key-cmp-fn #'compare))
+(defun WB-Map-Tree-Restrict-Not (map-tree set-tree key-cmp-fn)
   (WB-Map-Tree-Restrict-Not-Rng map-tree set-tree Hedge-Negative-Infinity Hedge-Positive-Infinity key-cmp-fn))
 
 (defun WB-Map-Tree-Restrict-Not-Rng (map-tree set-tree lo hi key-cmp-fn)
@@ -5223,24 +5226,24 @@ between equal trees."
 	     (Make-WB-Map-Tree-Node key value left right))))))
 
 
-(defun WB-Map-Tree-Verify (tree &optional (cmp-fn #'compare))
-  (WB-Map-Tree-Verify-Rng tree Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn))
+(defun WB-Map-Tree-Verify (tree key-cmp-fn)
+  (WB-Map-Tree-Verify-Rng tree Hedge-Negative-Infinity Hedge-Positive-Infinity key-cmp-fn))
 
-(defun WB-Map-Tree-Verify-Rng (tree lo hi cmp-fn)
+(defun WB-Map-Tree-Verify-Rng (tree lo hi key-cmp-fn)
   (cond ((null tree) t)
 	((consp tree)
 	 (let ((len (length (car tree))))
 	   (and (> len 0)
 		(<= len *WB-Tree-Max-Vector-Length*)
 		(do ((i 0 (1+ i))
-		     (prev Hedge-Negative-Infinity))
+		     (prev lo))
 		    ((= i len)
 		     (or (eq hi Hedge-Positive-Infinity)
-			 (less-than?-cmp prev hi cmp-fn)))
+			 (less-than?-cmp prev hi key-cmp-fn)))
 		  (let ((key (svref (car tree) i)))
 		    (unless (and (not (Equivalent-Node? key))
 				 (or (eq prev Hedge-Negative-Infinity)
-				     (less-than?-cmp prev key cmp-fn)))
+				     (less-than?-cmp prev key key-cmp-fn)))
 		      (return nil))
 		    (setq prev key))))))
 	(t
@@ -5254,8 +5257,8 @@ between equal trees."
 		    (<= sizl (* sizr WB-Tree-Balance-Factor)))
 		(or (<= sizl 4)
 		    (<= sizr (* sizl WB-Tree-Balance-Factor)))
-		(WB-Map-Tree-Verify-Rng (WB-Map-Tree-Node-Left tree) lo key cmp-fn)
-		(WB-Map-Tree-Verify-Rng (WB-Map-Tree-Node-Right tree) key hi cmp-fn))))))
+		(WB-Map-Tree-Verify-Rng (WB-Map-Tree-Node-Left tree) lo key key-cmp-fn)
+		(WB-Map-Tree-Verify-Rng (WB-Map-Tree-Node-Right tree) key hi key-cmp-fn))))))
 
 
 (defun WB-Map-Tree-Vector-Pair-Union (pr1 pr2 val-fn lo hi key-cmp-fn)
@@ -6024,7 +6027,7 @@ is returned, which is an `Equivalent-Map'."
 		      ((> len1 len2) ':less)
 		      ((cl:every #'(lambda (pr1)
 				     (let ((pr2 (assoc (car pr1) mems2 :test (equal?-fn key-cmp-fn))))
-				       (and pr2 (equal? (cdr pr1) (cdr pr2)))))
+				       (and pr2 (equal?-cmp (cdr pr1) (cdr pr2) val-cmp-fn))))
 				 mems1)
 		       ':equal)
 		      (t

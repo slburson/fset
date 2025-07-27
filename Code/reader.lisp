@@ -418,8 +418,6 @@ such subform."
   (expand-map-constructor-form 'ch-map args key-compare-fn-name val-compare-fn-name))
 
 (defun expand-map-constructor-form (type-name args &optional key-compare-fn-name val-compare-fn-name)
-  (assert (or (and (null key-compare-fn-name) (null val-compare-fn-name))
-	      (and key-compare-fn-name val-compare-fn-name)))
   (let ((default (cadr (member ':default args)))
 	((empty-form `(,(empty-instance-function type-name) ,default
 		       . ,(and key-compare-fn-name `(,key-compare-fn-name ,val-compare-fn-name))))))
@@ -480,8 +478,6 @@ subform, its associated value will be given by the rightmost such subform."
   (expand-replay-map-constructor-form 'wb-replay-map args key-compare-fn-name val-compare-fn-name))
 
 (defun expand-replay-map-constructor-form (type-name args &optional key-compare-fn-name val-compare-fn-name)
-  (assert (or (and (null key-compare-fn-name) (null val-compare-fn-name))
-	      (and key-compare-fn-name val-compare-fn-name)))
   ;; We MUST maintain ORDER!!!  Yow!!!
   (let ((default (cadr (member ':default args)))
 	((result `(,(empty-instance-function type-name) ,default

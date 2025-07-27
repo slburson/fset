@@ -1436,12 +1436,11 @@ when printing instances."
 
 (defstruct (wb-set
 	     (:include set)
-	     (:constructor raw-make-wb-set (contents))
+	     (:constructor nil)
 	     (:predicate wb-set?)
-	     (:print-function print-wb-set)
 	     (:copier nil))
-  "A class of functional sets represented as weight-balanced binary trees.  This is
-the default implementation of sets in FSet."
+  "An abstract class for functional sets represented as weight-balanced binary
+trees."
   (contents nil :read-only t))
 
 ;;; For WB-sets, the space overhead of carrying around the comparison function in every instance
@@ -1451,6 +1450,15 @@ the default implementation of sets in FSet."
 ;;; probably not be noticeable.  But I went ahead and added `wb-custom-set` before making this
 ;;; measurement, and having written it, I'm inclined to leave it in.  `WB-Set' will be the only
 ;;; class I do this for, though.
+(defstruct (wb-default-set
+	     (:include wb-set)
+	     (:constructor make-wb-default-set (contents))
+	     (:predicate wb-default-set?)
+	     (:print-function print-wb-default-set)
+	     (:copier nil))
+  "A class of functional sets represented as weight-balanced binary trees, and
+ordered by `fset:compare'.  This is the default implementation of sets in FSet.")
+
 (defstruct (wb-custom-set
 	     (:include wb-set)
 	     (:constructor make-wb-custom-set (contents org))
@@ -1471,12 +1479,20 @@ custom comparison function."
 
 (declaim (inline wb-set-compare-fn))
 (defun wb-set-compare-fn (s)
-  (tree-set-org-compare-fn (wb-set-org s)))
+  (if (wb-custom-set? s)
+      (tree-set-org-compare-fn (wb-custom-set-org s))
+    #'compare))
+
+(declaim (inline wb-set-compare-fn-name))
+(defun wb-set-compare-fn-name (s)
+  (if (wb-custom-set? s)
+      (tree-set-org-compare-fn-name (wb-custom-set-org s))
+    'compare))
 
 (declaim (inline make-wb-set))
 (defun make-wb-set (contents &optional org)
   (if (or (null org) (eq (tree-set-org-compare-fn org) #'compare))
-      (raw-make-wb-set contents)
+      (make-wb-default-set contents)
     (make-wb-custom-set contents org)))
 
 (defparameter *empty-wb-set* (make-wb-set nil))
@@ -1509,7 +1525,7 @@ to use a custom ordering, supply the comparison function name (a symbol) as
 (defun empty-wb-custom-set (compare-fn-name)
   "Returns an empty `wb-set' ordered according to `compare-fn-name', which
 must be a symbol."
-  (check-type compare-fn-name symbol)
+  (assert (and (symbolp compare-fn-name) (not (null compare-fn-name))))
   (if (eq compare-fn-name 'compare)
       *empty-wb-set*
     (let ((prev-instance (gethash compare-fn-name +empty-wb-custom-set-cache+))
@@ -1528,18 +1544,23 @@ must be a symbol."
     "Returns an empty set of the same implementation, and using the same compare
 or hash function, as `s'."))
 
-(defmethod empty-set-like ((s wb-set))
+(defmethod empty-set-like ((s wb-default-set))
   (empty-set))
 
 (defmethod empty-set-like ((s wb-custom-set))
-  (let ((tsorg (wb-custom-set-org s)))
-    (empty-wb-custom-set (tree-set-org-compare-fn-name tsorg))))
+  (empty-wb-custom-set (tree-set-org-compare-fn-name (wb-custom-set-org s))))
 
-(defmethod compare-fn ((s wb-set))
+(defmethod compare-fn ((s wb-default-set))
   #'compare)
 
 (defmethod compare-fn ((s wb-custom-set))
   (tree-set-org-compare-fn (wb-custom-set-org s)))
+
+(defmethod compare-fn-name ((s wb-default-set))
+  'compare)
+
+(defmethod compare-fn-name ((s wb-custom-set))
+  (tree-set-org-compare-fn-name (wb-custom-set-org s)))
 
 (define-wb-set-methods empty? ((s wb-set))
   (null (contents s)))
@@ -2009,7 +2030,7 @@ for the possibility of different set implementations; it is not for public use.
   (let ((pred (coerce-to-function pred)))
     (count-if #'(lambda (x) (not (funcall pred x))) s :key key)))
 
-(defun print-wb-set (set stream level)
+(defun print-wb-default-set (set stream level)
   (declare (ignore level))
   (pprint-logical-block (stream nil :prefix "#{" :suffix " }")
     (do-set (x set)
@@ -2118,7 +2139,7 @@ comparison function as `compare-fn-name'."
 (deflex +empty-ch-custom-set-cache+ (make-hash-table :test 'equal))
 
 (defun empty-ch-custom-set (compare-fn-name)
-  (check-type compare-fn-name symbol)
+  (assert (and (symbolp compare-fn-name) (not (null compare-fn-name))))
   (if (eq compare-fn-name 'compare)
       *empty-ch-set*
     (let ((prev-instance (gethash compare-fn-name +empty-ch-custom-set-cache+))
@@ -2143,6 +2164,9 @@ comparison function as `compare-fn-name'."
 
 (defmethod compare-fn ((s ch-set))
   (hash-set-org-compare-fn (ch-set-org s)))
+
+(defmethod compare-fn-name ((s ch-set))
+  (hash-set-org-compare-fn-name (ch-set-org s)))
 
 (defmethod empty? ((s ch-set))
   (null (ch-set-contents s)))
@@ -2395,7 +2419,7 @@ must be a symbol."
 (deflex +empty-wb-custom-bag-cache+ (make-hash-table :test 'equal))
 
 (defun empty-wb-custom-bag (compare-fn-name)
-  (check-type compare-fn-name symbol)
+  (assert (and (symbolp compare-fn-name) (not (null compare-fn-name))))
   (if (eq compare-fn-name 'compare)
       *empty-wb-bag*
     (let ((prev-instance (gethash compare-fn-name +empty-wb-custom-bag-cache+))
@@ -2424,6 +2448,9 @@ must be a symbol."
 
 (defmethod compare-fn ((b wb-bag))
   (tree-set-org-compare-fn (wb-bag-org b)))
+
+(defmethod compare-fn-name ((b wb-bag))
+  (tree-set-org-compare-fn-name (wb-bag-org b)))
 
 (defmethod empty? ((b wb-bag))
   (null (wb-bag-contents b)))
@@ -3262,17 +3289,14 @@ the default implementation of maps in FSet."
       (if (null default)
 	  *empty-wb-map*
 	(make-wb-map nil +fset-default-tree-map-org+ default))
-    (empty-wb-custom-map default key-compare-fn-name val-compare-fn-name)))
+    (empty-wb-custom-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare))))
 
 (deflex +empty-wb-custom-map-cache+ (make-hash-table :test 'equal))
 
 (defun empty-wb-custom-map (default key-compare-fn-name val-compare-fn-name)
-  (check-type key-compare-fn-name symbol)
-  (check-type val-compare-fn-name symbol)
-  (assert (or (and (null key-compare-fn-name) (null val-compare-fn-name))
-	      (and key-compare-fn-name val-compare-fn-name)))
-  (if (and (or (null key-compare-fn-name) (eq key-compare-fn-name 'compare))
-	   (or (null val-compare-fn-name) (eq val-compare-fn-name 'compare)))
+  (assert (and (symbolp key-compare-fn-name) (not (null key-compare-fn-name))))
+  (assert (and (symbolp val-compare-fn-name) (not (null val-compare-fn-name))))
+  (if (and (eq key-compare-fn-name 'compare) (eq val-compare-fn-name 'compare))
       (if (null default) *empty-wb-map*
 	(make-wb-map nil +fset-default-tree-map-org+ default))
     ;; &&& This caches one default per type.  We could use a two-level map to cache multiple defaults,
@@ -3301,9 +3325,17 @@ the default implementation of maps in FSet."
     (empty-wb-custom-map (map-default m) (tree-map-org-key-compare-fn-name tmorg)
 			 (tree-map-org-val-compare-fn-name tmorg))))
 
-(defmethod compare-fns ((m wb-map))
-  (let ((tmorg (wb-map-org m)))
-    (values (tree-map-org-key-compare-fn tmorg) (tree-map-org-val-compare-fn tmorg))))
+(defmethod key-compare-fn ((m wb-map))
+  (tree-map-org-key-compare-fn (wb-map-org m)))
+
+(defmethod val-compare-fn ((m wb-map))
+  (tree-map-org-val-compare-fn (wb-map-org m)))
+
+(defmethod key-compare-fn-name ((m wb-map))
+  (tree-map-org-key-compare-fn-name (wb-map-org m)))
+
+(defmethod val-compare-fn-name ((m wb-map))
+  (tree-map-org-val-compare-fn-name (wb-map-org m)))
 
 (defmethod default ((m map))
   (map-default m))
@@ -3395,19 +3427,27 @@ the default implementation of maps in FSet."
 	(size2 (size m2)))
     (cond ((< size1 size2) ':less)
 	  ((> size1 size2) ':greater)
-	  ((let ((kcf1 vcf1 (compare-fns m1))
-		 (kcf2 vcf2 (compare-fns m2)))
-	     (declare (ignore kcf1 kcf2))
-	     (unless (eq vcf1 vcf2)
-	       ;; Fortunately, this should be a vanishingly rare thing to try to do.
-	       (error "Can't compare maps with different value-compare-fns, ~A vs. ~A"
-		      vcf1 vcf2))
+	  ((let ((vcf1 (val-compare-fn m1))
+		 (vcf2 (val-compare-fn m2)))
 	     (do-map (k v1 m1 t)
 	       (let ((v2 v2? (lookup m2 k)))
-		 (unless (and v2? (equal?-cmp v1 v2 vcf1))
+		 (unless (and v2?
+			      (let ((eqv1? (equal?-cmp v1 v2 vcf1))
+				    (eqv2? (equal?-cmp v1 v2 vcf2)))
+				;; Requiring `(eq vcf1 vcf2)' seems a little too strong.  This is our
+				;; next best choice.
+				(unless (eqv eqv1? eqv2?)
+				  (error "Can't compare maps with incompatible val-compare-fns, ~A vs. ~A"
+					 (tree-map-org-val-compare-fn-name (wb-map-org m1))
+					 (tree-map-org-val-compare-fn-name (wb-map-org m2))))
+				eqv1?))
 		   (return nil)))))
 	   ':equal)
 	  (t ':unequal))))
+
+(defun eqv (a b &rest more)
+  (and (or (eq a b) (and a b))
+       (gmap (:result and) #'eqv (:arg constant a) (:arg list more))))
 
 ;;; Prior to FSet 1.4.0, this method ignored the defaults, so two maps with the same
 ;;; key/value pairs but different defaults compared `:equal'.  While that was clearly
@@ -3523,8 +3563,7 @@ symbols."))
     (WB-Map-Tree-Lookup (wb-map-contents m) x (tree-map-org-key-compare-fn tmorg))))
 
 (defmethod range-contains? ((m map) x)
-  (let ((kcfn vcfn (compare-fns m)))
-    (declare (ignore kcfn))
+  (let ((vcfn (val-compare-fn m)))
     (do-map (k v m)
       (declare (ignore k))
       (when (equal?-cmp v x vcfn)
@@ -3533,11 +3572,10 @@ symbols."))
 (defmethod map-union ((m1 map) (m2 map) &optional (val-fn (fn (_v1 v2) v2)))
   "Fallback method for mixed implementations."
   (let ((result m1)
-	(kcf1 vcf1 (compare-fns m1))
-	(kcf2 vcf2 (compare-fns m2)))
-    (declare (ignore kcf1 kcf2))
+	(vcf1 (val-compare-fn m1))
+	(vcf2 (val-compare-fn m2)))
     (unless (eq vcf1 vcf2)
-      (error "Can't take map-union of maps with different value-compare-fns, ~A vs. ~A"
+      (error "Can't take map-union of maps with different val-compare-fns, ~A vs. ~A"
 	     vcf1 vcf2))
     (do-map (k v2 m2)
       (let ((v1 v1? (lookup m1 k)))
@@ -3562,11 +3600,10 @@ symbols."))
 (defmethod map-intersection ((m1 map) (m2 map) &optional (val-fn (fn (_v1 v2) v2)))
   "Fallback method for mixed implementations."
   (let ((result (empty-map-like m1))
-	(kcf1 vcf1 (compare-fns m1))
-	(kcf2 vcf2 (compare-fns m2)))
-    (declare (ignore kcf1 kcf2))
+	(vcf1 (val-compare-fn m1))
+	(vcf2 (val-compare-fn m2)))
     (unless (eq vcf1 vcf2)
-      (error "Can't take map-intersection of maps with different value-compare-fns, ~A vs. ~A"
+      (error "Can't take map-intersection of maps with different val-compare-fns, ~A vs. ~A"
 	     vcf1 vcf2))
     (do-map (k v1 m1)
       (let ((v2 v2? (lookup m2 k)))
@@ -3590,18 +3627,17 @@ symbols."))
   "Fallback method for mixed implementations."
   (let ((result1 (empty-map-like m1))
 	(result2 (empty-map-like m2))
-	(kcf1 vcf1 (compare-fns m1))
-	(kcf2 vcf2 (compare-fns m2)))
-    (declare (ignore kcf1 kcf2))
+	(vcf1 (val-compare-fn m1))
+	(vcf2 (val-compare-fn m2)))
     (unless (eq vcf1 vcf2)
-      (error "Can't take map-difference-2 of maps with different value-compare-fns, ~A vs. ~A"
+      (error "Can't take map-difference-2 of maps with different val-compare-fns, ~A vs. ~A"
 	     vcf1 vcf2))
     (do-map (k v1 m1)
-      (let ((v2 v2? (lookup k m2)))
+      (let ((v2 v2? (lookup m2 k)))
 	(when (or (not v2?) (not (equal?-cmp v1 v2 vcf1)))
 	  (setf (lookup result1 k) v1))))
     (do-map (k v2 m2)
-      (let ((v1 v1? (lookup k m1)))
+      (let ((v1 v1? (lookup m1 k)))
 	(when (or (not v1?) (not (equal?-cmp v1 v2 vcf1)))
 	  (setf (lookup result2 k) v2))))
     (values result1 result2)))
@@ -3615,7 +3651,7 @@ symbols."))
 		(make-wb-map newc2 tmorg (map-default map2))))
     (call-next-method)))
 
-(defmethod restrict ((m wb-map) (s wb-set))
+(defmethod restrict ((m map) (s set))
   "Fallback method for mixed implementations."
   (let ((result (empty-map-like m)))
     (do-map (k v m)
@@ -3627,11 +3663,12 @@ symbols."))
   (let ((tmorg (wb-map-org m))
 	(tsorg (wb-set-org s)))
     (if (eq (tree-map-org-key-compare-fn tmorg) (tree-set-org-compare-fn tsorg))
-	(make-wb-map (WB-Map-Tree-Restrict (wb-map-contents m) (wb-set-contents s))
+	(make-wb-map (WB-Map-Tree-Restrict (wb-map-contents m) (wb-set-contents s)
+					   (tree-map-org-key-compare-fn tmorg))
 		     tmorg (map-default m))
       (call-next-method))))
 
-(defmethod restrict-not ((m wb-map) (s wb-set))
+(defmethod restrict-not ((m map) (s set))
   "Fallback method for mixed implementations."
   (let ((result (empty-map-like m)))
     (do-map (k v m)
@@ -3643,7 +3680,8 @@ symbols."))
   (let ((tmorg (wb-map-org m))
 	(tsorg (wb-set-org s)))
     (if (eq (tree-map-org-key-compare-fn tmorg) (tree-set-org-compare-fn tsorg))
-	(make-wb-map (WB-Map-Tree-Restrict-Not (wb-map-contents m) (wb-set-contents s))
+	(make-wb-map (WB-Map-Tree-Restrict-Not (wb-map-contents m) (wb-set-contents s)
+					       (tree-map-org-key-compare-fn tmorg))
 		     tmorg (map-default m))
       (call-next-method))))
 
@@ -4054,17 +4092,14 @@ Note that `filterp', if supplied, must take two arguments."
       (if (null default)
 	  *empty-ch-map*
 	(make-ch-map nil (ch-map-org *empty-ch-map*) default))
-    (empty-ch-custom-map default key-compare-fn-name val-compare-fn-name)))
+    (empty-ch-custom-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare))))
 
 (deflex +empty-ch-custom-map-cache+ (make-hash-table :test 'equal))
 
 (defun empty-ch-custom-map (default key-compare-fn-name val-compare-fn-name)
-  (check-type key-compare-fn-name symbol)
-  (check-type val-compare-fn-name symbol)
-  (assert (or (and (null key-compare-fn-name) (null val-compare-fn-name))
-	      (and key-compare-fn-name val-compare-fn-name)))
-  (if (and (or (null key-compare-fn-name) (eq key-compare-fn-name 'compare))
-	   (or (null val-compare-fn-name) (eq val-compare-fn-name 'compare)))
+  (assert (and (symbolp key-compare-fn-name) (not (null key-compare-fn-name))))
+  (assert (and (symbolp val-compare-fn-name) (not (null val-compare-fn-name))))
+  (if (and (eq key-compare-fn-name 'compare) (eq val-compare-fn-name 'compare))
       (if (null default) *empty-ch-map*
 	(make-ch-map nil (ch-map-org *empty-ch-map*) default))
     ;; See note in `empty-wb-custom-map'.
@@ -4101,8 +4136,17 @@ Note that `filterp', if supplied, must take two arguments."
     (empty-ch-custom-map (map-default m) (hash-map-org-key-compare-fn-name hmorg)
 			 (hash-map-org-val-compare-fn-name hmorg))))
 
-(defmethod value-compare-fn ((m ch-map))
+(defmethod key-compare-fn ((m ch-map))
+  (hash-map-org-key-compare-fn (ch-map-org m)))
+
+(defmethod val-compare-fn ((m ch-map))
   (hash-map-org-val-compare-fn (ch-map-org m)))
+
+(defmethod key-compare-fn-name ((m ch-map))
+  (hash-map-org-key-compare-fn-name (ch-map-org m)))
+
+(defmethod val-compare-fn-name ((m ch-map))
+  (hash-map-org-val-compare-fn-name (ch-map-org m)))
 
 (defmethod with-default ((m ch-map) new-default)
   (make-ch-map (ch-map-contents m) (ch-map-org m) new-default))
@@ -4458,8 +4502,7 @@ not symbols."))
 			         from-end?)
   (declare (optimize (speed 3) (safety 0))
 	   (type function elt-fn value-fn))
-  (check-type start fixnum)
-  (check-type end fixnum)
+  (assert (and (typep start 'fixnum) (typep end 'fixnum)))
   ;; Expect Python notes about "can't use known return convention"
   (if index?
       (let ((i start))
