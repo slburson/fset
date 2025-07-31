@@ -37,12 +37,16 @@
 	   #:ch-set #:ch-map
 	   #:replay-set #:replay-set? #:wb-replay-set #:wb-replay-set?
 	   #:replay-map #:replay-map? #:wb-replay-map #:wb-replay-map?
+	   #:wb-custom-set #:wb-custom-bag #:wb-custom-map
+	   #:ch-custom-set #:ch-custom-map
+	   #:wb-custom-replay-set #:wb-custom-replay-map
 	   ;; `Equal?' is exported because users may want to call it; `Compare'
 	   ;; because they may want to extend it; and `Compare-Slots' because it's
 	   ;; useful in extending `Compare'.  But `Less-Than?' and `Greater-Than?'
 	   ;; are unlikely to be useful in user code.
-	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal
-	   #:define-equality-slots #:define-comparison-slots
+	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal #:eql-compare
+	   #:define-equality-slots #:define-comparison-slots #:define-hash-function
+	   #:hash-value #:zero
 	   #:identity-equality-mixin #:identity-ordering-mixin
 	   #:define-cross-type-compare-methods
 	   #:compare-lexicographically
@@ -148,13 +152,19 @@
   (:export #:collection #:set #:bag #:map #:seq #:tuple
 	   #:collection? #:set? #:bag? #:map? #:seq? #:tuple?
 	   #:wb-set #:wb-bag #:wb-map #:wb-seq #:dyn-tuple
+	   #:ch-set #:ch-map
+	   #:replay-set #:replay-set? #:wb-replay-set #:wb-replay-set?
+	   #:replay-map #:replay-map? #:wb-replay-map #:wb-replay-map?
+	   #:wb-custom-set #:wb-custom-bag #:wb-custom-map
+	   #:ch-custom-set #:ch-custom-map
+	   #:wb-custom-replay-set #:wb-custom-replay-map
 	   ;; `Equal?' is exported because users may want to call it; `Compare'
 	   ;; because they may want to extend it; and `Compare-Slots' because it's
 	   ;; useful in extending `Compare'.  But `Less-Than?' and `Greater-Than?'
 	   ;; are unlikely to be useful in user code.
-	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal
-	   #:define-equality-slots #:define-comparison-slots
-	   #:hash-value ; new for FSet2
+	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal #:eql-compare
+	   #:define-equality-slots #:define-comparison-slots #:define-hash-function
+	   #:hash-value #:zero
 	   #:identity-equality-mixin #:identity-ordering-mixin
 	   #:define-cross-type-compare-methods
 	   #:compare-lexicographically
@@ -259,4 +269,5 @@
 	   (not (and (> (integer-length (1- char-code-limit)) 16)
 		     (< (integer-length most-positive-fixnum) 32))))
   (pushnew ':FSet-Ext-Strings *features*))
+
 

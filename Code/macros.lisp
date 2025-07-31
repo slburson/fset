@@ -724,3 +724,47 @@ as two values, and executes `body'.  When done, returns `value'."
 	     ,then)
 	 ,else))))
 
+
+;;; Boilerplate macros.  The free references to and bindings of fixed names are intentional.
+
+(defmacro convert-to-wb-set (coll identity-test &body contents-forms)
+  (let ((body `(let ((tree (progn . ,contents-forms)))
+		 (if (eq compare-fn #'compare)
+		     (make-wb-default-set tree)
+		   (make-wb-custom-set tree (wb-custom-set-org prototype))))))
+    `(let ((prototype (empty-wb-set compare-fn-name))
+	   ((compare-fn (wb-set-compare-fn prototype))))
+       ,(if identity-test
+	    `(if ,identity-test ,coll ,body)
+	  body))))
+
+(defmacro convert-to-ch-set (coll identity-test &body contents-forms)
+  (let ((body `(let ((tree (progn . ,contents-forms)))
+		 (make-ch-set tree hsorg))))
+    `(let ((prototype (empty-ch-set compare-fn-name))
+	   ((hsorg (ch-set-org prototype))
+	    ((hash-fn (hash-set-org-hash-fn hsorg))
+	     (compare-fn (hash-set-org-compare-fn hsorg)))))
+       ,(if identity-test
+	    `(if ,identity-test ,coll ,body)
+	  body))))
+
+(defmacro convert-to-wb-bag (coll identity-test &body contents-forms)
+  (let ((body `(let ((tree (progn . ,contents-forms)))
+		 (make-wb-bag tree (wb-bag-org prototype)))))
+    `(let ((prototype (empty-wb-bag compare-fn-name))
+	   ((compare-fn (tree-set-org-compare-fn (wb-bag-org prototype)))))
+       ,(if identity-test
+	    `(if ,identity-test ,coll ,body)
+	  body))))
+
+(defmacro convert-to-wb-map (coll default identity-test &body contents-forms)
+  (let ((body `(let ((tree (progn . ,contents-forms)))
+		 (make-wb-map tree tmorg ,default))))
+    `(let ((prototype (empty-wb-map nil key-compare-fn-name val-compare-fn-name))
+	   ((tmorg (wb-map-org prototype))
+	    ((key-compare-fn (tree-map-org-key-compare-fn tmorg))
+	     (val-compare-fn (tree-map-org-val-compare-fn tmorg)))))
+       ,(if identity-test
+	    `(if ,identity-test ,coll ,body)
+	  body))))

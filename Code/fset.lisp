@@ -473,62 +473,73 @@ have additional keyword parameters to further specify the kind of conversion.
 the implementation has more sequence subtypes.  FSet's `seq' is not a subtype of
 `sequence'.)
 
+When `to-type' is one of the abstract types -- `set', `bag', `map' etc. -- the
+only guarantee is that `convert' will return an instance of the requested type.
+The choices of implementation and organization are up to FSet, and there's no
+option to request a specific organization.  In contrast, when `to-type' is one
+of the concrete types -- `wb-set', `ch-set', `wb-map', etc. -- the `convert'
+method accepts keyword arguments specifying the organization (e.g.
+`compare-fn-name'), and guarantees to return a collection of that type and
+organization; including the case where no organization is specified, in which
+`convert' is guaranteed to return a collection of the default organization \(the
+one using `fset:compare'\).
+
 Method summary:     to-type       collection type         notes
                      set                set               0
-                     wb-set             wb-set            0
+                     wb-set             set               0, 15
+                     wb-set             wb-set            15
                      set                list              1, 2
-                     wb-set             list              2
+                     wb-set             list              2, 15
                      list               set
                      set                seq               1, 2
-                     wb-set             seq               2
+                     wb-set             seq               2, 15
                      set                sequence          1, 2
-                     wb-set             sequence          2
+                     wb-set             sequence          2, 15
                      vector             set
-                     ch-set             ch-set            0
-                     ch-set             list
-                     ch-set             seq
-                     ch-set             sequence
-                     ch-set             wb-set
-                     wb-set             ch-set
+                     ch-set             set               15
+                     ch-set             ch-set            0, 15
+                     ch-set             list              15
+                     ch-set             seq               15
+                     ch-set             sequence          15
 
                      bag                bag               0
-                     wb-bag             wb-bag            0
+                     wb-bag             wb-bag            0, 15
                      bag                wb-set            1
-                     wb-bag             wb-set
+                     wb-bag             wb-set            15
                      bag                set
-                     wb-bag             set
+                     wb-bag             set               15
                      set                wb-bag            1
-                     wb-set             wb-bag
+                     wb-set             wb-bag            15
                      list               bag               3
                      seq                bag               3
                      vector             bag               3
                      alist              bag
                      bag                list              1, 2, 3, 4
-                     wb-bag             list              2, 3, 4
+                     wb-bag             list              2, 3, 4, 15
                      bag                seq               1, 2, 3
-                     wb-bag             seq               2, 3
+                     wb-bag             seq               2, 3, 15
                      bag                sequence          1, 2, 3
-                     wb-bag             sequence          2, 3
+                     wb-bag             sequence          2, 3, 15
 
                      map                map               0
-                     wb-map             wb-map            0
+                     wb-map             wb-map            0, 16
                      list               map               5
                      alist              map
                      seq                map               5
                      vector             map               5
                      set                map               5
                      map                list              1, 2, 6, 7
-                     wb-map             list              2, 6, 7
+                     wb-map             list              2, 6, 7, 16
                      map                seq               1, 2, 6, 7
-                     wb-map             seq               2, 6, 7
+                     wb-map             seq               2, 6, 7, 16
                      map                sequence          1, 2, 6, 7
-                     wb-map             sequence          2, 6, 7
+                     wb-map             sequence          2, 6, 7, 16
                      map                bag               1
-                     wb-map             bag
+                     wb-map             bag               16
                      map                hash-table        1
-                     wb-map             hash-table
+                     wb-map             hash-table        16
                      hash-table         map               8
-                     wb-map             ch-map
+                     wb-map             ch-map            16
 
                      seq                seq               0
                      wb-seq             wb-seq            0
@@ -605,7 +616,9 @@ Method summary:     to-type       collection type         notes
                      list               sequence
 
 Notes:
-0. Identity conversion, provided for convenience.
+0. Identity conversion, provided for convenience.  (If the method also accepts
+   an organization, then it performs the identity conversion only if the
+   organization of the argument matches that requested.)
 1. Constructs the WB (weight-balanced tree) implementation of its type (`wb-set'
    etc.).
 2. Has keyword parameter `input-sorted?'.  If true, uses an algorithm optimized
@@ -635,7 +648,12 @@ Notes:
     values.
 13. Constructs a `dyn-tuple'.
 14. Always returns a string.  Signals `type-error' if it encounters a non-
-    character."))
+    character.
+15. Has keyword parameter `compare-fn-name'.  If nonnull, must be a symbol, the
+    name of the comparison function to be used.
+16. Has keyword parameters `key-compare-fn-name' and `val-compare-fn-name'.  If
+    nonnull, these must be symbols, the names of the key and value comparison
+    functions, respectively, to be used."))
 
 ;;; The `&allow-other-keys' is to persuade SBCL not to issue warnings about keywords
 ;;; that are accepted by some methods of `convert'.  This differs from the behavior
@@ -1879,28 +1897,16 @@ for the possibility of different set implementations; it is not for public use.
 ;;; would have been for a call without options to return its argument unconverted; but I think
 ;;; you should be able to tell what type you're going to get by looking at the `convert' call.)
 (defmethod convert ((to-type (eql 'wb-set)) (s set) &key compare-fn-name)
-  (let ((prototype (empty-wb-set compare-fn-name))
-	((compare-fn (tree-set-org-compare-fn (wb-set-org prototype)))))
-    (if (eq compare-fn (tree-set-org-compare-fn (wb-set-org s)))
-	s
-      (let ((result nil))
-	(do-set (x s)
-	  (setq result (WB-Set-Tree-With result x compare-fn)))
-	(if (eq compare-fn #'compare)
-	    (make-wb-set result)
-	  (make-wb-custom-set result (wb-custom-set-org prototype)))))))
+  (convert-to-wb-set s nil
+    (let ((tree nil))
+      (do-set (x s tree)
+	(setq tree (WB-Set-Tree-With tree x compare-fn))))))
 
 (define-wb-set-methods convert ((to-type (eql 'wb-set)) (s wb-set) &key compare-fn-name)
-  (let ((prototype (empty-wb-set compare-fn-name))
-	((compare-fn (wb-set-compare-fn prototype))))
-    (if (eq (compare-fn s) compare-fn)
-	s
-      (let ((result nil))
-	(do-wb-set-tree-members (x (contents s))
-	  (setq result (WB-Set-Tree-With result x compare-fn)))
-	(if (eq compare-fn #'compare)
-	    (make-wb-set result)
-	  (make-wb-custom-set result (wb-custom-set-org prototype)))))))
+  (convert-to-wb-set s (eq compare-fn (compare-fn s))
+    (let ((tree nil))
+      (do-wb-set-tree-members (x (contents s) tree)
+	(setq tree (WB-Set-Tree-With tree x compare-fn))))))
 
 (defmethod convert ((to-type (eql 'list)) (s set) &key)
   (declare (optimize (speed 3)))
@@ -1923,12 +1929,8 @@ for the possibility of different set implementations; it is not for public use.
   (make-wb-set (wb-set-from-list l input-sorted? #'compare)))
 
 (defmethod convert ((to-type (eql 'wb-set)) (l list) &key input-sorted? compare-fn-name)
-  (let ((prototype (empty-wb-set compare-fn-name))
-	((compare-fn (wb-set-compare-fn prototype))
-	 ((contents (wb-set-from-list l input-sorted? compare-fn)))))
-    (if (eq compare-fn #'compare)
-	(make-wb-set contents)
-      (make-wb-custom-set contents (wb-custom-set-org prototype)))))
+  (convert-to-wb-set s nil
+    (wb-set-from-list l input-sorted? compare-fn)))
 
 (defun wb-set-from-list (l input-sorted? compare-fn)
   (if input-sorted?
@@ -1939,23 +1941,15 @@ for the possibility of different set implementations; it is not for public use.
   (make-wb-set (wb-set-from-sequence s input-sorted? #'compare)))
 
 (defmethod convert ((to-type (eql 'wb-set)) (s seq) &key input-sorted? compare-fn-name)
-  (let ((prototype (empty-wb-set compare-fn-name))
-	((compare-fn (wb-set-compare-fn prototype))
-	 ((contents (wb-set-from-sequence s input-sorted? compare-fn)))))
-    (if (eq compare-fn #'compare)
-	(make-wb-set contents)
-      (make-wb-custom-set contents (wb-custom-set-org prototype)))))
+  (convert-to-wb-set s nil
+    (wb-set-from-sequence s input-sorted? compare-fn)))
 
 (defmethod convert ((to-type (eql 'set)) (s sequence) &key input-sorted?)
   (make-wb-set (wb-set-from-sequence s input-sorted? #'compare)))
 
 (defmethod convert ((to-type (eql 'wb-set)) (s sequence) &key input-sorted? compare-fn-name)
-  (let ((prototype (empty-wb-set compare-fn-name))
-	((compare-fn (wb-set-compare-fn prototype))
-	 ((contents (wb-set-from-sequence s input-sorted? compare-fn)))))
-    (if (eq compare-fn #'compare)
-	(make-wb-set contents)
-      (make-wb-custom-set contents (wb-custom-set-org prototype)))))
+  (convert-to-wb-set s nil
+    (wb-set-from-sequence s input-sorted? compare-fn)))
 
 (defun wb-set-from-sequence (s input-sorted? compare-fn)
   (if input-sorted?
@@ -2300,7 +2294,7 @@ comparison function as `compare-fn-name'."
     (funcall elt-fn x)))
 
 (defmethod iterator ((s ch-set) &key)
-  ;; Quick and O(log n) per element.   &&& Write a proper tree iterator.
+  ;; O(log n) per element.   &&& Write a proper tree iterator.
   (let ((tree (ch-set-contents s))
 	(idx 0))
     (lambda (op)
@@ -2310,59 +2304,37 @@ comparison function as `compare-fn-name'."
 	(:more? (< idx (ch-set-tree-size tree)))))))
 
 (defmethod convert ((to-type (eql 'ch-set)) (s set) &key compare-fn-name)
-  (let ((prototype (empty-ch-set compare-fn-name))
-	((hsorg (ch-set-org prototype))
-	 ((hash-fn (hash-set-org-hash-fn hsorg))
-	  (compare-fn (hash-set-org-compare-fn hsorg))))
-	(result nil))
-    (do-set (x s)
-      (setq result (ch-set-tree-with result x hash-fn compare-fn)))
-    (make-ch-set result hsorg)))
+  (convert-to-ch-set s nil
+    (let ((tree nil))
+      (do-set (x s tree)
+	(setq tree (ch-set-tree-with tree x hash-fn compare-fn))))))
 
 (defmethod convert ((to-type (eql 'ch-set)) (s ch-set) &key compare-fn-name)
-  (let ((prototype (empty-ch-set compare-fn-name))
-	(from-hsorg (ch-set-org s))
-	((to-hsorg (ch-set-org prototype))
-	 ((to-hash (hash-set-org-hash-fn to-hsorg))
-	  (to-comp (hash-set-org-compare-fn to-hsorg)))))
-    (if (or (eq from-hsorg to-hsorg)
-	    (and (eq (hash-set-org-hash-fn from-hsorg) to-hash)
-		 (eq (hash-set-org-compare-fn from-hsorg) to-comp)))
-	s
-      (let ((result nil))
-	(do-ch-set-tree-members (x (ch-set-contents s))
-	  (setq result (ch-set-tree-with result x to-hash to-comp)))
-	(make-ch-set result to-hsorg)))))
+  (convert-to-ch-set s (let ((from-hsorg (ch-set-org s)))
+			 (or (eq from-hsorg hsorg)
+			     (and (eq (hash-set-org-hash-fn from-hsorg) hash-fn)
+				  (eq (hash-set-org-compare-fn from-hsorg) compare-fn))))
+    (let ((tree nil))
+      (do-ch-set-tree-members (x (ch-set-contents s) tree)
+	(setq tree (ch-set-tree-with tree x hash-fn compare-fn))))))
 
 (defmethod convert ((to-type (eql 'ch-set)) (l list) &key compare-fn-name)
-  (let ((prototype (empty-ch-set compare-fn-name))
-	((hsorg (ch-set-org prototype))
-	 ((hash-fn (hash-set-org-hash-fn hsorg))
-	  (compare-fn (hash-set-org-compare-fn hsorg))))
-	(result nil))
-    (dolist (x l)
-      (setq result (ch-set-tree-with result x hash-fn compare-fn)))
-    (make-ch-set result hsorg)))
+  (convert-to-ch-set l nil
+    (let ((tree nil))
+      (dolist (x l tree)
+	(setq tree (ch-set-tree-with tree x hash-fn compare-fn))))))
 
 (defmethod convert ((to-type (eql 'ch-set)) (s seq) &key compare-fn-name)
-  (let ((prototype (empty-ch-set compare-fn-name))
-	((hsorg (ch-set-org prototype))
-	 ((hash-fn (hash-set-org-hash-fn hsorg))
-	  (compare-fn (hash-set-org-compare-fn hsorg))))
-	(result nil))
-    (do-seq (x s)
-      (setq result (ch-set-tree-with result x hash-fn compare-fn)))
-    (make-ch-set result hsorg)))
+  (convert-to-ch-set s nil
+    (let ((tree nil))
+      (do-seq (x s :value tree)
+	(setq tree (ch-set-tree-with tree x hash-fn compare-fn))))))
 
 (defmethod convert ((to-type (eql 'ch-set)) (s sequence) &key compare-fn-name)
-  (let ((prototype (empty-ch-set compare-fn-name))
-	((hsorg (ch-set-org prototype))
-	 ((hash-fn (hash-set-org-hash-fn hsorg))
-	  (compare-fn (hash-set-org-compare-fn hsorg))))
-	(result nil))
-    (dotimes (i (length s))
-      (setq result (ch-set-tree-with result (elt s i) hash-fn compare-fn)))
-    (make-ch-set result hsorg)))
+  (convert-to-ch-set s nil
+    (let ((tree nil))
+      (dotimes (i (length s) tree)
+	(setq tree (ch-set-tree-with tree (elt s i) hash-fn compare-fn))))))
 
 (defun print-ch-set (set stream level)
   (declare (ignore level))
@@ -2961,57 +2933,49 @@ different bag implementations; it is not for public use.  `elt-fn' and
   b)
 
 (defmethod convert ((to-type (eql 'wb-bag)) (b bag) &key compare-fn-name)
-  (let ((prototype (empty-wb-bag compare-fn-name))
-	((compare-fn (tree-set-org-compare-fn (wb-bag-org prototype))))
-	(result nil))
-    (do-bag-pairs (x n b)
-      (setq result (WB-Bag-Tree-With result x compare-fn n)))
-    (make-wb-bag result (wb-bag-org prototype))))
+  (convert-to-wb-bag b nil
+    (let ((tree nil))
+      (do-bag-pairs (x n b tree)
+	(setq tree (WB-Bag-Tree-With tree x compare-fn n))))))
 
 (defmethod convert ((to-type (eql 'wb-bag)) (b wb-bag) &key compare-fn-name)
-  (let ((prototype (empty-wb-bag compare-fn-name))
-	((compare-fn (tree-set-org-compare-fn (wb-bag-org prototype)))))
-    (if (eq compare-fn (tree-set-org-compare-fn (wb-bag-org b)))
-	b
-      (let ((result nil))
-	(do-wb-bag-tree-pairs (x n (wb-bag-contents b))
-	  (setq result (WB-Bag-Tree-With result x compare-fn n)))
-	(make-wb-bag result (wb-bag-org prototype))))))
+  (convert-to-wb-bag b (eq compare-fn (tree-set-org-compare-fn (wb-bag-org b)))
+    (let ((tree nil))
+      (do-wb-bag-tree-pairs (x n (wb-bag-contents b) tree)
+	(setq tree (WB-Bag-Tree-With tree x compare-fn n))))))
 
 (defmethod convert ((to-type (eql 'set)) (b wb-bag) &key)
-  (make-wb-set (WB-Bag-Tree-To-Set-Tree (wb-bag-contents b))))
+  (make-wb-set (WB-Bag-Tree-To-Set-Tree (wb-bag-contents b)) (wb-bag-org b)))
 
 (defmethod convert ((to-type (eql 'wb-set)) (b wb-bag) &key compare-fn-name)
-  (let ((prototype (empty-wb-set compare-fn-name))
-	(result (make-wb-set (WB-Bag-Tree-To-Set-Tree (wb-bag-contents b)) (wb-bag-org b))))
-    (if (eq (tree-set-org-compare-fn (wb-set-org prototype))
-	    (tree-set-org-compare-fn (wb-set-org result)))
-	result
-      (convert 'wb-set result :compare-fn-name compare-fn-name))))
+  (convert-to-wb-set b nil
+    (if (eq compare-fn (tree-set-org-compare-fn (wb-bag-org b)))
+	(WB-Bag-Tree-To-Set-Tree (wb-bag-contents b))
+      (let ((result nil))
+	(do-wb-bag-tree-pairs (x n (wb-bag-contents b) result)
+	  (declare (ignore n))
+	  (setq result (WB-Set-Tree-With result x compare-fn)))))))
 
 (defmethod convert ((to-type (eql 'bag)) (s wb-set) &key)
   (make-wb-bag (WB-Set-Tree-To-Bag-Tree (wb-set-contents s)) (wb-set-org s)))
 
 (defmethod convert ((to-type (eql 'wb-bag)) (s wb-set) &key compare-fn-name)
-  (let ((prototype (empty-wb-set compare-fn-name))
-	((s (if (eq (tree-set-org-compare-fn (wb-set-org prototype))
-		    (tree-set-org-compare-fn (wb-set-org s)))
-		s
-	      (convert 'wb-set s :compare-fn-name compare-fn-name)))))
-    (make-wb-bag (WB-Set-Tree-To-Bag-Tree (wb-set-contents s))
-		 (wb-set-org prototype))))
+  (convert-to-wb-bag s nil
+    (if (eq compare-fn (wb-set-compare-fn s))
+	(WB-Set-Tree-To-Bag-Tree (wb-set-contents s))
+      (let ((result nil))
+	(do-wb-set-tree-members (x (wb-set-contents s) result)
+	  (setq result (WB-Bag-Tree-With result x compare-fn)))))))
 
 (defmethod convert ((to-type (eql 'bag)) (s set) &key)
   (wb-bag-from-set s))
 (defmethod convert ((to-type (eql 'wb-bag)) (s set) &key compare-fn-name)
   (wb-bag-from-set s compare-fn-name))
 (defun wb-bag-from-set (s &optional compare-fn-name)
-  (let ((tree nil)
-	(prototype (empty-wb-bag compare-fn-name))
-	((compare-fn (tree-set-org-compare-fn (wb-bag-org prototype)))))
-    (do-set (x s)
-      (setq tree (WB-Bag-Tree-With tree x compare-fn)))
-    (make-wb-bag tree (wb-bag-org prototype))))
+  (convert-to-wb-bag s nil
+    (let ((tree nil))
+      (do-set (x s tree)
+	(setq tree (WB-Bag-Tree-With tree x compare-fn))))))
 
 (defmethod convert ((to-type (eql 'list)) (b bag) &key pairs?)
   (declare (optimize (speed 3) (safety 0)))
@@ -3038,40 +3002,35 @@ different bag implementations; it is not for public use.  `elt-fn' and
       (push (cons value count) result))
     (nreverse result)))
 
-(defmethod convert ((to-type (eql 'bag)) (l list) &key input-sorted? pairs? from-type compare-fn-name)
-  (wb-bag-from-list l input-sorted? (or pairs? (eq from-type 'alist)) compare-fn-name))
+(defmethod convert ((to-type (eql 'bag)) (l list) &key input-sorted? pairs? from-type)
+  (wb-bag-from-list l input-sorted? (or pairs? (eq from-type 'alist))))
 
 (defmethod convert ((to-type (eql 'wb-bag)) (l list) &key input-sorted? pairs? from-type compare-fn-name)
   (wb-bag-from-list l input-sorted? (or pairs? (eq from-type 'alist)) compare-fn-name))
 
-(defun wb-bag-from-list (l input-sorted? pairs? compare-fn-name)
-  (let ((prototype (empty-wb-bag compare-fn-name))
-	((compare-fn (tree-set-org-compare-fn (wb-bag-org prototype)))))
+(defun wb-bag-from-list (l input-sorted? pairs? &optional compare-fn-name)
+  (convert-to-wb-bag l nil
     (if input-sorted?
-	(make-wb-bag (WB-Bag-Tree-From-Sorted-Iterable (the function (iterator l)) (length l) pairs? compare-fn)
-		     (wb-bag-org prototype))
-      (make-wb-bag (WB-Bag-Tree-From-List l pairs? compare-fn) (wb-bag-org prototype)))))
+	(WB-Bag-Tree-From-Sorted-Iterable (the function (iterator l)) (length l) pairs? compare-fn)
+      (WB-Bag-Tree-From-List l pairs? compare-fn))))
 
-(defmethod convert ((to-type (eql 'bag)) (s seq) &key input-sorted? pairs? compare-fn-name)
-  (wb-bag-from-sequence s input-sorted? pairs? compare-fn-name))
+(defmethod convert ((to-type (eql 'bag)) (s seq) &key input-sorted? pairs?)
+  (wb-bag-from-sequence s input-sorted? pairs?))
 
 (defmethod convert ((to-type (eql 'wb-bag)) (s seq) &key input-sorted? pairs? compare-fn-name)
   (wb-bag-from-sequence s input-sorted? pairs? compare-fn-name))
 
-(defmethod convert ((to-type (eql 'bag)) (s sequence) &key input-sorted? pairs? compare-fn-name)
-  (wb-bag-from-sequence s input-sorted? pairs? compare-fn-name))
+(defmethod convert ((to-type (eql 'bag)) (s sequence) &key input-sorted? pairs?)
+  (wb-bag-from-sequence s input-sorted? pairs?))
 
 (defmethod convert ((to-type (eql 'wb-bag)) (s sequence) &key input-sorted? pairs? compare-fn-name)
   (wb-bag-from-sequence s input-sorted? pairs? compare-fn-name))
 
-(defun wb-bag-from-sequence (s input-sorted? pairs? compare-fn-name)
-  (let ((prototype (empty-wb-bag compare-fn-name))
-	((compare-fn (tree-set-org-compare-fn (wb-bag-org prototype)))))
+(defun wb-bag-from-sequence (s input-sorted? pairs? &optional compare-fn-name)
+  (convert-to-wb-bag s nil
     (if input-sorted?
-	(make-wb-bag (WB-Bag-Tree-From-Sorted-Iterable (the function (iterator s)) (size s) pairs? compare-fn)
-		     (wb-bag-org prototype))
-      (make-wb-bag (WB-Bag-Tree-From-Iterable (the function (iterator s)) pairs? compare-fn)
-		   (wb-bag-org prototype)))))
+	(WB-Bag-Tree-From-Sorted-Iterable (the function (iterator s)) (size s) pairs? compare-fn)
+      (WB-Bag-Tree-From-Iterable (the function (iterator s)) pairs? compare-fn))))
 
 (defmethod find (item (b bag) &key key test)
   (declare (optimize (speed 3) (safety 0)))
@@ -3753,34 +3712,17 @@ symbols."))
 (defmethod convert ((to-type (eql 'map)) (m map) &key)
   m)
 
-(defmethod convert ((to-type (eql 'wb-map)) (m map)
-		    &key (default nil default?) key-compare-fn-name val-compare-fn-name)
-  "The result uses `default' if supplied, otherwise has the same default as `m'."
-  (let ((prototype (empty-wb-map default key-compare-fn-name val-compare-fn-name))
-	((proto-tmorg (wb-map-org prototype))
-	 ((key-compare-fn (tree-map-org-key-compare-fn proto-tmorg))
-	  (val-compare-fn (tree-map-org-val-compare-fn proto-tmorg)))))
-    (let ((result nil))
-      (do-map (k v m)
-	(setq result (WB-Map-Tree-With result k v key-compare-fn val-compare-fn)))
-      (make-wb-map result proto-tmorg (if default? default (map-default m))))))
-
 (defmethod convert ((to-type (eql 'wb-map)) (m wb-map)
 		    &key (default nil default?) key-compare-fn-name val-compare-fn-name)
   "The result uses `default' if supplied, otherwise has the same default as `m'."
-  (let ((prototype (empty-wb-map default key-compare-fn-name val-compare-fn-name))
-	((proto-tmorg (wb-map-org prototype))
-	 ((key-compare-fn (tree-map-org-key-compare-fn proto-tmorg))
-	  (val-compare-fn (tree-map-org-val-compare-fn proto-tmorg))))
-	(m-tmorg (wb-map-org m)))
-    (if (or (eq m-tmorg proto-tmorg)
+  (convert-to-wb-map m (if default? default (map-default m))
+      (let ((m-tmorg (wb-map-org m)))
+	(or (eq m-tmorg tmorg)
 	    (and (eq key-compare-fn (tree-map-org-key-compare-fn m-tmorg))
-		 (eq val-compare-fn (tree-map-org-val-compare-fn m-tmorg))))
-	m
-      (let ((result nil))
-	(do-map (k v m)
-	  (setq result (WB-Map-Tree-With result k v key-compare-fn val-compare-fn)))
-	(make-wb-map result proto-tmorg (if default? default (map-default m)))))))
+		 (eq val-compare-fn (tree-map-org-val-compare-fn m-tmorg)))))
+    (let ((tree nil))
+      (Do-WB-Map-Tree-Pairs (k v (wb-map-contents m) tree)
+	(setq tree (WB-Map-Tree-With tree k v key-compare-fn val-compare-fn))))))
 
 (defmethod convert ((to-type (eql 'list)) (m map) &key (pair-fn #'cons))
   (let ((result nil))
@@ -3809,9 +3751,8 @@ symbols."))
 
 ;;; &&& Plist support?
 (defmethod convert ((to-type (eql 'map)) (l list)
-		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?
-		      key-compare-fn-name val-compare-fn-name)
-  (wb-map-from-sequence l key-fn value-fn input-sorted? key-compare-fn-name val-compare-fn-name))
+		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?)
+  (wb-map-from-sequence l key-fn value-fn input-sorted?))
 
 (defmethod convert ((to-type (eql 'wb-map)) (l list)
 		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?
@@ -3819,9 +3760,8 @@ symbols."))
   (wb-map-from-sequence l key-fn value-fn input-sorted? key-compare-fn-name val-compare-fn-name))
 
 (defmethod convert ((to-type (eql 'map)) (s seq)
-		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?
-		      key-compare-fn-name val-compare-fn-name)
-  (wb-map-from-sequence s key-fn value-fn input-sorted? key-compare-fn-name val-compare-fn-name))
+		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?)
+  (wb-map-from-sequence s key-fn value-fn input-sorted?))
 
 (defmethod convert ((to-type (eql 'wb-map)) (s seq)
 		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?
@@ -3829,60 +3769,48 @@ symbols."))
   (wb-map-from-sequence s key-fn value-fn input-sorted? key-compare-fn-name val-compare-fn-name))
 
 (defmethod convert ((to-type (eql 'map)) (s sequence)
-		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?
-		      key-compare-fn-name val-compare-fn-name)
-  (wb-map-from-sequence s key-fn value-fn input-sorted? key-compare-fn-name val-compare-fn-name))
+		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?)
+  (wb-map-from-sequence s key-fn value-fn input-sorted?))
 
 (defmethod convert ((to-type (eql 'wb-map)) (s sequence)
 		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?
 		      key-compare-fn-name val-compare-fn-name)
   (wb-map-from-sequence s key-fn value-fn input-sorted? key-compare-fn-name val-compare-fn-name))
 
-(defun wb-map-from-sequence (s key-fn value-fn input-sorted? key-compare-fn-name val-compare-fn-name)
-  (let ((key-fn (coerce key-fn 'function))
-	(value-fn (coerce value-fn 'function))
-	(prototype (empty-wb-map nil key-compare-fn-name val-compare-fn-name))
-	((proto-tmorg (wb-map-org prototype))
-	 ((key-compare-fn (tree-map-org-key-compare-fn proto-tmorg))
-	  (val-compare-fn (tree-map-org-val-compare-fn proto-tmorg)))))
-    (cond (input-sorted?
-	   (make-wb-map (WB-Map-Tree-From-Sorted-Iterable (the function (iterator s)) (size s) key-fn value-fn
-							  key-compare-fn val-compare-fn)
-			proto-tmorg nil))
-	  ((listp s)
-	   (make-wb-map (WB-Map-Tree-From-List s key-fn value-fn key-compare-fn val-compare-fn)
-			proto-tmorg nil))
-	  (t
-	   (make-wb-map (WB-Map-Tree-From-Iterable (the function (iterator s)) key-fn value-fn
-						   key-compare-fn val-compare-fn)
-			proto-tmorg nil)))))
+(defun wb-map-from-sequence (s key-fn value-fn input-sorted? &optional key-compare-fn-name val-compare-fn-name)
+  (convert-to-wb-map s nil nil
+    (let ((key-fn (coerce key-fn 'function))
+	  (value-fn (coerce value-fn 'function)))
+      (cond (input-sorted?
+	     (WB-Map-Tree-From-Sorted-Iterable (iterator s) (size s) key-fn value-fn
+					       key-compare-fn val-compare-fn))
+	    ((listp s)
+	     (WB-Map-Tree-From-List s key-fn value-fn key-compare-fn val-compare-fn))
+	    (t
+	     (WB-Map-Tree-From-Iterable (iterator s) key-fn value-fn
+					key-compare-fn val-compare-fn))))))
 
-(defmethod convert ((to-type (eql 'map)) (b bag) &key key-compare-fn-name val-compare-fn-name)
-  (convert 'wb-map b :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name))
+(defmethod convert ((to-type (eql 'map)) (b bag) &key)
+  (convert 'wb-map b))
 
 (defmethod convert ((to-type (eql 'wb-map)) (b bag) &key key-compare-fn-name val-compare-fn-name)
   ;; &&& If desired, we can easily make a very fast version of this -- all it has to do is
   ;; build new interior nodes, reusing the leaf vectors.  (But only if the compare-fns match.)
-  (let ((prototype (empty-wb-map nil key-compare-fn-name val-compare-fn-name))
-	((proto-tmorg (wb-map-org prototype))
-	 ((key-compare-fn (tree-map-org-key-compare-fn proto-tmorg))
-	  (val-compare-fn (tree-map-org-val-compare-fn proto-tmorg))))
-	(m nil))
-    (do-bag-pairs (x n b)
-      (setq m (WB-Map-Tree-With m x n key-compare-fn val-compare-fn)))
-    (make-wb-map m proto-tmorg nil)))
+  (convert-to-wb-map b nil nil
+    (let ((tree nil))
+      (do-bag-pairs (x n b tree)
+	(setq tree (WB-Map-Tree-With tree x n key-compare-fn val-compare-fn))))))
 
-(defmethod convert ((to-type (eql 'map)) (ht hash-table) &key key-compare-fn-name val-compare-fn-name)
-  (convert 'wb-map ht :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name))
+(defmethod convert ((to-type (eql 'map)) (ht hash-table) &key)
+  (convert 'wb-map ht))
 
 (defmethod convert ((to-type (eql 'wb-map)) (ht hash-table) &key key-compare-fn-name val-compare-fn-name)
-  (let ((prototype (empty-wb-map nil key-compare-fn-name val-compare-fn-name))
-	((proto-tmorg (wb-map-org prototype))
-	 ((key-compare-fn (tree-map-org-key-compare-fn proto-tmorg))
-	  (val-compare-fn (tree-map-org-val-compare-fn proto-tmorg))))
-	(m nil))
-    (maphash (lambda (k v) (setq m (WB-Map-Tree-With m k v key-compare-fn val-compare-fn))) ht)
-    (make-wb-map m proto-tmorg nil)))
+  (convert-to-wb-map ht nil nil
+    (let ((tree nil))
+      (maphash (lambda (k v)
+		 (setq tree (WB-Map-Tree-With tree k v key-compare-fn val-compare-fn)))
+	       ht)
+      tree)))
 
 (defmethod convert ((to-type (eql 'hash-table)) (m map)
 		    &rest make-hash-table-args &key &allow-other-keys)
@@ -4197,14 +4125,10 @@ Note that `filterp', if supplied, must take two arguments."
     (funcall elt-fn x y)))
 
 (defmethod convert ((to-type (eql 'wb-map)) (m ch-map) &key key-compare-fn-name val-compare-fn-name)
-  (let ((prototype (empty-wb-map nil key-compare-fn-name val-compare-fn-name))
-	((proto-tmorg (wb-map-org prototype))
-	 ((key-compare-fn (tree-map-org-key-compare-fn proto-tmorg))
-	  (val-compare-fn (tree-map-org-val-compare-fn proto-tmorg))))
-	(result nil))
-    (do-ch-map-tree-pairs (k v (ch-map-contents m))
-      (setq result (WB-Map-Tree-With result k v key-compare-fn val-compare-fn)))
-    (make-wb-map result proto-tmorg (map-default m))))
+  (convert-to-wb-map m nil nil
+    (let ((tree nil))
+      (do-ch-map-tree-pairs (k v (ch-map-contents m) tree)
+	(setq tree (WB-Map-Tree-With tree k v key-compare-fn val-compare-fn))))))
 
 (defun print-ch-map (map stream level)
   (declare (ignore level))
