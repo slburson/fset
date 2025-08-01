@@ -530,8 +530,8 @@ Method summary:     to-type       collection type         notes
                      set                map               5
                      map                list              1, 2, 6, 7
                      wb-map             list              2, 6, 7, 16
-                     map                seq               1, 2, 6, 7
-                     wb-map             seq               2, 6, 7, 16
+                     map                seq               1, 2, 6, 7, 17
+                     wb-map             seq               2, 6, 7, 16, 17
                      map                sequence          1, 2, 6, 7
                      wb-map             sequence          2, 6, 7, 16
                      map                bag               1
@@ -553,9 +553,8 @@ Method summary:     to-type       collection type         notes
                      string             wb-seq            14
                      seq                bag               1
                      wb-seq             bag
-                     seq                map               1
-                     seq                map               1, 5
-                     wb-seq             map               5
+                     seq                map               1, 5, 17
+                     wb-seq             map               5, 17
 
                      2-relation         2-relation        0
                      wb-2-relation      wb-2-relation     0
@@ -653,7 +652,8 @@ Notes:
     name of the comparison function to be used.
 16. Has keyword parameters `key-compare-fn-name' and `val-compare-fn-name'.  If
     nonnull, these must be symbols, the names of the key and value comparison
-    functions, respectively, to be used."))
+    functions, respectively, to be used.
+17. The default of the result is the same as that of the argument."))
 
 ;;; The `&allow-other-keys' is to persuade SBCL not to issue warnings about keywords
 ;;; that are accepted by some methods of `convert'.  This differs from the behavior
@@ -1892,10 +1892,6 @@ for the possibility of different set implementations; it is not for public use.
 (defmethod convert ((to-type (eql 'set)) (s set) &key)
   s)
 
-;;; &&& Doc note: for this and similar `convert' methods, if you don't pass any options, you get
-;;; a `compare' collection.  (The alternative, which I implemented initially,
-;;; would have been for a call without options to return its argument unconverted; but I think
-;;; you should be able to tell what type you're going to get by looking at the `convert' call.)
 (defmethod convert ((to-type (eql 'wb-set)) (s set) &key compare-fn-name)
   (convert-to-wb-set s nil
     (let ((tree nil))
@@ -3761,12 +3757,14 @@ symbols."))
 
 (defmethod convert ((to-type (eql 'map)) (s seq)
 		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?)
-  (wb-map-from-sequence s key-fn value-fn input-sorted?))
+  (with-default (wb-map-from-sequence s key-fn value-fn input-sorted?)
+		(seq-default s)))
 
 (defmethod convert ((to-type (eql 'wb-map)) (s seq)
 		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?
 		      key-compare-fn-name val-compare-fn-name)
-  (wb-map-from-sequence s key-fn value-fn input-sorted? key-compare-fn-name val-compare-fn-name))
+  (with-default (wb-map-from-sequence s key-fn value-fn input-sorted? key-compare-fn-name val-compare-fn-name)
+		(seq-default s)))
 
 (defmethod convert ((to-type (eql 'map)) (s sequence)
 		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?)
@@ -4389,8 +4387,7 @@ This is the default implementation of seqs in FSet."
 						(:get (let ((k v (funcall m-it ':get)))
 							(funcall pair-fn k v))))))
 					  (size m))
-	       ;; &&& Should we transfer the default also?
-	       nil))
+	       (map-default m)))
 
 ;;; Prior to FSet 1.4.0, this method ignored the defaults, so two seqs with the same
 ;;; elements but different defaults compared `:equal'.  While that was clearly a bug,

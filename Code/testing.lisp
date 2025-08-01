@@ -787,7 +787,7 @@
       (test (equal? (convert 'wb-map (map (1 2) (4 8) :default 0))
 		    (map (1 2) (4 8) :default 0)))
       (test (equal? (convert 'seq (map (1 3) (2 10) :default 17))
-		    (seq '(1 . 3) '(2 . 10))))
+		    (with-default (seq '(1 . 3) '(2 . 10)) 17)))
       (test (equalp (convert 'vector (map (1 3) (2 10) :default 17))
 		    #((1 . 3) (2 . 10))))
       (test (equalp (convert 'set (map (1 3) (2 10) :default 17))

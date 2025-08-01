@@ -46,6 +46,7 @@
 	   ;; are unlikely to be useful in user code.
 	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal #:eql-compare
 	   #:define-equality-slots #:define-comparison-slots #:define-hash-function
+	   #:unwrap-equivalent-node ; custom comparison functions may have to call this
 	   #:hash-value #:zero
 	   #:identity-equality-mixin #:identity-ordering-mixin
 	   #:define-cross-type-compare-methods
@@ -164,6 +165,7 @@
 	   ;; are unlikely to be useful in user code.
 	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal #:eql-compare
 	   #:define-equality-slots #:define-comparison-slots #:define-hash-function
+	   #:unwrap-equivalent-node ; custom comparison functions may have to call this
 	   #:hash-value #:zero
 	   #:identity-equality-mixin #:identity-ordering-mixin
 	   #:define-cross-type-compare-methods
