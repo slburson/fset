@@ -302,67 +302,166 @@ If you're using `define-class' from Misc-Extensions, you can just say:
 ;;; ================================================================================
 ;;; Macros related to fset.lisp
 
+;;; See note above "FSet-Use-Package-Locks" in `port.lisp'.
+#+FSet-Use-Package-Locks
+(progn
+  (defmacro internal-with (&rest args)
+    `(with . ,args))
+  (defmacro internal-less (&rest args)
+    `(less . ,args))
+  (defmacro internal-union (&rest args)
+    `(union . ,args))
+  (defmacro internal-intersection (&rest args)
+    `(intersection . ,args))
+  (defmacro internal-set-difference (&rest args)
+    `(set-difference . ,args))
+  (defmacro internal-map-union (&rest args)
+    `(map-union . ,args))
+  (defmacro internal-map-intersection (&rest args)
+    `(map-intersection . ,args))
+  (defmacro internal-compose (&rest args)
+    `(compose . ,args))
+  (defmacro internal-first (&rest args)
+    `(first . ,args))
+  (defmacro internal-last (&rest args)
+    `(last . ,args))
+  (defmacro internal-with-first (&rest args)
+    `(with-first . ,args))
+  (defmacro internal-with-last (&rest args)
+    `(with-last . ,args))
+  (defmacro internal-less-first (&rest args)
+    `(less-first . ,args))
+  (defmacro internal-less-last (&rest args)
+    `(less-last . ,args))
+  (defmacro internal-concat (&rest args)
+    `(concat . ,args))
+  (defmacro internal-insert (&rest args)
+    `(insert . ,args)))
+
+#-FSet-Use-Package-Locks
+(progn
+  (declaim (inline internal-with))
+  (defun internal-with (coll x &optional (y nil y?))
+    (if y? (with coll x y)
+      (with coll x)))
+  (declaim (inline internal-less))
+  (defun internal-less (coll x &optional (y nil y?))
+    (if y? (less coll x y)
+      (less coll x)))
+  (declaim (inline internal-union))
+  (defun internal-union (x y)
+    (union x y))
+  (declaim (inline internal-intersection))
+  (defun internal-intersection (x y)
+    (intersection x y))
+  (declaim (inline internal-set-difference))
+  (defun internal-set-difference (x y)
+    (set-difference x y))
+  (declaim (inline internal-map-union))
+  (defun internal-map-union (map1 map2 &optional (val-fn nil val-fn?))
+    (if val-fn?
+	(map-union map1 map2 val-fn)
+      (map-union map1 map2)))
+  (declaim (inline internal-map-intersection))
+  (defun internal-map-intersection (map1 map2 &optional (val-fn nil val-fn?))
+    (if val-fn?
+	(map-intersection map1 map2 val-fn)
+      (map-intersection map1 map2)))
+  (declaim (inline internal-compose))
+  (defun internal-compose (map1 map2-or-fn)
+    (compose map1 map2-or-fn))
+  (declaim (inline internal-first))
+  (defun internal-first (seq)
+    (first seq))
+  (declaim (inline internal-last))
+  (defun internal-last (seq)
+    (last seq))
+  (declaim (inline internal-with-first))
+  (defun internal-with-first (seq val)
+    (with-first seq val))
+  (declaim (inline internal-with-last))
+  (defun internal-with-last (seq val)
+    (with-last seq val))
+  (declaim (inline internal-less-first))
+  (defun internal-less-first (seq)
+    (less-first seq))
+  (declaim (inline internal-less-last))
+  (defun internal-less-last (seq)
+    (less-last seq))
+  (declaim (inline internal-concat))
+  (defun internal-concat (seq1 &rest seqs)
+    (apply #'concat seq1 seqs))
+  (declaim (inline internal-insert))
+  (defun internal-insert (seq idx val)
+    (insert seq idx val)))
+
 ;;; --------------------------------
 ;;; Modify macros
+
+;;; The `internal-*' names are unexported versions, which we use here to prevent any
+;;; possibility of unintentional capture by a `labels', `flet', or `macrolet' form
+;;; in client code.
 
 ;;; `adjoinf' / `removef', which don't form a good pair, are now deprecated
 ;;; in favor of `includef' / `excludef'.
 (define-modify-macro adjoinf (&rest item-or-tuple)
-  with
+  internal-with
   "(adjoinf coll . args) --> (setf coll (with coll . args))")
 
 (define-modify-macro removef (&rest item-or-tuple)
-  less
+  internal-less
   "(removef coll . args) --> (setf coll (less coll . args))")
 
 (define-modify-macro includef (&rest item-or-tuple)
-  with
+  internal-with
   "(includef coll . args) --> (setf coll (with coll . args))")
 
 (define-modify-macro excludef (&rest item-or-tuple)
-  less
+  internal-less
   "(excludef coll . args) --> (setf coll (less coll . args))")
 
 (define-modify-macro unionf (set)
-  union)
+  internal-union)
 
 (define-modify-macro intersectf (set)
-  intersection)
+  internal-intersection)
 
 ;;; Not completely thrilled with these names, but nothing better occurs to me.
 (define-modify-macro set-differencef (set)
-  set-difference)
+  internal-set-difference)
 
 ;;; It might seem more natural to use `&optional' than `&rest', but then this macro would have to
 ;;; know the correct default value for `val-fn'; otherwise `define-modify-macro' would fill in `nil'.
 (define-modify-macro map-unionf (map &rest stuff)
-  map-union)
+  internal-map-union)
 
 ;;; Ditto.
 (define-modify-macro map-intersectf (map &rest stuff)
-  map-intersection)
+  internal-map-intersection)
 
 (define-modify-macro imagef (fn)
   ximage)
 
+(declaim (inline ximage))
 (defun ximage (coll fn)
   (image fn coll))
 
 (define-modify-macro updatef (fn &rest keys)
   xupdate)
 
+(declaim (inline xupdate))
 (defun xupdate (coll fn &rest keys)
   (apply #'update fn coll keys))
 
 (define-modify-macro composef (fn)
-  compose)
+  internal-compose)
 
 (define-modify-macro push-first (val)
-  with-first
+  internal-with-first
   "(push-first seq val) --> (setf seq (with-first seq val))")
 
 (define-modify-macro push-last (val)
-  with-last
+  internal-with-last
   "(push-last seq val) --> (setf seq (with-last seq val))")
 
 (defmacro pop-first (seq &environment env)
@@ -373,8 +472,8 @@ If you're using `define-class' from Misc-Extensions, you can just say:
     `(let* (,@(mapcar #'list vars vals)
 	    (,(car new) ,getter))
        (prog1
-	 (first ,(car new))
-	 (setq ,(car new) (less-first ,(car new)))
+	 (internal-first ,(car new))
+	 (setq ,(car new) (internal-less-first ,(car new)))
 	 ,setter))))
 
 (defmacro pop-last (seq &environment env)
@@ -385,19 +484,20 @@ If you're using `define-class' from Misc-Extensions, you can just say:
     `(let* (,@(mapcar #'list vars vals)
 	    (,(car new) ,getter))
        (prog1
-	 (last ,(car new))
-	 (setq ,(car new) (less-last ,(car new)))
+	 (internal-last ,(car new))
+	 (setq ,(car new) (internal-less-last ,(car new)))
 	 ,setter))))
 
 (define-modify-macro appendf (seq)
-  concat)
+  internal-concat)
 
 (define-modify-macro prependf (seq)
   xconcat)
 
 (define-modify-macro insertf (idx value)
-  insert)
+  internal-insert)
 
+(declaim (inline xconcat))
 (defun xconcat (seq1 seq2)
   (concat seq2 seq1))
 
@@ -421,10 +521,10 @@ must be `setf'able itself."
     (values (cons key-temp temps)
 	    (cons key vals)
 	    (list val-temp)
-	    `(let ((,coll-temp (with ,access-form ,key-temp ,val-temp)))
+	    `(let ((,coll-temp (internal-with ,access-form ,key-temp ,val-temp)))
 	       ,store-form
 	       ,val-temp)
-	    `(lookup ,access-form ,key-temp))))
+	    `(internal-lookup ,access-form ,key-temp))))
 
 (defmacro @ (fn-or-collection &rest args)
   "A little hack with two purposes: (1) to make it easy to make FSet maps
@@ -446,7 +546,7 @@ with `setf', but only on collections, not functions, of course."
 	       (,arg-var ,(car args)))
 	   (if (functionp ,fn-var)
 	       (funcall ,fn-var ,arg-var)
-	     (lookup ,fn-var ,arg-var))))
+	     (internal-lookup ,fn-var ,arg-var))))
     `(funcall ,fn-or-collection . ,args)))
 
 ;;; Have to do the same thing for `@', since `setf' would not know what to
@@ -467,10 +567,14 @@ must be `setf'able itself."
     (values (cons key-temp temps)
 	    (cons key vals)
 	    (list val-temp)
-	    `(let ((,coll-temp (with ,access-form ,key-temp ,val-temp)))
+	    `(let ((,coll-temp (internal-with ,access-form ,key-temp ,val-temp)))
 	       ,store-form
 	       ,val-temp)
-	    `(lookup ,access-form ,key-temp))))
+	    `(internal-lookup ,access-form ,key-temp))))
+
+(declaim (inline internal-lookup))
+(defun internal-lookup (&rest args)
+  (apply #'lookup args))
 
 
 ;;; --------------------------------

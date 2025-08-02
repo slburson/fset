@@ -14,3 +14,7 @@
 ;;; in order to take effect in user code.
 (declaim (ftype (function (t &key &allow-other-keys) function) iterator))
 (declaim (ftype (function (t &key (:from-end? t) &allow-other-keys) function) fun-iterator))
+
+
+#+FSet-Use-Package-Locks
+(lock-fset-package)

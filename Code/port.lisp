@@ -280,6 +280,28 @@
   `(with-lock ((cdr ,name))
      (1- (incf (car ,name)))))
 
+;;; When a library exports macros, as FSet does, and the expansions of those macros sometimes
+;;; reference other exported function and macro names, there is a possibility that client code
+;;; will inadvertently break a macro within a local scope by binding one of the referenced names
+;;; in the function namespace with `labels', `flet', or `macrolet'.  There are two ways to
+;;; prevent this.  Some CL implementations have extensions that allow us to lock the FSet
+;;; package the same way that `cl:' is locked, so that an attempt to fbind one of its exported
+;;; functions or macros will cause a warning or error.  For the rest, the best we can do is to
+;;; define unexported aliases, and use those in the macro expansions instead.
+#+sbcl
+(progn
+  (pushnew ':FSet-Use-Package-Locks *features*)
+  (defun lock-fset-package ()
+    (sb-ext:lock-package (symbol-package 'lock-fset-package))))
+
+#+allegro
+(progn
+  (pushnew ':FSet-Use-Package-Locks *features*)
+  (defun lock-fset-package ()
+    (let ((pkg (symbol-package 'lock-fset-package)))
+      (setf (excl:package-lock pkg) t)
+      (setf (excl:package-definition-lock pkg) t))))
+
 
 ;;; ----------------
 
