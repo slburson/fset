@@ -14,7 +14,7 @@
 See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
 "
   :author "Scott L. Burson <Scott@sympoiesis.com>"
-  :version "1.4.6"
+  :version "1.5.0"
   :homepage "https://gitlab.common-lisp.net/fset/fset/-/wikis/home"
   :source-control "https://github.com/slburson/fset"
   :licence "LLGPL"
