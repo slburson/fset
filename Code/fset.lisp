@@ -551,8 +551,8 @@ Method summary:     to-type       collection type         notes
                      seq                set               1
                      wb-seq             set
                      string             wb-seq            14
-                     seq                bag               1
-                     wb-seq             bag
+                     seq                bag               1, 5
+                     wb-seq             bag               5
                      seq                map               1, 5, 17
                      wb-seq             map               5, 17
 
@@ -2982,10 +2982,6 @@ different bag implementations; it is not for public use.  `elt-fn' and
 	(push value result))
       (nreverse result))))
 
-(defmethod convert ((to-type (eql 'seq)) (b bag) &key pairs?)
-  ;; This is better than it looks, because converting a list to a seq is very fast.
-  (convert to-type (convert 'list b :pairs? pairs?)))
-
 (defmethod convert ((to-type (eql 'vector)) (b bag) &key pairs?)
   (coerce (convert 'list b :pairs? pairs?) 'vector))
 
@@ -4371,11 +4367,19 @@ This is the default implementation of seqs in FSet."
 (defmethod convert ((to-type (eql 'wb-seq)) (s set) &key)
   (make-wb-seq (wb-seq-tree-from-iterable (iterator s) (size s))))
 
-(defmethod convert ((to-type (eql 'seq)) (b bag) &key pairs?)
-  (convert to-type (convert 'list b :pairs? pairs?)))
+(defmethod convert ((to-type (eql 'seq)) (b bag) &key pairs? (pair-fn #'cons))
+  (convert 'wb-seq b :pairs? pairs? :pair-fn pair-fn))
 
-(defmethod convert ((to-type (eql 'wb-seq)) (b bag) &key pairs?)
-  (convert to-type (convert 'list b :pairs? pairs?)))
+(defmethod convert ((to-type (eql 'wb-seq)) (b bag) &key pairs? (pair-fn #'cons))
+  (make-wb-seq (wb-seq-tree-from-iterable (if pairs?
+					      (let ((it (iterator b :pairs? t)))
+						(lambda (op)
+						  (if (eq op ':get)
+						      (let ((v n (funcall it ':get)))
+							(funcall pair-fn v n))
+						    (funcall it op))))
+					    (iterator b))
+					  (if pairs? (set-size b) (size b)))))
 
 (defmethod convert ((to-type (eql 'seq)) (m map) &key (pair-fn #'cons))
   (convert 'wb-seq m :pair-fn pair-fn))
@@ -4435,23 +4439,6 @@ not symbols."))
     (Do-WB-Seq-Tree-Members-Gen (x (wb-seq-contents s) start end from-end?
 				     (funcall value-fn))
 	(funcall elt-fn x))))
-
-(defmethod sort-and-group ((s seq) pred &key key)
-  (if (empty? s) s
-    (let ((sorted (stable-sort s pred :key key))
-	  (result (empty-seq))
-	  (group (empty-seq)))
-      (do-seq (x sorted)
-	(if (or (empty? group)
-		(not (if key (funcall pred (funcall key (last group))
-				      (funcall key x))
-		       (funcall pred (last group) x))))
-	    (push-last group x)
-	  (progn
-	    (push-last result group)
-	    (setq group (with-first (empty-seq) x)))))
-      ;; 'group' can't be empty if 's' was nonempty.
-      (with-last result group))))
 
 (defmethod iterator ((s wb-seq) &key)
   (Make-WB-Seq-Tree-Iterator (wb-seq-contents s)))

@@ -36,6 +36,8 @@
   (sxhash x)) ; I guess
 
 (defmethod hash-value ((x symbol))
+  ;; None of SBCL, CCL, Allegro, LispWorks, or CLASP include the package in the hash.  Of these,
+  ;; only on SBCL is the hash of a symbol different from that of its `symbol-name'.
   (sxhash x))
 
 (defmethod hash-value ((x string))

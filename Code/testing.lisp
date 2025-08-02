@@ -601,7 +601,10 @@
       (test (equal? (convert 'set (bag 0 1 1 2 3 3 4)) (set 0 1 2 3 4)))
       (test (equal? (convert 'wb-set (bag 0 1 1 2 3 3 4)) (wb-set 0 1 2 3 4)))
       (test (equal (convert 'list (bag 0 1 1 2 3 3 4)) '(0 1 1 2 3 3 4)))
-      (test (equal? (convert 'seq (bag 0 1 1 2 3 3 4)) (seq 0 1 1 2 3 3 4)))
+      (test (equal (convert 'list (bag 0 1 1 2 3 3 4) :pairs? t)
+		   '((0 . 1) (1 . 2) (2 . 1) (3 . 2) (4 . 1))))
+      (test (equal? (convert 'seq (bag 0 1 1 2 3 3 4) :pairs? t)
+		    (seq '(0 . 1) '(1 . 2) '(2 . 1) '(3 . 2) '(4 . 1))))
       (test (equalp (convert 'vector (bag 0 1 1 2 3 3 4)) #(0 1 1 2 3 3 4)))
 
       (test (equal (convert 'alist (bag 1 1 2 2 2)) '((1 . 2) (2 . 3))))
