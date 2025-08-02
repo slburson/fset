@@ -34,7 +34,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 (defconstant champ-hash-level-mask (1- champ-node-radix))
 
 (defmacro do-bit-indices ((idx-var val &optional result) &body body)
-  (let ((val-var (gensym "VAL-")))
+  (let ((val-var (gensymx #:val-)))
     `(flet ((least-1-bit (n)
 	      (1- (logcount (logxor n (1- n))))))
        (declare (inline least-1-bit))
@@ -67,6 +67,21 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 	fh))))
 (declaim (ftype (function (t) fixnum) hash-value-fixnum))
 
+(defmacro hash-to-fixnum (val hash-fn)
+  `(let ((h (funcall ,hash-fn ,val)))
+     (if (typep h 'fixnum)
+	 h
+       (squash-bignum-hash h))))
+
+(defun squash-bignum-hash (h)
+  (let ((len (integer-length h))
+	(fixnum-len (integer-length most-positive-fixnum))
+	(fh 0))
+    (dotimes (i (ceiling len fixnum-len))
+      (logxorf fh (ldb (byte fixnum-len (* fixnum-len i)) h)))
+    (if (< h 0) (- fh) fh)))
+(declaim (ftype (function (t) fixnum) squash-bignum-hash))
+
 
 ;;; ================================================================================
 ;;; Sets
@@ -81,9 +96,9 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
   (hash-value 0 :type fixnum))
 (defconstant ch-set-node-header-size 4)
 
-(defun ch-set-tree-with (tree value &optional (depth 0))
+(defun ch-set-tree-with (tree value hash-fn compare-fn &optional (depth 0))
   ;(declare (optimize (speed 3) (safety 0)))
-  (let ((value-hash (hash-value-fixnum value)))
+  (let ((value-hash (hash-to-fixnum value hash-fn)))
     (declare (fixnum value-hash))
     (rlabels (rec tree (ash value-hash (- (* champ-hash-bits-per-level depth))) depth)
       (rec (node hash-shifted depth)
@@ -95,13 +110,13 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 	    (if (consp node)
 		;; We can create collision nodes at any level (see below).  -- Well, not at the root.  But
 		;; this is called from elsewhere (e.g. `-union') on subtrees, which might be collision nodes.
-		(let ((wb-hash-shifted (ash (hash-value-fixnum (wb-set-tree-arb (cdr node)))
+		(let ((wb-hash-shifted (ash (hash-to-fixnum (wb-set-tree-arb (cdr node)) hash-fn)
 					    (- (* champ-hash-bits-per-level depth))))
 		      (size (1+ (wb-set-tree-size (cdr node)))))
 		  (declare (fixnum wb-hash-shifted hash-shifted size))
 		  (if (= hash-shifted wb-hash-shifted)
 		      ;; Update the collision node.
-		      (let ((new-wb-tree (wb-set-tree-with (cdr node) value)))
+		      (let ((new-wb-tree (wb-set-tree-with (cdr node) value compare-fn)))
 			(if (eq new-wb-tree (cdr node))
 			    node
 			  ;; New entry in collision node
@@ -120,6 +135,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 					     (ash wb-hash-shifted (- champ-hash-bits-per-level))))
 			    (vector (ash 1 hash-bits) (ash 1 wb-hash-bits) size content-hash
 				    value node)))))))
+	      ;; Normal case
 	      (let ((entry-mask (ch-set-node-entry-mask node))
 		    ((entry-raw-idx (logcount (logand (1- (ash 1 hash-bits)) entry-mask)))
 		     ((entry-idx (+ ch-set-node-header-size entry-raw-idx))))
@@ -130,22 +146,23 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 		(if (logbitp hash-bits entry-mask)
 		    ;; Entry found
 		    (let ((ex-value (svref node entry-idx)))
-		      (if (equal? value ex-value)
+		      (if (equal?-cmp value ex-value compare-fn)
 			  node
 			;; Entry with different value found: make a subnode
 			(let ((hash-shifted (ash hash-shifted (- champ-hash-bits-per-level)))
-			      (ex-value-hash (hash-value-fixnum ex-value))
+			      (ex-value-hash (hash-to-fixnum ex-value hash-fn))
 			      ((ex-value-hash-shifted (ash ex-value-hash (* (- champ-hash-bits-per-level) (1+ depth))))
 			       ((n2 (if (= hash-shifted ex-value-hash-shifted)
 					;; Collision!  Fall back to WB-tree.
 					(cons (logxor value-hash ex-value-hash)
-					      (wb-set-tree-with (wb-set-tree-with nil ex-value) value))
+					      (wb-set-tree-with (wb-set-tree-with nil ex-value compare-fn)
+								value compare-fn))
 				      ;; Creates a little garbage; &&& hand-integrate later.
 				      (rec (vector (ash 1 (logand ex-value-hash-shifted champ-hash-level-mask))
 						   0 1 ex-value-hash ex-value)
 					   hash-shifted (1+ depth))))
-			      ;; The `1+' is because we're inserting _after_ `subnode-idx', because the subnodes
-			      ;; are in reverse order.
+				;; The `1+' is because we're inserting _after_ `subnode-idx', because the subnodes
+				;; are in reverse order.
 				((n (vector-rem-1-ins-1 node entry-idx (1+ subnode-idx) n2))))))
 			  (logandc2f (ch-set-node-entry-mask n) (ash 1 hash-bits))
 			  (logiorf (ch-set-node-subnode-mask n) (ash 1 hash-bits))
@@ -204,9 +221,9 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 	((consp tree) (car tree))
 	(t (ch-set-node-hash-value tree))))
 
-(defun ch-set-tree-less (tree value)
+(defun ch-set-tree-less (tree value hash-fn compare-fn)
   ;(declare (optimize (speed 3) (safety 0)))
-  (let ((value-hash (hash-value-fixnum value)))
+  (let ((value-hash (hash-to-fixnum value hash-fn)))
     (declare (fixnum value-hash))
     (rlabels (rec tree value-hash)
       (rec (node hash-shifted)
@@ -219,7 +236,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 		   (subnode-mask (ch-set-node-subnode-mask node)))
 	       (if (logbitp hash-bits entry-mask)
 		   (let ((ex-value (svref node entry-idx)))
-		     (cond ((not (equal? ex-value value))
+		     (cond ((not (equal?-cmp ex-value value compare-fn))
 			    (values node 0))
 			   ((and (= (logcount entry-mask) 1) (= 0 subnode-mask))
 			    (values nil value-hash))
@@ -235,7 +252,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 		       (values node 0)
 		     (let ((subnode (svref node subnode-idx)))
 		       (if (consp subnode)
-			   (let ((new-wb-tree (wb-set-tree-less (cdr subnode) value)))
+			   (let ((new-wb-tree (wb-set-tree-less (cdr subnode) value #'compare)))
 			     (if (eq new-wb-tree (cdr subnode))
 				 (values node 0)
 			       (if (= 1 (wb-set-tree-size new-wb-tree))
@@ -313,23 +330,23 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 	(t
 	 (svref tree ch-set-node-header-size))))
 
-(defun ch-set-tree-contains? (tree value &optional (depth 0))
+(defun ch-set-tree-contains? (tree value hash-fn compare-fn &optional (depth 0))
   ;(declare (optimize (speed 3) (safety 0)))
-  (let ((value-hash (hash-value-fixnum value)))
+  (let ((value-hash (hash-to-fixnum value hash-fn)))
     (declare (fixnum value-hash))
     (rlabels (rec tree value (ash value-hash (- (* champ-hash-bits-per-level depth))))
       (rec (node value hash-shifted)
 	(declare (fixnum hash-shifted))
 	(and node
 	     (if (consp node)
-		 (wb-set-tree-member? (cdr node) value)
+		 (wb-set-tree-member? (cdr node) value compare-fn)
 	       (let ((hash-bits (logand hash-shifted champ-hash-level-mask))
 		     (entry-mask (ch-set-node-entry-mask node)))
 		 (if (logbitp hash-bits entry-mask)
 		     (let ((entry-idx (+ ch-set-node-header-size
 					 (logcount (logand (1- (ash 1 hash-bits)) entry-mask))))
 			   ((ex-value (svref node entry-idx))))
-		       (equal? ex-value value))
+		       (equal?-cmp ex-value value compare-fn))
 		   (let ((subnode-mask (ch-set-node-subnode-mask node)))
 		     (and (logbitp hash-bits subnode-mask)
 			  (let ((subnode-idx (- (length node) 1
@@ -337,7 +354,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 				((subnode (svref node subnode-idx))))
 			    (rec subnode value (ash hash-shifted (- champ-hash-bits-per-level))))))))))))))
 
-(defun ch-set-tree-compare (tree1 tree2)
+(defun ch-set-tree-compare (tree1 tree2 compare-fn)
   (if (eq tree1 tree2) ':equal
     (let ((size1 (ch-set-tree-size tree1))
 	  (size2 (ch-set-tree-size tree2)))
@@ -350,7 +367,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 	       (cond ((< hash1 hash2) ':less)
 		     ((> hash1 hash2) ':greater)
 		     ((consp tree1)
-		      (if (consp tree2) (wb-set-tree-compare (cdr tree1) (cdr tree2))
+		      (if (consp tree2) (wb-set-tree-compare (cdr tree1) (cdr tree2) #'compare)
 			':less))
 		     ((consp tree2) ':greater)
 		     (t
@@ -370,7 +387,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 				 (dotimes (i (logcount entries1))
 				   (let ((v1 (svref tree1 (+ ch-set-node-header-size i)))
 					 (v2 (svref tree2 (+ ch-set-node-header-size i)))
-					 ((cmp (compare v1 v2))))
+					 ((cmp (funcall compare-fn v1 v2))))
 				     (ecase cmp
 				       (:equal)
 				       (:unequal
@@ -379,7 +396,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 					 (return-from ch-set-tree-compare cmp)))))
 				 (dotimes (i (logcount subnodes1))
 				   (let ((cmp (ch-set-tree-compare (svref tree1 (- len i 1))
-								   (svref tree2 (- len i 1)))))
+								   (svref tree2 (- len i 1)) compare-fn)))
 				     (ecase cmp
 				       (:equal)
 				       (:unequal
@@ -414,23 +431,23 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 		     (decf index subnode-size)
 		     (incf subnode-idx))))))))))
 
-(defun ch-set-tree-union (tree1 tree2)
+(defun ch-set-tree-union (tree1 tree2 hash-fn compare-fn)
   (declare (optimize (debug 3)))
   (rlabels (rec tree1 tree2 0)
     (rec (tree1 tree2 depth)
       (cond ((null tree1) tree2)
 	    ((null tree2) tree1)
 	    ((and (consp tree1) (consp tree2))
-	     (let ((tree-result (wb-set-tree-union (cdr tree1) (cdr tree2)))
+	     (let ((tree-result (wb-set-tree-union (cdr tree1) (cdr tree2) compare-fn))
 		   (chash 0))
 	       (do-wb-set-tree-members (v tree-result)
-		 (logxorf chash (hash-value-fixnum v)))
+		 (logxorf chash (hash-to-fixnum v hash-fn)))
 	       (cons chash tree-result)))
 	    ((or (consp tree1) (consp tree2))
 	     (let ((collision-node normal-node (if (consp tree1) (values tree1 tree2) (values tree2 tree1))))
 	       ;; Garbagey, but nontrivial to improve on, AFAICS.
 	       (do-wb-set-tree-members (x (cdr collision-node))
-		 (setq normal-node (ch-set-tree-with normal-node x depth)))
+		 (setq normal-node (ch-set-tree-with normal-node x hash-fn compare-fn depth)))
 	       normal-node))
 	    (t
 	     (let ((entries1 (ch-set-node-entry-mask tree1))
@@ -460,7 +477,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 			(setf (svref n (+ ch-set-node-header-size (postincf ientry))) val)
 			(logiorf entries (ash 1 idx))
 			(incf size)
-			(logxorf content-hash (hash-value-fixnum val)))
+			(logxorf content-hash (hash-to-fixnum val hash-fn)))
 		      (add-subnode (idx subnode)
 			;; It's possible for `subnode' to contain only a collision subnode -- we must pull it up.
 			(when (and (not (consp subnode))
@@ -471,26 +488,28 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 			(setf (svref n (- new-len (postincf isubnode) 1)) subnode)
 			(logiorf subnodes (ash 1 idx))
 			(incf size (ch-set-tree-size subnode))
-			(logxorf content-hash (ch-set-tree-hash-value subnode))))
+			(logxorf content-hash (ch-set-tree-hash-value subnode)))
+		      (set-tree-with (tree value depth)
+			(ch-set-tree-with tree value hash-fn compare-fn depth)))
 		 (do-bit-indices (idx everything)
 		   (cond ((and (logbitp idx entries1) (logbitp idx entries2))
 			  (let ((val1 (svref tree1 (+ ch-set-node-header-size (postincf ientry1))))
 				(val2 (svref tree2 (+ ch-set-node-header-size (postincf ientry2)))))
-			    (if (equal? val1 val2)
+			    (if (equal?-cmp val1 val2 compare-fn)
 				(add-entry idx val1)
-			      (add-subnode idx (ch-set-tree-with (ch-set-tree-with nil val1 (1+ depth))
-								 val2 (1+ depth))))))
+			      (add-subnode idx (set-tree-with (set-tree-with nil val1 (1+ depth))
+							      val2 (1+ depth))))))
 			 ((logbitp idx entries1)
 			  (let ((val (svref tree1 (+ ch-set-node-header-size (postincf ientry1)))))
 			    (if (logbitp idx subnodes2)
 				(let ((subnode (svref tree2 (- (length tree2) (postincf isubnode2) 1))))
-				  (add-subnode idx (ch-set-tree-with subnode val (1+ depth))))
+				  (add-subnode idx (set-tree-with subnode val (1+ depth))))
 			      (add-entry idx val))))
 			 ((logbitp idx entries2)
 			  (let ((val (svref tree2 (+ ch-set-node-header-size (postincf ientry2)))))
 			    (if (logbitp idx subnodes1)
 				(let ((subnode (svref tree1 (- (length tree1) (postincf isubnode1) 1))))
-				  (add-subnode idx (ch-set-tree-with subnode val (1+ depth))))
+				  (add-subnode idx (set-tree-with subnode val (1+ depth))))
 			      (add-entry idx val))))
 			 ((and (logbitp idx subnodes1) (logbitp idx subnodes2))
 			  (add-subnode idx (rec (svref tree1 (- (length tree1) (postincf isubnode1) 1))
@@ -508,24 +527,24 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 	       (setf (ch-set-node-hash-value n) content-hash)
 	       n))))))
 
-(defun ch-set-tree-intersection (tree1 tree2)
+(defun ch-set-tree-intersection (tree1 tree2 hash-fn compare-fn)
   (declare (optimize (debug 3)))
   (rlabels (rec tree1 tree2 0)
     (rec (tree1 tree2 depth)
       (cond ((or (null tree1) (null tree2)) nil)
 	    ((and (consp tree1) (consp tree2))
-	     (let ((tree-result (wb-set-tree-intersect (cdr tree1) (cdr tree2)))
+	     (let ((tree-result (wb-set-tree-intersect (cdr tree1) (cdr tree2) compare-fn))
 		   (chash 0))
 	       (do-wb-set-tree-members (v tree-result)
-		 (logxorf chash (hash-value-fixnum v)))
+		 (logxorf chash (hash-to-fixnum v hash-fn)))
 	       (cons chash tree-result)))
 	    ((or (consp tree1) (consp tree2))
 	     (let ((collision-node normal-node (if (consp tree1) (values tree1 tree2) (values tree2 tree1)))
 		   (result nil))
 	       ;; Garbagey, but nontrivial to improve on, AFAICS.
 	       (do-wb-set-tree-members (x (cdr collision-node))
-		 (when (ch-set-tree-contains? normal-node x depth)
-		   (setq result (ch-set-tree-with result x depth))))
+		 (when (ch-set-tree-contains? normal-node x hash-fn compare-fn depth)
+		   (setq result (ch-set-tree-with result x hash-fn compare-fn depth))))
 	       result))
 	    (t
 	     (let ((entries1 (ch-set-node-entry-mask tree1))
@@ -547,7 +566,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 			  (setf (svref n (+ ch-set-node-header-size (postincf ientry))) val)
 			  (logiorf entries (ash 1 idx))
 			  (incf size)
-			  (logxorf content-hash (hash-value-fixnum val)))
+			  (logxorf content-hash (hash-to-fixnum val hash-fn)))
 			(add-subnode (idx subnode)
 			  (when subnode
 			    (if (and (not (consp subnode))
@@ -574,17 +593,17 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 		   (cond ((and (logbitp idx entries1) (logbitp idx entries2))
 			  (let ((val1 (svref tree1 (+ ch-set-node-header-size (bits-below idx entries1))))
 				(val2 (svref tree2 (+ ch-set-node-header-size (bits-below idx entries2)))))
-			    (when (equal? val1 val2)
+			    (when (equal?-cmp val1 val2 compare-fn)
 			      (add-entry idx val1))))
 			 ((and (logbitp idx entries1) (logbitp idx subnodes2))
 			  (let ((val (svref tree1 (+ ch-set-node-header-size (bits-below idx entries1)))))
 			    (when (ch-set-tree-contains? (svref tree2 (- (length tree2) (bits-below idx subnodes2) 1))
-							 val (1+ depth))
+							 val hash-fn compare-fn (1+ depth))
 			      (add-entry idx val))))
 			 ((and (logbitp idx subnodes1) (logbitp idx entries2))
 			  (let ((val (svref tree2 (+ ch-set-node-header-size (bits-below idx entries2)))))
 			    (when (ch-set-tree-contains? (svref tree1 (- (length tree1) (bits-below idx subnodes1) 1))
-							 val (1+ depth))
+							 val hash-fn compare-fn (1+ depth))
 			      (add-entry idx val))))
 			 ((and (logbitp idx subnodes1) (logbitp idx subnodes2))
 			  (add-subnode idx (rec (svref tree1 (- (length tree1) (bits-below idx subnodes1) 1))
@@ -601,18 +620,18 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 		      (setf (ch-set-node-hash-value n) content-hash)
 		      n))))))))
 
-(defun ch-set-tree-disjoint? (tree1 tree2)
+(defun ch-set-tree-disjoint? (tree1 tree2 hash-fn compare-fn)
   (declare (optimize (debug 3)))
   (rlabels (rec tree1 tree2 0)
     (rec (tree1 tree2 depth)
       (cond ((or (null tree1) (null tree2)) t)
 	    ((and (consp tree1) (consp tree2))
-	     (wb-set-tree-disjoint? (cdr tree1) (cdr tree2)))
+	     (wb-set-tree-disjoint? (cdr tree1) (cdr tree2) compare-fn))
 	    ((or (consp tree1) (consp tree2))
 	     (let ((collision-node normal-node (if (consp tree1) (values tree1 tree2) (values tree2 tree1))))
 	       (do-wb-set-tree-members (x (cdr collision-node)
 					  t)
-		 (when (ch-set-tree-contains? normal-node x depth)
+		 (when (ch-set-tree-contains? normal-node x hash-fn compare-fn depth)
 		   (return nil)))))
 	    (t
 	     (let ((entries1 (ch-set-node-entry-mask tree1))
@@ -627,17 +646,17 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 		   (cond ((and (logbitp idx entries1) (logbitp idx entries2))
 			  (let ((val1 (svref tree1 (+ ch-set-node-header-size (bits-below idx entries1))))
 				(val2 (svref tree2 (+ ch-set-node-header-size (bits-below idx entries2)))))
-			    (when (equal? val1 val2)
+			    (when (equal?-cmp val1 val2 compare-fn)
 			      (return nil))))
 			 ((and (logbitp idx entries1) (logbitp idx subnodes2))
 			  (let ((val (svref tree1 (+ ch-set-node-header-size (bits-below idx entries1)))))
 			    (when (ch-set-tree-contains? (svref tree2 (- (length tree2) (bits-below idx subnodes2) 1))
-							 val (1+ depth))
+							 val hash-fn compare-fn (1+ depth))
 			      (return nil))))
 			 ((and (logbitp idx subnodes1) (logbitp idx entries2))
 			  (let ((val (svref tree2 (+ ch-set-node-header-size (bits-below idx entries2)))))
 			    (when (ch-set-tree-contains? (svref tree1 (- (length tree1) (bits-below idx subnodes1) 1))
-							 val (1+ depth))
+							 val hash-fn compare-fn (1+ depth))
 			      (return nil))))
 			 ((and (logbitp idx subnodes1) (logbitp idx subnodes2))
 			  (rec (svref tree1 (- (length tree1) (bits-below idx subnodes1) 1))
@@ -659,8 +678,8 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 
 (defmacro do-ch-set-tree-members ((value-var tree-form &optional value-form)
 				  &body body)
-  (let ((body-fn (gensym "BODY-"))
-	(recur-fn (gensym "RECUR-")))
+  (let ((body-fn (gensymx #:body-))
+	(recur-fn (gensymx #:recur-)))
     `(block nil
        (labels ((,body-fn (,value-var)
 		  . ,body)
@@ -677,7 +696,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 	 (,recur-fn ,tree-form))
        ,value-form)))
 
-(defun ch-set-tree-verify (tree)
+(defun ch-set-tree-verify (tree hash-fn)
   (declare (optimize (debug 3)))
   (or (null tree)
       (rlabels (rec tree 0 0)
@@ -704,7 +723,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 		       ;; Check entry value hashes
 		       (gmap :and (fn (value-idx hash-bits)
 				    (let ((value (svref node (+ ch-set-node-header-size value-idx)))
-					  ((value-hash (hash-value-fixnum value))))
+					  ((value-hash (hash-to-fixnum value hash-fn))))
 				      (logxorf content-hash value-hash)
 				      (test (= (ldb (byte (* champ-hash-bits-per-level (1+ depth)) 0)
 						    value-hash)
@@ -717,7 +736,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 				      (if (consp subnode)
 					  (let ((chash 0))
 					    (do-wb-set-tree-members (v (cdr subnode))
-					      (logxorf chash (hash-value-fixnum v)))
+					      (logxorf chash (hash-to-fixnum v hash-fn)))
 					    (logxorf content-hash chash)
 					    (incf size (wb-set-tree-size (cdr subnode)))
 					    (test (= (car subnode) chash)))
@@ -768,9 +787,10 @@ It occurs to me that with a little tweaking, we could arrange for `domain' to be
   (hash-value 0 :type fixnum))
 (defconstant ch-map-node-header-size 4)
 
-(defun ch-map-tree-with (tree key value)
-  (declare (optimize (speed 3) (safety 0)))
-  (let ((key-hash (hash-value-fixnum key)))
+(defun ch-map-tree-with (tree key value key-hash-fn key-cmp-fn val-hash-fn val-cmp-fn)
+  (declare (optimize (speed 3) (safety 0))
+	   (type function key-hash-fn key-cmp-fn val-hash-fn val-cmp-fn))
+  (let ((key-hash (hash-to-fixnum key key-hash-fn)))
     (declare (fixnum key-hash))
     (rlabels (rec tree key-hash 0)
       (rec (node hash-shifted depth)
@@ -778,7 +798,8 @@ It occurs to me that with a little tweaking, we could arrange for `domain' to be
 		 (type (integer 0 64) depth))
 	(let ((hash-bits (logand hash-shifted champ-hash-level-mask)))
 	  (if (null node)
-	      (vector (ash 1 hash-bits) 0 1 (logxor key-hash (hash-value-fixnum value)) key value)
+	      (vector (ash 1 hash-bits) 0 1 (logxor key-hash (hash-to-fixnum value val-hash-fn))
+		      key value)
 	    (let ((entry-mask (ch-map-node-entry-mask node))
 		  ((entry-raw-idx (logcount (logand (1- (ash 1 hash-bits)) entry-mask)))
 		   ((entry-idx (+ ch-map-node-header-size (* 2 entry-raw-idx)))))
@@ -789,25 +810,28 @@ It occurs to me that with a little tweaking, we could arrange for `domain' to be
 		  ;; Entry found
 		  (let ((ex-key (svref node entry-idx))
 			(ex-val (svref node (1+ entry-idx))))
-		    (if (equal? key ex-key)
-			(if (equal? value ex-val)
+		    (if (equal?-cmp key ex-key key-cmp-fn)
+			(if (equal?-cmp value ex-val val-cmp-fn)
 			    node ; Key found, value equal: nothing to do
 			  ;; Key found, value differs: just update value
 			  (let ((n (vector-update node (+ entry-idx 1) value)))
-			    (logxorf (ch-map-node-hash-value n) (hash-value-fixnum ex-val) (hash-value-fixnum value))
+			    (logxorf (ch-map-node-hash-value n) (hash-to-fixnum ex-val val-hash-fn)
+				     (hash-to-fixnum value val-hash-fn))
 			    n))
 		      ;; Entry with different key found: make a subnode
 		      (let ((hash-shifted (ash hash-shifted (- champ-hash-bits-per-level)))
-			    (ex-key-hash (hash-value-fixnum ex-key))
+			    (ex-key-hash (hash-to-fixnum ex-key key-hash-fn))
 			    ((ex-key-hash-shifted (ash ex-key-hash (* (- champ-hash-bits-per-level) (1+ depth))))
 			     ((n2 (if (= hash-shifted ex-key-hash-shifted)
 				      ;; Collision!  Fall back to WB-tree.
-				      (cons (logxor key-hash (hash-value-fixnum value) ex-key-hash
-						    (hash-value-fixnum ex-val))
-					    (wb-map-tree-with (wb-map-tree-with nil ex-key ex-val) key value))
+				      (cons (logxor key-hash (hash-to-fixnum value val-hash-fn) ex-key-hash
+						    (hash-to-fixnum ex-val val-hash-fn))
+					    (wb-map-tree-with (wb-map-tree-with nil ex-key ex-val key-cmp-fn val-cmp-fn)
+							      key value key-cmp-fn val-cmp-fn))
 				    ;; Creates a little garbage; &&& hand-integrate later.
 				    (rec (vector (ash 1 (logand ex-key-hash-shifted champ-hash-level-mask))
-						 0 1 (logxor ex-key-hash (hash-value-fixnum ex-val)) ex-key ex-val)
+						 0 1 (logxor ex-key-hash (hash-to-fixnum ex-val val-hash-fn))
+						 ex-key ex-val)
 					 hash-shifted (1+ depth))))
 			    ;; The `1+' is because we're inserting _after_ `subnode-idx', because the subnodes
 			    ;; are in reverse order.
@@ -815,7 +839,7 @@ It occurs to me that with a little tweaking, we could arrange for `domain' to be
 			(logandc2f (ch-map-node-entry-mask n) (ash 1 hash-bits))
 			(logiorf (ch-map-node-subnode-mask n) (ash 1 hash-bits))
 			(incf (ch-map-node-size n))
-			(logxorf (ch-map-node-hash-value n) key-hash (hash-value-fixnum value))
+			(logxorf (ch-map-node-hash-value n) key-hash (hash-to-fixnum value val-hash-fn))
 			n)))
 		;; No entry found: check for subnode
 		(if (logbitp hash-bits subnode-mask)
@@ -824,27 +848,29 @@ It occurs to me that with a little tweaking, we could arrange for `domain' to be
 			  ((new-subnode
 			     ;; We can create collision nodes at any level (see above).
 			     (if (consp subnode)
-				 (let ((wb-hash-shifted (ash (hash-value-fixnum (wb-map-tree-arb-pair (cdr subnode)))
-							     (* (- champ-hash-bits-per-level) (1+ depth))))
+				 (let ((wb-hash-shifted
+					 (ash (hash-to-fixnum (wb-map-tree-arb-pair (cdr subnode)) key-hash-fn)
+					      (* (- champ-hash-bits-per-level) (1+ depth))))
 				       (hash-shifted (ash hash-shifted (- champ-hash-bits-per-level)))
 				       (size (1+ (wb-map-tree-size (cdr subnode)))))
 				   (declare (fixnum wb-hash-shifted hash-shifted size))
 				   (if (= hash-shifted wb-hash-shifted)
 				       ;; Update the collision node.
-				       (let ((new-wb-tree (wb-map-tree-with (cdr subnode) key value)))
-					 (cond (;; The map code doesn't promise not to return an equal-but-not-eq tree.
-						(eq (wb-map-tree-compare new-wb-tree (cdr subnode)) ':equal)
+				       (let ((new-wb-tree
+					       (wb-map-tree-with (cdr subnode) key value key-cmp-fn val-cmp-fn)))
+					 (cond ((eq new-wb-tree (cdr subnode))
 						subnode)
 					       ((= (wb-map-tree-size new-wb-tree) (wb-map-tree-size (cdr subnode)))
 						;; The key was already present, but the value was updated.
-						(let ((ig old-value (wb-map-tree-lookup (cdr subnode) key)))
+						(let ((ig old-value (wb-map-tree-lookup (cdr subnode) key key-cmp-fn)))
 						  (declare (ignore ig))
 						  (cons (logxor (the fixnum (car subnode))
-								(hash-value-fixnum old-value) (hash-value-fixnum value))
+								(hash-to-fixnum old-value val-hash-fn)
+								(hash-to-fixnum value val-hash-fn))
 							new-wb-tree)))
 					       (t ; New entry in collision node
 						(cons (logxor (the fixnum (car subnode)) key-hash
-							      (hash-value-fixnum value))
+							      (hash-to-fixnum value val-hash-fn))
 						      new-wb-tree))))
 				     ;; Oh, this is fun.  We add enough levels to get to where the hashes differ.
 				     (rlabels (build hash-shifted wb-hash-shifted)
@@ -853,7 +879,7 @@ It occurs to me that with a little tweaking, we could arrange for `domain' to be
 					 (let ((hash-bits (logand hash-shifted champ-hash-level-mask))
 					       (wb-hash-bits (logand wb-hash-shifted champ-hash-level-mask))
 					       (content-hash (logxor (the fixnum (car subnode)) key-hash
-								     (hash-value-fixnum value))))
+								     (hash-to-fixnum value val-hash-fn))))
 					   (if (= hash-bits wb-hash-bits)
 					       (vector 0 (ash 1 hash-bits) size content-hash
 						       (build (ash hash-shifted (- champ-hash-bits-per-level))
@@ -875,7 +901,7 @@ It occurs to me that with a little tweaking, we could arrange for `domain' to be
 		  (let ((n (vector-insert-2 node entry-idx key value)))
 		    (logiorf (ch-map-node-entry-mask n) (ash 1 hash-bits))
 		    (incf (ch-map-node-size n))
-		    (logxorf (ch-map-node-hash-value n) key-hash (hash-value-fixnum value))
+		    (logxorf (ch-map-node-hash-value n) key-hash (hash-to-fixnum value val-hash-fn))
 		    n))))))))))
 
 (defun vector-rem-2-ins-1 (vec rem-idx ins-idx ins-val)
@@ -923,9 +949,10 @@ It occurs to me that with a little tweaking, we could arrange for `domain' to be
 	((consp tree) (car tree))
 	(t (ch-map-node-hash-value tree))))
 
-(defun ch-map-tree-less (tree key)
-  (declare (optimize (speed 3) (safety 0)))
-  (let ((key-hash (hash-value-fixnum key)))
+(defun ch-map-tree-less (tree key key-hash-fn key-cmp-fn val-hash-fn)
+  (declare (optimize (speed 3) (safety 0))
+	   (type function key-hash-fn key-cmp-fn val-hash-fn))
+  (let ((key-hash (hash-to-fixnum key key-hash-fn)))
     (declare (fixnum key-hash))
     (rlabels (rec tree key-hash)
       (rec (node hash-shifted)
@@ -938,13 +965,13 @@ It occurs to me that with a little tweaking, we could arrange for `domain' to be
 		   (subnode-mask (ch-map-node-subnode-mask node)))
 	       (if (logbitp hash-bits entry-mask)
 		   (let ((ex-key (svref node entry-idx)))
-		     (cond ((not (equal? ex-key key))
+		     (cond ((not (equal?-cmp ex-key key key-cmp-fn))
 			    (values node 0))
 			   ((and (= (logcount entry-mask) 1) (= 0 subnode-mask))
-			    (values nil (logxor key-hash (hash-value-fixnum (svref node (1+ entry-idx))))))
+			    (values nil (logxor key-hash (hash-to-fixnum (svref node (1+ entry-idx)) val-hash-fn))))
 			   (t
 			    (let ((n (vector-remove-2-at node entry-idx))
-				  (ex-value-hash (hash-value-fixnum (svref node (1+ entry-idx)))))
+				  (ex-value-hash (hash-to-fixnum (svref node (1+ entry-idx)) val-hash-fn)))
 			      (logandc2f (ch-map-node-entry-mask n) (ash 1 hash-bits))
 			      (decf (ch-map-node-size n))
 			      (let ((kv-hash (logxor key-hash ex-value-hash)))
@@ -957,11 +984,11 @@ It occurs to me that with a little tweaking, we could arrange for `domain' to be
 		       (values node 0)
 		     (let ((subnode (svref node subnode-idx)))
 		       (if (consp subnode)
-			   (let ((new-wb-tree (wb-map-tree-less (cdr subnode) key)))
+			   (let ((new-wb-tree (wb-map-tree-less (cdr subnode) key key-cmp-fn)))
 			     (if (eq new-wb-tree (cdr subnode))
 				 (values node 0)
-			       (let ((ig ex-value (wb-map-tree-lookup (cdr subnode) key))
-				     ((ex-value-hash (hash-value-fixnum ex-value))))
+			       (let ((ig ex-value (wb-map-tree-lookup (cdr subnode) key key-cmp-fn))
+				     ((ex-value-hash (hash-to-fixnum ex-value val-hash-fn))))
 				 (declare (ignore ig))
 				 (if (= 1 (wb-map-tree-size new-wb-tree))
 				     ;; Removing next-to-last pair of collision node: turn remaining key/val into entry
@@ -1047,9 +1074,10 @@ It occurs to me that with a little tweaking, we could arrange for `domain' to be
       (setf (svref v (+ rem-idx i 2)) (svref vec (+ rem-idx i 1))))
     v))
 
-(defun ch-map-tree-lookup (tree key)
-  (declare (optimize (speed 3) (safety 0)))
-  (let ((key-hash (hash-value-fixnum key)))
+(defun ch-map-tree-lookup (tree key key-hash-fn key-cmp-fn)
+  (declare (optimize (speed 3) (safety 0))
+	   (type function key-hash-fn key-cmp-fn))
+  (let ((key-hash (hash-to-fixnum key key-hash-fn)))
     (declare (fixnum key-hash))
     (rlabels (rec tree key key-hash)
       (rec (node key hash-shifted)
@@ -1061,7 +1089,7 @@ It occurs to me that with a little tweaking, we could arrange for `domain' to be
 		   (let ((entry-idx (+ ch-map-node-header-size
 				       (* 2 (logcount (logand (1- (ash 1 hash-bits)) entry-mask)))))
 			 ((ex-key (svref node entry-idx))))
-		     (and (equal? ex-key key)
+		     (and (equal?-cmp ex-key key key-cmp-fn)
 			  (values t (svref node (1+ entry-idx)))))
 		 (let ((subnode-mask (ch-map-node-subnode-mask node)))
 		   (and (logbitp hash-bits subnode-mask)
@@ -1069,13 +1097,13 @@ It occurs to me that with a little tweaking, we could arrange for `domain' to be
 					      1 (logcount (logand (1- (ash 1 hash-bits)) subnode-mask))))
 			      ((subnode (svref node subnode-idx))))
 			  (if (consp subnode)
-			      (wb-map-tree-lookup (cdr subnode) key)
+			      (wb-map-tree-lookup (cdr subnode) key key-cmp-fn)
 			    (rec subnode key (ash hash-shifted (- champ-hash-bits-per-level))))))))))))))
 
 (defmacro do-ch-map-tree-pairs ((key-var value-var tree-form &optional value-form)
 				&body body)
-  (let ((body-fn (gensym "BODY-"))
-	(recur-fn (gensym "RECUR-")))
+  (let ((body-fn (gensymx #:body-))
+	(recur-fn (gensymx #:recur-)))
     `(block nil
        (labels ((,body-fn (,key-var ,value-var)
 		  . ,body)

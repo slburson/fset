@@ -79,7 +79,7 @@ do the comparison only once for each pair of values.
 	    (:print-function WB-Set-Tree-Node-Print))
   (Left  nil :type WB-Set-Tree :read-only t)
   (Right nil :type WB-Set-Tree :read-only t)
-  (Value nil :read-only t)		; normally the value at the node, but see `Equivalent-Set' below.
+  (Value nil :read-only t)		; normally the value at the node, but see `Equivalent-Node' below.
   (Size 0 :type fixnum :read-only t))	; the number of members in this subtree
 
 (defun WB-Set-Tree-Node-Print (node stream depth)
@@ -101,26 +101,53 @@ do the comparison only once for each pair of values.
 			(list nil sub)))))
     (format stream "#set-node<...>")))
 
-(declaim (inline Make-Equivalent-Set))
+(declaim (inline Make-Equivalent-Node))
 
 ;;; When we get two or more equivalent values in a set, we use one of these
 ;;; as the `Value' of the tree node.  It would be a bit simpler, and would
 ;;; make the code more uniform, to say that the node value slot would always
 ;;; contain a list.  But then we would be paying a space cost, albeit a
 ;;; small one, on every node; I'd rather pay the cost only when it's needed.
-(defstruct (Equivalent-Set
-	    (:constructor Make-Equivalent-Set (Members))
-	    (:predicate Equivalent-Set?))
-  (Members nil :type list :read-only t))	; list of equivalent values
+;;; -- We used to have three different types, one for each of sets, bags, and
+;;; maps.  But now that we're allowing collection-specific comparison functions,
+;;; any comparison function that ever returns `:unequal' must arrange to check for
+;;; this case.  It has no way to know which collection type the node might have
+;;; come from, so it would have to check for all three, which would be wasteful.
+(defstruct (Equivalent-Node
+	    (:constructor Make-Equivalent-Node (set? list))
+	    (:predicate Equivalent-Node?))
+  Set?
+  ;; If `set?' is true, this is just a list of values; otherwise, it is an alist.
+  (List nil :type list :read-only t))
+
+(declaim (inline Unwrap-Equivalent-Node))
+
+;;; Custom comparison functions that can ever return `:unequal' must call this on each argument.
+;;; Note that if one of the arguments is an `Equivalent-Node', the resulting comparison might
+;;; return `:equal' or `:unequal' based on which value happened to be at the head of the list.
+;;; Functions in this file that call the comparison function on values that could be
+;;; `Equivalent-Node's must handle these cases identically; such code has more work to do anyway,
+;;; such as calling `Equivalent-Set-Union' etc.
+(defun Unwrap-Equivalent-Node (x)
+  (if (Equivalent-Node? x)
+      (if (Equivalent-Node-Set? x)
+	  (car (Equivalent-Node-List x))
+	(caar (Equivalent-Node-List x)))
+    x))
+
+(declaim (inline Make-Equivalent-Set))
+
+(defun Make-Equivalent-Set (list)
+  (Make-Equivalent-Node t list))
 
 (declaim (ftype (function (t) fixnum) Set-Value-Size))
 
 (defun Set-Value-Size (value)
   "The number of members represented by `value', which can be more than 1 if
-`value' is an `Equivalent-Set'."
+`value' is an `Equivalent-Node'."
   (declare (optimize (speed 3) (safety 0)))
-  (if (Equivalent-Set? value)
-      (length (Equivalent-Set-Members value))
+  (if (Equivalent-Node? value)
+      (length (Equivalent-Node-List value))
     1))
 
 
@@ -157,8 +184,8 @@ do the comparison only once for each pair of values.
 	 (svref tree 0))
 	(t
 	 (let ((value (WB-Set-Tree-Node-Value tree)))
-	   (if (Equivalent-Set? value)
-	       (car (Equivalent-Set-Members value))
+	   (if (Equivalent-Node? value)
+	       (car (Equivalent-Node-List value))
 	     value)))))
 
 (defun WB-Set-Tree-Least (tree)
@@ -167,8 +194,8 @@ least member if there are more than one."
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Set-Tree tree))
   (let ((val (WB-Set-Tree-Minimum-Value tree)))
-    (if (Equivalent-Set? val)
-	(car (Equivalent-Set-Members val))
+    (if (Equivalent-Node? val)
+	(car (Equivalent-Node-List val))
       val)))
 
 #|| Don't think I'm going to use this.
@@ -185,11 +212,11 @@ least member if there are more than one."
 				       (WB-Set-Tree-Less-Least left)
 				       (WB-Set-Tree-Node-Right tree))
 	     (let ((val (WB-Set-Tree-Node-Value tree)))
-	       (if (Equivalent-Set? val)
-		   (let ((mems (Equivalent-Set-Members val)))
+	       (if (Equivalent-Node? val)
+		   (let ((mems (Equivalent-Node-List val)))
 		     (Make-WB-Set-Tree-Node (if (= (length mems) 2)
 						(cadr mems)
-					      (Make-Equivalent-Set (cdr mems)))
+					      (Make-Equivalent-Node t (cdr mems)))
 					    nil
 					    (WB-Set-Tree-Node-Right tree)))
 		 (WB-Set-Tree-Node-Right tree))))))))
@@ -206,157 +233,126 @@ greatest member if there are more than one."
       (if right
 	  (WB-Set-Tree-Greatest right)
 	(let ((val (WB-Set-Tree-Node-Value tree)))
-	  (if (Equivalent-Set? val)
-	      (car (cl:last (Equivalent-Set-Members val)))
+	  (if (Equivalent-Node? val)
+	      (car (cl:last (Equivalent-Node-List val)))
 	    val))))))
 
-(defun WB-Set-Tree-Member? (tree value)
-  "Returns true iff `value' is a member of `tree'."
-  (declare (optimize (speed 3) (safety 0))
-	   (type WB-Set-Tree tree))
-  (cond ((null tree) nil)
-	((simple-vector-p tree)
-	 (eq (Vector-Set-Binary-Search tree value) ':equal))
-	(t
-	 (let ((node-val (WB-Set-Tree-Node-Value tree))
-	       ((comp (compare value node-val))))
-	   (ecase comp
-	     (:equal t)
-	     ((:unequal)
-	      (and (Equivalent-Set? node-val)
-		   (member value (Equivalent-Set-Members node-val) :test #'equal?)))
-	     ((:less)
-	      (WB-Set-Tree-Member? (WB-Set-Tree-Node-Left tree) value))
-	     ((:greater)
-	      (WB-Set-Tree-Member? (WB-Set-Tree-Node-Right tree) value)))))))
-
-(defun WB-Set-Tree-Member?-Cfn (tree value cfn)
+(defun WB-Set-Tree-Member? (tree value cmp-fn)
   "Returns true iff `value' is a member of `tree'."
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Set-Tree tree)
-	   (type function cfn))
+	   (type function cmp-fn))
   (cond ((null tree) nil)
 	((simple-vector-p tree)
-	 (eq (Vector-Set-Binary-Search-Cfn tree value cfn) ':equal))
+	 (eq (Vector-Set-Binary-Search tree value cmp-fn) ':equal))
 	(t
 	 (let ((node-val (WB-Set-Tree-Node-Value tree))
-	       ((comp (funcall cfn value node-val))))
+	       ((comp (funcall cmp-fn value node-val))))
 	   (ecase comp
 	     (:equal t)
 	     ((:unequal)
-	      (and (Equivalent-Set? node-val)
-		   (member value (Equivalent-Set-Members node-val) :test #'equal?)))
+	      (and (Equivalent-Node? node-val)
+		   (member value (Equivalent-Node-List node-val) :test #'equal?)))
 	     ((:less)
-	      (WB-Set-Tree-Member? (WB-Set-Tree-Node-Left tree) value))
+	      (WB-Set-Tree-Member? (WB-Set-Tree-Node-Left tree) value cmp-fn))
 	     ((:greater)
-	      (WB-Set-Tree-Member? (WB-Set-Tree-Node-Right tree) value)))))))
+	      (WB-Set-Tree-Member? (WB-Set-Tree-Node-Right tree) value cmp-fn)))))))
 
-(defun WB-Set-Tree-Find-Equivalent (tree value)
+(defun WB-Set-Tree-Find-Equivalent (tree value cmp-fn)
   "If `tree' contains one or more values equivalent to `value', returns (first
 value) true and (second value) either the one value or an `Equivalent-Set'
 containing the values; otherwise `nil'."
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Set-Tree tree))
+	   (type WB-Set-Tree tree)
+	   (type function cmp-fn))
   (cond ((null tree) nil)
 	((simple-vector-p tree)
-	 (let ((found? idx (Vector-Set-Binary-Search tree value)))
+	 (let ((found? idx (Vector-Set-Binary-Search tree value cmp-fn)))
 	   (and found? (values t (svref tree idx)))))
 	(t
 	 (let ((node-val (WB-Set-Tree-Node-Value tree))
-	       ((comp (compare value node-val))))
+	       ((comp (funcall cmp-fn value node-val))))
 	   (ecase comp
 	     ((:equal :unequal) (values t node-val))
 	     ((:less)
-	      (WB-Set-Tree-Find-Equivalent (WB-Set-Tree-Node-Left tree) value))
+	      (WB-Set-Tree-Find-Equivalent (WB-Set-Tree-Node-Left tree) value cmp-fn))
 	     ((:greater)
-	      (WB-Set-Tree-Find-Equivalent (WB-Set-Tree-Node-Right tree) value)))))))
+	      (WB-Set-Tree-Find-Equivalent (WB-Set-Tree-Node-Right tree) value cmp-fn)))))))
 
-;;; Not used internally, but clients can use this to let a set be its own identity
-;;; map (for canonicalization, e.g.).
-(defun WB-Set-Tree-Find-Equal (tree value)
+(defmacro equal?-fn (cmp-fn)
+  `(lambda (a b) (eq (funcall ,cmp-fn a b) ':equal)))
+
+(defmacro equal?-cmp (a b cmp-fn)
+  `(eq (funcall ,cmp-fn ,a ,b) ':equal))
+
+(defmacro less-than?-cmp (a b cmp-fn)
+  `(eq (funcall ,cmp-fn ,a ,b) ':less))
+
+(defmacro greater-than?-cmp (a b cmp-fn)
+  `(eq (funcall ,cmp-fn ,a ,b) ':greater))
+
+(defun WB-Set-Tree-Find-Equal (tree value cmp-fn)
   "If `tree' contains a value equal to `value', returns (first value) true and
 \(second value) the value; otherwise `nil'."
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Set-Tree tree))
+	   (type WB-Set-Tree tree)
+	   (type function cmp-fn))
   (cond ((null tree) nil)
 	((simple-vector-p tree)
-	 (let ((found? idx (Vector-Set-Binary-Search tree value)))
+	 (let ((found? idx (Vector-Set-Binary-Search tree value cmp-fn)))
 	   (and found?
 		(let ((v (svref tree idx)))
-		  (and (equal? v value)
+		  (and (equal?-cmp v value cmp-fn)
 		       (values t (svref tree idx)))))))
 	(t
 	 (let ((node-val (WB-Set-Tree-Node-Value tree))
-	       ((comp (compare value node-val))))
+	       ((comp (funcall cmp-fn value node-val))))
 	   (ecase comp
 	     ((:equal :unequal)
-	      (if (Equivalent-Set? node-val)
-		  (let ((v (cl:find value (Equivalent-Set-Members node-val)
-				    :test #'equal?)))
+	      (if (Equivalent-Node? node-val)
+		  (let ((v (cl:find value (Equivalent-Node-List node-val)
+				    :test (equal?-fn cmp-fn))))
 		    (and v (values t v)))
 		(values t node-val)))
 	     ((:less)
-	      (WB-Set-Tree-Find-Equal (WB-Set-Tree-Node-Left tree) value))
+	      (WB-Set-Tree-Find-Equal (WB-Set-Tree-Node-Left tree) value cmp-fn))
 	     ((:greater)
-	      (WB-Set-Tree-Find-Equal (WB-Set-Tree-Node-Right tree) value)))))))
-
-(defun WB-Set-Tree-Find-Rank (tree value)
-  "Returns the rank at which `value' appears in `tree', if it does, else the rank
-it would occupy if it were present.  The second value is true iff the value was
-found.  Note that if the set contains equivalent-but-unequal elements, they all
-appear at the same rank."
-  (cond ((null tree) 0)
-	((simple-vector-p tree)
-	 (let ((found? idx (Vector-Set-Binary-Search tree value)))
-	   (values idx found?)))
-	(t
-	 (let ((node-val (WB-Set-Tree-Node-Value tree))
-	       ((comp (compare value node-val)))
-	       (left (WB-Set-Tree-Node-Left tree)))
-	   (ecase comp
-	     ((:equal :unequal)
-	      (WB-Set-Tree-Size left))
-	     ((:less)
-	      (WB-Set-Tree-Find-Rank left value))
-	     ((:greater)
-	      (let ((right-rank found?
-		      (WB-Set-Tree-Find-Rank (WB-Set-Tree-Node-Right tree) value)))
-		(values (+ (WB-Set-Tree-Size left) right-rank)
-			found?))))))))
+	      (WB-Set-Tree-Find-Equal (WB-Set-Tree-Node-Right tree) value cmp-fn)))))))
 
 
 ;;; ================================================================================
 ;;; With
 
-(declaim (ftype (function (simple-vector t) (values t fixnum)) Vector-Set-Binary-Search))
+(declaim (ftype (function (simple-vector t function) (values t fixnum)) Vector-Set-Binary-Search))
 
-(defun WB-Set-Tree-With (tree value)
+(defun WB-Set-Tree-With (tree value cmp-fn)
   "If `value' is in `tree', returns `tree'; otherwise returns `tree' with
-`value' added.  `value' may be an `Equivalent-Set'."
-  ;; The case where `value' is an `Equivalent-Set' is used by `WB-Set-Tree-Concat',
+`value' added.  `value' may be an `Equivalent-Node'."
+  ;; The case where `value' is an `Equivalent-Node' is used by `WB-Set-Tree-Concat',
   ;; which may be passed one by various callers.
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Set-Tree tree))
+	   (type WB-Set-Tree tree)
+	   (type function cmp-fn))
   (cond ((null tree)
-	 (if (not (Equivalent-Set? value))
+	 (if (not (Equivalent-Node? value))
 	     (vector value)
 	   (Make-WB-Set-Tree-Node value nil nil)))
 	((simple-vector-p tree)
-	 (let ((found? idx (Vector-Set-Binary-Search tree value))
+	 (let ((found? idx (Vector-Set-Binary-Search tree value cmp-fn))
 	       ((right-start (if found? (1+ idx) idx))))
-	   ;; We have to handle the case where `value' is an `Equivalent-Set', because
+	   ;; We have to handle the case where `value' is an `Equivalent-Node', because
 	   ;; this routine is called by `WB-Set-Tree-Concat'.
-	   (if (and (eq found? ':equal) (not (Equivalent-Set? value)))
+	   (if (and (eq found? ':equal) (not (Equivalent-Node? value)))
 	       tree
 	     (if (and (not found?)
 		      (< (length tree) *WB-Tree-Max-Vector-Length*)
-		      (not (Equivalent-Set? value)))
+		      (not (Equivalent-Node? value)))
 		 (Vector-Insert tree idx value)
 	       ;; Originally, I split the vector in half rather than at the point
 	       ;; where `value' goes.  But in the not unlikely case where values
 	       ;; are being inserted in order, this will give longer vectors.
 	       (Make-WB-Set-Tree-Node (if found?
-					  (Equivalent-Set-Union (svref tree idx) value)
+					  (Equivalent-Set-Union (svref tree idx) value cmp-fn)
 					value)
 				      (and (> idx 0)
 					   (Vector-Subseq tree 0 idx))
@@ -364,13 +360,13 @@ appear at the same rank."
 					   (Vector-Subseq tree right-start)))))))
 	(t
 	 (let ((node-val (WB-Set-Tree-Node-Value tree))
-	       ((comp (compare value node-val))))
+	       ((comp (funcall cmp-fn value node-val))))
 	   (ecase comp
 	     ((:equal :unequal)
-	      (if (and (not (Equivalent-Set? node-val)) (not (Equivalent-Set? value))
+	      (if (and (not (Equivalent-Node? node-val)) (not (Equivalent-Node? value))
 		       (eq comp ':equal))
 		  tree
-		(let ((eqvs (Equivalent-Set-Union node-val value)))
+		(let ((eqvs (Equivalent-Set-Union node-val value cmp-fn)))
 		  (if (eq eqvs node-val)
 		      tree
 		    (Make-WB-Set-Tree-Node eqvs
@@ -378,14 +374,14 @@ appear at the same rank."
 					   (WB-Set-Tree-Node-Right tree))))))
 	     ((:less)
 	      (let ((left (WB-Set-Tree-Node-Left tree))
-		    ((new-left (WB-Set-Tree-With left value))))
+		    ((new-left (WB-Set-Tree-With left value cmp-fn))))
 		(if (eq new-left left)
 		    tree
 		  (WB-Set-Tree-Build-Node node-val new-left
 					  (WB-Set-Tree-Node-Right tree)))))
 	     ((:greater)
 	      (let ((right (WB-Set-Tree-Node-Right tree))
-		    ((new-right (WB-Set-Tree-With right value))))
+		    ((new-right (WB-Set-Tree-With right value cmp-fn))))
 		(if (eq new-right right)
 		    tree
 		  (WB-Set-Tree-Build-Node node-val (WB-Set-Tree-Node-Left tree)
@@ -430,40 +426,40 @@ on `vec', which it assumes is simple."
 
 ;;; Currently doesn't handle the case where `value' is an `Equivalent-Set' --
 ;;; any need to?
-(defun WB-Set-Tree-Less (tree value)
+(defun WB-Set-Tree-Less (tree value cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Set-Tree tree))
+	   (type WB-Set-Tree tree)
+	   (type function cmp-fn))
   (cond ((null tree) nil)
 	((simple-vector-p tree)
-	 (let ((found? idx (Vector-Set-Binary-Search tree value)))
+	 (let ((found? idx (Vector-Set-Binary-Search tree value cmp-fn)))
 	   (if (eq found? ':equal)
 	       (Vector-Remove-At tree idx)
 	     tree)))
 	(t
 	 (let ((node-val (WB-Set-Tree-Node-Value tree))
-	       ((comp (compare value node-val))))
+	       ((comp (funcall cmp-fn value node-val))))
 	   (ecase comp
 	     ((:equal :unequal)
-	      (if (not (Equivalent-Set? node-val))
+	      (if (not (Equivalent-Node? node-val))
 		  (if (eq comp ':unequal)
 		      tree
-		    (WB-Set-Tree-Join (WB-Set-Tree-Node-Left tree)
-				      (WB-Set-Tree-Node-Right tree)))
-		(let ((ignore diff (Equivalent-Set-Difference node-val value)))
+		    (WB-Set-Tree-Join (WB-Set-Tree-Node-Left tree) (WB-Set-Tree-Node-Right tree) cmp-fn))
+		(let ((ignore diff (Equivalent-Set-Difference node-val value cmp-fn)))
 		  (declare (ignore ignore))	; difference can't be null
 		  (WB-Set-Tree-Build-Node diff
 					  (WB-Set-Tree-Node-Left tree)
 					  (WB-Set-Tree-Node-Right tree)))))
 	     ((:less)
 	      (let ((left (WB-Set-Tree-Node-Left tree))
-		    ((new-left (WB-Set-Tree-Less left value))))
+		    ((new-left (WB-Set-Tree-Less left value cmp-fn))))
 		(if (eq new-left left)
 		    tree
 		  (WB-Set-Tree-Build-Node node-val new-left
 					  (WB-Set-Tree-Node-Right tree)))))
 	     ((:greater)
 	      (let ((right (WB-Set-Tree-Node-Right tree))
-		    ((new-right (WB-Set-Tree-Less right value))))
+		    ((new-right (WB-Set-Tree-Less right value cmp-fn))))
 		(if (eq new-right right)
 		    tree
 		  (WB-Set-Tree-Build-Node node-val (WB-Set-Tree-Node-Left tree)
@@ -485,7 +481,7 @@ on `vec', which it assumes is simple."
 
 
 ;;; ================================================================================
-;;; Split-Above/Below
+;;; Hedge algorithm constants
 
 (defconstant Hedge-Negative-Infinity
   '|&*$ Hedge negative infinity $*&|)
@@ -493,11 +489,11 @@ on `vec', which it assumes is simple."
 (defconstant Hedge-Positive-Infinity
   '|&*$ Hedge positive infinity $*&|)
 
-(defun WB-Set-Tree-Split-Above (tree value)
-  (WB-Set-Tree-Split tree value Hedge-Positive-Infinity))
+(defun WB-Set-Tree-Split-Above (tree value cmp-fn)
+  (WB-Set-Tree-Split tree value Hedge-Positive-Infinity cmp-fn))
 
-(defun WB-Set-Tree-Split-Below (tree value)
-  (WB-Set-Tree-Split tree Hedge-Negative-Infinity value))
+(defun WB-Set-Tree-Split-Below (tree value cmp-fn)
+  (WB-Set-Tree-Split tree Hedge-Negative-Infinity value cmp-fn))
 
 
 ;;; ================================================================================
@@ -509,223 +505,220 @@ on `vec', which it assumes is simple."
 ;;; up distinguished "negative infinity" and "positive infinity" values which, for
 ;;; all practical purposes, will never show up in sets.
 
-(defun WB-Set-Tree-Union (tree1 tree2)
+(defun WB-Set-Tree-Union (tree1 tree2 cmp-fn)
   "Returns the union of `tree1' and `tree2'.  Runs in time linear in the total
 sizes of the two trees."
+  (declare (type function cmp-fn))
   (if (eq tree1 tree2)
       tree1
-    (WB-Set-Tree-Union-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity)))
+    (WB-Set-Tree-Union-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn)))
 
-(defun WB-Set-Tree-Union-Rng (tree1 tree2 lo hi)
+(defun WB-Set-Tree-Union-Rng (tree1 tree2 lo hi cmp-fn)
   "Returns the union of `tree1' with `tree2', considering only those members
 that are above `lo' and below `hi', and assuming that the root values of `tree1'
 and `tree2' are in this range."
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Set-Tree tree1 tree2))
+	   (type WB-Set-Tree tree1 tree2)
+	   (type function cmp-fn))
   (cond ;; If the sets are historically related -- one was produced by a sufficiently
 	;; small number of `with' and `less' operations on the other, or they are both
 	;; related in this way to a third set -- then we might get lucky and find
 	;; ourselves with the same subtree on both sides.  This can reduce this
 	;; linear-time algorithm to log-time.
-	((eq tree1 tree2) (WB-Set-Tree-Split tree1 lo hi))
+	((eq tree1 tree2) (WB-Set-Tree-Split tree1 lo hi cmp-fn))
 	((null tree2)
-	 (WB-Set-Tree-Split tree1 lo hi))
+	 (WB-Set-Tree-Split tree1 lo hi cmp-fn))
 	((null tree1)
-	 (WB-Set-Tree-Split tree2 lo hi))
+	 (WB-Set-Tree-Split tree2 lo hi cmp-fn))
 	((and (simple-vector-p tree1) (simple-vector-p tree2))
-	 (WB-Set-Tree-Vector-Union tree1 tree2 lo hi))
+	 (WB-Set-Tree-Vector-Union tree1 tree2 lo hi cmp-fn))
 	((simple-vector-p tree1)
-	 (WB-Set-Tree-Union-Rng tree2 tree1 lo hi))
+	 (WB-Set-Tree-Union-Rng tree2 tree1 lo hi cmp-fn))
 	(t
 	 (let ((val1 (WB-Set-Tree-Node-Value tree1))
-	       ((eqvv2? eqvv2 (WB-Set-Tree-Find-Equivalent tree2 val1))))
+	       ((eqvv2? eqvv2 (WB-Set-Tree-Find-Equivalent tree2 val1 cmp-fn))))
 	   (WB-Set-Tree-Concat
-	     (if eqvv2? (Equivalent-Set-Union val1 eqvv2)
+	     (if eqvv2? (Equivalent-Set-Union val1 eqvv2 cmp-fn)
 	       val1)
 	     ;; Subtlety: we have to trim the children of `tree1' because of the
 	     ;; previous `cond' clause, which swaps the two trees, thus destroying
 	     ;; the invariant that all members of `tree1' are between `lo' and `hi'.
 	     (WB-Set-Tree-Union-Rng (WB-Set-Tree-Trim (WB-Set-Tree-Node-Left tree1)
-						      lo val1)
-				    (WB-Set-Tree-Trim tree2 lo val1)
-				    lo val1)
+						      lo val1 cmp-fn)
+				    (WB-Set-Tree-Trim tree2 lo val1 cmp-fn)
+				    lo val1 cmp-fn)
 	     (WB-Set-Tree-Union-Rng (WB-Set-Tree-Trim (WB-Set-Tree-Node-Right tree1)
-						      val1 hi)
-				    (WB-Set-Tree-Trim tree2 val1 hi)
-				    val1 hi))))))
+						      val1 hi cmp-fn)
+				    (WB-Set-Tree-Trim tree2 val1 hi cmp-fn)
+				    val1 hi cmp-fn)
+	     cmp-fn)))))
 
 
-(defun WB-Set-Tree-Intersect (tree1 tree2)
+(defun WB-Set-Tree-Intersect (tree1 tree2 cmp-fn)
   "Returns the intersection of `tree1' and `tree2'.  Runs in time linear in
 the total sizes of the two trees."
-  (WB-Set-Tree-Intersect-Rng tree1 tree2
-			     Hedge-Negative-Infinity Hedge-Positive-Infinity))
+  (declare (type function cmp-fn))
+  (WB-Set-Tree-Intersect-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn))
 
-(defun WB-Set-Tree-Intersect-Rng (tree1 tree2 lo hi)
+(defun WB-Set-Tree-Intersect-Rng (tree1 tree2 lo hi cmp-fn)
   "Returns the intersection of `tree1' with `tree2', considering only those
 members that are above `lo' and below `hi', and assuming that the root values
 of `tree1' and `tree2' are in this range."
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Set-Tree tree1 tree2))
+	   (type WB-Set-Tree tree1 tree2)
+	   (type function cmp-fn))
   (cond ((eq tree1 tree2)		; historically-related-set optimization
-	 (WB-Set-Tree-Split tree1 lo hi))
+	 (WB-Set-Tree-Split tree1 lo hi cmp-fn))
 	((or (null tree1) (null tree2))
 	 nil)
 	((and (simple-vector-p tree1) (simple-vector-p tree2))
-	 (Vector-Set-Intersect tree1 tree2 lo hi))
+	 (Vector-Set-Intersect tree1 tree2 lo hi cmp-fn))
 	((simple-vector-p tree1)
-	 (WB-Set-Tree-Intersect-Rng (WB-Set-Tree-Trim tree2 lo hi)
-				    tree1 lo hi))
+	 (WB-Set-Tree-Intersect-Rng (WB-Set-Tree-Trim tree2 lo hi cmp-fn)
+				    tree1 lo hi cmp-fn))
 	(t
 	 (let ((val1 (WB-Set-Tree-Node-Value tree1))
 	       ((new-left
 		  (WB-Set-Tree-Intersect-Rng (WB-Set-Tree-Node-Left tree1)
-					     (WB-Set-Tree-Trim tree2 lo val1)
-					     lo val1))
+					     (WB-Set-Tree-Trim tree2 lo val1 cmp-fn)
+					     lo val1 cmp-fn))
 		(new-right
 		  (WB-Set-Tree-Intersect-Rng (WB-Set-Tree-Node-Right tree1)
-					     (WB-Set-Tree-Trim tree2 val1 hi)
-					     val1 hi)))
-	       ((eqvv2? eqvv2 (WB-Set-Tree-Find-Equivalent tree2 val1))
-		((nonnull? isect (and eqvv2? (Equivalent-Set-Intersect val1 eqvv2))))))
+					     (WB-Set-Tree-Trim tree2 val1 hi cmp-fn)
+					     val1 hi cmp-fn)))
+	       ((eqvv2? eqvv2 (WB-Set-Tree-Find-Equivalent tree2 val1 cmp-fn))
+		((nonnull? isect (and eqvv2? (Equivalent-Set-Intersect val1 eqvv2 cmp-fn))))))
 	   (if nonnull?
-	       (WB-Set-Tree-Concat isect new-left new-right)
-	     (WB-Set-Tree-Join new-left new-right))))))
+	       (WB-Set-Tree-Concat isect new-left new-right cmp-fn)
+	     (WB-Set-Tree-Join new-left new-right cmp-fn))))))
 
 
-(defun WB-Set-Tree-Diff (tree1 tree2)
+(defun WB-Set-Tree-Diff (tree1 tree2 cmp-fn)
   "Returns the set difference of `tree1' less `tree2'.  Runs in time linear in
 the total sizes of the two trees."
-  (WB-Set-Tree-Diff-Rng tree1 tree2
-			Hedge-Negative-Infinity Hedge-Positive-Infinity))
+  (declare (type function cmp-fn))
+  (WB-Set-Tree-Diff-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn))
 
-(defun WB-Set-Tree-Diff-Rng (tree1 tree2 lo hi)
+(defun WB-Set-Tree-Diff-Rng (tree1 tree2 lo hi cmp-fn)
   "Returns the set difference of `tree1' less `tree2', considering only those
 members that are above `lo' and below `hi', and assuming that the root values
 of `tree1' and `tree2' are in this range."
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Set-Tree tree1 tree2))
+	   (type WB-Set-Tree tree1 tree2)
+	   (type function cmp-fn))
   (cond ((eq tree1 tree2) nil)		; historically-related-set optimization
 	((null tree1) nil)
 	((null tree2)
-	 (WB-Set-Tree-Split tree1 lo hi))
+	 (WB-Set-Tree-Split tree1 lo hi cmp-fn))
 	((and (simple-vector-p tree1) (simple-vector-p tree2))
-	 (Vector-Set-Diff tree1 tree2 lo hi))
+	 (Vector-Set-Diff tree1 tree2 lo hi cmp-fn))
 	((simple-vector-p tree1)
 	 (let ((val2 (WB-Set-Tree-Node-Value tree2))
-	       ((new-left (WB-Set-Tree-Diff-Rng (WB-Set-Tree-Trim tree1 lo val2)
+	       ((new-left (WB-Set-Tree-Diff-Rng (WB-Set-Tree-Trim tree1 lo val2 cmp-fn)
 						;; We trim here because `lo' didn't come
 						;; from `tree2'.
-						(WB-Set-Tree-Trim
-						  (WB-Set-Tree-Node-Left tree2)
-						  lo val2)
-						lo val2))
-		(new-right (WB-Set-Tree-Diff-Rng (WB-Set-Tree-Trim tree1 val2 hi)
-						 (WB-Set-Tree-Trim
-						   (WB-Set-Tree-Node-Right tree2)
-						   val2 hi)
-						 val2 hi)))
-	       ((eqvv1? eqvv1 (WB-Set-Tree-Find-Equivalent tree1 val2))
-		((nonnull? diff (and eqvv1? (Equivalent-Set-Difference eqvv1 val2))))))
+						(WB-Set-Tree-Trim (WB-Set-Tree-Node-Left tree2) lo val2 cmp-fn)
+						lo val2 cmp-fn))
+		(new-right (WB-Set-Tree-Diff-Rng (WB-Set-Tree-Trim tree1 val2 hi cmp-fn)
+						 (WB-Set-Tree-Trim (WB-Set-Tree-Node-Right tree2) val2 hi cmp-fn)
+						 val2 hi cmp-fn)))
+	       ((eqvv1? eqvv1 (WB-Set-Tree-Find-Equivalent tree1 val2 cmp-fn))
+		((nonnull? diff (and eqvv1? (Equivalent-Set-Difference eqvv1 val2 cmp-fn))))))
 	   (if nonnull?
-	       (WB-Set-Tree-Concat diff new-left new-right)
-	     (WB-Set-Tree-Join new-left new-right))))
+	       (WB-Set-Tree-Concat diff new-left new-right cmp-fn)
+	     (WB-Set-Tree-Join new-left new-right cmp-fn))))
 	(t
 	 (let ((val1 (WB-Set-Tree-Node-Value tree1))
 	       ((new-left (WB-Set-Tree-Diff-Rng (WB-Set-Tree-Node-Left tree1)
-						(WB-Set-Tree-Trim tree2 lo val1)
-						lo val1))
+						(WB-Set-Tree-Trim tree2 lo val1 cmp-fn)
+						lo val1 cmp-fn))
 		(new-right (WB-Set-Tree-Diff-Rng (WB-Set-Tree-Node-Right tree1)
-						 (WB-Set-Tree-Trim tree2 val1 hi)
-						 val1 hi)))
-	       ((eqvv2? eqvv2 (WB-Set-Tree-Find-Equivalent tree2 val1))
-		((nonnull? diff (if eqvv2? (Equivalent-Set-Difference val1 eqvv2)
+						 (WB-Set-Tree-Trim tree2 val1 hi cmp-fn)
+						 val1 hi cmp-fn)))
+	       ((eqvv2? eqvv2 (WB-Set-Tree-Find-Equivalent tree2 val1 cmp-fn))
+		((nonnull? diff (if eqvv2? (Equivalent-Set-Difference val1 eqvv2 cmp-fn)
 				  (values t val1))))))
 	   (if nonnull?
-	       (WB-Set-Tree-Concat diff new-left new-right)
-	     (WB-Set-Tree-Join new-left new-right))))))
+	       (WB-Set-Tree-Concat diff new-left new-right cmp-fn)
+	     (WB-Set-Tree-Join new-left new-right cmp-fn))))))
 
 
-(defun WB-Set-Tree-Diff-2 (tree1 tree2)
+(defun WB-Set-Tree-Diff-2 (tree1 tree2 cmp-fn)
   "Returns two values: the set difference of `tree1' less `tree2', and that of
 `tree2' less `tree1'.  Runs in time linear in the total sizes of the two trees."
-  (WB-Set-Tree-Diff-2-Rng tree1 tree2
-			  Hedge-Negative-Infinity Hedge-Positive-Infinity))
+  (WB-Set-Tree-Diff-2-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn))
 
-(defun WB-Set-Tree-Diff-2-Rng (tree1 tree2 lo hi)
+(defun WB-Set-Tree-Diff-2-Rng (tree1 tree2 lo hi cmp-fn)
   "Returns two values: the set difference of `tree1' less `tree2', and that of
 `tree2' less `tree1', considering only those members that are above `lo' and
 below `hi', and assuming that the root values of `tree1' and `tree2' are in
 this range."
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Set-Tree tree1 tree2))
+	   (type WB-Set-Tree tree1 tree2)
+	   (type function cmp-fn))
   (cond ((eq tree1 tree2) (values nil nil)) ; historically-related tree optimization
 	((or (null tree1) (null tree2))
-	 (values (WB-Set-Tree-Split tree1 lo hi)
-		 (WB-Set-Tree-Split tree2 lo hi)))
+	 (values (WB-Set-Tree-Split tree1 lo hi cmp-fn)
+		 (WB-Set-Tree-Split tree2 lo hi cmp-fn)))
 	((and (simple-vector-p tree1) (simple-vector-p tree2))
-	 (Vector-Set-Diff-2 tree1 tree2 lo hi))
+	 (Vector-Set-Diff-2 tree1 tree2 lo hi cmp-fn))
 	((simple-vector-p tree1)
 	 (let ((val2 (WB-Set-Tree-Node-Value tree2))
 	       ((new-left-1 new-left-2
-		  (WB-Set-Tree-Diff-2-Rng (WB-Set-Tree-Trim tree1 lo val2)
-					  (WB-Set-Tree-Trim
-					    (WB-Set-Tree-Node-Left tree2)
-					    lo val2)
-					  lo val2))
+		  (WB-Set-Tree-Diff-2-Rng (WB-Set-Tree-Trim tree1 lo val2 cmp-fn)
+					  (WB-Set-Tree-Trim (WB-Set-Tree-Node-Left tree2) lo val2 cmp-fn)
+					  lo val2 cmp-fn))
 		(new-right-1 new-right-2
-		  (WB-Set-Tree-Diff-2-Rng (WB-Set-Tree-Trim tree1 val2 hi)
-					  (WB-Set-Tree-Trim
-					    (WB-Set-Tree-Node-Right tree2)
-					    val2 hi)
-					  val2 hi)))
-	       ((eqvv1? eqvv1 (WB-Set-Tree-Find-Equivalent tree1 val2))
-		((nonnull1? diff1 (and eqvv1? (Equivalent-Set-Difference eqvv1 val2)))
-		 (nonnull2? diff2 (if eqvv1? (Equivalent-Set-Difference val2 eqvv1)
+		  (WB-Set-Tree-Diff-2-Rng (WB-Set-Tree-Trim tree1 val2 hi cmp-fn)
+					  (WB-Set-Tree-Trim (WB-Set-Tree-Node-Right tree2) val2 hi cmp-fn)
+					  val2 hi cmp-fn)))
+	       ((eqvv1? eqvv1 (WB-Set-Tree-Find-Equivalent tree1 val2 cmp-fn))
+		((nonnull1? diff1 (and eqvv1? (Equivalent-Set-Difference eqvv1 val2 cmp-fn)))
+		 (nonnull2? diff2 (if eqvv1? (Equivalent-Set-Difference val2 eqvv1 cmp-fn)
 				    (values t val2))))))
 	   (values
 	     (if nonnull1?
-		 (WB-Set-Tree-Concat diff1 new-left-1 new-right-1)
-	       (WB-Set-Tree-Join new-left-1 new-right-1))
+		 (WB-Set-Tree-Concat diff1 new-left-1 new-right-1 cmp-fn)
+	       (WB-Set-Tree-Join new-left-1 new-right-1 cmp-fn))
 	     (if nonnull2?
-		 (WB-Set-Tree-Concat diff2 new-left-2 new-right-2)
-	       (WB-Set-Tree-Join new-left-2 new-right-2)))))
+		 (WB-Set-Tree-Concat diff2 new-left-2 new-right-2 cmp-fn)
+	       (WB-Set-Tree-Join new-left-2 new-right-2 cmp-fn)))))
 	(t
 	 (let ((val1 (WB-Set-Tree-Node-Value tree1))
 	       ((new-left-1 new-left-2
 		  (WB-Set-Tree-Diff-2-Rng (WB-Set-Tree-Node-Left tree1)
-					  (WB-Set-Tree-Trim tree2 lo val1)
-					  lo val1))
+					  (WB-Set-Tree-Trim tree2 lo val1 cmp-fn)
+					  lo val1 cmp-fn))
 		(new-right-1 new-right-2
 		  (WB-Set-Tree-Diff-2-Rng (WB-Set-Tree-Node-Right tree1)
-					  (WB-Set-Tree-Trim tree2 val1 hi)
-					  val1 hi))
-		((eqvv2? eqvv2 (WB-Set-Tree-Find-Equivalent tree2 val1))
-		 ((nonnull1? diff1 (if eqvv2? (Equivalent-Set-Difference val1 eqvv2)
+					  (WB-Set-Tree-Trim tree2 val1 hi cmp-fn)
+					  val1 hi cmp-fn))
+		((eqvv2? eqvv2 (WB-Set-Tree-Find-Equivalent tree2 val1 cmp-fn))
+		 ((nonnull1? diff1 (if eqvv2? (Equivalent-Set-Difference val1 eqvv2 cmp-fn)
 				     (values t val1)))
-		  (nonnull2? diff2 (and eqvv2?
-					(Equivalent-Set-Difference eqvv2 val1)))))))
+		  (nonnull2? diff2 (and eqvv2? (Equivalent-Set-Difference eqvv2 val1 cmp-fn)))))))
 	   (values
 	     (if nonnull1?
-		 (WB-Set-Tree-Concat diff1 new-left-1 new-right-1)
-	       (WB-Set-Tree-Join new-left-1 new-right-1))
+		 (WB-Set-Tree-Concat diff1 new-left-1 new-right-1 cmp-fn)
+	       (WB-Set-Tree-Join new-left-1 new-right-1 cmp-fn))
 	     (if nonnull2?
-		 (WB-Set-Tree-Concat diff2 new-left-2 new-right-2)
-	       (WB-Set-Tree-Join new-left-2 new-right-2)))))))
+		 (WB-Set-Tree-Concat diff2 new-left-2 new-right-2 cmp-fn)
+	       (WB-Set-Tree-Join new-left-2 new-right-2 cmp-fn)))))))
 
 
 ;;; ================================================================================
 ;;; Comparison
 
-(defun WB-Set-Tree-Compare (tree1 tree2)
+(defun WB-Set-Tree-Compare (tree1 tree2 cmp-fn)
+  (declare (type function cmp-fn))
   (if (eq tree1 tree2) ':equal
     (let ((size1 (WB-Set-Tree-Size tree1))
 	  (size2 (WB-Set-Tree-Size tree2)))
       (cond ((< size1 size2) ':less)
 	    ((> size1 size2) ':greater)
-	    (t (WB-Set-Tree-Compare-Rng tree1 0 tree2 0 0 size1))))))
+	    (t (WB-Set-Tree-Compare-Rng tree1 0 tree2 0 0 size1 cmp-fn))))))
 
-(defun WB-Set-Tree-Compare-Rng (tree1 base1 tree2 base2 lo hi)
+(defun WB-Set-Tree-Compare-Rng (tree1 base1 tree2 base2 lo hi cmp-fn)
   ;; This is similar to the other hedge algorithms, but there is a key difference:
   ;; it is concerned not with the values of nodes but with their rank, that is,
   ;; the number of values to their left.  The `base' parameters specify, for
@@ -734,14 +727,15 @@ this range."
   ;; ':less or ':greater, but ':unequal has to wait until the end.
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Set-Tree tree1 tree2)
-	   (type fixnum base1 base2 lo hi))
+	   (type fixnum base1 base2 lo hi)
+	   (type function cmp-fn))
   (cond ((and (eq tree1 tree2) (= base1 base2)) ; historically-related-set optimization
 	 ':equal)
 	((= lo hi) ':equal)
 	((and (simple-vector-p tree1) (simple-vector-p tree2))
 	 (let ((unequal? nil))
 	   (or (gmap (:result or) (fn (val1 val2)
-				    (let ((comp (compare val1 val2)))
+				    (let ((comp (funcall cmp-fn val1 val2)))
 				      (when (eq comp ':unequal)
 					(setq unequal? t))
 				      (and (or (eq comp ':less) (eq comp ':greater))
@@ -750,7 +744,7 @@ this range."
 		     (:arg simple-vector tree2 :start (- lo base2) :stop (- hi base2)))
 	       (if unequal? ':unequal ':equal))))
 	((simple-vector-p tree1)
-	 (let ((rev-comp (WB-Set-Tree-Compare-Rng tree2 base2 tree1 base1 lo hi)))
+	 (let ((rev-comp (WB-Set-Tree-Compare-Rng tree2 base2 tree1 base1 lo hi cmp-fn)))
 	   (ecase rev-comp
 	     (:less ':greater)
 	     (:greater ':less)
@@ -763,13 +757,13 @@ this range."
 		 ((left1a base1a (WB-Set-Tree-Rank-Trim left1 base1 lo new-hi))
 		  (tree2a base2a (WB-Set-Tree-Rank-Trim tree2 base2 lo new-hi))
 		  ((left-comp (WB-Set-Tree-Compare-Rng left1a base1a tree2a base2a
-						       lo new-hi)))))))
+						       lo new-hi cmp-fn)))))))
 	   (if (or (eq left-comp ':less) (eq left-comp ':greater))
 	       left-comp
 	     (let ((val1 (WB-Set-Tree-Node-Value tree1))
 		   (val2 (WB-Set-Tree-Rank-Element-Internal
 			   tree2 (the fixnum (- new-hi base2))))
-		   ((val-comp (Equivalent-Set-Compare val1 val2))))
+		   ((val-comp (Equivalent-Set-Compare val1 val2 cmp-fn))))
 	       (if (or (eq val-comp ':less) (eq val-comp ':greater))
 		   val-comp
 		 (let ((val1-size (Set-Value-Size val1))
@@ -779,7 +773,7 @@ this range."
 						  new-lo new-lo hi))
 			 (tree2a base2a (WB-Set-Tree-Rank-Trim tree2 base2 new-lo hi))
 			 ((right-comp (WB-Set-Tree-Compare-Rng
-					right1a base1a tree2a base2a new-lo hi))))))
+					right1a base1a tree2a base2a new-lo hi cmp-fn))))))
 		   (if (not (eq right-comp ':equal))
 		       right-comp
 		     (if (eq left-comp ':unequal) ':unequal val-comp))))))))))
@@ -803,7 +797,7 @@ this range."
 				  (Set-Value-Size (WB-Set-Tree-Node-Value tree)))
 			       lo hi)))))
 
-(defun WB-Set-Tree-Rank (tree value)
+(defun WB-Set-Tree-Rank (tree value cmp-fn)
   "Searches a set tree `tree' for `value'.  Returns two values, a boolean and an
 index.  If `value', or a value equivalent to `value', is in `tree', the boolean
 is true, and the index is the rank of the value; otherwise, the boolean is false
@@ -811,23 +805,24 @@ and the index is the rank `value' would have if it were to be added.  Note that
 if the set contains equivalent-but-unequal elements, the rank of each of several
 such elements is guaranteed consistent only within the same tree (by `eq'), not
 between equal trees."
+  (declare (type function cmp-fn))
   (labels ((rec (tree value base)
 	     (cond ((null tree) (values nil base))
 		   ((simple-vector-p tree)
-		    (let ((found? idx (Vector-Set-Binary-Search tree value)))
+		    (let ((found? idx (Vector-Set-Binary-Search tree value cmp-fn)))
 		      (values found? (+ idx base))))
 		   (t
 		    (let ((node-val (WB-Set-Tree-Node-Value tree))
 			  (left (WB-Set-Tree-Node-Left tree))
 			  ((left-size (WB-Set-Tree-Size left))
 			   ((node-base (+ base left-size))))
-			  ((comp (compare value node-val))))
+			  ((comp (funcall cmp-fn value node-val))))
 		      (ecase comp
 			(:equal (values t node-base))
 			((:unequal)
-			 (if (Equivalent-Set? node-val)
-			     (let ((mems (Equivalent-Set-Members node-val))
-				   ((pos (cl:position value mems :test #'equal?))))
+			 (if (Equivalent-Node? node-val)
+			     (let ((mems (Equivalent-Node-List node-val))
+				   ((pos (cl:position value mems :test (equal?-fn cmp-fn)))))
 			       (if pos (values t (+ node-base pos))
 				 (values nil node-base)))
 			   (values nil node-base)))
@@ -840,8 +835,8 @@ between equal trees."
 
 (defun WB-Set-Tree-Rank-Element (tree rank)
   (let ((elt rem (WB-Set-Tree-Rank-Element-Internal tree rank)))
-    (if (Equivalent-Set? elt)
-	(nth rem (Equivalent-Set-Members elt))
+    (if (Equivalent-Node? elt)
+	(nth rem (Equivalent-Node-List elt))
       elt)))
 
 (defun WB-Set-Tree-Rank-Element-Internal (tree rank)
@@ -870,94 +865,96 @@ between equal trees."
 ;;; ================================================================================
 ;;; Subset testing
 
-(defun WB-Set-Tree-Subset? (tree1 tree2)
+(defun WB-Set-Tree-Subset? (tree1 tree2 cmp-fn)
+  (declare (type function cmp-fn))
   (let ((size1 (WB-Set-Tree-Size tree1))
 	(size2 (WB-Set-Tree-Size tree2)))
     (or (eq tree1 tree2)
 	(and (<= size1 size2)
-	     (WB-Set-Tree-Subset?-Rng tree1 tree2
-				      Hedge-Negative-Infinity Hedge-Positive-Infinity)))))
+	     (WB-Set-Tree-Subset?-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn)))))
 
-(defun WB-Set-Tree-Subset?-Rng (tree1 tree2 lo hi)
+(defun WB-Set-Tree-Subset?-Rng (tree1 tree2 lo hi cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Set-Tree tree1 tree2))
+	   (type WB-Set-Tree tree1 tree2)
+	   (type function cmp-fn))
   (cond ((eq tree1 tree2) t)		; historically-related-set optimization
 	((null tree1) t)
 	((and (simple-vector-p tree1) (or (null tree2) (simple-vector-p tree2)))
-	 (Vector-Set-Subset? tree1 tree2 lo hi))
+	 (Vector-Set-Subset? tree1 tree2 lo hi cmp-fn))
 	((simple-vector-p tree1)
 	 (let ((val2 (WB-Set-Tree-Node-Value tree2)))
-	   (and (WB-Set-Tree-Subset?-Rng (WB-Set-Tree-Trim tree1 lo val2)
+	   (and (WB-Set-Tree-Subset?-Rng (WB-Set-Tree-Trim tree1 lo val2 cmp-fn)
 					 (WB-Set-Tree-Node-Left tree2)
-					 lo val2)
-		(let ((eqvv1? eqvv1 (WB-Set-Tree-Find-Equivalent tree1 val2)))
+					 lo val2 cmp-fn)
+		(let ((eqvv1? eqvv1 (WB-Set-Tree-Find-Equivalent tree1 val2 cmp-fn)))
 		  (and (or (not eqvv1?)
-			   (Equivalent-Set-Subset? eqvv1 val2))
-		       (WB-Set-Tree-Subset?-Rng (WB-Set-Tree-Trim tree1 val2 hi)
+			   (Equivalent-Set-Subset? eqvv1 val2 cmp-fn))
+		       (WB-Set-Tree-Subset?-Rng (WB-Set-Tree-Trim tree1 val2 hi cmp-fn)
 						(WB-Set-Tree-Node-Right tree2)
-						val2 hi))))))
+						val2 hi cmp-fn))))))
 	(t
 	 (let ((val1 (WB-Set-Tree-Node-Value tree1)))
 	   (and (WB-Set-Tree-Subset?-Rng (WB-Set-Tree-Node-Left tree1)
-					 (WB-Set-Tree-Trim tree2 lo val1)
-					 lo val1)
-		(let ((eqvv2? eqvv2 (WB-Set-Tree-Find-Equivalent tree2 val1)))
+					 (WB-Set-Tree-Trim tree2 lo val1 cmp-fn)
+					 lo val1 cmp-fn)
+		(let ((eqvv2? eqvv2 (WB-Set-Tree-Find-Equivalent tree2 val1 cmp-fn)))
 		  (and eqvv2?
-		       (Equivalent-Set-Subset? val1 eqvv2)
+		       (Equivalent-Set-Subset? val1 eqvv2 cmp-fn)
 		       (WB-Set-Tree-Subset?-Rng (WB-Set-Tree-Node-Right tree1)
-						(WB-Set-Tree-Trim tree2 val1 hi)
-						val1 hi))))))))
+						(WB-Set-Tree-Trim tree2 val1 hi cmp-fn)
+						val1 hi cmp-fn))))))))
 
 
 ;;; ================================================================================
 ;;; Disjointness testing
 
-(defun WB-Set-Tree-Disjoint? (tree1 tree2)
-  (WB-Set-Tree-Disjoint?-Rng tree1 tree2
-			     Hedge-Negative-Infinity Hedge-Positive-Infinity))
+(defun WB-Set-Tree-Disjoint? (tree1 tree2 cmp-fn)
+  (declare (type function cmp-fn))
+  (WB-Set-Tree-Disjoint?-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn))
 
-(defun WB-Set-Tree-Disjoint?-Rng (tree1 tree2 lo hi)
+(defun WB-Set-Tree-Disjoint?-Rng (tree1 tree2 lo hi cmp-fn)
+  (declare (type function cmp-fn))
   (cond ((or (null tree1) (null tree2))
 	 t)
 	((eq tree1 tree2)
 	 nil)
 	((and (simple-vector-p tree1) (simple-vector-p tree2))
-	 (Vector-Set-Disjoint? tree1 tree2 lo hi))
+	 (Vector-Set-Disjoint? tree1 tree2 lo hi cmp-fn))
 	((simple-vector-p tree1)
-	 (WB-Set-Tree-Disjoint?-Rng (WB-Set-Tree-Trim tree2 lo hi)
-				    tree1 lo hi))
+	 (WB-Set-Tree-Disjoint?-Rng (WB-Set-Tree-Trim tree2 lo hi cmp-fn)
+				    tree1 lo hi cmp-fn))
 	(t
 	 (let ((val1 (WB-Set-Tree-Node-Value tree1))
-	       ((eqvv2? eqvv2 (WB-Set-Tree-Find-Equivalent tree2 val1))))
-	   (and (or (null eqvv2?) (Equivalent-Set-Disjoint? val1 eqvv2))
+	       ((eqvv2? eqvv2 (WB-Set-Tree-Find-Equivalent tree2 val1 cmp-fn))))
+	   (and (or (null eqvv2?) (Equivalent-Set-Disjoint? val1 eqvv2 cmp-fn))
 		(WB-Set-Tree-Disjoint?-Rng (WB-Set-Tree-Node-Left tree1)
-					   (WB-Set-Tree-Trim tree2 lo val1)
-					   lo val1)
+					   (WB-Set-Tree-Trim tree2 lo val1 cmp-fn)
+					   lo val1 cmp-fn)
 		(WB-Set-Tree-Disjoint?-Rng (WB-Set-Tree-Node-Right tree1)
-					   (WB-Set-Tree-Trim tree2 val1 hi)
-					   val1 hi))))))
+					   (WB-Set-Tree-Trim tree2 val1 hi cmp-fn)
+					   val1 hi cmp-fn))))))
 
 ;;; ================================================================================
 ;;; Miscellany
 
-(defun WB-Set-Tree-From-List (lst)
+(defun WB-Set-Tree-From-List (lst cmp-fn)
   (let ((tree nil))
     (dolist (x lst)
-      (setq tree (WB-Set-Tree-With tree x)))
+      (setq tree (WB-Set-Tree-With tree x cmp-fn)))
     tree))
 
-(defun WB-Set-Tree-From-Iterable (it)
+(defun WB-Set-Tree-From-Iterable (it cmp-fn)
   (declare (type function it))
   (let ((tree nil))
     (while (funcall it ':more?)
-      (setq tree (WB-Set-Tree-With tree (funcall it ':get))))
+      (setq tree (WB-Set-Tree-With tree (funcall it ':get) cmp-fn)))
     tree))
 
 ;;; Much faster than repeated `with' if the input is sorted.  Still correct if the
 ;;; input is not actually sorted, but if it isn't even close to sorted, this is slower.
-(defun WB-Set-Tree-From-Sorted-Iterable (it len)
+(defun WB-Set-Tree-From-Sorted-Iterable (it len cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type function it))
+	   (type function it cmp-fn))
   (labels ((recur (n)
 	     (declare (fixnum n))
 	     (cond ((= n 0) (values nil Hedge-Positive-Infinity Hedge-Negative-Infinity))
@@ -968,11 +965,11 @@ between equal trees."
 		   ((= n 2)
 		    (let ((a (funcall it ':get))
 			  (b (funcall it ':get)))
-		      (ecase (Compare a b)
+		      (ecase (funcall cmp-fn a b)
 			(:equal (values (vector a) a a))
 			(:less (values (vector a b) a b))
 			(:greater (values (vector b a) b a))
-			(:unequal (values (WB-Set-Tree-With (vector a) b) a a)))))
+			(:unequal (values (WB-Set-Tree-With (vector a) b cmp-fn) a a)))))
 		   (t
 		    (let ((n2 (floor (1- n) 2))
 			  ((left left-first left-last (recur n2))
@@ -981,20 +978,20 @@ between equal trees."
 		      ;; Here we check whether the tree really is sorted as promised.
 		      ;; (We really have to do this for correctness, because even if it is sorted, it
 		      ;; could have sequences of equivalent-but-unequal elements.)
-		      (if (and (less-than? left-last n2-elt)
-			       (less-than? n2-elt right-first))
+		      (if (and (less-than?-cmp left-last n2-elt cmp-fn)
+			       (less-than?-cmp n2-elt right-first cmp-fn))
 			  (values (WB-Set-Tree-Build-Node n2-elt left right) left-first right-last)
 			;; Fall back to general case.
-			(values (WB-Set-Tree-With (WB-Set-Tree-Union left right) n2-elt)
-				(if (less-than? left-first right-first) left-first right-first)
-				(if (less-than? left-last right-last) right-last left-last))))))))
+			(values (WB-Set-Tree-With (WB-Set-Tree-Union left right cmp-fn) n2-elt cmp-fn)
+				(if (less-than?-cmp left-first right-first cmp-fn) left-first right-first)
+				(if (less-than?-cmp left-last right-last cmp-fn) right-last left-last))))))))
     (recur len)))
 
 
 ;;; ================================================================================
 ;;; Support routines for the above (sets)
 
-(defun Vector-Set-Binary-Search (vec value)
+(defun Vector-Set-Binary-Search (vec value cmp-fn)
   "Searches a vector set `vec' for `value'.  Returns two values, a symbol and an
 index.  If `value', or a value equivalent to `value', is in `vec', the symbol
 is `:equal' resp. `:unequal', and the index is the position of the value;
@@ -1002,6 +999,7 @@ otherwise, the symbol is `nil' and the index is where `value' would go if it
 were to be inserted."
   (declare (optimize (speed 3) (safety 0))
 	   (type simple-vector vec)
+	   (type function cmp-fn)
 	   #+(or cmu scl)
 	   (values t fixnum))
   (do ((lo 0)
@@ -1011,63 +1009,42 @@ were to be inserted."
     (declare (type fixnum lo hi))
     (let ((mid (ash (the fixnum (+ lo hi)) -1))
 	  ((vec-val (svref vec mid))
-	   ((comp (compare value vec-val)))))
+	   ((comp (funcall cmp-fn value vec-val)))))
       (ecase comp
 	((:equal :unequal) (return (values comp mid)))
 	(:less             (setq hi (1- mid)))
 	(:greater          (setq lo (1+ mid)))))))
 
-(defun Vector-Set-Binary-Search-Cfn (vec value cfn)
-  "Searches a vector set `vec' for `value'.  Returns two values, a symbol and an
-index.  If `value', or a value equivalent to `value', is in `vec', the symbol
-is `:equal' resp. `:unequal', and the index is the position of the value;
-otherwise, the symbol is `nil' and the index is where `value' would go if it
-were to be inserted."
-  (declare (optimize (speed 3) (safety 0))
-	   (type simple-vector vec)
-	   #+(or cmu scl)
-	   (values t fixnum)
-	   (type function cfn))
-  (do ((lo 0)
-       (hi (1- (length vec))))
-      ((> lo hi)
-       (values nil lo))
-    (declare (type fixnum lo hi))
-    (let ((mid (ash (the fixnum (+ lo hi)) -1))
-	  ((vec-val (svref vec mid))
-	   ((comp (funcall cfn value vec-val)))))
-      (ecase comp
-	((:equal :unequal) (return (values comp mid)))
-	(:less             (setq hi (1- mid)))
-	(:greater          (setq lo (1+ mid)))))))
-
-(defun Vector-Set-Binary-Search-Lo (vec lo)
+(defun Vector-Set-Binary-Search-Lo (vec lo cmp-fn)
   "Returns the index of the left edge of the first member of `vec' that is
 above `lo'."
   (declare (type simple-vector vec)
+	   (type function cmp-fn)
 	   #+(or cmu sbcl scl)
 	   (values fixnum))
-  (let ((found? idx (Vector-Set-Binary-Search vec lo)))
+  (let ((found? idx (Vector-Set-Binary-Search vec lo cmp-fn)))
     (if found? (1+ idx) idx)))
 
-(defun Vector-Set-Binary-Search-Hi (vec hi)
+(defun Vector-Set-Binary-Search-Hi (vec hi cmp-fn)
   "Returns the index of the right edge of the last member of `vec' that is
 below `hi'."
   (declare (type simple-vector vec)
+	   (type function cmp-fn)
 	   #+(or cmu sbcl scl)
 	   (values fixnum))
-  (let ((found? idx (Vector-Set-Binary-Search vec hi)))
+  (let ((found? idx (Vector-Set-Binary-Search vec hi cmp-fn)))
     (declare (ignore found?))
     idx))
 
-(declaim (ftype (function (simple-vector t) fixnum) Vector-Set-Binary-Search-Lo))
-(declaim (ftype (function (simple-vector t) fixnum) Vector-Set-Binary-Search-Hi))
+(declaim (ftype (function (simple-vector t function) fixnum) Vector-Set-Binary-Search-Lo))
+(declaim (ftype (function (simple-vector t function) fixnum) Vector-Set-Binary-Search-Hi))
 
-(defun WB-Set-Tree-Split (tree lo hi)
+(defun WB-Set-Tree-Split (tree lo hi cmp-fn)
   "Corresponds to Adams' `split_lt' and `split_gt'.  Returns a tree containing
 those members of `tree' above `lo' and below `hi'."
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Set-Tree tree))
+	   (type WB-Set-Tree tree)
+	   (type function cmp-fn))
   (cond ((null tree) nil)
 	((and (eq lo Hedge-Negative-Infinity) (eq hi Hedge-Positive-Infinity))
 	 tree)
@@ -1075,66 +1052,66 @@ those members of `tree' above `lo' and below `hi'."
 	 (let ((len (length tree))
 	       ((split-point-lo (if (eq lo Hedge-Negative-Infinity)
 				    0
-				  (Vector-Set-Binary-Search-Lo tree lo)))
+				  (Vector-Set-Binary-Search-Lo tree lo cmp-fn)))
 		(split-point-hi (if (eq hi Hedge-Positive-Infinity)
 				     len
-				   (Vector-Set-Binary-Search-Hi tree hi)))))
+				   (Vector-Set-Binary-Search-Hi tree hi cmp-fn)))))
 	   (and (> split-point-hi split-point-lo)
 		(if (and (= split-point-lo 0)
 			 (= split-point-hi len))
 		    tree
 		  (Vector-Subseq tree split-point-lo split-point-hi)))))
 	((and (not (eq lo Hedge-Negative-Infinity))
-	      (not (greater-than? (WB-Set-Tree-Node-Value tree) lo)))
-	 (WB-Set-Tree-Split (WB-Set-Tree-Node-Right tree) lo hi))
+	      (not (greater-than?-cmp (WB-Set-Tree-Node-Value tree) lo cmp-fn)))
+	 (WB-Set-Tree-Split (WB-Set-Tree-Node-Right tree) lo hi cmp-fn))
 	((and (not (eq hi Hedge-Positive-Infinity))
-	      (not (less-than? (WB-Set-Tree-Node-Value tree) hi)))
-	 (WB-Set-Tree-Split (WB-Set-Tree-Node-Left tree) lo hi))
+	      (not (less-than?-cmp (WB-Set-Tree-Node-Value tree) hi cmp-fn)))
+	 (WB-Set-Tree-Split (WB-Set-Tree-Node-Left tree) lo hi cmp-fn))
 	(t
 	 (let ((new-left (WB-Set-Tree-Split (WB-Set-Tree-Node-Left tree)
-					    lo Hedge-Positive-Infinity))
+					    lo Hedge-Positive-Infinity cmp-fn))
 	       (new-right (WB-Set-Tree-Split (WB-Set-Tree-Node-Right tree)
-					     Hedge-Negative-Infinity hi)))
+					     Hedge-Negative-Infinity hi cmp-fn)))
 	   (if (and (eq new-left (WB-Set-Tree-Node-Left tree))
 		    (eq new-right (WB-Set-Tree-Node-Right tree)))
 	       tree
-	     (WB-Set-Tree-Concat (WB-Set-Tree-Node-Value tree)
-				 new-left new-right))))))
+	     (WB-Set-Tree-Concat (WB-Set-Tree-Node-Value tree) new-left new-right cmp-fn))))))
 
-(defun WB-Set-Tree-Trim (tree lo hi)
+(defun WB-Set-Tree-Trim (tree lo hi cmp-fn)
   "Corresponds to Adams' `trim' and variants.  Removes any tree nodes whose
 values are less than `lo' or greater than `hi'.  Note, this does _not_ guarantee
 that the result only contains values between `lo' and `hi'; use `-Split' for
 that.  This, however, doesn't cons."
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Set-Tree tree))
+	   (type WB-Set-Tree tree)
+	   (type function cmp-fn))
   (cond ((null tree) nil)
 	((simple-vector-p tree)
 	 ;; If the vector is completely out of range, drop it.
 	 (and (or (eq lo Hedge-Negative-Infinity)
-		  (greater-than? (svref tree (1- (length tree))) lo))
+		  (greater-than?-cmp (svref tree (1- (length tree))) lo cmp-fn))
 	      (or (eq hi Hedge-Positive-Infinity)
-		  (less-than? (svref tree 0) hi))
+		  (less-than?-cmp (svref tree 0) hi cmp-fn))
 	      ;; If it contains no elements within the range, also drop it.
 	      (let ((split-point-lo (if (eq lo Hedge-Negative-Infinity)
 					0
-				      (Vector-Set-Binary-Search-Lo tree lo)))
+				      (Vector-Set-Binary-Search-Lo tree lo cmp-fn)))
 		    (split-point-hi (if (eq hi Hedge-Positive-Infinity)
 					(length tree)
-				      (Vector-Set-Binary-Search-Hi tree hi))))
+				      (Vector-Set-Binary-Search-Hi tree hi cmp-fn))))
 		(> split-point-hi split-point-lo))
 	      tree))
 	(t
 	 (let ((val (WB-Set-Tree-Node-Value tree)))
 	   (if (or (eq lo Hedge-Negative-Infinity)
-		   (greater-than? val lo))
+		   (greater-than?-cmp val lo cmp-fn))
 	       (if (or (eq hi Hedge-Positive-Infinity)
-		       (less-than? val hi))
+		       (less-than?-cmp val hi cmp-fn))
 		   tree
-		 (WB-Set-Tree-Trim (WB-Set-Tree-Node-Left tree) lo hi))
-	     (WB-Set-Tree-Trim (WB-Set-Tree-Node-Right tree) lo hi))))))
+		 (WB-Set-Tree-Trim (WB-Set-Tree-Node-Left tree) lo hi cmp-fn))
+	     (WB-Set-Tree-Trim (WB-Set-Tree-Node-Right tree) lo hi cmp-fn))))))
 
-(defun WB-Set-Tree-Concat (value left right)
+(defun WB-Set-Tree-Concat (value left right cmp-fn)
   "Corresponds to Adams' `concat3'.  Assumes that (all values in `left') <=
 `value' <= (all values in `right'); returns a new tree containing all values.
 This does more rebalancing than `WB-Set-Tree-Build-Node', which otherwise
@@ -1142,35 +1119,33 @@ has the same contract.  `value' may be an `Equivalent-Set'."
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Set-Tree left right))
   (cond ((null left)
-	 (WB-Set-Tree-With right value))
+	 (WB-Set-Tree-With right value cmp-fn))
 	((null right)
-	 (WB-Set-Tree-With left value))
+	 (WB-Set-Tree-With left value cmp-fn))
 	((and (WB-Set-Tree-Node? left)
 	      (> (WB-Set-Tree-Size left)
 		 (the fixnum
 		   (* (WB-Set-Tree-Size right) WB-Tree-Balance-Factor))))
 	 (WB-Set-Tree-Build-Node (WB-Set-Tree-Node-Value left)
 				 (WB-Set-Tree-Node-Left left)
-				 (WB-Set-Tree-Concat value (WB-Set-Tree-Node-Right left)
-						     right)))
+				 (WB-Set-Tree-Concat value (WB-Set-Tree-Node-Right left) right cmp-fn)))
 	((and (WB-Set-Tree-Node? right)
 	      (> (WB-Set-Tree-Size right)
 		 (the fixnum
 		   (* (WB-Set-Tree-Size left) WB-Tree-Balance-Factor))))
 	 (WB-Set-Tree-Build-Node (WB-Set-Tree-Node-Value right)
-				 (WB-Set-Tree-Concat value left
-						     (WB-Set-Tree-Node-Left right))
+				 (WB-Set-Tree-Concat value left (WB-Set-Tree-Node-Left right) cmp-fn)
 				 (WB-Set-Tree-Node-Right right)))
 	(t
 	 (WB-Set-Tree-Build-Node value left right))))
 
-(defun WB-Set-Tree-Join (left right)
+(defun WB-Set-Tree-Join (left right cmp-fn)
   "Returns the union of `left' and `right' under the assumption that all values
 in `left' are less than any value in `right'."
   (if (null left) right
     (if (null right) left
       (let ((val (WB-Set-Tree-Minimum-Value right)))
-	(WB-Set-Tree-Concat val left (WB-Set-Tree-Less-Minimum right))))))
+	(WB-Set-Tree-Concat val left (WB-Set-Tree-Less-Minimum right cmp-fn) cmp-fn)))))
 
 (defun WB-Set-Tree-Minimum-Value (tree)
   "Assumes `tree' is nonempty.  Returns the minimum value.  This may be an
@@ -1184,7 +1159,7 @@ in `left' are less than any value in `right'."
 	  (WB-Set-Tree-Minimum-Value left)
 	(WB-Set-Tree-Node-Value tree)))))
 
-(defun WB-Set-Tree-Less-Minimum (tree)
+(defun WB-Set-Tree-Less-Minimum (tree cmp-fn)
   "Assumes `tree' is nonempty.  Returns a new tree with the minimum value
 or `Equivalent-Set' removed."
   (declare (optimize (speed 3) (safety 0))
@@ -1193,9 +1168,8 @@ or `Equivalent-Set' removed."
       (and (> (length (the simple-vector tree)) 1) (Vector-Subseq tree 1))
     (let ((left (WB-Set-Tree-Node-Left tree)))
       (if left
-	  (WB-Set-Tree-Concat (WB-Set-Tree-Node-Value tree)
-			      (WB-Set-Tree-Less-Minimum left)
-			      (WB-Set-Tree-Node-Right tree))
+	  (WB-Set-Tree-Concat (WB-Set-Tree-Node-Value tree) (WB-Set-Tree-Less-Minimum left cmp-fn)
+			      (WB-Set-Tree-Node-Right tree) cmp-fn)
 	(WB-Set-Tree-Node-Right tree)))))
 
 (defun WB-Set-Tree-Build-Node (value left right)
@@ -1205,7 +1179,7 @@ or `Equivalent-Set' removed."
 	   (type WB-Set-Tree left right))
   (cond ((and (or (null left) (simple-vector-p left))
 	      (or (null right) (simple-vector-p right)))
-	 (if (and (not (Equivalent-Set? value))
+	 (if (and (not (Equivalent-Node? value))
 		  (< (+ (length-nv left) (length-nv right))
 		     *WB-Tree-Max-Vector-Length*))
 	     (concatenate 'simple-vector left (vector value) right)
@@ -1256,22 +1230,24 @@ or `Equivalent-Set' removed."
 		  (Make-WB-Set-Tree-Node value left right)))))))
 
 
-(defun WB-Set-Tree-Verify (tree)
-  (WB-Set-Tree-Verify-Rng tree Hedge-Negative-Infinity Hedge-Positive-Infinity))
+(defun WB-Set-Tree-Verify (tree cmp-fn)
+  (WB-Set-Tree-Verify-Rng tree Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn))
 
-(defun WB-Set-Tree-Verify-Rng (tree lo hi)
+(defun WB-Set-Tree-Verify-Rng (tree lo hi cmp-fn)
+  (declare (type function cmp-fn))
   (cond ((null tree) t)
 	((simple-vector-p tree)
 	 (let ((len (length tree)))
 	   (and (<= len *WB-Tree-Max-Vector-Length*)
 		(do ((i 0 (1+ i))
-		     (prev Hedge-Negative-Infinity))
+		     (prev lo))
 		    ((= i len)
 		     (or (eq hi Hedge-Positive-Infinity)
-			 (less-than? prev hi)))
+			 (less-than?-cmp prev hi cmp-fn)))
 		  (let ((elt (svref tree i)))
-		    (unless (or (eq prev Hedge-Negative-Infinity)
-				(less-than? prev elt))
+		    (unless (and (not (Equivalent-Node? elt))
+				 (or (eq prev Hedge-Negative-Infinity)
+				     (less-than?-cmp prev elt cmp-fn)))
 		      (return nil))
 		    (setq prev elt))))))
 	(t
@@ -1279,31 +1255,34 @@ or `Equivalent-Set' removed."
 	       (sizr (WB-Set-Tree-Size (WB-Set-Tree-Node-Right tree)))
 	       (value (WB-Set-Tree-Node-Value tree)))
 	   (and (= (WB-Set-Tree-Node-Size tree) (+ sizl sizr (Set-Value-Size value)))
-		(or (not (Equivalent-Set? value))
-		    (> (length (Equivalent-Set-Members value)) 1))
+		(or (eq lo Hedge-Negative-Infinity) (less-than?-cmp lo value cmp-fn))
+		(or (eq hi Hedge-Positive-Infinity) (less-than?-cmp value hi cmp-fn))
+		(or (not (Equivalent-Node? value))
+		    (> (length (Equivalent-Node-List value)) 1))
 		(or (<= sizr 4)
 		    (<= sizl (* sizr WB-Tree-Balance-Factor)))
 		(or (<= sizl 4)
 		    (<= sizr (* sizl WB-Tree-Balance-Factor)))
-		(WB-Set-Tree-Verify-Rng (WB-Set-Tree-Node-Left tree) lo value)
-		(WB-Set-Tree-Verify-Rng (WB-Set-Tree-Node-Right tree) value hi))))))
+		(WB-Set-Tree-Verify-Rng (WB-Set-Tree-Node-Left tree) lo value cmp-fn)
+		(WB-Set-Tree-Verify-Rng (WB-Set-Tree-Node-Right tree) value hi cmp-fn))))))
 
 
 ;;; ================================================================================
 ;;; Vector set operations
 
-(defun WB-Set-Tree-Vector-Union (vec1 vec2 lo hi)
+(defun WB-Set-Tree-Vector-Union (vec1 vec2 lo hi cmp-fn)
   "Returns the union of vectors `vec1' and `vec2', restricted to those members
 above `lo' and below `hi'.  Creates new set tree nodes if needed, either
 because the result exceeds the vector threshold size, or because one or more
 pairs of equivalent members were found."
   (declare (optimize (speed 3) (safety 0))
-	   (type simple-vector vec1 vec2))
-  (let ((new-vec any-equivalent? (Vector-Set-Union vec1 vec2 lo hi)))
+	   (type simple-vector vec1 vec2)
+	   (type function cmp-fn))
+  (let ((new-vec any-equivalent? (Vector-Set-Union vec1 vec2 lo hi cmp-fn)))
     (declare (type simple-vector new-vec))
     (if any-equivalent?
 	;; Let's just do it the slow way -- it's not supposed to happen often.
-	(reduce #'WB-Set-Tree-With new-vec :initial-value nil)
+	(reduce (fn (st x) (WB-Set-Tree-With st x cmp-fn)) new-vec :initial-value nil)
       (if (> (length new-vec) *WB-Tree-Max-Vector-Length*)
 	  (let ((split-point (floor (length new-vec) 2)))
 	    (Make-WB-Set-Tree-Node (svref new-vec split-point)
@@ -1311,11 +1290,12 @@ pairs of equivalent members were found."
 				   (Vector-Subseq new-vec (1+ split-point))))
 	new-vec))))
 
-(defun Vector-Set-Union (vec1 vec2 lo hi)
+(defun Vector-Set-Union (vec1 vec2 lo hi cmp-fn)
   "Returns, as a vector, the union of vectors `vec1' and `vec2', restricted to
 those members above `lo' and below `hi'."
   (declare (optimize (speed 3) (safety 0))
-	   (type simple-vector vec1 vec2))
+	   (type simple-vector vec1 vec2)
+	   (type function cmp-fn))
   (let ((i1 0)
 	(i2 0)
 	(len1 (length vec1))
@@ -1325,14 +1305,14 @@ those members above `lo' and below `hi'."
       ;; We do these with linear rather than binary search because frequently,
       ;; the ends of the vectors will already be in range (the worst case for
       ;; binary search).
-      (do () ((or (= i1 len1) (less-than? lo (svref vec1 i1))))
+      (do () ((or (= i1 len1) (less-than?-cmp lo (svref vec1 i1) cmp-fn)))
 	(incf i1))
-      (do () ((or (= i2 len2) (less-than? lo (svref vec2 i2))))
+      (do () ((or (= i2 len2) (less-than?-cmp lo (svref vec2 i2) cmp-fn)))
 	(incf i2)))
     (unless (eq hi Hedge-Positive-Infinity)
-      (do () ((or (= i1 len1) (less-than? (svref vec1 (1- len1)) hi)))
+      (do () ((or (= i1 len1) (less-than?-cmp (svref vec1 (1- len1)) hi cmp-fn)))
 	(decf len1))
-      (do () ((or (= i2 len2) (less-than? (svref vec2 (1- len2)) hi)))
+      (do () ((or (= i2 len2) (less-than?-cmp (svref vec2 (1- len2)) hi cmp-fn)))
 	(decf len2)))
     (do ((res nil)
 	 (any-equivalent? nil))
@@ -1350,7 +1330,7 @@ those members above `lo' and below `hi'."
 	    (t
 	     (let ((v1 (svref vec1 i1))
 		   (v2 (svref vec2 i2))
-		   ((comp (compare v1 v2))))
+		   ((comp (funcall cmp-fn v1 v2))))
 	       (ecase comp
 		 ((:equal)
 		  (push v1 res)
@@ -1363,7 +1343,7 @@ those members above `lo' and below `hi'."
 		  (push v2 res)
 		  (incf i2))
 		 ((:unequal)
-		  (push (Equivalent-Set-Union v1 v2) res)
+		  (push (Equivalent-Set-Union v1 v2 cmp-fn) res)
 		  (incf i1)
 		  (incf i2)
 		  (setq any-equivalent? t)))))))))
@@ -1381,28 +1361,29 @@ those members above `lo' and below `hi'."
 ;;; We don't need a `WB-Set-Tree-Vector-Intersect' because the intersection is
 ;;; never longer than the operands.
 
-(defun Vector-Set-Intersect (vec1 vec2 lo hi)
+(defun Vector-Set-Intersect (vec1 vec2 lo hi cmp-fn)
   "Returns, as a vector, the intersection of vectors `vec1' and `vec2', restricted
 to those members above `lo' and below `hi'."
   (declare (optimize (speed 3) (safety 0))
-	   (type simple-vector vec1 vec2))
+	   (type simple-vector vec1 vec2)
+	   (type function cmp-fn))
   (let ((i1 0)
 	(i2 0)
 	(len1 (length vec1))
 	(len2 (length vec2)))
     (declare (type fixnum i1 i2 len1 len2))
     (unless (eq lo Hedge-Negative-Infinity)
-      (do () ((or (= i1 len1) (less-than? lo (svref vec1 i1))))
+      (do () ((or (= i1 len1) (less-than?-cmp lo (svref vec1 i1) cmp-fn)))
 	(incf i1)))
     (unless (eq hi Hedge-Positive-Infinity)
-      (do () ((or (= i1 len1) (less-than? (svref vec1 (1- len1)) hi)))
+      (do () ((or (= i1 len1) (less-than?-cmp (svref vec1 (1- len1)) hi cmp-fn)))
 	(decf len1)))
     (do ((res nil))
 	((or (= i1 len1) (= i2 len2))
 	 (and res (Reverse-List-To-Vector res)))
       (let ((v1 (svref vec1 i1))
 	    (v2 (svref vec2 i2))
-	    ((comp (compare v1 v2))))
+	    ((comp (funcall cmp-fn v1 v2))))
 	(ecase comp
 	  ((:equal)
 	   (push v1 res)
@@ -1416,21 +1397,22 @@ to those members above `lo' and below `hi'."
 	   (incf i1)
 	   (incf i2)))))))
 
-(defun Vector-Set-Diff (vec1 vec2 lo hi)
+(defun Vector-Set-Diff (vec1 vec2 lo hi cmp-fn)
   "Returns, as a vector, the set difference of vectors `vec1' less `vec2',
 restricted to those members above `lo' and below `hi'."
   (declare (optimize (speed 3) (safety 0))
-	   (type simple-vector vec1 vec2))
+	   (type simple-vector vec1 vec2)
+	   (type function cmp-fn))
   (let ((i1 0)
 	(i2 0)
 	(len1 (length vec1))
 	(len2 (length vec2)))
     (declare (type fixnum len1 len2))
     (unless (eq lo Hedge-Negative-Infinity)
-      (do () ((or (= i1 len1) (less-than? lo (svref vec1 i1))))
+      (do () ((or (= i1 len1) (less-than?-cmp lo (svref vec1 i1) cmp-fn)))
 	(incf i1)))
     (unless (eq hi Hedge-Positive-Infinity)
-      (do () ((or (= i1 len1) (less-than? (svref vec1 (1- len1)) hi)))
+      (do () ((or (= i1 len1) (less-than?-cmp (svref vec1 (1- len1)) hi cmp-fn)))
 	(decf len1)))
     (do ((res nil))
 	((or (= i1 len1) (= i2 len2))
@@ -1440,7 +1422,7 @@ restricted to those members above `lo' and below `hi'."
 	 (and res (Reverse-List-To-Vector res)))
       (let ((v1 (svref vec1 i1))
 	    (v2 (svref vec2 i2))
-	    ((comp (compare v1 v2))))
+	    ((comp (funcall cmp-fn v1 v2))))
 	(ecase comp
 	  ((:equal)
 	   (incf i1)
@@ -1455,26 +1437,27 @@ restricted to those members above `lo' and below `hi'."
 	   (incf i1)
 	   (incf i2)))))))
 
-(defun Vector-Set-Diff-2 (vec1 vec2 lo hi)
+(defun Vector-Set-Diff-2 (vec1 vec2 lo hi cmp-fn)
   "Returns, as two vector values, the set difference of vectors `str1' less `str2'
 and that of `str2' less `str1', restricted to those members above `lo' and below
 `hi'."
   (declare (optimize (speed 3) (safety 0))
-	   (type simple-vector vec1 vec2))
+	   (type simple-vector vec1 vec2)
+	   (type function cmp-fn))
   (let ((i1 0)
 	(i2 0)
 	(len1 (length vec1))
 	(len2 (length vec2)))
     (declare (type fixnum len1 len2))
     (unless (eq lo Hedge-Negative-Infinity)
-      (do () ((or (= i1 len1) (less-than? lo (svref vec1 i1))))
+      (do () ((or (= i1 len1) (less-than?-cmp lo (svref vec1 i1) cmp-fn)))
 	(incf i1))
-      (do () ((or (= i2 len2) (less-than? lo (svref vec2 i2))))
+      (do () ((or (= i2 len2) (less-than?-cmp lo (svref vec2 i2) cmp-fn)))
 	(incf i2)))
     (unless (eq hi Hedge-Positive-Infinity)
-      (do () ((or (= i1 len1) (less-than? (svref vec1 (1- len1)) hi)))
+      (do () ((or (= i1 len1) (less-than?-cmp (svref vec1 (1- len1)) hi cmp-fn)))
 	(decf len1))
-      (do () ((or (= i2 len2) (less-than? (svref vec2 (1- len2)) hi)))
+      (do () ((or (= i2 len2) (less-than?-cmp (svref vec2 (1- len2)) hi cmp-fn)))
 	(decf len2)))
     (do ((res1 nil)
 	 (res2 nil))
@@ -1489,7 +1472,7 @@ and that of `str2' less `str1', restricted to those members above `lo' and below
 		 (and res2 (Reverse-List-To-Vector res2))))
       (let ((v1 (svref vec1 i1))
 	    (v2 (svref vec2 i2))
-	    ((comp (compare v1 v2))))
+	    ((comp (funcall cmp-fn v1 v2))))
 	(ecase comp
 	  ((:equal)
 	   (incf i1)
@@ -1506,28 +1489,29 @@ and that of `str2' less `str1', restricted to those members above `lo' and below
 	   (incf i1)
 	   (incf i2)))))))
 
-(defun Vector-Set-Subset? (vec1 vec2 lo hi)
+(defun Vector-Set-Subset? (vec1 vec2 lo hi cmp-fn)
   "Returns true iff `vec2' contains all members of `vec1', restricted
 to those members above `lo' and below `hi'.  `vec2' may be `nil'."
   (declare (optimize (speed 3) (safety 0))
-	   (type (or null simple-vector) vec1 vec2))
+	   (type (or null simple-vector) vec1 vec2)
+	   (type function cmp-fn))
   (let ((i1 0)
 	(i2 0)
 	(len1 (length-nv vec1))
 	(len2 (length-nv vec2)))
     (declare (type fixnum len1 len2))
     (unless (eq lo Hedge-Negative-Infinity)
-      (do () ((or (= i1 len1) (less-than? lo (svref vec1 i1))))
+      (do () ((or (= i1 len1) (less-than?-cmp lo (svref vec1 i1) cmp-fn)))
 	(incf i1)))
     (unless (eq hi Hedge-Positive-Infinity)
-      (do () ((or (= i1 len1) (less-than? (svref vec1 (1- len1)) hi)))
+      (do () ((or (= i1 len1) (less-than?-cmp (svref vec1 (1- len1)) hi cmp-fn)))
 	(decf len1)))
     (do ()
 	((or (= i1 len1) (= i2 len2))
 	 (= i1 len1))
       (let ((v1 (svref vec1 i1))
 	    (v2 (svref vec2 i2))
-	    ((comp (compare v1 v2))))
+	    ((comp (funcall cmp-fn v1 v2))))
 	(ecase comp
 	  ((:equal)
 	   (incf i1)
@@ -1539,28 +1523,29 @@ to those members above `lo' and below `hi'.  `vec2' may be `nil'."
 	  ((:unequal)
 	   (return nil)))))))
 
-(defun Vector-Set-Disjoint? (vec1 vec2 lo hi)
+(defun Vector-Set-Disjoint? (vec1 vec2 lo hi cmp-fn)
   "Returns true iff `vec1' does not contain any member of `vec2', restricted
 to those members above `lo' and below `hi'."
   (declare (optimize (speed 3) (safety 0))
-	   (type simple-vector vec1 vec2))
+	   (type simple-vector vec1 vec2)
+	   (type function cmp-fn))
   (let ((i1 0)
 	(i2 0)
 	(len1 (length vec1))
 	(len2 (length vec2)))
     (declare (type fixnum i1 i2 len1 len2))
     (unless (eq lo Hedge-Negative-Infinity)
-      (do () ((or (= i1 len1) (less-than? lo (svref vec1 i1))))
+      (do () ((or (= i1 len1) (less-than?-cmp lo (svref vec1 i1) cmp-fn)))
 	(incf i1)))
     (unless (eq hi Hedge-Positive-Infinity)
-      (do () ((or (= i1 len1) (less-than? (svref vec1 (1- len1)) hi)))
+      (do () ((or (= i1 len1) (less-than?-cmp (svref vec1 (1- len1)) hi cmp-fn)))
 	(decf len1)))
     (do ()
 	((or (= i1 len1) (= i2 len2))
 	 t)
       (let ((v1 (svref vec1 i1))
 	    (v2 (svref vec2 i2))
-	    ((comp (compare v1 v2))))
+	    ((comp (funcall cmp-fn v1 v2))))
 	(ecase comp
 	  ((:equal)
 	   (return nil))
@@ -1580,8 +1565,8 @@ to those members above `lo' and below `hi'."
   ;; we're going to have a function call for every invocation of the body anyway?
   ;; First, this local call is faster, or should be, than a general funcall; and
   ;; second, some compilers may decide to inline `body-fn' if the body is small.
-  (let ((body-fn (gensym "BODY-"))
-	(recur-fn (gensym "RECUR-")))
+  (let ((body-fn (gensymx #:body-))
+	(recur-fn (gensymx #:recur-)))
     `(block nil
        (labels ((,body-fn (,var) . ,body)
 		(,recur-fn (tree)
@@ -1592,8 +1577,8 @@ to those members above `lo' and below `hi'."
 			  (t
 			   (,recur-fn (WB-Set-Tree-Node-Left tree))
 			   (let ((val (WB-Set-Tree-Node-Value tree)))
-			     (if (Equivalent-Set? val)
-				 (dolist (val (Equivalent-Set-Members val))
+			     (if (Equivalent-Node? val)
+				 (dolist (val (Equivalent-Node-List val))
 				   (,body-fn val))
 			       (,body-fn val)))
 			   (,recur-fn (WB-Set-Tree-Node-Right tree)))))))
@@ -1671,8 +1656,8 @@ to those members above `lo' and below `hi'."
 	(WB-Set-Tree-Iterator-Canonicalize iter)
 	(values (if (simple-vector-p node) (svref node idx)
 		  (let ((val (WB-Set-Tree-Node-Value node)))
-		    (if (Equivalent-Set? val)
-			(nth (1- idx) (Equivalent-Set-Members val))
+		    (if (Equivalent-Node? val)
+			(nth (1- idx) (Equivalent-Node-List val))
 		      val)))
 		t)))))
 
@@ -1706,8 +1691,8 @@ to those members above `lo' and below `hi'."
 	    (t
 	     (walk (WB-Set-Tree-Node-Left node)
 		   (let ((value (WB-Set-Tree-Node-Value node)))
-		     (if (Equivalent-Set? value)
-			 (rlabels (iter (Equivalent-Set-Members value))
+		     (if (Equivalent-Node? value)
+			 (rlabels (iter (Equivalent-Node-List value))
 			   (iter (mems)
 			     (if mems
 				 (lambda (op)
@@ -1749,8 +1734,8 @@ to those members above `lo' and below `hi'."
 	    (t
 	     (walk (WB-Set-Tree-Node-Right node)
 		   (let ((value (WB-Set-Tree-Node-Value node)))
-		     (if (Equivalent-Set? value)
-			 (rlabels (iter (reverse (Equivalent-Set-Members value)))
+		     (if (Equivalent-Node? value)
+			 (rlabels (iter (reverse (Equivalent-Node-List value)))
 			   (iter (mems)
 			     (if mems
 				 (lambda (op)
@@ -1824,153 +1809,169 @@ to those members above `lo' and below `hi'."
 ;;; ================================================================================
 ;;; Equivalent-Set routines
 
-(defun Equivalent-Set-Union (val1 val2)
+(defun Equivalent-Set-Union (val1 val2 cmp-fn)
   "Both `val1' and `val2' may be single values (representing singleton sets)
 or `Equivalent-Set's of values.  Returns their union represented as a single
 value if a singleton, else as an `Equivalent-Set'."
-  (declare (optimize (speed 3) (safety 0)))
-  (if (Equivalent-Set? val1)
-      (if (Equivalent-Set? val2)
-	  (let ((mems1 (Equivalent-Set-Members val1))
-		(mems2 (Equivalent-Set-Members val2))
-		((union (cl:union mems1 mems2 :test #'equal?))
+  (declare (optimize (speed 3) (safety 0))
+	   (type function cmp-fn))
+  (if (Equivalent-Node? val1)
+      (if (Equivalent-Node? val2)
+	  (let ((mems1 (Equivalent-Node-List val1))
+		(mems2 (Equivalent-Node-List val2))
+		((union (cl:union mems1 mems2 :test (equal?-fn cmp-fn)))
 		 ((union-len (length union)))))
 	    (cond ((= union-len (length mems1)) val1)
 		  ((= union-len (length mems2)) val2)
 		  (t (Make-Equivalent-Set union))))
-	(if (member val2 (Equivalent-Set-Members val1) :test #'equal?)
+	(if (member val2 (Equivalent-Node-List val1) :test (equal?-fn cmp-fn))
 	    val1
-	  (Make-Equivalent-Set (cons val2 (Equivalent-Set-Members val1)))))
-    (if (Equivalent-Set? val2)
-	(if (member val1 (Equivalent-Set-Members val2) :test #'equal?)
+	  (Make-Equivalent-Set (cons val2 (Equivalent-Node-List val1)))))
+    (if (Equivalent-Node? val2)
+	(if (member val1 (Equivalent-Node-List val2) :test (equal?-fn cmp-fn))
 	    val2
-	  (Make-Equivalent-Set (cons val1 (Equivalent-Set-Members val2))))
-      (if (equal? val1 val2) val1
+	  (Make-Equivalent-Set (cons val1 (Equivalent-Node-List val2))))
+      (if (equal?-cmp val1 val2 cmp-fn) val1
 	(Make-Equivalent-Set (list val1 val2))))))
 
-(defun Equivalent-Set-Intersect (val1 val2)
+(defun Equivalent-Set-Intersect (val1 val2 cmp-fn)
   "Both `val1' and `val2' may be single values (representing singleton sets)
 or `Equivalent-Set's of values.  If their intersection is nonnull, returns
 two values: true, and the intersection, represented as a single value if a
 singleton, else as an `Equivalent-Set'.  If the intersection is null, returns
 `nil'."
-  (declare (optimize (speed 3) (safety 0)))
-  (if (Equivalent-Set? val1)
-      (if (Equivalent-Set? val2)
-	  (let ((mems1 (Equivalent-Set-Members val1))
-		(mems2 (Equivalent-Set-Members val2))
-		((isect (cl:intersection mems1 mems2 :test #'equal?))
+  (declare (optimize (speed 3) (safety 0))
+	   (type function cmp-fn))
+  (if (Equivalent-Node? val1)
+      (if (Equivalent-Node? val2)
+	  (let ((mems1 (Equivalent-Node-List val1))
+		(mems2 (Equivalent-Node-List val2))
+		((isect (cl:intersection mems1 mems2 :test (equal?-fn cmp-fn)))
 		 ((isect-len (length isect)))))
 	    (cond ((null isect) nil)
 		  ((= isect-len (length mems1)) (values t val1))
 		  ((= isect-len (length mems2)) (values t val2))
 		  ((= isect-len 1) (values t (car isect)))
 		  (t (values t (Make-Equivalent-Set isect)))))
-	(and (member val2 (Equivalent-Set-Members val1) :test #'equal?)
+	(and (member val2 (Equivalent-Node-List val1) :test (equal?-fn cmp-fn))
 	     (values t val2)))
-    (if (Equivalent-Set? val2)
-	(and (member val1 (Equivalent-Set-Members val2) :test #'equal?)
+    (if (Equivalent-Node? val2)
+	(and (member val1 (Equivalent-Node-List val2) :test (equal?-fn cmp-fn))
 	     (values t val1))
-      (and (equal? val1 val2) (values t val1)))))
+      (and (equal?-cmp val1 val2 cmp-fn) (values t val1)))))
 
-(defun Equivalent-Set-Difference (val1 val2)
+(defun Equivalent-Set-Difference (val1 val2 cmp-fn)
   "Both `val1' and `val2' may be single values (representing singleton sets)
 or `Equivalent-Set's of values.  If their difference is nonnull, returns
 two values: true, and the difference, represented as a single value if a
 singleton, else as an `Equivalent-Set'.  If the difference is null, returns
 `nil'."
-  (declare (optimize (speed 3) (safety 0)))
-  (if (Equivalent-Set? val1)
-      (let ((mems1 (Equivalent-Set-Members val1))
-	    (mems2 (if (Equivalent-Set? val2) (Equivalent-Set-Members val2)
+  (declare (optimize (speed 3) (safety 0))
+	   (type function cmp-fn))
+  (if (Equivalent-Node? val1)
+      (let ((mems1 (Equivalent-Node-List val1))
+	    (mems2 (if (Equivalent-Node? val2) (Equivalent-Node-List val2)
 		     (list val2)))
-	    ((diff (cl:set-difference mems1 mems2 :test #'equal?))
+	    ((diff (cl:set-difference mems1 mems2 :test (equal?-fn cmp-fn)))
 	     ((diff-len (length diff)))))
 	(cond ((null diff) nil)
 	      ((= diff-len (length mems1)) (values t val1))
 	      ((= diff-len 1) (values t (car diff)))
 	      (t (values t (Make-Equivalent-Set diff)))))
-    (if (Equivalent-Set? val2)
-	(and (not (member val1 (Equivalent-Set-Members val2) :test #'equal?))
+    (if (Equivalent-Node? val2)
+	(and (not (member val1 (Equivalent-Node-List val2) :test (equal?-fn cmp-fn)))
 	     (values t val1))
-      (and (not (equal? val1 val2)) (values t val1)))))
+      (and (not (equal?-cmp val1 val2 cmp-fn)) (values t val1)))))
 
-(defun Equivalent-Set-Subset? (val1 val2)
+(defun Equivalent-Set-Subset? (val1 val2 cmp-fn)
   "Both `val1' and `val2' may be single values (representing singleton sets)
 or `Equivalent-Set's of values.  Returns true iff `val2' contains all members
 of `val1'."
-  (declare (optimize (speed 3) (safety 0)))
-  (if (Equivalent-Set? val1)
-      (and (Equivalent-Set? val2)
-	   (let ((mems2 (Equivalent-Set-Members val2)))
-	     (dolist (m1 (Equivalent-Set-Members val1) t)
-	       (unless (member m1 mems2 :test #'equal?)
+  (declare (optimize (speed 3) (safety 0))
+	   (type function cmp-fn))
+  (if (Equivalent-Node? val1)
+      (and (Equivalent-Node? val2)
+	   (let ((mems2 (Equivalent-Node-List val2)))
+	     (dolist (m1 (Equivalent-Node-List val1) t)
+	       (unless (member m1 mems2 :test (equal?-fn cmp-fn))
 		 (return nil)))))
-    (if (Equivalent-Set? val2)
-	(member val1 (Equivalent-Set-Members val2) :test #'equal?)
-      (equal? val1 val2))))
+    (if (Equivalent-Node? val2)
+	(member val1 (Equivalent-Node-List val2) :test (equal?-fn cmp-fn))
+      (equal?-cmp val1 val2 cmp-fn))))
 
-(defun Equivalent-Set-Disjoint? (val1 val2)
+(defun Equivalent-Set-Disjoint? (val1 val2 cmp-fn)
   "Both `val1' and `val2' may be single values (representing singleton sets)
 or `Equivalent-Set's of values.  If their intersection is null, returns
 true, else false."
-  (declare (optimize (speed 3) (safety 0)))
-  (if (Equivalent-Set? val1)
-      (if (Equivalent-Set? val2)
-	  (dolist (m1 (Equivalent-Set-Members val1) t)
-	    (when (member m1 (Equivalent-Set-Members val2) :test #'equal?)
+  (declare (optimize (speed 3) (safety 0))
+	   (type function cmp-fn))
+  (if (Equivalent-Node? val1)
+      (if (Equivalent-Node? val2)
+	  (dolist (m1 (Equivalent-Node-List val1) t)
+	    (when (member m1 (Equivalent-Node-List val2) :test (equal?-fn cmp-fn))
 	      (return nil)))
-	(not (member val2 (Equivalent-Set-Members val1) :test #'equal?)))
-    (if (Equivalent-Set? val2)
-	(not (member val1 (Equivalent-Set-Members val2) :test #'equal?))
-      (not (equal? val1 val2)))))
+	(not (member val2 (Equivalent-Node-List val1) :test (equal?-fn cmp-fn))))
+    (if (Equivalent-Node? val2)
+	(not (member val1 (Equivalent-Node-List val2) :test (equal?-fn cmp-fn)))
+      (not (equal?-cmp val1 val2 cmp-fn)))))
 
-(defun Equivalent-Set-Compare (val1 val2)
-  (declare (optimize (speed 3) (safety 0)))
-  (let ((comp (compare val1 val2)))
+(defun Equivalent-Set-Compare (val1 val2 cmp-fn)
+  (declare (optimize (speed 3) (safety 0))
+	   (type function cmp-fn))
+  (let ((comp (funcall cmp-fn val1 val2)))
     (if (or (eq comp ':less) (eq comp ':greater))
 	comp
-      (if (Equivalent-Set? val1)
-	  (if (Equivalent-Set? val2)
-	      (let ((mems1 (Equivalent-Set-Members val1))
-		    (mems2 (Equivalent-Set-Members val2))
+      (if (Equivalent-Node? val1)
+	  (if (Equivalent-Node? val2)
+	      (let ((mems1 (Equivalent-Node-List val1))
+		    (mems2 (Equivalent-Node-List val2))
 		    ((len1 (length mems1))
 		     (len2 (length mems2))))
 		(cond ((< len1 len2) ':greater)	; counterintuitive, but correct
 		      ((> len1 len2) ':less)
 		      (t
 		       (if (gmap (:result and)
-				 (fn (x) (member x mems2 :test #'equal?))
+				 (fn (x) (member x mems2 :test (equal?-fn cmp-fn)))
 				 (:arg list mems1))
 			   ':equal
 			 ':unequal))))
 	    ':less)
-	(if (Equivalent-Set? val2)
+	(if (Equivalent-Node? val2)
 	    ':greater
 	  comp)))))
 
 
-;;; When called on a value and an `Equivalent-Set', or on two `Equivalent-Set's,
+;;; When called on a value and an `Equivalent-Node', or on two `Equivalent-Node's,
 ;;; the result of `compare' is meaningful only for ordering; the distinction between
 ;;; `:equal' and `:unequal' is not meaningful.  Code that may care about the latter
 ;;; has more work to do anyway, such as calling `Equivalent-Set-Union' etc.
-(defmethod compare (x (eqvs Equivalent-Set))
+(defmethod compare (x (eqvn Equivalent-Node))
   "Returns `:less' or `:greater' if `x' is less than resp. greater than the
 values in `eqvs'; or EITHER `:equal' or `:unequal' if `x' is equivalent to any
 value in `eqvs'."
-  (compare x (car (Equivalent-Set-Members eqvs))))
+  (compare x (if (Equivalent-Node-Set? eqvn)
+		 (car (Equivalent-Node-List eqvn))
+	       (caar (Equivalent-Node-List eqvn)))))
 
-(defmethod compare ((eqvs Equivalent-Set) x)
+(defmethod compare ((eqvn Equivalent-Node) x)
   "Returns `:less' or `:greater' if the values in `eqvs' are less than resp.
 greater than `x'; or EITHER `:equal' or `:unequal' if `x' is equivalent to
 any value in `eqvs'."
-  (compare (car (Equivalent-Set-Members eqvs)) x))
+  (compare (if (Equivalent-Node-Set? eqvn)
+	       (car (Equivalent-Node-List eqvn))
+	     (caar (Equivalent-Node-List eqvn)))
+	   x))
 
-(defmethod compare ((eqvs1 Equivalent-Set) (eqvs2 Equivalent-Set))
+(defmethod compare ((eqvn1 Equivalent-Node) (eqvn2 Equivalent-Node))
   "Returns `:less' or `:greater' if the values in `eqvs1' are less than resp.
 greater than those in `eqvs2'; returns EITHER `:equal' or `:unequal' if those
 in `eqvs1' are equivalent to those in `eqvs2'."
-  (compare (car (Equivalent-Set-Members eqvs1)) (car (Equivalent-Set-Members eqvs2))))
+  (compare (if (Equivalent-Node-Set? eqvn1)
+	       (car (Equivalent-Node-List eqvn1))
+	     (caar (Equivalent-Node-List eqvn1)))
+	   (if (Equivalent-Node-Set? eqvn2)
+	       (car (Equivalent-Node-List eqvn2))
+	     (caar (Equivalent-Node-List eqvn2)))))
 
 
 ;;; ================================================================================
@@ -2022,11 +2023,8 @@ in `eqvs1' are equivalent to those in `eqvs2'."
 
 (declaim (inline Make-Equivalent-Bag))
 
-;;; That is, a bag whose domain members are equivalent.
-(defstruct (Equivalent-Bag
-	    (:constructor Make-Equivalent-Bag (Alist))
-	    (:predicate Equivalent-Bag?))
-  (Alist nil :type list :read-only t))	; mapping equivalent values to their counts
+(defun Make-Equivalent-Bag (alist)
+  (Make-Equivalent-Node nil alist))
 
 (declaim (ftype (function (t) fixnum) Bag-Value-Size))
 (declaim (inline Bag-Value-Size))
@@ -2035,8 +2033,8 @@ in `eqvs1' are equivalent to those in `eqvs2'."
   "The number of values represented by `value', which can be more than 1 if
 `key' is an `Equivalent-Bag'."
   (declare (optimize (speed 3) (safety 0)))
-  (if (Equivalent-Bag? value)
-      (length (Equivalent-Bag-Alist value))
+  (if (Equivalent-Node? value)
+      (length (Equivalent-Node-List value))
     1))
 
 (declaim (inline WB-Bag-Tree-Size))
@@ -2078,9 +2076,9 @@ generic arithmetic."
 				  (Bag-Value-Size value))
 			     (gen + (WB-Bag-Tree-Total-Count left)
 				  (WB-Bag-Tree-Total-Count right)
-				  (if (Equivalent-Bag? value)
+				  (if (Equivalent-Node? value)
 				      (gmap (:result gen-sum) #'cdr
-					    (:arg list (Equivalent-Bag-Alist value)))
+					    (:arg list (Equivalent-Node-List value)))
 				    (or count 0)))
 			     value (or count 0) left right))
 
@@ -2093,8 +2091,8 @@ nonempty."
   (if (consp tree)
       (values (svref (car tree) 0) (svref (cdr tree) 0))
     (let ((value (WB-Bag-Tree-Node-Value tree)))
-      (if (Equivalent-Bag? value)
-	  (let ((alist (Equivalent-Bag-Alist value)))
+      (if (Equivalent-Node? value)
+	  (let ((alist (Equivalent-Node-List value)))
 	    (values (caar alist) (cdar alist)))
 	(values value (WB-Bag-Tree-Node-Count tree))))))
 
@@ -2105,8 +2103,8 @@ count."
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Bag-Tree tree))
   (let ((val count (WB-Bag-Tree-Minimum-Pair tree)))
-    (if (Equivalent-Bag? val)
-	(let ((pr (car (Equivalent-Bag-Alist val))))
+    (if (Equivalent-Node? val)
+	(let ((pr (car (Equivalent-Node-List val))))
 	  (values (car pr) (cdr pr)))
       (values val count))))
 
@@ -2130,8 +2128,8 @@ count."
 				       (WB-Bag-Tree-Less-Least left all?)
 				       (WB-Bag-Tree-Node-Right tree))
 	     (let ((val (WB-Bag-Tree-Node-Value tree)))
-	       (if (Equivalent-Bag? val)
-		   (let ((alist (Equivalent-Bag-Alist val)))
+	       (if (Equivalent-Node? val)
+		   (let ((alist (Equivalent-Node-List val)))
 		     (if (or all? (= (the integer (cdar alist)) 1))
 			 (if (= (length alist) 2)
 			     (Make-WB-Bag-Tree-Node (caadr alist) (cdadr alist) nil
@@ -2165,95 +2163,98 @@ multiplicity."
       (if right
 	  (WB-Bag-Tree-Greatest-Pair right)
 	(let ((val (WB-Bag-Tree-Node-Value tree)))
-	  (if (Equivalent-Bag? val)
-	      (let ((pr (car (cl:last (Equivalent-Bag-Alist val)))))
+	  (if (Equivalent-Node? val)
+	      (let ((pr (car (cl:last (Equivalent-Node-List val)))))
 		(values (car pr) (cdr pr)))
 	    (values val (WB-Bag-Tree-Node-Count tree))))))))
 
-(defun WB-Bag-Tree-Multiplicity (tree value)
+(defun WB-Bag-Tree-Multiplicity (tree value cmp-fn)
   "Returns the multiplicity of `value' in `tree', or 0 if `value' does not
 appear in `tree'.  As a second value, returns the value found, if any."
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Bag-Tree tree))
+	   (type WB-Bag-Tree tree)
+	   (type function cmp-fn))
   (cond ((null tree) (values 0 nil))
 	((consp tree)
-	 (let ((found? idx (Vector-Set-Binary-Search (car tree) value)))
+	 (let ((found? idx (Vector-Set-Binary-Search (car tree) value cmp-fn)))
 	   (if (eq found? ':equal)
 	       (values (svref (cdr tree) idx) (svref (car tree) idx))
 	     (values 0 nil))))
 	(t
 	 (let ((node-val (WB-Bag-Tree-Node-Value tree))
-	       ((comp (compare value node-val))))
+	       ((comp (funcall cmp-fn value node-val))))
 	   (ecase comp
 	     ((:equal :unequal)
-	      (if (Equivalent-Bag? node-val)
-		  (let ((pr (assoc value (Equivalent-Bag-Alist node-val)
-				   :test #'equal?)))
+	      (if (Equivalent-Node? node-val)
+		  (let ((pr (assoc value (Equivalent-Node-List node-val)
+				   :test (equal?-fn cmp-fn))))
 		    (if pr (values (cdr pr) (car pr))
 		      (values 0 nil)))
 		(if (eq comp ':equal)
 		    (values (WB-Bag-Tree-Node-Count tree) node-val)
 		  (values 0 nil))))
 	     ((:less)
-	      (WB-Bag-Tree-Multiplicity (WB-Bag-Tree-Node-Left tree) value))
+	      (WB-Bag-Tree-Multiplicity (WB-Bag-Tree-Node-Left tree) value cmp-fn))
 	     ((:greater)
-	      (WB-Bag-Tree-Multiplicity (WB-Bag-Tree-Node-Right tree) value)))))))
+	      (WB-Bag-Tree-Multiplicity (WB-Bag-Tree-Node-Right tree) value cmp-fn)))))))
 
-(defun WB-Bag-Tree-Find-Equivalent (tree value)
+(defun WB-Bag-Tree-Find-Equivalent (tree value cmp-fn)
   "If `tree' contains one or more values equivalent to `value', returns (first
 value) true, (second value) either the one value or an `Equivalent-Bag'
 containing the values, and (third value) if the second value was a single
 value, the corresponding count; otherwise `nil'."
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Bag-Tree tree))
+	   (type WB-Bag-Tree tree)
+	   (type function cmp-fn))
   (cond ((null tree) nil)
 	((consp tree)
-	 (let ((found? idx (Vector-Set-Binary-Search (car tree) value)))
+	 (let ((found? idx (Vector-Set-Binary-Search (car tree) value cmp-fn)))
 	   (and found?
 		(values t (svref (car tree) idx) (svref (cdr tree) idx)))))
 	(t
 	 (let ((node-val (WB-Bag-Tree-Node-Value tree))
-	       ((comp (compare value node-val))))
+	       ((comp (funcall cmp-fn value node-val))))
 	   (ecase comp
 	     ((:equal :unequal) (values t node-val (WB-Bag-Tree-Node-Count tree)))
 	     (:less
-	       (WB-Bag-Tree-Find-Equivalent (WB-Bag-Tree-Node-Left tree) value))
+	       (WB-Bag-Tree-Find-Equivalent (WB-Bag-Tree-Node-Left tree) value cmp-fn))
 	     (:greater
-	       (WB-Bag-Tree-Find-Equivalent (WB-Bag-Tree-Node-Right tree) value)))))))
+	       (WB-Bag-Tree-Find-Equivalent (WB-Bag-Tree-Node-Right tree) value cmp-fn)))))))
 
 ;;; ================================================================================
 ;;; With
 
-(defun WB-Bag-Tree-With (tree value &optional (count 1))
+(defun WB-Bag-Tree-With (tree value cmp-fn &optional (count 1))
   "Returns `tree' with `value' added with a count of `count' (if it was already
 present, its count is incremented by `count').  `value' may be an `Equivalent-Bag'."
   ;; The case where `value' is an `Equivalent-Bag' is used by `WB-Bag-Tree-Concat',
   ;; which may be passed one by various callers.
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Bag-Tree tree))
+	   (type WB-Bag-Tree tree)
+	   (type function cmp-fn))
   (cond ((null tree)
-	 (if (not (Equivalent-Bag? value))
+	 (if (not (Equivalent-Node? value))
 	     (cons (vector value) (vector count))
 	   (Make-WB-Bag-Tree-Node value count nil nil)))
 	((consp tree)
-	 (let ((found? idx (Vector-Set-Binary-Search (car tree) value))
+	 (let ((found? idx (Vector-Set-Binary-Search (car tree) value cmp-fn))
 	       ((right-start (if found? (1+ idx) idx))))
 	   ;; We have to handle the case where `value' is an `Equivalent-Bag', because
 	   ;; this routine is called by `WB-Bag-Tree-Concat'.
-	   (if (and (eq found? ':equal) (not (Equivalent-Bag? value)))
+	   (if (and (eq found? ':equal) (not (Equivalent-Node? value)))
 	       (cons (car tree)
 		     (Vector-Update (cdr tree) idx (gen + (svref (cdr tree) idx)
 							count)))
 	     (if (and (not found?)
 		      (< (length (the simple-vector (car tree)))
 			 *WB-Tree-Max-Vector-Length*)
-		      (not (Equivalent-Bag? value)))
+		      (not (Equivalent-Node? value)))
 		 (cons (Vector-Insert (car tree) idx value)
 		       (Vector-Insert (cdr tree) idx count))
 	       (let ((new-val new-count
 			(if found? (Equivalent-Bag-Sum (svref (car tree) idx)
 						       (svref (cdr tree) idx)
-						       value count)
+						       value count cmp-fn)
 			  (values value count))))
 		 (Make-WB-Bag-Tree-Node new-val new-count
 					(and (> idx 0)
@@ -2267,38 +2268,39 @@ present, its count is incremented by `count').  `value' may be an `Equivalent-Ba
 	(t
 	 (let ((node-val (WB-Bag-Tree-Node-Value tree))
 	       (node-count (WB-Bag-Tree-Node-Count tree))
-	       ((comp (compare value node-val))))
+	       ((comp (funcall cmp-fn value node-val))))
 	   (ecase comp
 	     ((:equal :unequal)
 	      (let ((new-val new-count
-		       (Equivalent-Bag-Sum node-val node-count value count)))
+		       (Equivalent-Bag-Sum node-val node-count value count cmp-fn)))
 		(Make-WB-Bag-Tree-Node new-val new-count
 				       (WB-Bag-Tree-Node-Left tree)
 				       (WB-Bag-Tree-Node-Right tree))))
 	     ((:less)
 	      (WB-Bag-Tree-Build-Node node-val node-count
 				      (WB-Bag-Tree-With (WB-Bag-Tree-Node-Left tree)
-							value count)
+							value cmp-fn count)
 				      (WB-Bag-Tree-Node-Right tree)))
 	     ((:greater)
 	      (WB-Bag-Tree-Build-Node node-val node-count
 				      (WB-Bag-Tree-Node-Left tree)
 				      (WB-Bag-Tree-With (WB-Bag-Tree-Node-Right tree)
-							value count))))))))
+							value cmp-fn count))))))))
 
 
 ;;; ================================================================================
 ;;; Less
 
-(defun WB-Bag-Tree-Less (tree value &optional (count 1))
+(defun WB-Bag-Tree-Less (tree value cmp-fn &optional (count 1))
   "Returns `tree' with the count for `value' decremented; if that count was
 1, `value' is removed entirely."
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Bag-Tree tree)
-	   (type integer count))
+	   (type integer count)
+	   (type function cmp-fn))
   (cond ((null tree) nil)
 	((consp tree)
-	 (let ((found? idx (Vector-Set-Binary-Search (car tree) value)))
+	 (let ((found? idx (Vector-Set-Binary-Search (car tree) value cmp-fn)))
 	   (if (eq found? ':equal)
 	       (let ((prev-count (the integer (svref (cdr tree) idx))))
 		 (if (gen > prev-count count)
@@ -2311,254 +2313,254 @@ present, its count is incremented by `count').  `value' may be an `Equivalent-Ba
 	(t
 	 (let ((node-val (WB-Bag-Tree-Node-Value tree))
 	       (node-count (WB-Bag-Tree-Node-Count tree))
-	       ((comp (compare value node-val))))
+	       ((comp (funcall cmp-fn value node-val))))
 	   (ecase comp
 	     ((:equal :unequal)
 	      (let ((nonnull? value count
-		      (Equivalent-Bag-Difference node-val node-count value count)))
+		      (Equivalent-Bag-Difference node-val node-count value count cmp-fn)))
 		(if nonnull?
 		    (Make-WB-Bag-Tree-Node value count
 					   (WB-Bag-Tree-Node-Left tree)
 					   (WB-Bag-Tree-Node-Right tree))
-		  (WB-Bag-Tree-Join (WB-Bag-Tree-Node-Left tree)
-				    (WB-Bag-Tree-Node-Right tree)))))
+		  (WB-Bag-Tree-Join (WB-Bag-Tree-Node-Left tree) (WB-Bag-Tree-Node-Right tree) cmp-fn))))
 	     ((:less)
 	      (let ((left (WB-Bag-Tree-Node-Left tree))
-		    ((new-left (WB-Bag-Tree-Less left value count))))
-		(WB-Bag-Tree-Build-Node node-val node-count new-left
-					(WB-Bag-Tree-Node-Right tree))))
+		    ((new-left (WB-Bag-Tree-Less left value cmp-fn count))))
+		(if (eq new-left left) tree
+		  (WB-Bag-Tree-Build-Node node-val node-count new-left
+					  (WB-Bag-Tree-Node-Right tree)))))
 	     ((:greater)
 	      (let ((right (WB-Bag-Tree-Node-Right tree))
-		    ((new-right (WB-Bag-Tree-Less right value count))))
-		(WB-Bag-Tree-Build-Node node-val node-count
-					(WB-Bag-Tree-Node-Left tree)
-					new-right))))))))
+		    ((new-right (WB-Bag-Tree-Less right value cmp-fn count))))
+		(if (eq new-right right) tree
+		  (WB-Bag-Tree-Build-Node node-val node-count
+					  (WB-Bag-Tree-Node-Left tree)
+					  new-right)))))))))
 
 
 ;;; ================================================================================
 ;;; Union, sum, intersection, and bag difference
 
-(defun WB-Bag-Tree-Union (tree1 tree2)
+(defun WB-Bag-Tree-Union (tree1 tree2 cmp-fn)
   "Returns the union of `tree' and `tree2'."
   (if (eq tree1 tree2)
       tree1
-    (WB-Bag-Tree-Union-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity)))
+    (WB-Bag-Tree-Union-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn)))
 
-(defun WB-Bag-Tree-Union-Rng (tree1 tree2 lo hi)
+(defun WB-Bag-Tree-Union-Rng (tree1 tree2 lo hi cmp-fn)
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Bag-Tree tree1 tree2))
   (cond ((eq tree1 tree2)		; historically-related-bag optimization
-	 (WB-Bag-Tree-Split tree1 lo hi))
+	 (WB-Bag-Tree-Split tree1 lo hi cmp-fn))
 	((null tree2)
-	 (WB-Bag-Tree-Split tree1 lo hi))
+	 (WB-Bag-Tree-Split tree1 lo hi cmp-fn))
 	((null tree1)
-	 (WB-Bag-Tree-Split tree2 lo hi))
+	 (WB-Bag-Tree-Split tree2 lo hi cmp-fn))
 	((and (consp tree1) (consp tree2))
-	 (WB-Bag-Tree-Vector-Pair-Union tree1 tree2 lo hi))
+	 (WB-Bag-Tree-Vector-Pair-Union tree1 tree2 lo hi cmp-fn))
 	((consp tree1)
-	 (WB-Bag-Tree-Union-Rng tree2 tree1 lo hi))
+	 (WB-Bag-Tree-Union-Rng tree2 tree1 lo hi cmp-fn))
 	(t
 	 (let ((val1 (WB-Bag-Tree-Node-Value tree1))
 	       (count1 (WB-Bag-Tree-Node-Count tree1))
-	       ((eqvv2? eqvv2 eqvc2 (WB-Bag-Tree-Find-Equivalent tree2 val1))
-		((val count (if eqvv2? (Equivalent-Bag-Union val1 count1 eqvv2 eqvc2)
+	       ((eqvv2? eqvv2 eqvc2 (WB-Bag-Tree-Find-Equivalent tree2 val1 cmp-fn))
+		((val count (if eqvv2? (Equivalent-Bag-Union val1 count1 eqvv2 eqvc2 cmp-fn)
 			      (values val1 count1))))))
 	   (WB-Bag-Tree-Concat
 	     val count
-	     (WB-Bag-Tree-Union-Rng (WB-Bag-Tree-Trim (WB-Bag-Tree-Node-Left tree1)
-						      lo val1)
-				    (WB-Bag-Tree-Trim tree2 lo val1)
-				    lo val1)
-	     (WB-Bag-Tree-Union-Rng (WB-Bag-Tree-Trim (WB-Bag-Tree-Node-Right tree1)
-						      val1 hi)
-				    (WB-Bag-Tree-Trim tree2 val1 hi)
-				    val1 hi))))))
+	     (WB-Bag-Tree-Union-Rng (WB-Bag-Tree-Trim (WB-Bag-Tree-Node-Left tree1) lo val1 cmp-fn)
+				    (WB-Bag-Tree-Trim tree2 lo val1 cmp-fn)
+				    lo val1 cmp-fn)
+	     (WB-Bag-Tree-Union-Rng (WB-Bag-Tree-Trim (WB-Bag-Tree-Node-Right tree1) val1 hi cmp-fn)
+				    (WB-Bag-Tree-Trim tree2 val1 hi cmp-fn)
+				    val1 hi cmp-fn)
+	     cmp-fn)))))
 
-(defun WB-Bag-Tree-Sum (tree1 tree2)
+(defun WB-Bag-Tree-Sum (tree1 tree2 cmp-fn)
   "Returns the sum of `tree' and `tree2'."
-  (WB-Bag-Tree-Sum-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity))
+  (WB-Bag-Tree-Sum-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn))
 
-(defun WB-Bag-Tree-Sum-Rng (tree1 tree2 lo hi)
+(defun WB-Bag-Tree-Sum-Rng (tree1 tree2 lo hi cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Bag-Tree tree1 tree2))
+	   (type WB-Bag-Tree tree1 tree2)
+	   (type function cmp-fn))
   (cond ((null tree2)
-	 (WB-Bag-Tree-Split tree1 lo hi))
+	 (WB-Bag-Tree-Split tree1 lo hi cmp-fn))
 	((null tree1)
-	 (WB-Bag-Tree-Split tree2 lo hi))
+	 (WB-Bag-Tree-Split tree2 lo hi cmp-fn))
 	((and (consp tree1) (consp tree2))
-	 (WB-Bag-Tree-Vector-Pair-Sum tree1 tree2 lo hi))
+	 (WB-Bag-Tree-Vector-Pair-Sum tree1 tree2 lo hi cmp-fn))
 	((consp tree1)
-	 (WB-Bag-Tree-Sum-Rng tree2 tree1 lo hi))
+	 (WB-Bag-Tree-Sum-Rng tree2 tree1 lo hi cmp-fn))
 	(t
 	 (let ((val1 (WB-Bag-Tree-Node-Value tree1))
 	       (count1 (WB-Bag-Tree-Node-Count tree1))
-	       ((eqvv2? eqvv2 eqvc2 (WB-Bag-Tree-Find-Equivalent tree2 val1))
-		((val count (if eqvv2? (Equivalent-Bag-Sum val1 count1 eqvv2 eqvc2)
+	       ((eqvv2? eqvv2 eqvc2 (WB-Bag-Tree-Find-Equivalent tree2 val1 cmp-fn))
+		((val count (if eqvv2? (Equivalent-Bag-Sum val1 count1 eqvv2 eqvc2 cmp-fn)
 			      (values val1 count1))))))
 	   (WB-Bag-Tree-Concat
 	     val count
-	     (WB-Bag-Tree-Sum-Rng (WB-Bag-Tree-Trim (WB-Bag-Tree-Node-Left tree1)
-						    lo val1)
-				  (WB-Bag-Tree-Trim tree2 lo val1)
-				  lo val1)
-	     (WB-Bag-Tree-Sum-Rng (WB-Bag-Tree-Trim (WB-Bag-Tree-Node-Right tree1)
-						    val1 hi)
-				  (WB-Bag-Tree-Trim tree2 val1 hi)
-				  val1 hi))))))
+	     (WB-Bag-Tree-Sum-Rng (WB-Bag-Tree-Trim (WB-Bag-Tree-Node-Left tree1) lo val1 cmp-fn)
+				  (WB-Bag-Tree-Trim tree2 lo val1 cmp-fn)
+				  lo val1 cmp-fn)
+	     (WB-Bag-Tree-Sum-Rng (WB-Bag-Tree-Trim (WB-Bag-Tree-Node-Right tree1) val1 hi cmp-fn)
+				  (WB-Bag-Tree-Trim tree2 val1 hi cmp-fn)
+				  val1 hi cmp-fn)
+	     cmp-fn)))))
 
 
-(defun WB-Bag-Tree-Intersect (tree1 tree2)
+(defun WB-Bag-Tree-Intersect (tree1 tree2 cmp-fn)
   (if (eq tree1 tree2)
       tree1
-    (WB-Bag-Tree-Intersect-Rng tree1 tree2
-			       Hedge-Negative-Infinity Hedge-Positive-Infinity)))
+    (WB-Bag-Tree-Intersect-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn)))
 
-(defun WB-Bag-Tree-Intersect-Rng (tree1 tree2 lo hi)
+(defun WB-Bag-Tree-Intersect-Rng (tree1 tree2 lo hi cmp-fn)
   "Returns the intersection of `tree1' with `tree2', considering only those
 members that are above `lo' and below `hi', and assuming that the root values
 of `tree1' and `tree2' are in this range."
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Bag-Tree tree1 tree2))
+	   (type WB-Bag-Tree tree1 tree2)
+	   (type function cmp-fn))
   (cond ((eq tree1 tree2)		; historically-related-bag optimization
-	 (WB-Bag-Tree-Split tree1 lo hi))
+	 (WB-Bag-Tree-Split tree1 lo hi cmp-fn))
 	((or (null tree1) (null tree2))
 	 nil)
 	((and (consp tree1) (consp tree2))
-	 (Vector-Pair-Bag-Intersect tree1 tree2 lo hi))
+	 (Vector-Pair-Bag-Intersect tree1 tree2 lo hi cmp-fn))
 	((consp tree1)
-	 (WB-Bag-Tree-Intersect-Rng (WB-Bag-Tree-Trim tree2 lo hi)
-				    tree1 lo hi))
+	 (WB-Bag-Tree-Intersect-Rng (WB-Bag-Tree-Trim tree2 lo hi cmp-fn) tree1 lo hi cmp-fn))
 	(t
 	 (let ((val1 (WB-Bag-Tree-Node-Value tree1))
 	       (count1 (WB-Bag-Tree-Node-Count tree1))
 	       ((new-left
 		  (WB-Bag-Tree-Intersect-Rng (WB-Bag-Tree-Node-Left tree1)
-					     (WB-Bag-Tree-Trim tree2 lo val1)
-					     lo val1))
+					     (WB-Bag-Tree-Trim tree2 lo val1 cmp-fn)
+					     lo val1 cmp-fn))
 		(new-right
 		  (WB-Bag-Tree-Intersect-Rng (WB-Bag-Tree-Node-Right tree1)
-					     (WB-Bag-Tree-Trim tree2 val1 hi)
-					     val1 hi)))
-	       ((eqvv2? eqvv2 eqvc2 (WB-Bag-Tree-Find-Equivalent tree2 val1))
+					     (WB-Bag-Tree-Trim tree2 val1 hi cmp-fn)
+					     val1 hi cmp-fn)))
+	       ((eqvv2? eqvv2 eqvc2 (WB-Bag-Tree-Find-Equivalent tree2 val1 cmp-fn))
 		((nonnull? value count
-		   (and eqvv2? (Equivalent-Bag-Intersect val1 count1 eqvv2 eqvc2))))))
+		   (and eqvv2? (Equivalent-Bag-Intersect val1 count1 eqvv2 eqvc2 cmp-fn))))))
 	   (if nonnull?
-	       (WB-Bag-Tree-Concat value count new-left new-right)
-	     (WB-Bag-Tree-Join new-left new-right))))))
+	       (WB-Bag-Tree-Concat value count new-left new-right cmp-fn)
+	     (WB-Bag-Tree-Join new-left new-right cmp-fn))))))
 
 
-(defun WB-Bag-Tree-Product (tree1 tree2)
-  (WB-Bag-Tree-Product-Rng tree1 tree2
-			   Hedge-Negative-Infinity Hedge-Positive-Infinity))
+(defun WB-Bag-Tree-Product (tree1 tree2 cmp-fn)
+  (WB-Bag-Tree-Product-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn))
 
-(defun WB-Bag-Tree-Product-Rng (tree1 tree2 lo hi)
+(defun WB-Bag-Tree-Product-Rng (tree1 tree2 lo hi cmp-fn)
   "Returns the Production of `tree1' with `tree2', considering only those
 members that are above `lo' and below `hi', and assuming that the root values
 of `tree1' and `tree2' are in this range."
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Bag-Tree tree1 tree2))
+	   (type WB-Bag-Tree tree1 tree2)
+	   (type function cmp-fn))
   (cond ((or (null tree1) (null tree2))
 	 nil)
 	((and (consp tree1) (consp tree2))
-	 (Vector-Pair-Bag-Product tree1 tree2 lo hi))
+	 (Vector-Pair-Bag-Product tree1 tree2 lo hi cmp-fn))
 	((consp tree1)
-	 (WB-Bag-Tree-Product-Rng (WB-Bag-Tree-Trim tree2 lo hi)
-				  tree1 lo hi))
+	 (WB-Bag-Tree-Product-Rng (WB-Bag-Tree-Trim tree2 lo hi cmp-fn) tree1 lo hi cmp-fn))
 	(t
 	 (let ((val1 (WB-Bag-Tree-Node-Value tree1))
 	       (count1 (WB-Bag-Tree-Node-Count tree1))
 	       ((new-left
 		  (WB-Bag-Tree-Product-Rng (WB-Bag-Tree-Node-Left tree1)
-					   (WB-Bag-Tree-Trim tree2 lo val1)
-					   lo val1))
+					   (WB-Bag-Tree-Trim tree2 lo val1 cmp-fn)
+					   lo val1 cmp-fn))
 		(new-right
 		  (WB-Bag-Tree-Product-Rng (WB-Bag-Tree-Node-Right tree1)
-					   (WB-Bag-Tree-Trim tree2 val1 hi)
-					   val1 hi)))
-	       ((eqvv2? eqvv2 eqvc2 (WB-Bag-Tree-Find-Equivalent tree2 val1))
+					   (WB-Bag-Tree-Trim tree2 val1 hi cmp-fn)
+					   val1 hi cmp-fn)))
+	       ((eqvv2? eqvv2 eqvc2 (WB-Bag-Tree-Find-Equivalent tree2 val1 cmp-fn))
 		((nonnull? value count
-		   (and eqvv2? (Equivalent-Bag-Product val1 count1 eqvv2 eqvc2))))))
+		   (and eqvv2? (Equivalent-Bag-Product val1 count1 eqvv2 eqvc2 cmp-fn))))))
 	   (if nonnull?
-	       (WB-Bag-Tree-Concat value count new-left new-right)
-	     (WB-Bag-Tree-Join new-left new-right))))))
+	       (WB-Bag-Tree-Concat value count new-left new-right cmp-fn)
+	     (WB-Bag-Tree-Join new-left new-right cmp-fn))))))
 
 
-(defun WB-Bag-Tree-Diff (tree1 tree2)
-  "Returns the set difference of `tree1' less `tree2'.  Runs in time linear in
+(defun WB-Bag-Tree-Diff (tree1 tree2 cmp-fn)
+  "Returns the bag difference of `tree1' less `tree2'.  Runs in time linear in
 the total sizes of the two trees."
   (and (not (eq tree1 tree2))
-       (WB-Bag-Tree-Diff-Rng tree1 tree2
-			     Hedge-Negative-Infinity Hedge-Positive-Infinity)))
+       (WB-Bag-Tree-Diff-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn)))
 
-(defun WB-Bag-Tree-Diff-Rng (tree1 tree2 lo hi)
-  "Returns the set difference of `tree1' less `tree2', considering only those
+(defun WB-Bag-Tree-Diff-Rng (tree1 tree2 lo hi cmp-fn)
+  "Returns the bag difference of `tree1' less `tree2', considering only those
 members that are above `lo' and below `hi', and assuming that the root values
 of `tree1' and `tree2' are in this range."
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Bag-Tree tree1 tree2))
+	   (type WB-Bag-Tree tree1 tree2)
+	   (type function cmp-fn))
   (cond ((eq tree1 tree2) nil)		; historically-related-bag optimization
 	((null tree1) nil)
 	((null tree2)
-	 (WB-Bag-Tree-Split tree1 lo hi))
+	 (WB-Bag-Tree-Split tree1 lo hi cmp-fn))
 	((and (consp tree1) (consp tree2))
-	 (Vector-Pair-Bag-Diff tree1 tree2 lo hi))
+	 (Vector-Pair-Bag-Diff tree1 tree2 lo hi cmp-fn))
 	((consp tree1)
 	 (let ((val2 (WB-Bag-Tree-Node-Value tree2))
 	       (count2 (WB-Bag-Tree-Node-Count tree2))
-	       ((new-left (WB-Bag-Tree-Diff-Rng (WB-Bag-Tree-Trim tree1 lo val2)
-						(WB-Bag-Tree-Trim
-						  (WB-Bag-Tree-Node-Left tree2)
-						  lo val2)
-						lo val2))
-		(new-right (WB-Bag-Tree-Diff-Rng (WB-Bag-Tree-Trim tree1 val2 hi)
-						 (WB-Bag-Tree-Trim
-						   (WB-Bag-Tree-Node-Right tree2)
-						   val2 hi)
-						 val2 hi)))
-	       ((eqvv1? eqvv1 eqvc1 (WB-Bag-Tree-Find-Equivalent tree1 val2))
+	       ((new-left (WB-Bag-Tree-Diff-Rng (WB-Bag-Tree-Trim tree1 lo val2 cmp-fn)
+						(WB-Bag-Tree-Trim (WB-Bag-Tree-Node-Left tree2) lo val2 cmp-fn)
+						lo val2 cmp-fn))
+		(new-right (WB-Bag-Tree-Diff-Rng (WB-Bag-Tree-Trim tree1 val2 hi cmp-fn)
+						 (WB-Bag-Tree-Trim (WB-Bag-Tree-Node-Right tree2) val2 hi cmp-fn)
+						 val2 hi cmp-fn)))
+	       ((eqvv1? eqvv1 eqvc1 (WB-Bag-Tree-Find-Equivalent tree1 val2 cmp-fn))
 		((nonnull? value count
-		   (and eqvv1? (Equivalent-Bag-Difference eqvv1 eqvc1 val2 count2))))))
+		   (and eqvv1? (Equivalent-Bag-Difference eqvv1 eqvc1 val2 count2 cmp-fn))))))
 	   (if nonnull?
-	       (WB-Bag-Tree-Concat value count new-left new-right)
-	     (WB-Bag-Tree-Join new-left new-right))))
+	       (WB-Bag-Tree-Concat value count new-left new-right cmp-fn)
+	     (WB-Bag-Tree-Join new-left new-right cmp-fn))))
 	(t
 	 (let ((val1 (WB-Bag-Tree-Node-Value tree1))
 	       (count1 (WB-Bag-Tree-Node-Count tree1))
 	       ((new-left (WB-Bag-Tree-Diff-Rng (WB-Bag-Tree-Node-Left tree1)
-						(WB-Bag-Tree-Trim tree2 lo val1)
-						lo val1))
+						(WB-Bag-Tree-Trim tree2 lo val1 cmp-fn)
+						lo val1 cmp-fn))
 		(new-right (WB-Bag-Tree-Diff-Rng (WB-Bag-Tree-Node-Right tree1)
-						 (WB-Bag-Tree-Trim tree2 val1 hi)
-						 val1 hi)))
-	       ((eqvv2? eqvv2 eqvc2 (WB-Bag-Tree-Find-Equivalent tree2 val1))
+						 (WB-Bag-Tree-Trim tree2 val1 hi cmp-fn)
+						 val1 hi cmp-fn)))
+	       ((eqvv2? eqvv2 eqvc2 (WB-Bag-Tree-Find-Equivalent tree2 val1 cmp-fn))
 		((nonnull? value count
-		   (if eqvv2? (Equivalent-Bag-Difference val1 count1 eqvv2 eqvc2)
-				  (values t val1 count1))))))
+		   (if eqvv2? (Equivalent-Bag-Difference val1 count1 eqvv2 eqvc2 cmp-fn)
+		     (values t val1 count1))))))
 	   (if nonnull?
-	       (WB-Bag-Tree-Concat value count new-left new-right)
-	     (WB-Bag-Tree-Join new-left new-right))))))
+	       (WB-Bag-Tree-Concat value count new-left new-right cmp-fn)
+	     (WB-Bag-Tree-Join new-left new-right cmp-fn))))))
 
 
 ;;; ================================================================================
 ;;; Comparison
 
-(defun WB-Bag-Tree-Compare (tree1 tree2)
+(defun WB-Bag-Tree-Compare (tree1 tree2 cmp-fn)
+  (declare (type function cmp-fn))
   (if (eq tree1 tree2) ':equal
-    (let ((size1 (WB-Bag-Tree-Size tree1))
+    (let ((totct1 (WB-Bag-Tree-Total-Count tree1))
+	  (totct2 (WB-Bag-Tree-Total-Count tree2))
+	  (size1 (WB-Bag-Tree-Size tree1))
 	  (size2 (WB-Bag-Tree-Size tree2)))
-      (cond ((< size1 size2) ':less)
+      (cond ((< totct1 totct2) ':less)
+	    ((> totct1 totct2) ':greater)
+	    ((< size1 size2) ':less)
 	    ((> size1 size2) ':greater)
-	    (t (WB-Bag-Tree-Compare-Rng tree1 0 tree2 0 0 size1))))))
+	    (t (WB-Bag-Tree-Compare-Rng tree1 0 tree2 0 0 size1 cmp-fn))))))
 
-(defun WB-Bag-Tree-Compare-Rng (tree1 base1 tree2 base2 lo hi)
+(defun WB-Bag-Tree-Compare-Rng (tree1 base1 tree2 base2 lo hi cmp-fn)
   ;; See notes at `WB-Set-Tree-Compare-Rng'.
+  (declare (type function cmp-fn))
   (cond ((and (eq tree1 tree2) (= base1 base2))	; historically-related-bag optimization
 	 ':equal)
 	((= lo hi) ':equal)
 	((and (consp tree1) (consp tree2))
 	 (let ((unequal? nil))
 	   (or (gmap (:result or) (fn (val1 count1 val2 count2)
-				    (let ((val-comp (compare val1 val2)))
+				    (let ((val-comp (funcall cmp-fn val1 val2)))
 				      (when (eq val-comp ':unequal)
 					(setq unequal? t))
 				      (cond ((or (eq val-comp ':less) (eq val-comp ':greater))
@@ -2571,7 +2573,7 @@ of `tree1' and `tree2' are in this range."
 		     (:arg simple-vector (cdr tree2) :start (- lo base2) :stop (- hi base2)))
 	       (if unequal? ':unequal ':equal))))
 	((consp tree1)
-	 (let ((rev-comp (WB-Bag-Tree-Compare-Rng tree2 base2 tree1 base1 lo hi)))
+	 (let ((rev-comp (WB-Bag-Tree-Compare-Rng tree2 base2 tree1 base1 lo hi cmp-fn)))
 	   (ecase rev-comp
 	     (:less ':greater)
 	     (:greater ':less)
@@ -2583,7 +2585,7 @@ of `tree1' and `tree2' are in this range."
 		 ((left1a base1a (WB-Bag-Tree-Rank-Trim left1 base1 lo new-hi))
 		  (tree2a base2a (WB-Bag-Tree-Rank-Trim tree2 base2 lo new-hi))
 		  ((left-comp (WB-Bag-Tree-Compare-Rng left1a base1a tree2a base2a
-						       lo new-hi)))))))
+						       lo new-hi cmp-fn)))))))
 	   (if (or (eq left-comp ':less) (eq left-comp ':greater))
 	       left-comp
 	     (let ((val1 (WB-Bag-Tree-Node-Value tree1))
@@ -2591,7 +2593,7 @@ of `tree1' and `tree2' are in this range."
 		   (val2 count2
 		      (WB-Bag-Tree-Rank-Pair-Internal
 			tree2 (the fixnum (- new-hi base2))))
-		   ((val-comp (Equivalent-Bag-Compare val1 count1 val2 count2))))
+		   ((val-comp (Equivalent-Bag-Compare val1 count1 val2 count2 cmp-fn))))
 	       (if (or (eq val-comp ':less) (eq val-comp ':greater))
 		   val-comp
 		 (let ((val1-size (Bag-Value-Size val1))
@@ -2601,7 +2603,7 @@ of `tree1' and `tree2' are in this range."
 						  new-lo new-lo hi))
 			 (tree2a base2a (WB-Bag-Tree-Rank-Trim tree2 base2 new-lo hi))
 			 ((right-comp (WB-Bag-Tree-Compare-Rng right1a base1a tree2a
-							       base2a new-lo hi))))))
+							       base2a new-lo hi cmp-fn))))))
 		   (if (not (eq right-comp ':equal))
 		       right-comp
 		     (if (eq left-comp ':unequal) ':unequal val-comp))))))))))
@@ -2625,7 +2627,7 @@ of `tree1' and `tree2' are in this range."
 				  (Bag-Value-Size (WB-Bag-Tree-Node-Value tree)))
 			       lo hi)))))
 
-(defun WB-Bag-Tree-Rank (tree value)
+(defun WB-Bag-Tree-Rank (tree value cmp-fn)
   "Searches a bag tree `tree' for `value'.  Returns two values, a boolean and an
 index.  If `value', or a value equivalent to `value', is in `tree', the symbol
 is true, and the index is the rank of the value; otherwise, the boolean is false
@@ -2633,24 +2635,24 @@ and the index is the rank `value' would have if it were to be added.  Note that
 if the bag contains equivalent-but-unequal elements, the rank of each of several
 such elements is guaranteed consistent only within the same tree (by `eq'), not
 between equal trees."
+  (declare (type function cmp-fn))
   (labels ((rec (tree value base)
 	     (cond ((null tree) (values nil base))
 		   ((consp tree)
-		    (let ((found? idx (Vector-Set-Binary-Search (car tree) value)))
+		    (let ((found? idx (Vector-Set-Binary-Search (car tree) value cmp-fn)))
 		      (values found? (+ idx base))))
 		   (t
 		    (let ((node-val (WB-Bag-Tree-Node-Value tree))
 			  (left (WB-Bag-Tree-Node-Left tree))
 			  ((left-size (WB-Bag-Tree-Size left))
 			   ((node-base (+ base left-size))))
-			  ((comp (compare value node-val))))
+			  ((comp (funcall cmp-fn value node-val))))
 		      (ecase comp
 			(:equal (values t node-base))
 			((:unequal)
-			 (if (Equivalent-Bag? node-val)
-			     (let ((mems (Equivalent-Bag-Alist node-val))
-				   ((pos (cl:position value mems :test #'equal?
-						      :key #'car))))
+			 (if (Equivalent-Node? node-val)
+			     (let ((mems (Equivalent-Node-List node-val))
+				   ((pos (cl:position value mems :test (equal?-fn cmp-fn) :key #'car))))
 			       (if pos (values t (+ node-base pos))
 				 (values nil node-base)))
 			   (values nil node-base)))
@@ -2663,8 +2665,8 @@ between equal trees."
 
 (defun WB-Bag-Tree-Rank-Pair (tree rank)
   (let ((elt count rem (WB-Bag-Tree-Rank-Pair-Internal tree rank)))
-    (if (Equivalent-Bag? elt)
-	(let ((pr (nth rem (Equivalent-Bag-Alist elt))))
+    (if (Equivalent-Node? elt)
+	(let ((pr (nth rem (Equivalent-Node-List elt))))
 	  (values (car pr) (cdr pr)))
       (values elt count))))
 
@@ -2694,80 +2696,82 @@ between equal trees."
 ;;; ================================================================================
 ;;; Subbag testing
 
-(defun WB-Bag-Tree-Subbag? (tree1 tree2)
+(defun WB-Bag-Tree-Subbag? (tree1 tree2 cmp-fn)
+  (declare (type function cmp-fn))
   (let ((size1 (WB-Bag-Tree-Size tree1))
 	(size2 (WB-Bag-Tree-Size tree2)))
     (or (eq tree1 tree2)
 	(and (<= size1 size2)
-	     (WB-Bag-Tree-Subbag?-Rng tree1 tree2
-				      Hedge-Negative-Infinity Hedge-Positive-Infinity)))))
+	     (WB-Bag-Tree-Subbag?-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn)))))
 
-(defun WB-Bag-Tree-Subbag?-Rng (tree1 tree2 lo hi)
-  (declare (optimize (speed 3) (safety 0))
-	   (type WB-Bag-Tree tree1 tree2))
+(defun WB-Bag-Tree-Subbag?-Rng (tree1 tree2 lo hi cmp-fn)
+  (declare ;(optimize (speed 3) (safety 0))
+	   (type WB-Bag-Tree tree1 tree2)
+	   (type function cmp-fn))
   (cond ((null tree1) t)
 	((eq tree1 tree2) t)		; historically-related-tree optimization
 	((and (consp tree1) (or (null tree2) (consp tree2)))
-	 (Vector-Pair-Bag-Subbag? tree1 tree2 lo hi))
+	 (Vector-Pair-Bag-Subbag? tree1 tree2 lo hi cmp-fn))
 	((consp tree1)
 	 (let ((val2 (WB-Bag-Tree-Node-Value tree2))
 	       (count2 (WB-Bag-Tree-Node-Count tree2)))
-	   (and (WB-Bag-Tree-Subbag?-Rng (WB-Bag-Tree-Trim tree1 lo val2)
+	   (and (WB-Bag-Tree-Subbag?-Rng (WB-Bag-Tree-Trim tree1 lo val2 cmp-fn)
 					 (WB-Bag-Tree-Node-Left tree2)
-					 lo val2)
-		(let ((eqvv1? eqvv1 eqvc1 (WB-Bag-Tree-Find-Equivalent tree1 val2)))
+					 lo val2 cmp-fn)
+		(let ((eqvv1? eqvv1 eqvc1 (WB-Bag-Tree-Find-Equivalent tree1 val2 cmp-fn)))
 		  (and (or (not eqvv1?)
-			   (Equivalent-Bag-Subbag? eqvv1 eqvc1 val2 count2))
-		       (WB-Bag-Tree-Subbag?-Rng (WB-Bag-Tree-Trim tree1 val2 hi)
+			   (Equivalent-Bag-Subbag? eqvv1 eqvc1 val2 count2 cmp-fn))
+		       (WB-Bag-Tree-Subbag?-Rng (WB-Bag-Tree-Trim tree1 val2 hi cmp-fn)
 						(WB-Bag-Tree-Node-Right tree2)
-						val2 hi))))))
+						val2 hi cmp-fn))))))
 	(t
 	 (let ((val1 (WB-Bag-Tree-Node-Value tree1))
 	       (count1 (WB-Bag-Tree-Node-Count tree1)))
 	   (and (WB-Bag-Tree-Subbag?-Rng (WB-Bag-Tree-Node-Left tree1)
-					 (WB-Bag-Tree-Trim tree2 lo val1)
-					 lo val1)
-		(let ((eqvv2? eqvv2 eqvc2 (WB-Bag-Tree-Find-Equivalent tree2 val1)))
+					 (WB-Bag-Tree-Trim tree2 lo val1 cmp-fn)
+					 lo val1 cmp-fn)
+		(let ((eqvv2? eqvv2 eqvc2 (WB-Bag-Tree-Find-Equivalent tree2 val1 cmp-fn)))
 		  (and eqvv2?
-		       (Equivalent-Bag-Subbag? val1 count1 eqvv2 eqvc2)
+		       (Equivalent-Bag-Subbag? val1 count1 eqvv2 eqvc2 cmp-fn)
 		       (WB-Bag-Tree-Subbag?-Rng (WB-Bag-Tree-Node-Right tree1)
-						(WB-Bag-Tree-Trim tree2 val1 hi)
-						val1 hi))))))))
+						(WB-Bag-Tree-Trim tree2 val1 hi cmp-fn)
+						val1 hi cmp-fn))))))))
 
 
 ;;; ================================================================================
 ;;; Disjointness testing
 
-(defun WB-Bag-Tree-Disjoint? (tree1 tree2)
-  (WB-Bag-Tree-Disjoint?-Rng tree1 tree2
-			     Hedge-Negative-Infinity Hedge-Positive-Infinity))
+(defun WB-Bag-Tree-Disjoint? (tree1 tree2 cmp-fn)
+  (declare (type function cmp-fn))
+  (WB-Bag-Tree-Disjoint?-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn))
 
-(defun WB-Bag-Tree-Disjoint?-Rng (tree1 tree2 lo hi)
+(defun WB-Bag-Tree-Disjoint?-Rng (tree1 tree2 lo hi cmp-fn)
+  (declare (type function cmp-fn))
   (cond ((or (null tree1) (null tree2))
 	 t)
 	((eq tree1 tree2)
 	 nil)
 	((and (consp tree1) (consp tree2))
-	 (Vector-Set-Disjoint? (car tree1) (car tree2) lo hi))
+	 (Vector-Set-Disjoint? (car tree1) (car tree2) lo hi cmp-fn))
 	((consp tree1)
-	 (WB-Bag-Tree-Disjoint?-Rng (WB-Bag-Tree-Trim tree2 lo hi)
-				    tree1 lo hi))
+	 (WB-Bag-Tree-Disjoint?-Rng (WB-Bag-Tree-Trim tree2 lo hi cmp-fn)
+				    tree1 lo hi cmp-fn))
 	(t
 	 (let ((val1 (WB-Bag-Tree-Node-Value tree1))
-	       ((eqvv2? eqvv2 (WB-Bag-Tree-Find-Equivalent tree2 val1))))
-	   (and (or (null eqvv2?) (Equivalent-Bag-Disjoint? val1 eqvv2))
+	       ((eqvv2? eqvv2 (WB-Bag-Tree-Find-Equivalent tree2 val1 cmp-fn))))
+	   (and (or (null eqvv2?) (Equivalent-Bag-Disjoint? val1 eqvv2 cmp-fn))
 		(WB-Bag-Tree-Disjoint?-Rng (WB-Bag-Tree-Node-Left tree1)
-					   (WB-Bag-Tree-Trim tree2 lo val1)
-					   lo val1)
+					   (WB-Bag-Tree-Trim tree2 lo val1 cmp-fn)
+					   lo val1 cmp-fn)
 		(WB-Bag-Tree-Disjoint?-Rng (WB-Bag-Tree-Node-Right tree1)
-					   (WB-Bag-Tree-Trim tree2 val1 hi)
-					   val1 hi))))))
+					   (WB-Bag-Tree-Trim tree2 val1 hi cmp-fn)
+					   val1 hi cmp-fn))))))
 
 
 ;;; ================================================================================
 ;;; Miscellany
 
-(defun WB-Bag-Tree-From-List (lst pairs?)
+(defun WB-Bag-Tree-From-List (lst pairs? cmp-fn)
   (let ((tree nil))
     (if pairs?
 	(dolist (x lst)
@@ -2775,12 +2779,12 @@ between equal trees."
 	    (error 'simple-type-error :datum (cdr x) :expected-type '(integer 0 *)
 				      :format-control "Supplied count is not a positive integer: ~S"
 				      :format-arguments (list (cdr x))))
-	  (setq tree (WB-Bag-Tree-With tree (car x) (cdr x))))
+	  (setq tree (WB-Bag-Tree-With tree (car x) cmp-fn (cdr x))))
       (dolist (x lst)
-	(setq tree (WB-Bag-Tree-With tree x))))
+	(setq tree (WB-Bag-Tree-With tree x cmp-fn))))
     tree))
 
-(defun WB-Bag-Tree-From-Iterable (it pairs?)
+(defun WB-Bag-Tree-From-Iterable (it pairs? cmp-fn)
   (declare (type function it))
   (let ((tree nil))
     (if pairs?
@@ -2790,14 +2794,14 @@ between equal trees."
 	      (error 'simple-type-error :datum (cdr x) :expected-type '(integer 0 *)
 					:format-control "Supplied count is not a positive integer: ~S"
 					:format-arguments (list (cdr x))))
-	    (setq tree (WB-Bag-Tree-With tree (car x) (cdr x)))))
+	    (setq tree (WB-Bag-Tree-With tree (car x) cmp-fn (cdr x)))))
       (while (funcall it ':more?)
-	(setq tree (WB-Bag-Tree-With tree (funcall it ':get)))))
+	(setq tree (WB-Bag-Tree-With tree (funcall it ':get) cmp-fn))))
     tree))
 
 ;;; See `WB-Set-Tree-From-Sorted-Iterable'.
-(defun WB-Bag-Tree-From-Sorted-Iterable (it size pairs?)
-  (declare (type function it))
+(defun WB-Bag-Tree-From-Sorted-Iterable (it size pairs? cmp-fn)
+  (declare (type function it cmp-fn))
   (labels ((recur (n)
 	     (declare (fixnum n))
 	     (cond ((= n 0) (values nil Hedge-Positive-Infinity Hedge-Negative-Infinity))
@@ -2818,11 +2822,11 @@ between equal trees."
 		      (when pairs?
 			(check-count na)
 			(check-count nb))
-		      (ecase (Compare a b)
+		      (ecase (funcall cmp-fn a b)
 			(:equal (values (cons (vector a) (vector (+ na nb))) a a))
 			(:less (values (cons (vector a b) (vector na nb)) a b))
 			(:greater (values (cons (vector b a) (vector nb na)) b a))
-			(:unequal (values (WB-Bag-Tree-With (cons (vector a) (vector na)) b nb) a a)))))
+			(:unequal (values (WB-Bag-Tree-With (cons (vector a) (vector na)) b cmp-fn nb) a a)))))
 		   (t
 		    (let ((n2 (floor (1- n) 2))
 			  ((left left-first left-last (recur n2))
@@ -2835,13 +2839,13 @@ between equal trees."
 		      ;; Here we check whether the tree really is sorted as promised.
 		      ;; (We really have to do this for correctness, because even if it is sorted, it
 		      ;; could have sequences of equivalent-but-unequal elements.)
-		      (if (and (less-than? left-last e)
-			       (less-than? e right-first))
+		      (if (and (less-than?-cmp left-last e cmp-fn)
+			       (less-than?-cmp e right-first cmp-fn))
 			  (values (WB-Bag-Tree-Build-Node e ne left right) left-first right-last)
 			;; Fall back to general case.
-			(values (WB-Bag-Tree-With (WB-Bag-Tree-Sum left right) e ne)
-				(if (less-than? left-first right-first) left-first right-first)
-				(if (less-than? left-last right-last) right-last left-last)))))))
+			(values (WB-Bag-Tree-With (WB-Bag-Tree-Sum left right cmp-fn) e cmp-fn ne)
+				(if (less-than?-cmp left-first right-first cmp-fn) left-first right-first)
+				(if (less-than?-cmp left-last right-last cmp-fn) right-last left-last)))))))
 	   (check-count (n)
 	     (unless (and (integerp n) (< 0 n))
 	       (error 'simple-type-error :datum n :expected-type '(integer 0 *)
@@ -2861,11 +2865,11 @@ between equal trees."
 	       (size (WB-Set-Tree-Node-Size tree))
 	       (new-left (WB-Set-Tree-To-Bag-Tree (WB-Set-Tree-Node-Left tree)))
 	       (new-right (WB-Set-Tree-To-Bag-Tree (WB-Set-Tree-Node-Right tree))))
-	   (if (Equivalent-Set? value)
+	   (if (Equivalent-Node? value)
 	       (Make-Raw-WB-Bag-Tree-Node
 		 size size
 		 (Make-Equivalent-Bag (mapcar #'(lambda (x) (cons x 1))
-					      (Equivalent-Set-Members value)))
+					      (Equivalent-Node-List value)))
 		 0 new-left new-right)
 	     (Make-Raw-WB-Bag-Tree-Node size size value 1 new-left new-right))))))
 
@@ -2880,9 +2884,9 @@ between equal trees."
 	       (size (WB-Bag-Tree-Node-Size tree))
 	       (new-left (WB-Bag-Tree-To-Set-Tree (WB-Bag-Tree-Node-Left tree)))
 	       (new-right (WB-Bag-Tree-To-Set-Tree (WB-Bag-Tree-Node-Right tree))))
-	   (if (Equivalent-Bag? value)
+	   (if (Equivalent-Node? value)
 	       (Make-Raw-WB-Set-Tree-Node
-		 size (Make-Equivalent-Set (mapcar #'car (Equivalent-Bag-Alist value)))
+		 size (Make-Equivalent-Set (mapcar #'car (Equivalent-Node-List value)))
 		 new-left new-right)
 	     (Make-Raw-WB-Set-Tree-Node size value new-left new-right))))))
 
@@ -2890,9 +2894,10 @@ between equal trees."
 ;;; ================================================================================
 ;;; Support routines for the above (bags)
 
-(defun WB-Bag-Tree-Split (tree lo hi)
+(defun WB-Bag-Tree-Split (tree lo hi cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Bag-Tree tree))
+	   (type WB-Bag-Tree tree)
+	   (type function cmp-fn))
   (cond ((null tree) nil)
 	((and (eq lo Hedge-Negative-Infinity) (eq hi Hedge-Positive-Infinity))
 	 tree)
@@ -2902,10 +2907,10 @@ between equal trees."
 	       ((len (length vals))
 		((split-point-lo (if (eq lo Hedge-Negative-Infinity)
 				     0
-				   (Vector-Set-Binary-Search-Lo vals lo)))
+				   (Vector-Set-Binary-Search-Lo vals lo cmp-fn)))
 		 (split-point-hi (if (eq hi Hedge-Positive-Infinity)
 				     len
-				   (Vector-Set-Binary-Search-Hi vals hi))))))
+				   (Vector-Set-Binary-Search-Hi vals hi cmp-fn))))))
 	   (and (> split-point-hi split-point-lo)
 		(if (and (= split-point-lo 0)
 			 (= split-point-hi len))
@@ -2913,53 +2918,53 @@ between equal trees."
 		  (cons (Vector-Subseq vals split-point-lo split-point-hi)
 			(Vector-Subseq counts split-point-lo split-point-hi))))))
 	((not (or (eq lo Hedge-Negative-Infinity)
-		  (greater-than? (WB-Bag-Tree-Node-Value tree) lo)))
-	 (WB-Bag-Tree-Split (WB-Bag-Tree-Node-Right tree) lo hi))
+		  (greater-than?-cmp (WB-Bag-Tree-Node-Value tree) lo cmp-fn)))
+	 (WB-Bag-Tree-Split (WB-Bag-Tree-Node-Right tree) lo hi cmp-fn))
 	((not (or (eq hi Hedge-Positive-Infinity)
-		  (less-than? (WB-Bag-Tree-Node-Value tree) hi)))
-	 (WB-Bag-Tree-Split (WB-Bag-Tree-Node-Left tree) lo hi))
+		  (less-than?-cmp (WB-Bag-Tree-Node-Value tree) hi cmp-fn)))
+	 (WB-Bag-Tree-Split (WB-Bag-Tree-Node-Left tree) lo hi cmp-fn))
 	(t
 	 (let ((new-left (WB-Bag-Tree-Split (WB-Bag-Tree-Node-Left tree)
-					    lo Hedge-Positive-Infinity))
+					    lo Hedge-Positive-Infinity cmp-fn))
 	       (new-right (WB-Bag-Tree-Split (WB-Bag-Tree-Node-Right tree)
-					     Hedge-Negative-Infinity hi)))
+					     Hedge-Negative-Infinity hi cmp-fn)))
 	   (if (and (eq new-left (WB-Bag-Tree-Node-Left tree))
 		    (eq new-right (WB-Bag-Tree-Node-Right tree)))
 	       tree
 	     (WB-Bag-Tree-Concat (WB-Bag-Tree-Node-Value tree)
 				 (WB-Bag-Tree-Node-Count tree)
-				 new-left new-right))))))
+				 new-left new-right cmp-fn))))))
 
-(defun WB-Bag-Tree-Trim (tree lo hi)
+(defun WB-Bag-Tree-Trim (tree lo hi cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Bag-Tree tree))
+	   (type WB-Bag-Tree tree)
+	   (type function cmp-fn))
   (cond ((null tree) nil)
 	((consp tree)
 	 ;; If the vector pair is completely out of range, drop it.
 	 (and (or (eq lo Hedge-Negative-Infinity)
-		  (greater-than? (svref (car tree)
-					(1- (length (the simple-vector (car tree)))))
-				 lo))
+		  (greater-than?-cmp (svref (car tree) (1- (length (the simple-vector (car tree)))))
+				     lo cmp-fn))
 	      (or (eq hi Hedge-Positive-Infinity)
-		  (less-than? (svref (car tree) 0) hi))
+		  (less-than?-cmp (svref (car tree) 0) hi cmp-fn))
 	      tree))
 	(t
 	 (let ((val (WB-Bag-Tree-Node-Value tree)))
 	   (if (or (eq lo Hedge-Negative-Infinity)
-		   (greater-than? val lo))
+		   (greater-than?-cmp val lo cmp-fn))
 	       (if (or (eq hi Hedge-Positive-Infinity)
-		       (less-than? val hi))
+		       (less-than?-cmp val hi cmp-fn))
 		   tree
-		 (WB-Bag-Tree-Trim (WB-Bag-Tree-Node-Left tree) lo hi))
-	     (WB-Bag-Tree-Trim (WB-Bag-Tree-Node-Right tree) lo hi))))))
+		 (WB-Bag-Tree-Trim (WB-Bag-Tree-Node-Left tree) lo hi cmp-fn))
+	     (WB-Bag-Tree-Trim (WB-Bag-Tree-Node-Right tree) lo hi cmp-fn))))))
 
-(defun WB-Bag-Tree-Concat (value count left right)
+(defun WB-Bag-Tree-Concat (value count left right cmp-fn)
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Bag-Tree left right))
   (cond ((null left)
-	 (WB-Bag-Tree-With right value count))
+	 (WB-Bag-Tree-With right value cmp-fn count))
 	((null right)
-	 (WB-Bag-Tree-With left value count))
+	 (WB-Bag-Tree-With left value cmp-fn count))
 	((and (WB-Bag-Tree-Node? left)
 	      (> (WB-Bag-Tree-Size left)
 		 (the fixnum (* (WB-Bag-Tree-Size right) WB-Tree-Balance-Factor))))
@@ -2968,24 +2973,23 @@ between equal trees."
 				 (WB-Bag-Tree-Node-Left left)
 				 (WB-Bag-Tree-Concat value count
 						     (WB-Bag-Tree-Node-Right left)
-						     right)))
+						     right cmp-fn)))
 	((and (WB-Bag-Tree-Node? right)
 	      (> (WB-Bag-Tree-Size right)
 		 (the fixnum (* (WB-Bag-Tree-Size left) WB-Tree-Balance-Factor))))
 	 (WB-Bag-Tree-Build-Node (WB-Bag-Tree-Node-Value right)
 				 (WB-Bag-Tree-Node-Count right)
-				 (WB-Bag-Tree-Concat value count left
-						     (WB-Bag-Tree-Node-Left right))
+				 (WB-Bag-Tree-Concat value count left (WB-Bag-Tree-Node-Left right) cmp-fn)
 				 (WB-Bag-Tree-Node-Right right)))
 	(t
 	 (WB-Bag-Tree-Build-Node value count left right))))
 
-(defun WB-Bag-Tree-Join (left right)
+(defun WB-Bag-Tree-Join (left right cmp-fn)
   (if (null left) right
     (if (null right) left
       (let ((min-val min-count (WB-Bag-Tree-Minimum-Pair right)))
 	(WB-Bag-Tree-Concat min-val min-count
-			    left (WB-Bag-Tree-Less-Minimum right))))))
+			    left (WB-Bag-Tree-Less-Minimum right cmp-fn) cmp-fn)))))
 
 (defun WB-Bag-Tree-Minimum-Pair (tree)
   "Assumes `tree' is nonempty.  Returns the minimum value and count as two
@@ -3002,7 +3006,7 @@ count is not meaningful."
 	(values (WB-Bag-Tree-Node-Value tree)
 		(WB-Bag-Tree-Node-Count tree))))))
 
-(defun WB-Bag-Tree-Less-Minimum (tree)
+(defun WB-Bag-Tree-Less-Minimum (tree cmp-fn)
   "Assumes `tree' is nonempty.  Returns a new tree with the minimum value
 removed."
   (declare (optimize (speed 3) (safety 0))
@@ -3013,10 +3017,8 @@ removed."
 		 (Vector-Subseq (cdr tree) 1)))
     (let ((left (WB-Bag-Tree-Node-Left tree)))
       (if left
-	  (WB-Bag-Tree-Concat (WB-Bag-Tree-Node-Value tree)
-			      (WB-Bag-Tree-Node-Count tree)
-			      (WB-Bag-Tree-Less-Minimum left)
-			      (WB-Bag-Tree-Node-Right tree))
+	  (WB-Bag-Tree-Concat (WB-Bag-Tree-Node-Value tree) (WB-Bag-Tree-Node-Count tree)
+			      (WB-Bag-Tree-Less-Minimum left cmp-fn) (WB-Bag-Tree-Node-Right tree) cmp-fn)
 	(WB-Bag-Tree-Node-Right tree)))))
 
 (defun WB-Bag-Tree-Build-Node (value count left right)
@@ -3026,7 +3028,7 @@ removed."
 	   (type WB-Bag-Tree left right))
   (if (and (or (null left) (consp left))
 	   (or (null right) (consp right)))
-      (if (and (not (Equivalent-Bag? value))
+      (if (and (not (Equivalent-Node? value))
 	       (< (+ (length-nv (the (or null simple-vector) (car left)))
 		     (length-nv (the (or null simple-vector) (car right))))
 		  *WB-Tree-Max-Vector-Length*))
@@ -3078,24 +3080,25 @@ removed."
 	     (Make-WB-Bag-Tree-Node value count left right))))))
 
 
-(defun WB-Bag-Tree-Verify (tree)
-  (WB-Bag-Tree-Verify-Rng tree Hedge-Negative-Infinity Hedge-Positive-Infinity))
+(defun WB-Bag-Tree-Verify (tree cmp-fn)
+  (WB-Bag-Tree-Verify-Rng tree Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn))
 
-(defun WB-Bag-Tree-Verify-Rng (tree lo hi)
+(defun WB-Bag-Tree-Verify-Rng (tree lo hi cmp-fn)
+  (declare (type function cmp-fn))
   (cond ((null tree) t)
 	((consp tree)
 	 (let ((len (length (car tree))))
 	   (and (> len 0)
 		(<= len *WB-Tree-Max-Vector-Length*)
 		(do ((i 0 (1+ i))
-		     (prev Hedge-Negative-Infinity))
+		     (prev lo))
 		    ((= i len)
 		     (or (eq hi Hedge-Positive-Infinity)
-			 (less-than? prev hi)))
+			 (less-than?-cmp prev hi cmp-fn)))
 		  (let ((elt (svref (car tree) i)))
-		    (unless (and (not (Equivalent-Bag? elt))
+		    (unless (and (not (Equivalent-Node? elt))
 				 (or (eq prev Hedge-Negative-Infinity)
-				     (less-than? prev elt)))
+				     (less-than?-cmp prev elt cmp-fn)))
 		      (return nil))
 		    (setq prev elt))))))
 	(t
@@ -3109,31 +3112,32 @@ removed."
 		(= (WB-Bag-Tree-Node-Total-Count tree)
 		   (+ (WB-Bag-Tree-Total-Count left)
 		      (WB-Bag-Tree-Total-Count right)
-		      (if (Equivalent-Bag? value)
-			  (gmap (:result sum) #'cdr (:arg list (Equivalent-Bag-Alist value)))
+		      (if (Equivalent-Node? value)
+			  (gmap (:result sum) #'cdr (:arg list (Equivalent-Node-List value)))
 			(WB-Bag-Tree-Node-Count tree))))
-		(or (not (Equivalent-Bag? value))
-		    (> (length (Equivalent-Bag-Alist value)) 1))
+		(or (not (Equivalent-Node? value))
+		    (> (length (Equivalent-Node-List value)) 1))
 		(or (<= sizr 4)
 		    (<= sizl (* sizr WB-Tree-Balance-Factor)))
 		(or (<= sizl 4)
 		    (<= sizr (* sizl WB-Tree-Balance-Factor)))
-		(WB-Bag-Tree-Verify-Rng (WB-Bag-Tree-Node-Left tree) lo value)
-		(WB-Bag-Tree-Verify-Rng (WB-Bag-Tree-Node-Right tree) value hi))))))
+		(WB-Bag-Tree-Verify-Rng (WB-Bag-Tree-Node-Left tree) lo value cmp-fn)
+		(WB-Bag-Tree-Verify-Rng (WB-Bag-Tree-Node-Right tree) value hi cmp-fn))))))
 
 
 ;;; ================================================================================
 ;;; Vector pair bag operations
 
-(defun WB-Bag-Tree-Vector-Pair-Union (pr1 pr2 lo hi)
-  (let ((new-pr any-equivalent? (Vector-Pair-Bag-Union pr1 pr2 lo hi)))
+(defun WB-Bag-Tree-Vector-Pair-Union (pr1 pr2 lo hi cmp-fn)
+  (declare (type function cmp-fn))
+  (let ((new-pr any-equivalent? (Vector-Pair-Bag-Union pr1 pr2 lo hi cmp-fn)))
     (if any-equivalent?
 	;; Let's just do it the slow way -- it's not supposed to happen often.
 	(let ((result nil))
 	  ;; Hmm -- need a generalization of `reduce' to multiple sequences.
 	  (dotimes (i (length (car new-pr)))
 	    (setq result (WB-Bag-Tree-With result (svref (car new-pr) i)
-					   (svref (cdr new-pr) i))))
+					   cmp-fn (svref (cdr new-pr) i))))
 	  result)
       (if (> (length (car new-pr)) *WB-Tree-Max-Vector-Length*)
 	  (let ((split-point (floor (length (car new-pr)) 2)))
@@ -3145,9 +3149,10 @@ removed."
 					 (Vector-Subseq (cdr new-pr) (1+ split-point)))))
 	new-pr))))
 
-(defun Vector-Pair-Bag-Union (pr1 pr2 lo hi)
+(defun Vector-Pair-Bag-Union (pr1 pr2 lo hi cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type cons pr1 pr2))
+	   (type cons pr1 pr2)
+	   (type function cmp-fn))
   (let ((vals1 (the simple-vector (car pr1)))
 	(vals2 (the simple-vector (car pr2)))
 	(counts1 (cdr pr1))
@@ -3158,14 +3163,14 @@ removed."
 	 (len2 (length vals2))))
     (declare (type fixnum i1 i2 len1 len2))
     (unless (eq lo Hedge-Negative-Infinity)
-      (do () ((or (= i1 len1) (less-than? lo (svref vals1 i1))))
+      (do () ((or (= i1 len1) (less-than?-cmp lo (svref vals1 i1) cmp-fn)))
 	(incf i1))
-      (do () ((or (= i2 len2) (less-than? lo (svref vals2 i2))))
+      (do () ((or (= i2 len2) (less-than?-cmp lo (svref vals2 i2) cmp-fn)))
 	(incf i2)))
     (unless (eq hi Hedge-Positive-Infinity)
-      (do () ((or (= i1 len1) (less-than? (svref vals1 (1- len1)) hi)))
+      (do () ((or (= i1 len1) (less-than?-cmp (svref vals1 (1- len1)) hi cmp-fn)))
 	(decf len1))
-      (do () ((or (= i2 len2) (less-than? (svref vals2 (1- len2)) hi)))
+      (do () ((or (= i2 len2) (less-than?-cmp (svref vals2 (1- len2)) hi cmp-fn)))
 	(decf len2)))
     (do ((vals nil)
 	 (counts nil)
@@ -3187,7 +3192,7 @@ removed."
 	    (t
 	     (let ((val1 (svref vals1 i1))
 		   (val2 (svref vals2 i2))
-		   ((comp (compare val1 val2))))
+		   ((comp (funcall cmp-fn val1 val2))))
 	       (ecase comp
 		 (:equal
 		  (push val1 vals)
@@ -3205,17 +3210,18 @@ removed."
 		  (incf i2))
 		 (:unequal
 		  (push (Equivalent-Bag-Union val1 (svref counts1 i1)
-					      val2 (svref counts2 i2))
+					      val2 (svref counts2 i2) cmp-fn)
 			vals)
 		  (push 0 counts)
 		  (incf i1)
 		  (incf i2)
 		  (setq any-equivalent? t)))))))))
 
-(defun WB-Bag-Tree-Vector-Pair-Sum (pr1 pr2 lo hi)
+(defun WB-Bag-Tree-Vector-Pair-Sum (pr1 pr2 lo hi cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type cons pr1 pr2))
-  (let ((new-pr any-equivalent? (Vector-Pair-Bag-Sum pr1 pr2 lo hi))
+	   (type cons pr1 pr2)
+	   (type function cmp-fn))
+  (let ((new-pr any-equivalent? (Vector-Pair-Bag-Sum pr1 pr2 lo hi cmp-fn))
 	((len (length (the simple-vector (car new-pr))))))
     (if any-equivalent?
 	;; Let's just do it the slow way -- it's not supposed to happen often.
@@ -3223,7 +3229,7 @@ removed."
 	  ;; Hmm -- need a generalization of `reduce' to multiple sequences.
 	  (dotimes (i len)
 	    (setq result (WB-Bag-Tree-With result (svref (car new-pr) i)
-					   (svref (cdr new-pr) i))))
+					   cmp-fn (svref (cdr new-pr) i))))
 	  result)
       (if (> len *WB-Tree-Max-Vector-Length*)
 	  (let ((split-point (floor len 2)))
@@ -3235,9 +3241,10 @@ removed."
 					 (Vector-Subseq (cdr new-pr) (1+ split-point)))))
 	new-pr))))
 
-(defun Vector-Pair-Bag-Sum (pr1 pr2 lo hi)
+(defun Vector-Pair-Bag-Sum (pr1 pr2 lo hi cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type cons pr1 pr2))
+	   (type cons pr1 pr2)
+	   (type function cmp-fn))
   (let ((vals1 (the simple-vector (car pr1)))
 	(vals2 (the simple-vector (car pr2)))
 	(counts1 (cdr pr1))
@@ -3248,14 +3255,14 @@ removed."
 	 (len2 (length vals2))))
     (declare (type fixnum i1 i2 len1 len2))
     (unless (eq lo Hedge-Negative-Infinity)
-      (do () ((or (= i1 len1) (less-than? lo (svref vals1 i1))))
+      (do () ((or (= i1 len1) (less-than?-cmp lo (svref vals1 i1) cmp-fn)))
 	(incf i1))
-      (do () ((or (= i2 len2) (less-than? lo (svref vals2 i2))))
+      (do () ((or (= i2 len2) (less-than?-cmp lo (svref vals2 i2) cmp-fn)))
 	(incf i2)))
     (unless (eq hi Hedge-Positive-Infinity)
-      (do () ((or (= i1 len1) (less-than? (svref vals1 (1- len1)) hi)))
+      (do () ((or (= i1 len1) (less-than?-cmp (svref vals1 (1- len1)) hi cmp-fn)))
 	(decf len1))
-      (do () ((or (= i2 len2) (less-than? (svref vals2 (1- len2)) hi)))
+      (do () ((or (= i2 len2) (less-than?-cmp (svref vals2 (1- len2)) hi cmp-fn)))
 	(decf len2)))
     (do ((vals nil)
 	 (counts nil)
@@ -3277,7 +3284,7 @@ removed."
 	    (t
 	     (let ((val1 (svref vals1 i1))
 		   (val2 (svref vals2 i2))
-		   ((comp (compare val1 val2))))
+		   ((comp (funcall cmp-fn val1 val2))))
 	       (ecase comp
 		 (:equal
 		  (push val1 vals)
@@ -3295,16 +3302,17 @@ removed."
 		  (incf i2))
 		 (:unequal
 		  (push (Equivalent-Bag-Union val1 (svref counts1 i1)
-					      val2 (svref counts2 i2))
+					      val2 (svref counts2 i2) cmp-fn)
 			vals)
 		  (push 0 counts)
 		  (incf i1)
 		  (incf i2)
 		  (setq any-equivalent? t)))))))))
 
-(defun Vector-Pair-Bag-Intersect (pr1 pr2 lo hi)
+(defun Vector-Pair-Bag-Intersect (pr1 pr2 lo hi cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type cons pr1 pr2))
+	   (type cons pr1 pr2)
+	   (type function cmp-fn))
   (let ((vals1 (the simple-vector (car pr1)))
 	(vals2 (the simple-vector (car pr2)))
 	(counts1 (cdr pr1))
@@ -3315,14 +3323,14 @@ removed."
 	 (len2 (length vals2))))
     (declare (type fixnum i1 i2 len1 len2))
     (unless (eq lo Hedge-Negative-Infinity)
-      (do () ((or (= i1 len1) (less-than? lo (svref vals1 i1))))
+      (do () ((or (= i1 len1) (less-than?-cmp lo (svref vals1 i1) cmp-fn)))
 	(incf i1))
-      (do () ((or (= i2 len2) (less-than? lo (svref vals2 i2))))
+      (do () ((or (= i2 len2) (less-than?-cmp lo (svref vals2 i2) cmp-fn)))
 	(incf i2)))
     (unless (eq hi Hedge-Positive-Infinity)
-      (do () ((or (= i1 len1) (less-than? (svref vals1 (1- len1)) hi)))
+      (do () ((or (= i1 len1) (less-than?-cmp (svref vals1 (1- len1)) hi cmp-fn)))
 	(decf len1))
-      (do () ((or (= i2 len2) (less-than? (svref vals2 (1- len2)) hi)))
+      (do () ((or (= i2 len2) (less-than?-cmp (svref vals2 (1- len2)) hi cmp-fn)))
 	(decf len2)))
     (do ((vals nil)
 	 (counts nil))
@@ -3331,7 +3339,7 @@ removed."
 			 (Reverse-List-To-Vector counts))))
       (let ((val1 (svref vals1 i1))
 	    (val2 (svref vals2 i2))
-	    ((comp (compare val1 val2))))
+	    ((comp (funcall cmp-fn val1 val2))))
 	(ecase comp
 	  (:equal
 	   (push val1 vals)
@@ -3347,9 +3355,10 @@ removed."
 	   (incf i1)
 	   (incf i2)))))))
 
-(defun Vector-Pair-Bag-Product (pr1 pr2 lo hi)
+(defun Vector-Pair-Bag-Product (pr1 pr2 lo hi cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type cons pr1 pr2))
+	   (type cons pr1 pr2)
+	   (type function cmp-fn))
   (let ((vals1 (the simple-vector (car pr1)))
 	(vals2 (the simple-vector (car pr2)))
 	(counts1 (cdr pr1))
@@ -3360,14 +3369,14 @@ removed."
 	 (len2 (length vals2))))
     (declare (type fixnum i1 i2 len1 len2))
     (unless (eq lo Hedge-Negative-Infinity)
-      (do () ((or (= i1 len1) (less-than? lo (svref vals1 i1))))
+      (do () ((or (= i1 len1) (less-than?-cmp lo (svref vals1 i1) cmp-fn)))
 	(incf i1))
-      (do () ((or (= i2 len2) (less-than? lo (svref vals2 i2))))
+      (do () ((or (= i2 len2) (less-than?-cmp lo (svref vals2 i2) cmp-fn)))
 	(incf i2)))
     (unless (eq hi Hedge-Positive-Infinity)
-      (do () ((or (= i1 len1) (less-than? (svref vals1 (1- len1)) hi)))
+      (do () ((or (= i1 len1) (less-than?-cmp (svref vals1 (1- len1)) hi cmp-fn)))
 	(decf len1))
-      (do () ((or (= i2 len2) (less-than? (svref vals2 (1- len2)) hi)))
+      (do () ((or (= i2 len2) (less-than?-cmp (svref vals2 (1- len2)) hi cmp-fn)))
 	(decf len2)))
     (do ((vals nil)
 	 (counts nil))
@@ -3376,7 +3385,7 @@ removed."
 			 (Reverse-List-To-Vector counts))))
       (let ((val1 (svref vals1 i1))
 	    (val2 (svref vals2 i2))
-	    ((comp (compare val1 val2))))
+	    ((comp (funcall cmp-fn val1 val2))))
 	(ecase comp
 	  (:equal
 	   (push val1 vals)
@@ -3392,9 +3401,10 @@ removed."
 	   (incf i1)
 	   (incf i2)))))))
 
-(defun Vector-Pair-Bag-Diff (pr1 pr2 lo hi)
+(defun Vector-Pair-Bag-Diff (pr1 pr2 lo hi cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type cons pr1 pr2))
+	   (type cons pr1 pr2)
+	   (type function cmp-fn))
   (let ((vals1 (the simple-vector (car pr1)))
 	(vals2 (the simple-vector (car pr2)))
 	(counts1 (cdr pr1))
@@ -3405,10 +3415,10 @@ removed."
 	 (len2 (length vals2))))
     (declare (type fixnum i1 i2 len1 len2))
     (unless (eq lo Hedge-Negative-Infinity)
-      (do () ((or (= i1 len1) (less-than? lo (svref vals1 i1))))
+      (do () ((or (= i1 len1) (less-than?-cmp lo (svref vals1 i1) cmp-fn)))
 	(incf i1)))
     (unless (eq hi Hedge-Positive-Infinity)
-      (do () ((or (= i1 len1) (less-than? (svref vals1 (1- len1)) hi)))
+      (do () ((or (= i1 len1) (less-than?-cmp (svref vals1 (1- len1)) hi cmp-fn)))
 	(decf len1)))
     (do ((vals nil)
 	 (counts nil))
@@ -3421,7 +3431,7 @@ removed."
 			 (Reverse-List-To-Vector counts))))
       (let ((v1 (svref vals1 i1))
 	    (v2 (svref vals2 i2))
-	    ((comp (compare v1 v2))))
+	    ((comp (funcall cmp-fn v1 v2))))
 	(ecase comp
 	  ((:equal)
 	   (let ((c1 (the integer (svref counts1 i1)))
@@ -3443,9 +3453,10 @@ removed."
 	   (incf i1)
 	   (incf i2)))))))
 
-(defun Vector-Pair-Bag-Subbag? (pr1 pr2 lo hi)
+(defun Vector-Pair-Bag-Subbag? (pr1 pr2 lo hi cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type cons pr1 pr2))
+	   (type cons pr1 pr2)
+	   (type function cmp-fn))
   (let ((vals1 (the simple-vector (car pr1)))
 	(vals2 (the simple-vector (car pr2)))
 	(counts1 (cdr pr1))
@@ -3456,17 +3467,17 @@ removed."
 	 (len2 (length vals2))))
     (declare (type fixnum i1 i2 len1 len2))
     (unless (eq lo Hedge-Negative-Infinity)
-      (do () ((or (= i1 len1) (less-than? lo (svref vals1 i1))))
+      (do () ((or (= i1 len1) (less-than?-cmp lo (svref vals1 i1) cmp-fn)))
 	(incf i1)))
     (unless (eq hi Hedge-Positive-Infinity)
-      (do () ((or (= i1 len1) (less-than? (svref vals1 (1- len1)) hi)))
+      (do () ((or (= i1 len1) (less-than?-cmp (svref vals1 (1- len1)) hi cmp-fn)))
 	(decf len1)))
     (do ()
 	((or (= i1 len1) (= i2 len2))
 	 (= i1 len1))
       (let ((v1 (svref vals1 i1))
 	    (v2 (svref vals2 i2))
-	    ((comp (compare v1 v2))))
+	    ((comp (funcall cmp-fn v1 v2))))
 	(ecase comp
 	  ((:equal)
 	   (when (gen > (svref counts1 i1) (svref counts2 i2))
@@ -3488,8 +3499,8 @@ removed."
 				&body body)
   "Iterates over the pairs of the bag, for each one binding `val-var' to the
 value and `count-var' to its member count."
-  (let ((body-fn (gensym "BODY-"))
-	(recur-fn (gensym "RECUR-")))
+  (let ((body-fn (gensymx #:body-))
+	(recur-fn (gensymx #:recur-)))
     `(block nil
        (labels ((,body-fn (,val-var ,count-var)
 		   (declare (type integer ,count-var))
@@ -3502,8 +3513,8 @@ value and `count-var' to its member count."
 		      (progn
 			(,recur-fn (WB-Bag-Tree-Node-Left tree))
 			(let ((value (WB-Bag-Tree-Node-Value tree)))
-			  (if (Equivalent-Bag? value)
-			      (dolist (pr (Equivalent-Bag-Alist value))
+			  (if (Equivalent-Node? value)
+			      (dolist (pr (Equivalent-Node-List value))
 				(,body-fn (car pr) (cdr pr)))
 			    (,body-fn value (WB-Bag-Tree-Node-Count tree))))
 			(,recur-fn (WB-Bag-Tree-Node-Right tree)))))))
@@ -3565,8 +3576,8 @@ value and `count-var' to its member count."
 	     (setf (svref iter (+ sp 2)) 0))
 	    (t
 	     (let ((val (WB-Bag-Tree-Node-Value node)))
-	       (if (Equivalent-Bag? val)
-		   (let ((alist (Equivalent-Bag-Alist val)))
+	       (if (Equivalent-Node? val)
+		   (let ((alist (Equivalent-Node-List val)))
 		     (if (< (1- idx1) (length alist))
 			 (if (< idx2 (the fixnum (cdr (nth (1- idx1) alist))))
 			     (return)
@@ -3608,8 +3619,8 @@ value and `count-var' to its member count."
 	     (values (svref (car node) idx1) t)))
 	  (t
 	   (let ((val (WB-Bag-Tree-Node-Value node)))
-	     (if (Equivalent-Bag? val)
-		 (let ((alist (Equivalent-Bag-Alist val)))
+	     (if (Equivalent-Node? val)
+		 (let ((alist (Equivalent-Node-List val)))
 		   (incf (the fixnum (svref iter (+ sp 2))))
 		   (WB-Bag-Tree-Iterator-Canonicalize iter)
 		   (values (car (nth (1- idx1) alist)) t))
@@ -3689,8 +3700,8 @@ value and `count-var' to its member count."
 	(if (consp node)
 	    (values (svref (car node) idx) (svref (cdr node) idx) t)
 	  (let ((val (WB-Bag-Tree-Node-Value node)))
-	    (if (Equivalent-Bag? val)
-		(let ((pr (nth (1- idx) (Equivalent-Bag-Alist val))))
+	    (if (Equivalent-Node? val)
+		(let ((pr (nth (1- idx) (Equivalent-Node-List val))))
 		  (values (car pr) (cdr pr) t))
 	      (values val (WB-Bag-Tree-Node-Count node) t))))))))
 
@@ -3728,8 +3739,8 @@ value and `count-var' to its member count."
 	    (t
 	     (walk (WB-Bag-Tree-Node-Left node)
 		   (let ((value (WB-Bag-Tree-Node-Value node)))
-		     (if (Equivalent-Bag? value)
-			 (rlabels (iter (Equivalent-Bag-Alist value))
+		     (if (Equivalent-Node? value)
+			 (rlabels (iter (Equivalent-Node-List value))
 			   (iter (prs)
 			     (if prs
 				 (copies prs 0)
@@ -3786,8 +3797,8 @@ value and `count-var' to its member count."
 	    (t
 	     (walk (WB-Bag-Tree-Node-Right node)
 		   (let ((value (WB-Bag-Tree-Node-Value node)))
-		     (if (Equivalent-Bag? value)
-			 (rlabels (iter (reverse (Equivalent-Bag-Alist value)))
+		     (if (Equivalent-Node? value)
+			 (rlabels (iter (reverse (Equivalent-Node-List value)))
 			   (iter (prs)
 			     (if prs
 				 (copies prs 0)
@@ -3840,8 +3851,8 @@ value and `count-var' to its member count."
 	    (t
 	     (walk (WB-Bag-Tree-Node-Left node)
 		   (let ((value (WB-Bag-Tree-Node-Value node)))
-		     (if (Equivalent-Bag? value)
-			 (rlabels (iter (Equivalent-Bag-Alist value))
+		     (if (Equivalent-Node? value)
+			 (rlabels (iter (Equivalent-Node-List value))
 			   (iter (prs)
 			     (if prs
 				 (lambda (op)
@@ -3883,8 +3894,8 @@ value and `count-var' to its member count."
 	    (t
 	     (walk (WB-Bag-Tree-Node-Right node)
 		   (let ((value (WB-Bag-Tree-Node-Value node)))
-		     (if (Equivalent-Bag? value)
-			 (rlabels (iter (reverse (Equivalent-Bag-Alist value)))
+		     (if (Equivalent-Node? value)
+			 (rlabels (iter (reverse (Equivalent-Node-List value)))
 			   (iter (prs)
 			     (if prs
 				 (lambda (op)
@@ -3905,16 +3916,17 @@ value and `count-var' to its member count."
 ;;; ================================================================================
 ;;; Equivalent-Bag routines
 
-(defun Equivalent-Bag-Sum (val1 count1 val2 count2)
+(defun Equivalent-Bag-Sum (val1 count1 val2 count2 cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type integer count1 count2))
-  (if (Equivalent-Bag? val1)
-      (let ((alist1 (Equivalent-Bag-Alist val1)))
-	(if (Equivalent-Bag? val2)
-	    (let ((alist2 (copy-list (Equivalent-Bag-Alist val2)))
+	   (type integer count1 count2)
+	   (type function cmp-fn))
+  (if (Equivalent-Node? val1)
+      (let ((alist1 (Equivalent-Node-List val1)))
+	(if (Equivalent-Node? val2)
+	    (let ((alist2 (copy-list (Equivalent-Node-List val2)))
 		  (result nil))
 	      (dolist (pr1 alist1)
-		(let ((pr2 (assoc (car pr1) alist2 :test #'equal?)))
+		(let ((pr2 (assoc (car pr1) alist2 :test (equal?-fn cmp-fn))))
 		  (if pr2
 		      (progn (push (cons (car pr1) (gen + (cdr pr1) (cdr pr2)))
 				   result)
@@ -3922,27 +3934,28 @@ value and `count-var' to its member count."
 		    (push pr1 result))))
 	      (setq result (nconc alist2 result))
 	      (Make-Equivalent-Bag result))
-	  (let ((pr1 (assoc val2 alist1 :test #'equal?)))
+	  (let ((pr1 (assoc val2 alist1 :test (equal?-fn cmp-fn))))
 	    (if pr1
 		(Make-Equivalent-Bag (cons (cons val2 (gen + (cdr pr1) count2))
 					   (cl:remove pr1 alist1)))
 	      (Make-Equivalent-Bag (cons (cons val2 count2) alist1))))))
-    (if (Equivalent-Bag? val2)
-	(Equivalent-Bag-Sum val2 count2 val1 count1)
-      (if (equal? val1 val2)
+    (if (Equivalent-Node? val2)
+	(Equivalent-Bag-Sum val2 count2 val1 count1 cmp-fn)
+      (if (equal?-cmp val1 val2 cmp-fn)
 	  (values val1 (gen + count1 count2))
 	(Make-Equivalent-Bag (list (cons val1 count1) (cons val2 count2)))))))
 
-(defun Equivalent-Bag-Union (val1 count1 val2 count2)
+(defun Equivalent-Bag-Union (val1 count1 val2 count2 cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type integer count1 count2))
-  (if (Equivalent-Bag? val1)
-      (let ((alist1 (Equivalent-Bag-Alist val1)))
-	(if (Equivalent-Bag? val2)
-	    (let ((alist2 (copy-list (Equivalent-Bag-Alist val2)))
+	   (type integer count1 count2)
+	   (type function cmp-fn))
+  (if (Equivalent-Node? val1)
+      (let ((alist1 (Equivalent-Node-List val1)))
+	(if (Equivalent-Node? val2)
+	    (let ((alist2 (copy-list (Equivalent-Node-List val2)))
 		  (result nil))
 	      (dolist (pr1 alist1)
-		(let ((pr2 (assoc (car pr1) alist2 :test #'equal?)))
+		(let ((pr2 (assoc (car pr1) alist2 :test (equal?-fn cmp-fn))))
 		  (if pr2
 		      (progn (push (cons (car pr1) (gen max (cdr pr1) (cdr pr2)))
 				   result)
@@ -3950,77 +3963,80 @@ value and `count-var' to its member count."
 		    (push pr1 result))))
 	      (setq result (nconc alist2 result))
 	      (Make-Equivalent-Bag result))
-	  (let ((pr1 (assoc val2 alist1 :test #'equal?)))
+	  (let ((pr1 (assoc val2 alist1 :test (equal?-fn cmp-fn))))
 	    (if pr1
 		(Make-Equivalent-Bag (cons (cons val2 (gen max (cdr pr1) count2))
 					   (cl:remove pr1 alist1)))
 	      (Make-Equivalent-Bag (cons (cons val2 count2) alist1))))))
-    (if (Equivalent-Bag? val2)
-	(Equivalent-Bag-Union val2 count2 val1 count1)
-      (if (equal? val1 val2)
+    (if (Equivalent-Node? val2)
+	(Equivalent-Bag-Union val2 count2 val1 count1 cmp-fn)
+      (if (equal?-cmp val1 val2 cmp-fn)
 	  (values val1 (gen max count1 count2))
 	(Make-Equivalent-Bag (list (cons val1 count1) (cons val2 count2)))))))
 
-(defun Equivalent-Bag-Intersect (val1 count1 val2 count2)
+(defun Equivalent-Bag-Intersect (val1 count1 val2 count2 cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type integer count1 count2))
-  (if (Equivalent-Bag? val1)
-      (let ((alist1 (Equivalent-Bag-Alist val1)))
-	(if (Equivalent-Bag? val2)
-	    (let ((alist2 (Equivalent-Bag-Alist val2))
+	   (type integer count1 count2)
+	   (type function cmp-fn))
+  (if (Equivalent-Node? val1)
+      (let ((alist1 (Equivalent-Node-List val1)))
+	(if (Equivalent-Node? val2)
+	    (let ((alist2 (Equivalent-Node-List val2))
 		  (result nil))
 	      (dolist (pr1 alist1)
-		(let ((pr2 (assoc (car pr1) alist2 :test #'equal?)))
+		(let ((pr2 (assoc (car pr1) alist2 :test (equal?-fn cmp-fn))))
 		  (when pr2
 		    (push (cons (car pr1) (gen min (cdr pr1) (cdr pr2)))
 			  result))))
 	      (cond ((null result) nil)
 		    ((null (cdr result)) (values t (caar result) (cdar result)))
 		    (t (values t (Make-Equivalent-Bag result)))))
-	  (let ((pr1 (assoc val2 alist1 :test #'equal?)))
+	  (let ((pr1 (assoc val2 alist1 :test (equal?-fn cmp-fn))))
 	    (and pr1
 		 (values t val2 (gen min (cdr pr1) count2))))))
-    (if (Equivalent-Bag? val2)
-	(let ((pr2 (assoc val1 (Equivalent-Bag-Alist val2) :test #'equal?)))
+    (if (Equivalent-Node? val2)
+	(let ((pr2 (assoc val1 (Equivalent-Node-List val2) :test (equal?-fn cmp-fn))))
 	  (and pr2 (values t val1 (gen min count1 (cdr pr2)))))
-      (and (equal? val1 val2)
+      (and (equal?-cmp val1 val2 cmp-fn)
 	   (values t val1 (gen min count1 count2))))))
 
-(defun Equivalent-Bag-Product (val1 count1 val2 count2)
+(defun Equivalent-Bag-Product (val1 count1 val2 count2 cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type integer count1 count2))
-  (if (Equivalent-Bag? val1)
-      (let ((alist1 (Equivalent-Bag-Alist val1)))
-	(if (Equivalent-Bag? val2)
-	    (let ((alist2 (Equivalent-Bag-Alist val2))
+	   (type integer count1 count2)
+	   (type function cmp-fn))
+  (if (Equivalent-Node? val1)
+      (let ((alist1 (Equivalent-Node-List val1)))
+	(if (Equivalent-Node? val2)
+	    (let ((alist2 (Equivalent-Node-List val2))
 		  (result nil))
 	      (dolist (pr1 alist1)
-		(let ((pr2 (assoc (car pr1) alist2 :test #'equal?)))
+		(let ((pr2 (assoc (car pr1) alist2 :test (equal?-fn cmp-fn))))
 		  (when pr2
 		    (push (cons (car pr1) (gen * (cdr pr1) (cdr pr2)))
 			  result))))
 	      (cond ((null result) nil)
 		    ((null (cdr result)) (values t (caar result) (cdar result)))
 		    (t (values t (Make-Equivalent-Bag result)))))
-	  (let ((pr1 (assoc val2 alist1 :test #'equal?)))
+	  (let ((pr1 (assoc val2 alist1 :test (equal?-fn cmp-fn))))
 	    (and pr1
 		 (values t val2 (gen * (cdr pr1) count2))))))
-    (if (Equivalent-Bag? val2)
-	(let ((pr2 (assoc val1 (Equivalent-Bag-Alist val2) :test #'equal?)))
+    (if (Equivalent-Node? val2)
+	(let ((pr2 (assoc val1 (Equivalent-Node-List val2) :test (equal?-fn cmp-fn))))
 	  (and pr2 (values t val1 (gen * count1 (cdr pr2)))))
-      (and (equal? val1 val2)
+      (and (equal?-cmp val1 val2 cmp-fn)
 	   (values t val1 (gen * count1 count2))))))
 
-(defun Equivalent-Bag-Difference (val1 count1 val2 count2)
+(defun Equivalent-Bag-Difference (val1 count1 val2 count2 cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type integer count1 count2))
-  (if (Equivalent-Bag? val1)
-      (let ((alist1 (Equivalent-Bag-Alist val1))
-	    (alist2 (if (Equivalent-Bag? val2) (Equivalent-Bag-Alist val2)
+	   (type integer count1 count2)
+	   (type function cmp-fn))
+  (if (Equivalent-Node? val1)
+      (let ((alist1 (Equivalent-Node-List val1))
+	    (alist2 (if (Equivalent-Node? val2) (Equivalent-Node-List val2)
 		      (list (cons val2 count2))))
 	    (result nil))
 	(dolist (pr1 alist1)
-	  (let ((pr2 (assoc (car pr1) alist2 :test #'equal?)))
+	  (let ((pr2 (assoc (car pr1) alist2 :test (equal?-fn cmp-fn))))
 	    (cond ((null pr2)
 		   (push pr1 result))
 		  ((gen > (cdr pr1) (cdr pr2))
@@ -4030,97 +4046,91 @@ value and `count-var' to its member count."
 	(cond ((null result) nil)
 	      ((null (cdr result)) (values t (caar result) (cdar result)))
 	      (t (values t (Make-Equivalent-Bag result)))))
-    (if (Equivalent-Bag? val2)
-	(let ((pr2 (assoc val1 (Equivalent-Bag-Alist val2) :test #'equal?)))
+    (if (Equivalent-Node? val2)
+	(let ((pr2 (assoc val1 (Equivalent-Node-List val2) :test (equal?-fn cmp-fn))))
 	  (cond ((null pr2)
 		 (values t val1 count1))
 		((gen > count1 (cdr pr2))
 		 (values t val1 (gen - count1 (cdr pr2))))))
-      (if (equal? val1 val2)
+      (if (equal?-cmp val1 val2 cmp-fn)
 	  (and (gen > count1 count2) (values t val1 (gen - count1 count2)))
 	(values t val1 count1)))))
 
-(defun Equivalent-Bag-Subbag? (val1 count1 val2 count2)
+(defun Equivalent-Bag-Subbag? (val1 count1 val2 count2 cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type integer count1 count2))
-  (if (Equivalent-Bag? val1)
-      (and (Equivalent-Bag? val2)
-	   (let ((alist2 (Equivalent-Bag-Alist val2)))
-	     (dolist (pr1 (Equivalent-Bag-Alist val1) t)
-	       (let ((pr2 (assoc (car pr1) alist2 :test #'equal?)))
+	   (type integer count1 count2)
+	   (type function cmp-fn))
+  (if (Equivalent-Node? val1)
+      (and (Equivalent-Node? val2)
+	   (let ((alist2 (Equivalent-Node-List val2)))
+	     (dolist (pr1 (Equivalent-Node-List val1) t)
+	       (let ((pr2 (assoc (car pr1) alist2 :test (equal?-fn cmp-fn))))
 		 (unless (and pr2 (gen <= (cdr pr1) (cdr pr2)))
 		   (return nil))))))
-    (if (Equivalent-Bag? val2)
-	(let ((pr2 (assoc val1 (Equivalent-Bag-Alist val2) :test #'equal?)))
+    (if (Equivalent-Node? val2)
+	(let ((pr2 (assoc val1 (Equivalent-Node-List val2) :test (equal?-fn cmp-fn))))
 	  (and pr2 (gen <= count1 (cdr pr2))))
-      (and (equal? val1 val2)
+      (and (equal?-cmp val1 val2 cmp-fn)
 	   (gen <= count1 count2)))))
 
-(defun Equivalent-Bag-Disjoint? (val1 val2)
-  "Both `val1' and `val2' may be single values or `Equivalent-Bag's of values.
+(defun Equivalent-Bag-Disjoint? (val1 val2 cmp-fn)
+  "Both `val1' and `val2' may be single values or `Equivalent-Node's of values.
 If their intersection is null, returns true, else false."
-  (declare (optimize (speed 3) (safety 0)))
-  (if (Equivalent-Bag? val1)
-      (if (Equivalent-Bag? val2)
-	  (dolist (m1 (Equivalent-Bag-Alist val1) t)
-	    (when (assoc m1 (Equivalent-Bag-Alist val2) :test #'equal?)
+  (declare (optimize (speed 3) (safety 0))
+	   (type function cmp-fn))
+  (if (Equivalent-Node? val1)
+      (if (Equivalent-Node? val2)
+	  (dolist (m1 (Equivalent-Node-List val1) t)
+	    (when (assoc m1 (Equivalent-Node-List val2) :test (equal?-fn cmp-fn))
 	      (return nil)))
-	(not (assoc val2 (Equivalent-Bag-Alist val1) :test #'equal?)))
-    (if (Equivalent-Bag? val2)
-	(not (assoc val1 (Equivalent-Bag-Alist val2) :test #'equal?))
-      (not (equal? val1 val2)))))
+	(not (assoc val2 (Equivalent-Node-List val1) :test (equal?-fn cmp-fn))))
+    (if (Equivalent-Node? val2)
+	(not (assoc val1 (Equivalent-Node-List val2) :test (equal?-fn cmp-fn)))
+      (not (equal?-cmp val1 val2 cmp-fn)))))
 
-(defun Equivalent-Bag-Compare (val1 count1 val2 count2)
+(defun Equivalent-Bag-Compare (val1 count1 val2 count2 cmp-fn)
   "Compares two pairs where the key of either or both may be an `Equivalent-Bag'."
   (declare (optimize (speed 3) (safety 0))
-	   (type integer count1 count2))
-  (let ((comp (compare val1 val2)))
+	   (type integer count1 count2)
+	   (type function cmp-fn))
+  (let ((comp (funcall cmp-fn val1 val2)))
     (if (or (eq comp ':less) (eq comp ':greater))
 	comp
-      (if (Equivalent-Bag? val1)
-	  (if (Equivalent-Bag? val2)
-	      (let ((mems1 (Equivalent-Bag-Alist val1))
-		    (mems2 (Equivalent-Bag-Alist val2))
-		    ((len1 (length mems1))
+      (if (Equivalent-Node? val1)
+	  (if (Equivalent-Node? val2)
+	      (let ((mems1 (Equivalent-Node-List val1))
+		    (mems2 (Equivalent-Node-List val2))
+		    ((len1 (length mems2))
 		     (len2 (length mems2))))
-		(cond ((< len1 len2) ':greater)
-		      ((> len1 len2) ':less)
+		(declare (type integer len1 len2))
+		;; The reason these are "backward": in order for us to have gotten here, everything to
+		;; our left must have been equal, and we know that the total sizes of the two bags are
+		;; equal, so if, say, bag 1 has a smaller total here, then it must have some element
+		;; greater than these following this node.
+		(cond ((gen < len1 len2) ':greater)
+		      ((gen > len1 len2) ':less)
 		      ((cl:every #'(lambda (pr1)
-				     (let ((pr2 (assoc (car pr1) mems2 :test #'equal?)))
-				       (and pr2 (equal? (cdr pr1) (cdr pr2)))))
+				     (let ((pr2 (assoc (car pr1) mems2 :test (equal?-fn cmp-fn))))
+				       (and pr2 (equal?-cmp (cdr pr1) (cdr pr2) cmp-fn))))
 				 mems1)
 		       ':equal)
 		      (t
-		       (let ((set1 (reduce #'WB-Set-Tree-With (mapcar #'cdr mems1)
-					   :initial-value nil))
-			     (set2 (reduce #'WB-Set-Tree-With (mapcar #'cdr mems2)
-					   :initial-value nil))
-			     ((comp (WB-Set-Tree-Compare set1 set2))))
+		       ;; Odd-looking, but it's order-independent and implements a strict weak ordering
+		       ;; (because `WB-Set-Tree-Compare' does).  We don't pass down `cmp-fn' because we're
+		       ;; setifying the counts, not the elements.
+		       (let ((set1 (cl:reduce (fn (s x) (WB-Set-Tree-With s x #'compare)) (mapcar #'cdr mems1)
+					      :initial-value nil))
+			     (set2 (cl:reduce (fn (s x) (WB-Set-Tree-With s x #'compare)) (mapcar #'cdr mems2)
+					      :initial-value nil))
+			     ((comp (WB-Set-Tree-Compare set1 set2 #'compare))))
 			 (if (eq comp ':equal) ':unequal comp)))))
 	    ':less)
-	(cond ((Equivalent-Bag? val2)
+	(cond ((Equivalent-Node? val2)
 	       ':greater)
 	      ((gen < count1 count2) ':less)
 	      ((gen > count1 count2) ':greater)
 	      (t comp))))))
 
-(defmethod compare (x (eqvs Equivalent-Bag))
-  "Returns `:less' or `:greater' if `x' is less than resp. greater than the
-values in `eqvs'; or EITHER `:equal' or `:unequal' if `x' is equivalent to any
-value in `eqvs'."
-  (compare x (caar (Equivalent-Bag-Alist eqvs))))
-
-(defmethod compare ((eqvs Equivalent-Bag) x)
-  "Returns `:less' or `:greater' if the values in `eqvs' are less than resp.
-greater than `x'; or EITHER `:equal' or `:unequal' if `x' is equivalent to
-any value in `eqvs'."
-  (compare (caar (Equivalent-Bag-Alist eqvs)) x))
-
-(defmethod compare ((eqvs1 Equivalent-Bag) (eqvs2 Equivalent-Bag))
-  "Returns `:less' or `:greater' if the values in `eqvs1' are less than resp.
-greater than those in `eqvs2'; returns EITHER `:equal' or `:unequal' if those
-in `eqvs1' are equivalent to those in `eqvs2'."
-  (compare (caar (Equivalent-Bag-Alist eqvs1)) (caar (Equivalent-Bag-Alist eqvs2))))
 
 ;;; ================================================================================
 ;;; ================================================================================
@@ -4139,7 +4149,7 @@ in `eqvs1' are equivalent to those in `eqvs2'."
 	    (:print-function WB-Map-Tree-Node-Print))
   (Left  nil :type WB-Map-Tree :read-only t)
   (Right nil :type WB-Map-Tree :read-only t)
-  ;; If we get equivalent keys, then the `Key' is an `Equivalent-Map', and the
+  ;; If we get equivalent keys, then the `Key' is an `Equivalent-Node', and the
   ;; `Value' is unused.
   (Key nil :read-only t)		; the domain value
   (Value nil :read-only t)		; the range value
@@ -4169,11 +4179,8 @@ in `eqvs1' are equivalent to those in `eqvs2'."
 
 (declaim (inline Make-Equivalent-Map))
 
-;;; That is, a map whose domain members are equivalent.
-(defstruct (Equivalent-Map
-	    (:constructor Make-Equivalent-Map (Alist))
-	    (:predicate Equivalent-Map?))
-  (Alist nil :type list :read-only t))	; mapping equivalent keys to their values
+(defun Make-Equivalent-Map (alist)
+  (Make-Equivalent-Node nil alist))
 
 (declaim (ftype (function (t) fixnum) Map-Key-Size))
 (declaim (inline Map-Key-Size))
@@ -4181,8 +4188,8 @@ in `eqvs1' are equivalent to those in `eqvs2'."
 (defun Map-Key-Size (key)
   "The number of domain values represented by `key', which can be more than 1 if
 `key' is an `Equivalent-Map'."
-  (if (Equivalent-Map? key)
-      (length (Equivalent-Map-Alist key))
+  (if (Equivalent-Node? key)
+      (length (Equivalent-Node-List key))
     1))
 
 (declaim (ftype (function (WB-Map-Tree) fixnum) WB-Map-Tree-Size))
@@ -4215,8 +4222,8 @@ in `eqvs1' are equivalent to those in `eqvs2'."
 	 (values (svref (car tree) 0) (svref (cdr tree) 0)))
 	(t
 	 (let ((key (WB-Map-Tree-Node-Key tree)))
-	   (if (Equivalent-Map? key)
-	       (let ((pr (car (Equivalent-Map-Alist key))))
+	   (if (Equivalent-Node? key)
+	       (let ((pr (car (Equivalent-Node-List key))))
 		 (values (car pr) (cdr pr)))
 	     (values key (WB-Map-Tree-Node-Value tree)))))))
 
@@ -4226,8 +4233,8 @@ arbitrary least key and its value if there are more than one."
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Map-Tree tree))
   (let ((key val (WB-Map-Tree-Minimum-Pair tree)))
-    (if (Equivalent-Map? key)
-	(let ((pr (car (Equivalent-Map-Alist key))))
+    (if (Equivalent-Node? key)
+	(let ((pr (car (Equivalent-Node-List key))))
 	  (values (car pr) (cdr pr)))
       (values key val))))
 
@@ -4249,8 +4256,8 @@ arbitrary least key and its value if there are more than one."
 				       (WB-Map-Tree-Less-Least-Pair left)
 				       (WB-Map-Tree-Node-Right tree))
 	     (let ((key (WB-Map-Tree-Node-Key tree)))
-	       (if (Equivalent-Map? key)
-		   (let ((alist (Equivalent-Map-Alist key)))
+	       (if (Equivalent-Node? key)
+		   (let ((alist (Equivalent-Node-List key)))
 		     (if (= (length alist) 2)
 			 (Make-WB-Map-Tree-Node (caadr alist) (cdadr alist) nil
 						(WB-Map-Tree-Node-Right tree))
@@ -4272,8 +4279,8 @@ arbitrary greatest key and its value if there are more than one."
       (if right
 	  (WB-Map-Tree-Greatest-Pair right)
 	(let ((key (WB-Map-Tree-Node-Key tree)))
-	  (if (Equivalent-Map? key)
-	      (let ((pr (car (cl:last (Equivalent-Map-Alist key)))))
+	  (if (Equivalent-Node? key)
+	      (let ((pr (car (cl:last (Equivalent-Node-List key)))))
 		(values (car pr) (cdr pr)))
 	    (values key (WB-Map-Tree-Node-Value tree))))))))
 
@@ -4281,82 +4288,89 @@ arbitrary greatest key and its value if there are more than one."
 ;;; ================================================================================
 ;;; Lookup
 
-(defun WB-Map-Tree-Lookup (tree key)
+(defun WB-Map-Tree-Lookup (tree key key-cmp-fn)
   "If `tree' contains a pair whose key is `key', returns two values, true and
 the associated value; otherwise `nil'."
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Map-Tree tree))
+	   (type WB-Map-Tree tree)
+	   (type function key-cmp-fn))
   (cond ((null tree) nil)
 	((consp tree)
-	 (let ((found? idx (Vector-Set-Binary-Search (car tree) key)))
+	 (let ((found? idx (Vector-Set-Binary-Search (car tree) key key-cmp-fn)))
 	   (and (eq found? ':equal)
 		(values t (svref (cdr tree) idx)))))
 	(t
 	 (let ((node-key (WB-Map-Tree-Node-Key tree))
-	       ((comp (compare key node-key))))
+	       ((comp (funcall key-cmp-fn key node-key))))
 	   (ecase comp
 	     ((:equal :unequal)
-	       (if (Equivalent-Map? node-key)
-		   (let ((pr (assoc key (Equivalent-Map-Alist node-key) :test #'equal?)))
+	       (if (Equivalent-Node? node-key)
+		   (let ((pr (assoc key (Equivalent-Node-List node-key) :test (equal?-fn key-cmp-fn))))
 		     (and pr (values t (cdr pr))))
 		 (and (eq comp ':equal)
 		      (values t (WB-Map-Tree-Node-Value tree)))))
 	     (:less
-	       (WB-Map-Tree-Lookup (WB-Map-Tree-Node-Left tree) key))
+	       (WB-Map-Tree-Lookup (WB-Map-Tree-Node-Left tree) key key-cmp-fn))
 	     (:greater
-	       (WB-Map-Tree-Lookup (WB-Map-Tree-Node-Right tree) key)))))))
+	       (WB-Map-Tree-Lookup (WB-Map-Tree-Node-Right tree) key key-cmp-fn)))))))
 
-(defun WB-Map-Tree-Find-Equivalent (tree key)
+(defun WB-Map-Tree-Find-Equivalent (tree key key-cmp-fn)
   "If `tree' contains one or more keys equivalent to `value', returns (first
 value) true, (second value) either the one key or an `Equivalent-Map'
 containing the values, and (third value) if the second value was a single
 key, the corresponding value; otherwise `nil'."
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Map-Tree tree))
+	   (type WB-Map-Tree tree)
+	   (type function key-cmp-fn))
   (cond ((null tree) nil)
 	((consp tree)
-	 (let ((found? idx (Vector-Set-Binary-Search (car tree) key)))
+	 (let ((found? idx (Vector-Set-Binary-Search (car tree) key key-cmp-fn)))
 	   (and found? (values t (svref (car tree) idx) (svref (cdr tree) idx)))))
 	(t
 	 (let ((node-key (WB-Map-Tree-Node-Key tree))
-	       ((comp (compare key node-key))))
+	       ((comp (funcall key-cmp-fn key node-key))))
 	   (ecase comp
 	     ((:equal :unequal) (values t node-key (WB-Map-Tree-Node-Value tree)))
 	     (:less
-	       (WB-Map-Tree-Find-Equivalent (WB-Map-Tree-Node-Left tree) key))
+	       (WB-Map-Tree-Find-Equivalent (WB-Map-Tree-Node-Left tree) key key-cmp-fn))
 	     (:greater
-	       (WB-Map-Tree-Find-Equivalent (WB-Map-Tree-Node-Right tree) key)))))))
+	       (WB-Map-Tree-Find-Equivalent (WB-Map-Tree-Node-Right tree) key key-cmp-fn)))))))
 
 
 ;;; ================================================================================
 ;;; Map-with
 
-(defun WB-Map-Tree-With (tree key value)
+;;; This could almost just call `WB-Map-Tree-Update', except that it has to handle the case
+;;; where `key' is an `Equivalent-Node', which can be generated internally by `WB-Map-Tree-Split'
+;;; via `WB-Map-Tree-Concat'.
+(defun WB-Map-Tree-With (tree key value key-cmp-fn val-cmp-fn)
   "Returns a new tree like `tree' but with the pair < `key', `value' > added,
 shadowing any previous pair with the same key."
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Map-Tree tree))
+	   (type WB-Map-Tree tree)
+	   (type function key-cmp-fn val-cmp-fn))
   (cond ((null tree)
-	 (if (not (Equivalent-Map? key))
+	 (if (not (Equivalent-Node? key))
 	     (cons (vector key) (vector value))
 	   (Make-WB-Map-Tree-Node key nil nil nil)))
 	((consp tree)
-	 (let ((found? idx (Vector-Set-Binary-Search (car tree) key))
+	 (let ((found? idx (Vector-Set-Binary-Search (car tree) key key-cmp-fn))
 	       ((right-start (if found? (1+ idx) idx))))
-	   ;; We have to handle the case where `key' is an `Equivalent-Map', because
+	   ;; We have to handle the case where `key' is an `Equivalent-Node' because
 	   ;; this routine is called by `WB-Map-Tree-Concat'.
-	   (if (and (eq found? ':equal) (not (Equivalent-Map? key)))
-	       (cons (car tree)
-		     (Vector-Update (cdr tree) idx value))
+	   (if (and (eq found? ':equal) (not (Equivalent-Node? key)))
+	       (if (equal?-cmp (svref (cdr tree) idx) value val-cmp-fn)
+		   tree
+		 (cons (car tree) (Vector-Update (cdr tree) idx value)))
 	     (if (and (not found?)
 		      (< (length (the simple-vector (car tree)))
 			 *WB-Tree-Max-Vector-Length*)
-		      (not (Equivalent-Map? key)))
+		      (not (Equivalent-Node? key)))
 		 (cons (Vector-Insert (car tree) idx key)
 		       (Vector-Insert (cdr tree) idx value))
 	       (Make-WB-Map-Tree-Node (if found?
 					  (Equivalent-Map-With (svref (car tree) idx) (svref (cdr tree) idx)
-							       key value)
+							       key value key-cmp-fn)
 					key)
 				      value
 				      (and (> idx 0)
@@ -4367,25 +4381,27 @@ shadowing any previous pair with the same key."
 						 (Vector-Subseq (cdr tree) right-start))))))))
 	(t
 	 (let ((node-key (WB-Map-Tree-Node-Key tree))
-	       ((comp (compare key node-key))))
-	   (ecase comp
+	       (node-val (WB-Map-Tree-Node-Value tree))
+	       (node-left (WB-Map-Tree-Node-Left tree))
+	       (node-right (WB-Map-Tree-Node-Right tree))
+	       ((key-comp (funcall key-cmp-fn key node-key))))
+	   (ecase key-comp
 	     ((:equal :unequal)
-	      ;; Since we're probably updating the value anyway, we don't bother trying
-	      ;; to figure out whether we can reuse the node.
-	      (Make-WB-Map-Tree-Node (Equivalent-Map-With node-key (WB-Map-Tree-Node-Value tree) key value)
-				     value
-				     (WB-Map-Tree-Node-Left tree)
-				     (WB-Map-Tree-Node-Right tree)))
+	       (if (and (eq key-comp ':equal) (not (Equivalent-Node? key)) (not (Equivalent-Node? node-key))
+			(equal?-cmp value node-val val-cmp-fn))
+		  tree
+		(Make-WB-Map-Tree-Node (Equivalent-Map-With node-key node-val key value key-cmp-fn)
+				       value node-left node-right)))
 	     ((:less)
-	      (WB-Map-Tree-Build-Node (WB-Map-Tree-Node-Key tree)
-				      (WB-Map-Tree-Node-Value tree)
-				      (WB-Map-Tree-With (WB-Map-Tree-Node-Left tree) key value)
-				      (WB-Map-Tree-Node-Right tree)))
+	      (let ((new-left (WB-Map-Tree-With node-left key value key-cmp-fn val-cmp-fn)))
+		(if (eq new-left node-left)
+		    tree
+		  (WB-Map-Tree-Build-Node node-key node-val new-left node-right))))
 	     ((:greater)
-	      (WB-Map-Tree-Build-Node (WB-Map-Tree-Node-Key tree)
-				      (WB-Map-Tree-Node-Value tree)
-				      (WB-Map-Tree-Node-Left tree)
-				      (WB-Map-Tree-With (WB-Map-Tree-Node-Right tree) key value))))))))
+	       (let ((new-right (WB-Map-Tree-With node-right key value key-cmp-fn val-cmp-fn)))
+		 (if (eq new-right node-right)
+		     tree
+		   (WB-Map-Tree-Build-Node node-key node-val node-left new-right)))))))))
 
 (defun Vector-Update (vec idx val)
   "Returns a new vector like `vec' but with `val' at `idx'."
@@ -4401,29 +4417,33 @@ shadowing any previous pair with the same key."
     new-vec))
 
 
-(defun WB-Map-Tree-Update (tree key value-fn default &optional second-arg)
+;;; Untested and currently unused, but not a bad idea.
+(defun WB-Map-Tree-Update (tree key value-fn default
+   			   &optional (key-cmp-fn #'compare) (val-cmp-fn #'compare))
   "Returns a new tree like `tree', except that the value associated with `key'
-is the result of calling `value-fn' on (a) either the existing such value, if any,
-or else `default', and (b) `second-arg'."
+is the result of calling `value-fn' on either the existing such value, if any,
+or else `default'."
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Map-Tree tree)
-	   (type function value-fn)
+	   (type function value-fn key-cmp-fn val-cmp-fn)
 	   (dynamic-extent value-fn))
   (cond ((null tree)
-	 (cons (vector key) (vector (funcall value-fn default second-arg))))
+	 (cons (vector key) (vector (funcall value-fn default))))
 	((consp tree)
-	 (let ((found? idx (Vector-Set-Binary-Search (car tree) key))
+	 (let ((found? idx (Vector-Set-Binary-Search (car tree) key key-cmp-fn))
 	       ((right-start (if found? (1+ idx) idx))))
 	   (if (eq found? ':equal)
-	       (cons (car tree)
-		     (Vector-Update (cdr tree) idx (funcall value-fn (svref (cdr tree) idx) second-arg)))
+	       (let ((value (funcall value-fn (svref (cdr tree) idx))))
+		 (if (equal?-cmp (svref (cdr tree) idx) value val-cmp-fn)
+		     tree
+		   (cons (car tree) (Vector-Update (cdr tree) idx value))))
 	     (if (and (not found?)
 		      (< (length (the simple-vector (car tree)))
 			 *WB-Tree-Max-Vector-Length*))
 		 (cons (Vector-Insert (car tree) idx key)
-		       (Vector-Insert (cdr tree) idx (funcall value-fn default second-arg)))
+		       (Vector-Insert (cdr tree) idx (funcall value-fn default)))
 	       (let ((new-key new-val (Equivalent-Map-Update (svref (car tree) idx) (svref (cdr tree) idx)
-							     key value-fn default second-arg)))
+							     key value-fn default key-cmp-fn val-cmp-fn)))
 		 (Make-WB-Map-Tree-Node new-key new-val
 					(and (> idx 0)
 					     (cons (Vector-Subseq (car tree) 0 idx)
@@ -4433,40 +4453,40 @@ or else `default', and (b) `second-arg'."
 						   (Vector-Subseq (cdr tree) right-start)))))))))
 	(t
 	 (let ((node-key (WB-Map-Tree-Node-Key tree))
-	       ((comp (compare key node-key))))
-	   (ecase comp
+	       (node-val (WB-Map-Tree-Node-Value tree))
+	       (node-left (WB-Map-Tree-Node-Left tree))
+	       (node-right (WB-Map-Tree-Node-Right tree))
+	       ((key-comp (funcall key-cmp-fn key node-key))))
+	   (ecase key-comp
 	     ((:equal :unequal)
-	      ;; Since we're probably updating the value anyway, we don't bother trying
-	      ;; to figure out whether we can reuse the node.
-	      (let ((new-key new-val (Equivalent-Map-Update node-key (WB-Map-Tree-Node-Value tree)
-							    key value-fn default second-arg)))
-		(Make-WB-Map-Tree-Node new-key new-val
-				       (WB-Map-Tree-Node-Left tree)
-				       (WB-Map-Tree-Node-Right tree))))
+	      (if (and (eq key-comp ':equal) (not (Equivalent-Node? node-val)))
+		  (let ((new-val (funcall value-fn node-val)))
+		    (if (equal?-cmp new-val node-val val-cmp-fn)
+			tree
+		      (Make-WB-Map-Tree-Node node-key new-val node-left node-right)))
+		(let ((new-key new-val
+			(Equivalent-Map-Update node-key node-val key value-fn default key-cmp-fn val-cmp-fn)))
+		  (Make-WB-Map-Tree-Node new-key new-val node-left node-right))))
 	     ((:less)
-	      (WB-Map-Tree-Build-Node (WB-Map-Tree-Node-Key tree)
-				      (WB-Map-Tree-Node-Value tree)
-				      (WB-Map-Tree-Update (WB-Map-Tree-Node-Left tree)
-							  key value-fn default second-arg)
-				      (WB-Map-Tree-Node-Right tree)))
+	      (WB-Map-Tree-Build-Node node-key node-val
+				      (WB-Map-Tree-Update node-left key value-fn default key-cmp-fn val-cmp-fn)
+				      node-right))
 	     ((:greater)
-	      (WB-Map-Tree-Build-Node (WB-Map-Tree-Node-Key tree)
-				      (WB-Map-Tree-Node-Value tree)
-				      (WB-Map-Tree-Node-Left tree)
-				      (WB-Map-Tree-Update (WB-Map-Tree-Node-Right tree)
-							  key value-fn default second-arg))))))))
+	      (WB-Map-Tree-Build-Node node-key node-val node-left
+				      (WB-Map-Tree-Update node-right key value-fn default key-cmp-fn val-cmp-fn))))))))
 
 
 ;;; ================================================================================
 ;;; Map-less
 
-(defun WB-Map-Tree-Less (tree key)
+(defun WB-Map-Tree-Less (tree key key-cmp-fn)
   "Returns a new tree like `tree', but with any entry for `key' removed."
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Map-Tree tree))
+	   (type WB-Map-Tree tree)
+	   (type function key-cmp-fn))
   (cond ((null tree) nil)
 	((consp tree)
-	 (let ((found? idx (Vector-Set-Binary-Search (car tree) key)))
+	 (let ((found? idx (Vector-Set-Binary-Search (car tree) key key-cmp-fn)))
 	   (if (eq found? ':equal)
 	       (and (> (length (the simple-vector (car tree))) 1)
 		    (cons (Vector-Remove-At (car tree) idx)
@@ -4474,29 +4494,29 @@ or else `default', and (b) `second-arg'."
 	     tree)))
 	(t
 	 (let ((node-key (WB-Map-Tree-Node-Key tree))
-	       ((comp (compare key node-key))))
+	       ((comp (funcall key-cmp-fn key node-key))))
 	   (ecase comp
 	     ((:equal :unequal)
-	      (if (not (Equivalent-Map? node-key))
+	      (if (not (Equivalent-Node? node-key))
 		  (if (eq comp ':unequal)
 		      tree
 		    (WB-Map-Tree-Join (WB-Map-Tree-Node-Left tree)
-				      (WB-Map-Tree-Node-Right tree)))
-		(let ((key val (Equivalent-Map-Less node-key key)))
+				      (WB-Map-Tree-Node-Right tree) key-cmp-fn))
+		(let ((key val (Equivalent-Map-Less node-key key key-cmp-fn)))
 		  (if (eq key node-key)
 		      tree
 		    (WB-Map-Tree-Build-Node key val (WB-Map-Tree-Node-Left tree)
 					    (WB-Map-Tree-Node-Right tree))))))
 	     ((:less)
 	      (let ((left (WB-Map-Tree-Node-Left tree))
-		    ((new-left (WB-Map-Tree-Less left key))))
+		    ((new-left (WB-Map-Tree-Less left key key-cmp-fn))))
 		(if (eq new-left left)
 		    tree
 		  (WB-Map-Tree-Build-Node node-key (WB-Map-Tree-Node-Value tree)
 					  new-left (WB-Map-Tree-Node-Right tree)))))
 	     ((:greater)
 	      (let ((right (WB-Map-Tree-Node-Right tree))
-		    ((new-right (WB-Map-Tree-Less right key))))
+		    ((new-right (WB-Map-Tree-Less right key key-cmp-fn))))
 		(if (eq new-right right)
 		    tree
 		  (WB-Map-Tree-Build-Node node-key (WB-Map-Tree-Node-Value tree)
@@ -4518,7 +4538,7 @@ value is not meaningful."
 	(values (WB-Map-Tree-Node-Key tree)
 		(WB-Map-Tree-Node-Value tree))))))
 
-(defun WB-Map-Tree-Less-Minimum (tree)
+(defun WB-Map-Tree-Less-Minimum (tree key-cmp-fn)
   "Assumes `tree' is nonempty.  Returns a new tree with the minimum key/value
 pair removed."
   (declare (optimize (speed 3) (safety 0))
@@ -4529,10 +4549,9 @@ pair removed."
 		 (Vector-Subseq (cdr tree) 1)))
     (let ((left (WB-Map-Tree-Node-Left tree)))
       (if left
-	  (WB-Map-Tree-Concat (WB-Map-Tree-Node-Key tree)
-			      (WB-Map-Tree-Node-Value tree)
-			      (WB-Map-Tree-Less-Minimum left)
-			      (WB-Map-Tree-Node-Right tree))
+	  (WB-Map-Tree-Concat (WB-Map-Tree-Node-Key tree) (WB-Map-Tree-Node-Value tree)
+			      (WB-Map-Tree-Less-Minimum left key-cmp-fn) (WB-Map-Tree-Node-Right tree)
+			      key-cmp-fn)
 	(WB-Map-Tree-Node-Right tree)))))
 
 
@@ -4548,8 +4567,8 @@ pair removed."
 	((consp tree) (car tree))
 	(t
 	 (let ((key (WB-Map-Tree-Node-Key tree))
-	       ((elt (if (Equivalent-Map? key)
-			 (Make-Equivalent-Set (mapcar #'car (Equivalent-Map-Alist key)))
+	       ((elt (if (Equivalent-Node? key)
+			 (Make-Equivalent-Set (mapcar #'car (Equivalent-Node-List key)))
 		       key))))
 	   (Make-WB-Set-Tree-Node elt
 				  (WB-Map-Tree-Domain (WB-Map-Tree-Node-Left tree))
@@ -4559,172 +4578,164 @@ pair removed."
 ;;; ================================================================================
 ;;; Union, intersection, and map difference
 
-(defun WB-Map-Tree-Union (tree1 tree2 val-fn)
-  (WB-Map-Tree-Union-Rng tree1 tree2 val-fn
-			 Hedge-Negative-Infinity Hedge-Positive-Infinity))
+(defun WB-Map-Tree-Union (tree1 tree2 val-fn key-cmp-fn)
+  (WB-Map-Tree-Union-Rng tree1 tree2 val-fn Hedge-Negative-Infinity Hedge-Positive-Infinity key-cmp-fn))
 
-(defun WB-Map-Tree-Union-Rng (tree1 tree2 val-fn lo hi)
+(defun WB-Map-Tree-Union-Rng (tree1 tree2 val-fn lo hi key-cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type function val-fn)
+	   (type function val-fn key-cmp-fn)
 	   (type WB-Map-Tree tree1 tree2))
   (cond ((eq tree1 tree2)		; historically-related-map optimization
-	 (WB-Map-Tree-Split tree1 lo hi))
+	 (WB-Map-Tree-Split tree1 lo hi key-cmp-fn))
 	((null tree2)
-	 (WB-Map-Tree-Split tree1 lo hi))
+	 (WB-Map-Tree-Split tree1 lo hi key-cmp-fn))
 	((null tree1)
-	 (WB-Map-Tree-Split tree2 lo hi))
+	 (WB-Map-Tree-Split tree2 lo hi key-cmp-fn))
 	((and (consp tree1) (consp tree2))
-	 (WB-Map-Tree-Vector-Pair-Union tree1 tree2 val-fn lo hi))
+	 (WB-Map-Tree-Vector-Pair-Union tree1 tree2 val-fn lo hi key-cmp-fn))
 	((consp tree1)
 	 ;; Can't use the swap-trees trick here, as the operation is noncommutative if 'val-fn' is.
 	 (let ((key2 (WB-Map-Tree-Node-Key tree2))
 	       (val2 (WB-Map-Tree-Node-Value tree2))
-	       ((eqvk1? eqvk1 eqvv1 (WB-Map-Tree-Find-Equivalent tree1 key2))
-		((nonnull? key val (if eqvk1? (Equivalent-Map-Union eqvk1 eqvv1 key2 val2 val-fn)
+	       ((eqvk1? eqvk1 eqvv1 (WB-Map-Tree-Find-Equivalent tree1 key2 key-cmp-fn))
+		((nonnull? key val (if eqvk1? (Equivalent-Map-Union eqvk1 eqvv1 key2 val2 val-fn key-cmp-fn)
 				     (values t key2 val2))))))
 	   (WB-Map-Tree-Concat-Maybe
 	     nonnull? key val
-	     (WB-Map-Tree-Union-Rng (WB-Map-Tree-Trim tree1 lo key2)
-				    (WB-Map-Tree-Trim (WB-Map-Tree-Node-Left tree2)
-						      lo key2)
-				    val-fn lo key2)
-	     (WB-Map-Tree-Union-Rng (WB-Map-Tree-Trim tree1 key2 hi)
-				    (WB-Map-Tree-Trim (WB-Map-Tree-Node-Right tree2)
-						      key2 hi)
-				    val-fn key2 hi))))
+	     (WB-Map-Tree-Union-Rng (WB-Map-Tree-Trim tree1 lo key2 key-cmp-fn)
+				    (WB-Map-Tree-Trim (WB-Map-Tree-Node-Left tree2) lo key2 key-cmp-fn)
+				    val-fn lo key2 key-cmp-fn)
+	     (WB-Map-Tree-Union-Rng (WB-Map-Tree-Trim tree1 key2 hi key-cmp-fn)
+				    (WB-Map-Tree-Trim (WB-Map-Tree-Node-Right tree2) key2 hi key-cmp-fn)
+				    val-fn key2 hi key-cmp-fn)
+	     key-cmp-fn)))
 	(t
 	 (let ((key1 (WB-Map-Tree-Node-Key tree1))
 	       (val1 (WB-Map-Tree-Node-Value tree1))
-	       ((eqvk2? eqvk2 eqvv2 (WB-Map-Tree-Find-Equivalent tree2 key1))
-		((nonnull? key val (if eqvk2? (Equivalent-Map-Union key1 val1 eqvk2 eqvv2 val-fn)
+	       ((eqvk2? eqvk2 eqvv2 (WB-Map-Tree-Find-Equivalent tree2 key1 key-cmp-fn))
+		((nonnull? key val (if eqvk2? (Equivalent-Map-Union key1 val1 eqvk2 eqvv2 val-fn key-cmp-fn)
 				     (values t key1 val1))))))
 	   (WB-Map-Tree-Concat-Maybe
 	     nonnull? key val
 	     (WB-Map-Tree-Union-Rng (WB-Map-Tree-Node-Left tree1)
-				    (WB-Map-Tree-Trim tree2 lo key1)
-				    val-fn lo key1)
+				    (WB-Map-Tree-Trim tree2 lo key1 key-cmp-fn)
+				    val-fn lo key1 key-cmp-fn)
 	     (WB-Map-Tree-Union-Rng (WB-Map-Tree-Node-Right tree1)
-				    (WB-Map-Tree-Trim tree2 key1 hi)
-				    val-fn key1 hi))))))
+				    (WB-Map-Tree-Trim tree2 key1 hi key-cmp-fn)
+				    val-fn key1 hi key-cmp-fn)
+	     key-cmp-fn)))))
 
-(defun WB-Map-Tree-Intersect (tree1 tree2 val-fn)
-  (WB-Map-Tree-Intersect-Rng tree1 tree2 val-fn
-			     Hedge-Negative-Infinity Hedge-Positive-Infinity))
+(defun WB-Map-Tree-Intersect (tree1 tree2 val-fn key-cmp-fn)
+  (WB-Map-Tree-Intersect-Rng tree1 tree2 val-fn Hedge-Negative-Infinity Hedge-Positive-Infinity key-cmp-fn))
 
-(defun WB-Map-Tree-Intersect-Rng (tree1 tree2 val-fn lo hi)
+(defun WB-Map-Tree-Intersect-Rng (tree1 tree2 val-fn lo hi key-cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type function val-fn)
+	   (type function val-fn key-cmp-fn)
 	   (type WB-Map-Tree tree1 tree2))
   (cond ((eq tree1 tree2)		; historically-related-map optimization
-	 (WB-Map-Tree-Split tree1 lo hi))
+	 (WB-Map-Tree-Split tree1 lo hi key-cmp-fn))
 	((or (null tree1) (null tree2))
 	 nil)
 	((and (consp tree1) (consp tree2))
-	 (Vector-Pair-Intersect tree1 tree2 val-fn lo hi))
+	 (Vector-Pair-Intersect tree1 tree2 val-fn lo hi key-cmp-fn))
 	((consp tree1)
-	 ;; Can't use the swap-trees trick here, as the operation is noncommutative.
+	 ;; Can't use the swap-trees trick here, as `val-fn' might be noncommutative.
 	 (let ((key2 (WB-Map-Tree-Node-Key tree2))
 	       (val2 (WB-Map-Tree-Node-Value tree2))
-	       ((eqvk1? eqvk1 eqvv1 (WB-Map-Tree-Find-Equivalent tree1 key2))
+	       ((eqvk1? eqvk1 eqvv1 (WB-Map-Tree-Find-Equivalent tree1 key2 key-cmp-fn))
 		((nonnull? key val
-		   (and eqvk1? (Equivalent-Map-Intersect eqvk1 eqvv1 key2 val2 val-fn))))))
+		   (and eqvk1? (Equivalent-Map-Intersect eqvk1 eqvv1 key2 val2 val-fn key-cmp-fn))))))
 	   (WB-Map-Tree-Concat-Maybe
 	     nonnull? key val
-	     (WB-Map-Tree-Intersect-Rng (WB-Map-Tree-Trim tree1 lo key2)
-					(WB-Map-Tree-Trim (WB-Map-Tree-Node-Left tree2)
-							  lo key2)
-					val-fn lo key2)
-	     (WB-Map-Tree-Intersect-Rng (WB-Map-Tree-Trim tree1 key2 hi)
-					(WB-Map-Tree-Trim (WB-Map-Tree-Node-Right tree2)
-							  key2 hi)
-					val-fn key2 hi))))
+	     (WB-Map-Tree-Intersect-Rng (WB-Map-Tree-Trim tree1 lo key2 key-cmp-fn)
+					;; I think this `trim' call is redundant.
+					(WB-Map-Tree-Trim (WB-Map-Tree-Node-Left tree2) lo key2 key-cmp-fn)
+					val-fn lo key2 key-cmp-fn)
+	     (WB-Map-Tree-Intersect-Rng (WB-Map-Tree-Trim tree1 key2 hi key-cmp-fn)
+					(WB-Map-Tree-Trim (WB-Map-Tree-Node-Right tree2) key2 hi key-cmp-fn)
+					val-fn key2 hi key-cmp-fn)
+	     key-cmp-fn)))
 	(t
 	 (let ((key1 (WB-Map-Tree-Node-Key tree1))
 	       (val1 (WB-Map-Tree-Node-Value tree1))
-	       ((eqvk2? eqvk2 eqvv2 (WB-Map-Tree-Find-Equivalent tree2 key1))
+	       ((eqvk2? eqvk2 eqvv2 (WB-Map-Tree-Find-Equivalent tree2 key1 key-cmp-fn))
 		((nonnull? key val
-		   (and eqvk2? (Equivalent-Map-Intersect key1 val1 eqvk2 eqvv2 val-fn))))))
-	   (WB-Map-Tree-Concat-Maybe
-	     nonnull? key val
-	     (WB-Map-Tree-Intersect-Rng (WB-Map-Tree-Node-Left tree1)
-					(WB-Map-Tree-Trim tree2 lo key1)
-					val-fn lo key1)
-	     (WB-Map-Tree-Intersect-Rng (WB-Map-Tree-Node-Right tree1)
-					(WB-Map-Tree-Trim tree2 key1 hi)
-					val-fn key1 hi))))))
+		   (and eqvk2? (Equivalent-Map-Intersect key1 val1 eqvk2 eqvv2 val-fn key-cmp-fn))))))
+	   (WB-Map-Tree-Concat-Maybe nonnull? key val
+				     (WB-Map-Tree-Intersect-Rng (WB-Map-Tree-Node-Left tree1)
+								(WB-Map-Tree-Trim tree2 lo key1 key-cmp-fn)
+								val-fn lo key1 key-cmp-fn)
+				     (WB-Map-Tree-Intersect-Rng (WB-Map-Tree-Node-Right tree1)
+								(WB-Map-Tree-Trim tree2 key1 hi key-cmp-fn)
+								val-fn key1 hi key-cmp-fn)
+				     key-cmp-fn)))))
 
 
-(defun WB-Map-Tree-Diff-2 (tree1 tree2)
+(defun WB-Map-Tree-Diff-2 (tree1 tree2 key-cmp-fn val-cmp-fn)
   "Returns two values: one containing the pairs that are in `tree1' but not
 `tree2', and the other containing the pairs that are in `tree2' but not
 `tree1'."
-  (WB-Map-Tree-Diff-2-Rng tree1 tree2
-			  Hedge-Negative-Infinity Hedge-Positive-Infinity))
+  (WB-Map-Tree-Diff-2-Rng tree1 tree2 Hedge-Negative-Infinity Hedge-Positive-Infinity key-cmp-fn val-cmp-fn))
 
-(defun WB-Map-Tree-Diff-2-Rng (tree1 tree2 lo hi)
+(defun WB-Map-Tree-Diff-2-Rng (tree1 tree2 lo hi key-cmp-fn val-cmp-fn)
   (cond ((eq tree1 tree2)		; historically-related tree optimization
 	 (values nil nil))
 	((or (null tree1) (null tree2))
-	 (values (WB-Map-Tree-Split tree1 lo hi)
-		 (WB-Map-Tree-Split tree2 lo hi)))
+	 (values (WB-Map-Tree-Split tree1 lo hi key-cmp-fn)
+		 (WB-Map-Tree-Split tree2 lo hi key-cmp-fn)))
 	((and (consp tree1) (consp tree2))
-	 (Vector-Pair-Diff-2 tree1 tree2 lo hi))
+	 (Vector-Pair-Diff-2 tree1 tree2 lo hi key-cmp-fn val-cmp-fn))
 	((consp tree1)
 	 (let ((key2 (WB-Map-Tree-Node-Key tree2))
 	       (val2 (WB-Map-Tree-Node-Value tree2))
 	       ((new-left-1 new-left-2
-		  (WB-Map-Tree-Diff-2-Rng (WB-Map-Tree-Trim tree1 lo key2)
-					  (WB-Map-Tree-Trim (WB-Map-Tree-Node-Left tree2)
-							    lo key2)
-					  lo key2))
+		  (WB-Map-Tree-Diff-2-Rng (WB-Map-Tree-Trim tree1 lo key2 key-cmp-fn)
+					  (WB-Map-Tree-Trim (WB-Map-Tree-Node-Left tree2) lo key2 key-cmp-fn)
+					  lo key2 key-cmp-fn val-cmp-fn))
 		(new-right-1 new-right-2
-		  (WB-Map-Tree-Diff-2-Rng (WB-Map-Tree-Trim tree1 key2 hi)
-					  (WB-Map-Tree-Trim (WB-Map-Tree-Node-Right tree2)
-							    key2 hi)
-					  key2 hi)))
-	       ((eqvk1? eqvk1 eqvv1 (WB-Map-Tree-Find-Equivalent tree1 key2))
+		  (WB-Map-Tree-Diff-2-Rng (WB-Map-Tree-Trim tree1 key2 hi key-cmp-fn)
+					  (WB-Map-Tree-Trim (WB-Map-Tree-Node-Right tree2) key2 hi key-cmp-fn)
+					  key2 hi key-cmp-fn val-cmp-fn)))
+	       ((eqvk1? eqvk1 eqvv1 (WB-Map-Tree-Find-Equivalent tree1 key2 key-cmp-fn))
 		((nonnull1? diffk1 diffv1
-		   (and eqvk1? (Equivalent-Map-Difference eqvk1 eqvv1 key2 val2)))
+		   (and eqvk1? (Equivalent-Map-Difference eqvk1 eqvv1 key2 val2 key-cmp-fn val-cmp-fn)))
 		 (nonnull2? diffk2 diffv2
-		   (if eqvk1? (Equivalent-Map-Difference key2 val2 eqvk1 eqvv1)
+		   (if eqvk1? (Equivalent-Map-Difference key2 val2 eqvk1 eqvv1 key-cmp-fn val-cmp-fn)
 		     (values t key2 val2))))))
-	   (values (if nonnull1? (WB-Map-Tree-Concat diffk1 diffv1 new-left-1 new-right-1)
-		     (WB-Map-Tree-Join new-left-1 new-right-1))
-		   (if nonnull2? (WB-Map-Tree-Concat diffk2 diffv2 new-left-2 new-right-2)
-		     (WB-Map-Tree-Join new-left-2 new-right-2)))))
+	   (values (if nonnull1? (WB-Map-Tree-Concat diffk1 diffv1 new-left-1 new-right-1 key-cmp-fn)
+		     (WB-Map-Tree-Join new-left-1 new-right-1 key-cmp-fn))
+		   (if nonnull2? (WB-Map-Tree-Concat diffk2 diffv2 new-left-2 new-right-2 key-cmp-fn)
+		     (WB-Map-Tree-Join new-left-2 new-right-2 key-cmp-fn)))))
 	(t
 	 (let ((key1 (WB-Map-Tree-Node-Key tree1))
 	       (val1 (WB-Map-Tree-Node-Value tree1))
 	       ((new-left-1 new-left-2
-		  (WB-Map-Tree-Diff-2-Rng (WB-Map-Tree-Trim (WB-Map-Tree-Node-Left tree1)
-							    lo key1)
-					  (WB-Map-Tree-Trim tree2 lo key1)
-					  lo key1))
+		  (WB-Map-Tree-Diff-2-Rng (WB-Map-Tree-Trim (WB-Map-Tree-Node-Left tree1) lo key1 key-cmp-fn)
+					  (WB-Map-Tree-Trim tree2 lo key1 key-cmp-fn)
+					  lo key1 key-cmp-fn val-cmp-fn))
 		(new-right-1 new-right-2
-		  (WB-Map-Tree-Diff-2-Rng (WB-Map-Tree-Trim (WB-Map-Tree-Node-Right tree1)
-							    key1 hi)
-					  (WB-Map-Tree-Trim tree2 key1 hi)
-					  key1 hi)))
-	       ((eqvk2? eqvk2 eqvv2 (WB-Map-Tree-Find-Equivalent tree2 key1))
+		  (WB-Map-Tree-Diff-2-Rng (WB-Map-Tree-Trim (WB-Map-Tree-Node-Right tree1) key1 hi key-cmp-fn)
+					  (WB-Map-Tree-Trim tree2 key1 hi key-cmp-fn)
+					  key1 hi key-cmp-fn val-cmp-fn)))
+	       ((eqvk2? eqvk2 eqvv2 (WB-Map-Tree-Find-Equivalent tree2 key1 key-cmp-fn))
 		((nonnull1? diffk1 diffv1
-		   (if eqvk2? (Equivalent-Map-Difference key1 val1 eqvk2 eqvv2)
+		   (if eqvk2? (Equivalent-Map-Difference key1 val1 eqvk2 eqvv2 key-cmp-fn val-cmp-fn)
 		     (values t key1 val1)))
 		 (nonnull2? diffk2 diffv2
-		   (and eqvk2? (Equivalent-Map-Difference eqvk2 eqvv2 key1 val1))))))
-	   (values (if nonnull1? (WB-Map-Tree-Concat diffk1 diffv1 new-left-1 new-right-1)
-		     (WB-Map-Tree-Join new-left-1 new-right-1))
-		   (if nonnull2? (WB-Map-Tree-Concat diffk2 diffv2 new-left-2 new-right-2)
-		     (WB-Map-Tree-Join new-left-2 new-right-2)))))))
+		   (and eqvk2? (Equivalent-Map-Difference eqvk2 eqvv2 key1 val1 key-cmp-fn val-cmp-fn))))))
+	   (values (if nonnull1? (WB-Map-Tree-Concat diffk1 diffv1 new-left-1 new-right-1 key-cmp-fn)
+		     (WB-Map-Tree-Join new-left-1 new-right-1 key-cmp-fn))
+		   (if nonnull2? (WB-Map-Tree-Concat diffk2 diffv2 new-left-2 new-right-2 key-cmp-fn)
+		     (WB-Map-Tree-Join new-left-2 new-right-2 key-cmp-fn)))))))
 
 
 ;;; ================================================================================
 ;;; Restrict and restrict-not
 
-(defun WB-Map-Tree-Restrict (map-tree set-tree)
-  (WB-Map-Tree-Restrict-Rng map-tree set-tree
-			    Hedge-Negative-Infinity Hedge-Positive-Infinity))
+(defun WB-Map-Tree-Restrict (map-tree set-tree key-cmp-fn)
+  (WB-Map-Tree-Restrict-Rng map-tree set-tree Hedge-Negative-Infinity Hedge-Positive-Infinity key-cmp-fn))
 
-(defun WB-Map-Tree-Restrict-Rng (map-tree set-tree lo hi)
+(defun WB-Map-Tree-Restrict-Rng (map-tree set-tree lo hi key-cmp-fn)
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Map-Tree map-tree)
 	   (type WB-Set-Tree set-tree))
@@ -4732,134 +4743,124 @@ pair removed."
 	 nil)
 	((consp map-tree)
 	 (if (simple-vector-p set-tree)
-	     (Vector-Pair-Restrict map-tree set-tree lo hi)
+	     (Vector-Pair-Restrict map-tree set-tree lo hi key-cmp-fn)
 	   (let ((raw-elt (WB-Set-Tree-Node-Value set-tree))
-		 ((set-elt (if (Equivalent-Set? raw-elt)
-			       (car (Equivalent-Set-Members raw-elt))
+		 ((set-elt (if (Equivalent-Node? raw-elt)
+			       (car (Equivalent-Node-List raw-elt))
 			     raw-elt))
 		  ((new-left (WB-Map-Tree-Restrict-Rng
-			       (WB-Map-Tree-Trim map-tree lo set-elt)
-			       (WB-Set-Tree-Trim (WB-Set-Tree-Node-Left set-tree)
-						 lo set-elt)
-			       lo set-elt))
+			       (WB-Map-Tree-Trim map-tree lo set-elt key-cmp-fn)
+			       (WB-Set-Tree-Trim (WB-Set-Tree-Node-Left set-tree) lo set-elt key-cmp-fn)
+			       lo set-elt key-cmp-fn))
 		   (new-right (WB-Map-Tree-Restrict-Rng
-				(WB-Map-Tree-Trim map-tree set-elt hi)
-				(WB-Set-Tree-Trim (WB-Set-Tree-Node-Right set-tree)
-						  set-elt hi)
-				set-elt hi))
-		   (eqvk? eqvk eqvv (WB-Map-Tree-Find-Equivalent map-tree set-elt)))))
+				(WB-Map-Tree-Trim map-tree set-elt hi key-cmp-fn)
+				(WB-Set-Tree-Trim (WB-Set-Tree-Node-Right set-tree) set-elt hi key-cmp-fn)
+				set-elt hi key-cmp-fn))
+		   (eqvk? eqvk eqvv (WB-Map-Tree-Find-Equivalent map-tree set-elt key-cmp-fn)))))
 	     (if (not eqvk?)
-		 (WB-Map-Tree-Join new-left new-right)
-	       (let ((rpr? rkey rval (Equivalent-Map-Restrict eqvk eqvv raw-elt)))
-		 (if rpr? (WB-Map-Tree-Concat rkey rval new-left new-right)
-		   (WB-Map-Tree-Join new-left new-right)))))))
+		 (WB-Map-Tree-Join new-left new-right key-cmp-fn)
+	       (let ((rpr? rkey rval (Equivalent-Map-Restrict eqvk eqvv raw-elt key-cmp-fn)))
+		 (if rpr? (WB-Map-Tree-Concat rkey rval new-left new-right key-cmp-fn)
+		   (WB-Map-Tree-Join new-left new-right key-cmp-fn)))))))
 	(t
 	 (let ((raw-key (WB-Map-Tree-Node-Key map-tree))
-	       ((map-key (if (Equivalent-Map? raw-key) ; for benefit of `compare'
-			     (caar (Equivalent-Map-Alist raw-key))
+	       ((map-key (if (Equivalent-Node? raw-key) ; for benefit of `compare'
+			     (caar (Equivalent-Node-List raw-key))
 			   raw-key))
 		((new-left (WB-Map-Tree-Restrict-Rng (WB-Map-Tree-Node-Left map-tree)
-						     (WB-Set-Tree-Trim set-tree
-								       lo map-key)
-						     lo map-key))
+						     (WB-Set-Tree-Trim set-tree lo map-key key-cmp-fn)
+						     lo map-key key-cmp-fn))
 		 (new-right (WB-Map-Tree-Restrict-Rng (WB-Map-Tree-Node-Right map-tree)
-						      (WB-Set-Tree-Trim set-tree
-									map-key hi)
-						      map-key hi))
-		 (eqvv? eqvv (WB-Set-Tree-Find-Equivalent set-tree map-key)))))
+						      (WB-Set-Tree-Trim set-tree map-key hi key-cmp-fn)
+						      map-key hi key-cmp-fn))
+		 (eqvv? eqvv (WB-Set-Tree-Find-Equivalent set-tree map-key key-cmp-fn)))))
 	   (if (not eqvv?)
-	       (WB-Map-Tree-Join new-left new-right)
+	       (WB-Map-Tree-Join new-left new-right key-cmp-fn)
 	     (let ((map-val (WB-Map-Tree-Node-Value map-tree))
-		   ((rpr? rkey rval (Equivalent-Map-Restrict raw-key map-val eqvv))))
-	       (if rpr? (WB-Map-Tree-Concat rkey rval new-left new-right)
-		 (WB-Map-Tree-Join new-left new-right))))))))
+		   ((rpr? rkey rval (Equivalent-Map-Restrict raw-key map-val eqvv key-cmp-fn))))
+	       (if rpr? (WB-Map-Tree-Concat rkey rval new-left new-right key-cmp-fn)
+		 (WB-Map-Tree-Join new-left new-right key-cmp-fn))))))))
 
-(defun WB-Map-Tree-Restrict-Not (map-tree set-tree)
-  (WB-Map-Tree-Restrict-Not-Rng map-tree set-tree
-				Hedge-Negative-Infinity Hedge-Positive-Infinity))
+(defun WB-Map-Tree-Restrict-Not (map-tree set-tree key-cmp-fn)
+  (WB-Map-Tree-Restrict-Not-Rng map-tree set-tree Hedge-Negative-Infinity Hedge-Positive-Infinity key-cmp-fn))
 
-(defun WB-Map-Tree-Restrict-Not-Rng (map-tree set-tree lo hi)
+(defun WB-Map-Tree-Restrict-Not-Rng (map-tree set-tree lo hi key-cmp-fn)
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Map-Tree map-tree)
 	   (type WB-Set-Tree set-tree))
   (cond ((null map-tree)
 	 nil)
 	((null set-tree)
-	 (WB-Map-Tree-Split map-tree lo hi))
+	 (WB-Map-Tree-Split map-tree lo hi key-cmp-fn))
 	((consp map-tree)
 	 (if (simple-vector-p set-tree)
-	     (Vector-Pair-Restrict-Not map-tree set-tree lo hi)
+	     (Vector-Pair-Restrict-Not map-tree set-tree lo hi key-cmp-fn)
 	   (let ((raw-elt (WB-Set-Tree-Node-Value set-tree))
-		 ((set-elt (if (Equivalent-Set? raw-elt)
-			       (car (Equivalent-Set-Members raw-elt))
+		 ((set-elt (if (Equivalent-Node? raw-elt)
+			       (car (Equivalent-Node-List raw-elt))
 			     raw-elt))
 		  ((new-left (WB-Map-Tree-Restrict-Not-Rng
-			       (WB-Map-Tree-Trim map-tree lo set-elt)
-			       (WB-Set-Tree-Trim (WB-Set-Tree-Node-Left set-tree)
-						 lo set-elt)
-			       lo set-elt))
+			       (WB-Map-Tree-Trim map-tree lo set-elt key-cmp-fn)
+			       (WB-Set-Tree-Trim (WB-Set-Tree-Node-Left set-tree) lo set-elt key-cmp-fn)
+			       lo set-elt key-cmp-fn))
 		   (new-right (WB-Map-Tree-Restrict-Not-Rng
-				(WB-Map-Tree-Trim map-tree set-elt hi)
-				(WB-Set-Tree-Trim (WB-Set-Tree-Node-Right set-tree)
-						  set-elt hi)
-				set-elt hi))
-		   (eqvk? eqvk eqvv (WB-Map-Tree-Find-Equivalent map-tree set-elt)))))
+				(WB-Map-Tree-Trim map-tree set-elt hi key-cmp-fn)
+				(WB-Set-Tree-Trim (WB-Set-Tree-Node-Right set-tree) set-elt hi key-cmp-fn)
+				set-elt hi key-cmp-fn))
+		   (eqvk? eqvk eqvv (WB-Map-Tree-Find-Equivalent map-tree set-elt key-cmp-fn)))))
 	     (if (not eqvk?)
-		 (WB-Map-Tree-Join new-left new-right)
-	       (let ((rpr? rkey rval (Equivalent-Map-Restrict-Not eqvk eqvv raw-elt)))
-		 (if rpr? (WB-Map-Tree-Concat rkey rval new-left new-right)
-		   (WB-Map-Tree-Join new-left new-right)))))))
+		 (WB-Map-Tree-Join new-left new-right key-cmp-fn)
+	       (let ((rpr? rkey rval (Equivalent-Map-Restrict-Not eqvk eqvv raw-elt key-cmp-fn)))
+		 (if rpr? (WB-Map-Tree-Concat rkey rval new-left new-right key-cmp-fn)
+		   (WB-Map-Tree-Join new-left new-right key-cmp-fn)))))))
 	(t
 	 (let ((raw-key (WB-Map-Tree-Node-Key map-tree))
-	       ((map-key (if (Equivalent-Map? raw-key)
-			     (caar (Equivalent-Map-Alist raw-key))
+	       ((map-key (if (Equivalent-Node? raw-key)
+			     (caar (Equivalent-Node-List raw-key))
 			   raw-key))
-		((new-left (WB-Map-Tree-Restrict-Not-Rng
-			     (WB-Map-Tree-Node-Left map-tree)
-			     (WB-Set-Tree-Trim set-tree lo map-key)
-			     lo map-key))
-		 (new-right (WB-Map-Tree-Restrict-Not-Rng
-			      (WB-Map-Tree-Node-Right map-tree)
-			      (WB-Set-Tree-Trim set-tree map-key hi)
-			      map-key hi))
-		 (eqvv? eqvv (WB-Set-Tree-Find-Equivalent set-tree map-key)))))
+		((new-left (WB-Map-Tree-Restrict-Not-Rng (WB-Map-Tree-Node-Left map-tree)
+							 (WB-Set-Tree-Trim set-tree lo map-key key-cmp-fn)
+							 lo map-key key-cmp-fn))
+		 (new-right (WB-Map-Tree-Restrict-Not-Rng (WB-Map-Tree-Node-Right map-tree)
+							  (WB-Set-Tree-Trim set-tree map-key hi key-cmp-fn)
+							  map-key hi key-cmp-fn))
+		 (eqvv? eqvv (WB-Set-Tree-Find-Equivalent set-tree map-key key-cmp-fn)))))
 	   (let ((map-val (WB-Map-Tree-Node-Value map-tree)))
 	     (if (not eqvv?)
-		 (WB-Map-Tree-Concat raw-key map-val new-left new-right)
-	       (let ((rpr? rkey rval
-		       (Equivalent-Map-Restrict-Not raw-key map-val eqvv)))
-		 (if rpr? (WB-Map-Tree-Concat rkey rval new-left new-right)
-		   (WB-Map-Tree-Join new-left new-right)))))))))
+		 (WB-Map-Tree-Concat raw-key map-val new-left new-right key-cmp-fn)
+	       (let ((rpr? rkey rval (Equivalent-Map-Restrict-Not raw-key map-val eqvv key-cmp-fn)))
+		 (if rpr? (WB-Map-Tree-Concat rkey rval new-left new-right key-cmp-fn)
+		   (WB-Map-Tree-Join new-left new-right key-cmp-fn)))))))))
 
 ;;; ================================================================================
 ;;; Compare
 
-(defun WB-Map-Tree-Compare (tree1 tree2 &optional (val-fn #'compare))
+(defun WB-Map-Tree-Compare (tree1 tree2 key-cmp-fn val-cmp-fn)
   (if (eq tree1 tree2) ':equal
     (let ((size1 (WB-Map-Tree-Size tree1))
 	  (size2 (WB-Map-Tree-Size tree2)))
       (cond ((< size1 size2) ':less)
 	    ((> size1 size2) ':greater)
-	    (t (WB-Map-Tree-Compare-Rng tree1 0 tree2 0 0 size1 val-fn))))))
+	    (t (WB-Map-Tree-Compare-Rng tree1 0 tree2 0 0 size1 key-cmp-fn val-cmp-fn))))))
 
-(defun WB-Map-Tree-Compare-Rng (tree1 base1 tree2 base2 lo hi val-fn)
+(defun WB-Map-Tree-Compare-Rng (tree1 base1 tree2 base2 lo hi key-cmp-fn val-cmp-fn)
   ;; See notes at `WB-Set-Tree-Compare-Rng'.
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Map-Tree tree1 tree2)
 	   (type fixnum base1 base2 lo hi)
-	   (type function val-fn))
+	   (type function key-cmp-fn val-cmp-fn))
   (cond ((and (eq tree1 tree2) (= base1 base2))	; historically-related-map optimization
 	 ':equal)
 	((= lo hi) ':equal)
 	((and (consp tree1) (consp tree2))
 	 (let ((unequal? nil))
 	   (or (gmap (:result or) (fn (key1 val1 key2 val2)
-				    (let ((key-comp (compare key1 key2)))
+				    (let ((key-comp (funcall key-cmp-fn key1 key2)))
 				      (when (eq key-comp ':unequal)
 					(setq unequal? t))
 				      (if (or (eq key-comp ':less) (eq key-comp ':greater))
 					  key-comp
-					(let ((val-comp (funcall val-fn val1 val2)))
+					(let ((val-comp (funcall val-cmp-fn val1 val2)))
 					  (when (eq val-comp ':unequal)
 					    (setq unequal? t))
 					  (and (or (eq val-comp ':less) (eq val-comp ':greater))
@@ -4870,7 +4871,7 @@ pair removed."
 		     (:arg simple-vector (cdr tree2) :start (- lo base2) :stop (- hi base2)))
 	       (if unequal? ':unequal ':equal))))
 	((consp tree1)
-	 (let ((rev-comp (WB-Map-Tree-Compare-Rng tree2 base2 tree1 base1 lo hi val-fn)))
+	 (let ((rev-comp (WB-Map-Tree-Compare-Rng tree2 base2 tree1 base1 lo hi key-cmp-fn val-cmp-fn)))
 	   (ecase rev-comp
 	     (:less ':greater)
 	     (:greater ':less)
@@ -4882,7 +4883,7 @@ pair removed."
 		 ((left1a base1a (WB-Map-Tree-Rank-Trim left1 base1 lo new-hi))
 		  (tree2a base2a (WB-Map-Tree-Rank-Trim tree2 base2 lo new-hi))
 		  ((left-comp (WB-Map-Tree-Compare-Rng left1a base1a tree2a base2a
-						       lo new-hi val-fn)))))))
+						       lo new-hi key-cmp-fn val-cmp-fn)))))))
 	   (if (or (eq left-comp ':less) (eq left-comp ':greater))
 	       left-comp
 	     (let ((key1 (WB-Map-Tree-Node-Key tree1))
@@ -4890,7 +4891,7 @@ pair removed."
 		   (key2 val2
 		      (WB-Map-Tree-Rank-Pair-Internal
 			tree2 (the fixnum (- new-hi base2))))
-		   ((comp (Equivalent-Map-Compare key1 val1 key2 val2 val-fn))))
+		   ((comp (Equivalent-Map-Compare key1 val1 key2 val2 key-cmp-fn val-cmp-fn))))
 	       (if (or (eq comp ':less) (eq comp ':greater))
 		   comp
 		 (let ((key1-size (Map-Key-Size key1))
@@ -4903,7 +4904,7 @@ pair removed."
 			 (tree2a base2a (WB-Map-Tree-Rank-Trim tree2 base2 new-lo hi))
 			 ((right-comp
 			    (WB-Map-Tree-Compare-Rng right1a base1a tree2a base2a
-						     new-lo hi val-fn))))))
+						     new-lo hi key-cmp-fn val-cmp-fn))))))
 		   (if (not (eq right-comp ':equal))
 		       right-comp
 		     (if (eq left-comp ':unequal) ':unequal comp))))))))))
@@ -4924,7 +4925,7 @@ pair removed."
 			       (+ node-rank (Map-Key-Size (WB-Map-Tree-Node-Key tree)))
 			       lo hi)))))
 
-(defun WB-Map-Tree-Rank (tree key)
+(defun WB-Map-Tree-Rank (tree key key-cmp-fn)
   "Searches a map tree `tree' for `key'.  Returns two values, a boolean and an
 index.  If `key', or a value equivalent to `key', is in `tree', the boolean
 is true, and the index is the rank of the value; otherwise, the boolean is false
@@ -4932,23 +4933,24 @@ and the index is the rank `key' would have if it were to be added.  Note that
 if the map contains equivalent-but-unequal keys, the rank of each of several
 such keys is guaranteed consistent only within the same tree (by `eq'), not
 between equal trees."
+  (declare (type function key-cmp-fn))
   (labels ((rec (tree key base)
 	     (cond ((null tree) (values nil base))
 		   ((consp tree)
-		    (let ((found? idx (Vector-Set-Binary-Search (car tree) key)))
+		    (let ((found? idx (Vector-Set-Binary-Search (car tree) key key-cmp-fn)))
 		      (values found? (+ idx base))))
 		   (t
 		    (let ((node-val (WB-Map-Tree-Node-Key tree))
 			  (left (WB-Map-Tree-Node-Left tree))
 			  ((left-size (WB-Map-Tree-Size left))
 			   ((node-base (+ base left-size))))
-			  ((comp (compare key node-val))))
+			  ((comp (funcall key-cmp-fn key node-val))))
 		      (ecase comp
 			(:equal (values t node-base))
 			((:unequal)
-			 (if (Equivalent-Map? node-val)
-			     (let ((prs (Equivalent-Map-Alist node-val))
-				   ((pos (cl:position key prs :test #'equal?
+			 (if (Equivalent-Node? node-val)
+			     (let ((prs (Equivalent-Node-List node-val))
+				   ((pos (cl:position key prs :test (equal?-fn key-cmp-fn)
 						      :key #'car))))
 			       (if pos (values t (+ node-base pos))
 				 (values nil node-base)))
@@ -4962,8 +4964,8 @@ between equal trees."
 
 (defun WB-Map-Tree-Rank-Pair (tree rank)
   (let ((key value rem (WB-Map-Tree-Rank-Pair-Internal tree rank)))
-    (if (Equivalent-Map? key)
-	(let ((pr (nth rem (Equivalent-Map-Alist key))))
+    (if (Equivalent-Node? key)
+	(let ((pr (nth rem (Equivalent-Node-List key))))
 	  (values (car pr) (cdr pr)))
       (values key value))))
 
@@ -4993,25 +4995,25 @@ between equal trees."
 ;;; ================================================================================
 ;;; Miscellany
 
-(defun WB-Map-Tree-From-List (lst key-fn value-fn)
+(defun WB-Map-Tree-From-List (lst key-fn value-fn key-cmp-fn val-cmp-fn)
   (declare (type function key-fn value-fn))
   (let ((tree nil))
     (dolist (pr lst)
-      (setq tree (WB-Map-Tree-With tree (funcall key-fn pr) (funcall value-fn pr))))
+      (setq tree (WB-Map-Tree-With tree (funcall key-fn pr) (funcall value-fn pr) key-cmp-fn val-cmp-fn)))
     tree))
 
-(defun WB-Map-Tree-From-Iterable (it key-fn value-fn)
+(defun WB-Map-Tree-From-Iterable (it key-fn value-fn key-cmp-fn val-cmp-fn)
   (declare (type function it key-fn value-fn))
   (let ((tree nil))
     (while (funcall it ':more?)
       (let ((pr (funcall it ':get)))
-	(setq tree (WB-Map-Tree-With tree (funcall key-fn pr) (funcall value-fn pr)))))
+	(setq tree (WB-Map-Tree-With tree (funcall key-fn pr) (funcall value-fn pr) key-cmp-fn val-cmp-fn))))
     tree))
 
 ;;; See `WB-Set-Tree-From-Sorted-Iterable'.
-(defun WB-Map-Tree-From-Sorted-Iterable (it len key-fn value-fn)
+(defun WB-Map-Tree-From-Sorted-Iterable (it len key-fn value-fn key-cmp-fn val-cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type function it key-fn value-fn))
+	   (type function it key-fn value-fn key-cmp-fn))
   (labels ((recur (n)
 	     (declare (fixnum n))
 	     (cond ((= n 0) (values nil Hedge-Positive-Infinity Hedge-Negative-Infinity))
@@ -5027,12 +5029,13 @@ between equal trees."
 			   (kb (funcall key-fn b))
 			   (va (funcall value-fn a))
 			   (vb (funcall value-fn b))))
-		      (ecase (Compare ka kb)
+		      (ecase (funcall key-cmp-fn ka kb)
 			(:equal ; Shouldn't really happen ... I guess the `b' pair should win.
 			  (values (cons (vector kb) (vector vb)) kb kb))
 			(:less (values (cons (vector ka kb) (vector va vb)) ka kb))
 			(:greater (values (cons (vector kb ka) (vector vb va)) kb ka))
-			(:unequal (values (WB-Map-Tree-With (cons (vector ka) (vector va)) kb vb) ka ka)))))
+			(:unequal (values (WB-Map-Tree-With (cons (vector ka) (vector va)) kb vb key-cmp-fn val-cmp-fn)
+					  ka ka)))))
 		   (t
 		    (let ((n2 (floor (1- n) 2))
 			  ((left left-first left-last (recur n2))
@@ -5043,23 +5046,25 @@ between equal trees."
 		      ;; Here we check whether the tree really is sorted as promised.
 		      ;; (We really have to do this for correctness, because even if it is sorted, it
 		      ;; could have sequences of equivalent-but-unequal keys.)
-		      (if (and (less-than? left-last k)
-			       (less-than? k right-first))
+		      (if (and (less-than?-cmp left-last k key-cmp-fn)
+			       (less-than?-cmp k right-first key-cmp-fn))
 			  (values (WB-Map-Tree-Build-Node k v left right) left-first right-last)
 			;; Fall back to the general case, being careful to keep the rightmost value for
 			;; a duplicated key.
-			(values (WB-Map-Tree-Union (WB-Map-Tree-With left k v) right (fn (_a b) b))
-				(if (less-than? left-first right-first) left-first right-first)
-				(if (less-than? left-last right-last) right-last left-last))))))))
+			(values (WB-Map-Tree-Union (WB-Map-Tree-With left k v key-cmp-fn val-cmp-fn)
+						   right (fn (_a b) b) key-cmp-fn)
+				(if (less-than?-cmp left-first right-first key-cmp-fn) left-first right-first)
+				(if (less-than?-cmp left-last right-last key-cmp-fn) right-last left-last))))))))
     (recur len)))
 
 
 ;;; ================================================================================
 ;;; Support routines for the above (maps)
 
-(defun WB-Map-Tree-Split (tree lo hi)
+(defun WB-Map-Tree-Split (tree lo hi key-cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Map-Tree tree))
+	   (type WB-Map-Tree tree)
+	   (type function key-cmp-fn))
   (cond ((null tree) nil)
 	((and (eq lo Hedge-Negative-Infinity) (eq hi Hedge-Positive-Infinity))
 	 tree)
@@ -5069,10 +5074,10 @@ between equal trees."
 	       ((len (length (the simple-vector keys)))
 		((split-point-lo (if (eq lo Hedge-Negative-Infinity)
 				     0
-				   (Vector-Set-Binary-Search-Lo keys lo)))
+				   (Vector-Set-Binary-Search-Lo keys lo key-cmp-fn)))
 		 (split-point-hi (if (eq hi Hedge-Positive-Infinity)
 				     len
-				   (Vector-Set-Binary-Search-Hi keys hi))))))
+				   (Vector-Set-Binary-Search-Hi keys hi key-cmp-fn))))))
 	   (and (> split-point-hi split-point-lo)
 		(if (and (= split-point-lo 0)
 			 (= split-point-hi len))
@@ -5080,58 +5085,62 @@ between equal trees."
 		  (cons (Vector-Subseq keys split-point-lo split-point-hi)
 			(Vector-Subseq vals split-point-lo split-point-hi))))))
 	((not (or (eq lo Hedge-Negative-Infinity)
-		  (greater-than? (WB-Map-Tree-Node-Key tree) lo)))
-	 (WB-Map-Tree-Split (WB-Map-Tree-Node-Right tree) lo hi))
+		  (greater-than?-cmp (WB-Map-Tree-Node-Key tree) lo key-cmp-fn)))
+	 (WB-Map-Tree-Split (WB-Map-Tree-Node-Right tree) lo hi key-cmp-fn))
 	((not (or (eq hi Hedge-Positive-Infinity)
-		  (less-than? (WB-Map-Tree-Node-Key tree) hi)))
-	 (WB-Map-Tree-Split (WB-Map-Tree-Node-Left tree) lo hi))
+		  (less-than?-cmp (WB-Map-Tree-Node-Key tree) hi key-cmp-fn)))
+	 (WB-Map-Tree-Split (WB-Map-Tree-Node-Left tree) lo hi key-cmp-fn))
 	(t
 	 (let ((new-left (WB-Map-Tree-Split (WB-Map-Tree-Node-Left tree)
-					    lo Hedge-Positive-Infinity))
+					    lo Hedge-Positive-Infinity key-cmp-fn))
 	       (new-right (WB-Map-Tree-Split (WB-Map-Tree-Node-Right tree)
-					     Hedge-Negative-Infinity hi)))
+					     Hedge-Negative-Infinity hi key-cmp-fn)))
 	   (if (and (eq new-left (WB-Map-Tree-Node-Left tree))
 		    (eq new-right (WB-Map-Tree-Node-Right tree)))
 	       tree
 	     (WB-Map-Tree-Concat (WB-Map-Tree-Node-Key tree)
 				 (WB-Map-Tree-Node-Value tree)
-				 new-left new-right))))))
+				 new-left new-right key-cmp-fn))))))
 
-(defun WB-Map-Tree-Trim (tree lo hi)
+(defun WB-Map-Tree-Trim (tree lo hi key-cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Map-Tree tree))
+	   (type WB-Map-Tree tree)
+	   (type function key-cmp-fn))
   (cond ((null tree) nil)
 	((consp tree)
 	 ;; If the vector pair is completely out of range, drop it.
 	 (and (or (eq lo Hedge-Negative-Infinity)
-		  (greater-than? (svref (car tree)
-					(1- (length (the simple-vector (car tree)))))
-				 lo))
+		  (greater-than?-cmp (svref (car tree) (1- (length (the simple-vector (car tree)))))
+				     lo key-cmp-fn))
 	      (or (eq hi Hedge-Positive-Infinity)
-		  (less-than? (svref (car tree) 0) hi))
+		  (less-than?-cmp (svref (car tree) 0) hi key-cmp-fn))
 	      tree))
 	(t
 	 (let ((key (WB-Map-Tree-Node-Key tree)))
 	   (if (or (eq lo Hedge-Negative-Infinity)
-		   (greater-than? key lo))
+		   (greater-than?-cmp key lo key-cmp-fn))
 	       (if (or (eq hi Hedge-Positive-Infinity)
-		       (less-than? key hi))
+		       (less-than?-cmp key hi key-cmp-fn))
 		   tree
-		 (WB-Map-Tree-Trim (WB-Map-Tree-Node-Left tree) lo hi))
-	     (WB-Map-Tree-Trim (WB-Map-Tree-Node-Right tree) lo hi))))))
+		 (WB-Map-Tree-Trim (WB-Map-Tree-Node-Left tree) lo hi key-cmp-fn))
+	     (WB-Map-Tree-Trim (WB-Map-Tree-Node-Right tree) lo hi key-cmp-fn))))))
 
-(defun WB-Map-Tree-Concat-Maybe (pair? key value left right)
+(defun WB-Map-Tree-Concat-Maybe (pair? key value left right key-cmp-fn)
   (declare (optimize (speed 3) (safety 0)))
-  (if pair? (WB-Map-Tree-Concat key value left right)
-    (WB-Map-Tree-Join left right)))
+  (if pair? (WB-Map-Tree-Concat key value left right key-cmp-fn)
+    (WB-Map-Tree-Join left right key-cmp-fn)))
 
-(defun WB-Map-Tree-Concat (key value left right)
+(defun WB-Map-Tree-Concat (key value left right key-cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Map-Tree left right))
+	   (type WB-Map-Tree left right)
+	   (type function key-cmp-fn))
   (cond ((null left)
-	 (WB-Map-Tree-With right key value))
+	 ;; To avoid needing `val-cmp-fn' absolutely everywhere, and because the only reason it's
+	 ;; needed here is to optimize out a redundant `with', and we know this `with' can't be
+	 ;; redundant, we just pass a `val-cmp-fn' that disables the optimization.
+	 (WB-Map-Tree-With right key value key-cmp-fn (fn (_x _y) ':unequal)))
 	((null right)
-	 (WB-Map-Tree-With left key value))
+	 (WB-Map-Tree-With left key value key-cmp-fn (fn (_x _y) ':unequal)))
 	((and (WB-Map-Tree-Node? left)
 	      (> (WB-Map-Tree-Node-Size left)
 		 (the fixnum (* (WB-Map-Tree-Size right) WB-Tree-Balance-Factor))))
@@ -5140,24 +5149,24 @@ between equal trees."
 				 (WB-Map-Tree-Node-Left left)
 				 (WB-Map-Tree-Concat key value
 						     (WB-Map-Tree-Node-Right left)
-						     right)))
+						     right key-cmp-fn)))
 	((and (WB-Map-Tree-Node? right)
 	      (> (WB-Map-Tree-Node-Size right)
 		 (the fixnum (* (WB-Map-Tree-Size left) WB-Tree-Balance-Factor))))
 	 (WB-Map-Tree-Build-Node (WB-Map-Tree-Node-Key right)
 				 (WB-Map-Tree-Node-Value right)
 				 (WB-Map-Tree-Concat key value left
-						     (WB-Map-Tree-Node-Left right))
+						     (WB-Map-Tree-Node-Left right) key-cmp-fn)
 				 (WB-Map-Tree-Node-Right right)))
 	(t
 	 (WB-Map-Tree-Build-Node key value left right))))
 
-(defun WB-Map-Tree-Join (left right)
+(defun WB-Map-Tree-Join (left right key-cmp-fn)
   (if (null left) right
     (if (null right) left
       (let ((min-key min-val (WB-Map-Tree-Minimum-Pair right)))
 	(WB-Map-Tree-Concat min-key min-val
-			    left (WB-Map-Tree-Less-Minimum right))))))
+			    left (WB-Map-Tree-Less-Minimum right key-cmp-fn) key-cmp-fn)))))
 
 (defun WB-Map-Tree-Build-Node (key value left right)
   "Constructs a `WB-Map-Tree', performing one rebalancing step if required.
@@ -5166,7 +5175,7 @@ between equal trees."
 	   (type WB-Map-Tree left right))
   (if (and (or (null left) (consp left))
 	   (or (null right) (consp right)))
-      (if (and (not (Equivalent-Map? key))
+      (if (and (not (Equivalent-Node? key))
 	       (< (+ (length-nv (the (or null simple-vector) (car left)))
 		     (length-nv (the (or null simple-vector) (car right))))
 		  *WB-Tree-Max-Vector-Length*))
@@ -5217,24 +5226,24 @@ between equal trees."
 	     (Make-WB-Map-Tree-Node key value left right))))))
 
 
-(defun WB-Map-Tree-Verify (tree)
-  (WB-Map-Tree-Verify-Rng tree Hedge-Negative-Infinity Hedge-Positive-Infinity))
+(defun WB-Map-Tree-Verify (tree key-cmp-fn)
+  (WB-Map-Tree-Verify-Rng tree Hedge-Negative-Infinity Hedge-Positive-Infinity key-cmp-fn))
 
-(defun WB-Map-Tree-Verify-Rng (tree lo hi)
+(defun WB-Map-Tree-Verify-Rng (tree lo hi key-cmp-fn)
   (cond ((null tree) t)
 	((consp tree)
 	 (let ((len (length (car tree))))
 	   (and (> len 0)
 		(<= len *WB-Tree-Max-Vector-Length*)
 		(do ((i 0 (1+ i))
-		     (prev Hedge-Negative-Infinity))
+		     (prev lo))
 		    ((= i len)
 		     (or (eq hi Hedge-Positive-Infinity)
-			 (less-than? prev hi)))
+			 (less-than?-cmp prev hi key-cmp-fn)))
 		  (let ((key (svref (car tree) i)))
-		    (unless (and (not (Equivalent-Map? key))
+		    (unless (and (not (Equivalent-Node? key))
 				 (or (eq prev Hedge-Negative-Infinity)
-				     (less-than? prev key)))
+				     (less-than?-cmp prev key key-cmp-fn)))
 		      (return nil))
 		    (setq prev key))))))
 	(t
@@ -5242,24 +5251,25 @@ between equal trees."
 	       (sizr (WB-Map-Tree-Size (WB-Map-Tree-Node-Right tree)))
 	       (key (WB-Map-Tree-Node-Key tree)))
 	   (and (= (WB-Map-Tree-Node-Size tree) (+ sizl sizr (Map-Key-Size key)))
-		(or (not (Equivalent-Map? key))
-		    (> (length (Equivalent-Map-Alist key)) 1))
+		(or (not (Equivalent-Node? key))
+		    (> (length (Equivalent-Node-List key)) 1))
 		(or (<= sizr 4)
 		    (<= sizl (* sizr WB-Tree-Balance-Factor)))
 		(or (<= sizl 4)
 		    (<= sizr (* sizl WB-Tree-Balance-Factor)))
-		(WB-Map-Tree-Verify-Rng (WB-Map-Tree-Node-Left tree) lo key)
-		(WB-Map-Tree-Verify-Rng (WB-Map-Tree-Node-Right tree) key hi))))))
+		(WB-Map-Tree-Verify-Rng (WB-Map-Tree-Node-Left tree) lo key key-cmp-fn)
+		(WB-Map-Tree-Verify-Rng (WB-Map-Tree-Node-Right tree) key hi key-cmp-fn))))))
 
 
-(defun WB-Map-Tree-Vector-Pair-Union (pr1 pr2 val-fn lo hi)
-  (let ((new-pr any-equivalent? (Vector-Pair-Union pr1 pr2 val-fn lo hi)))
+(defun WB-Map-Tree-Vector-Pair-Union (pr1 pr2 val-fn lo hi key-cmp-fn)
+  (let ((new-pr any-equivalent? (Vector-Pair-Union pr1 pr2 val-fn lo hi key-cmp-fn)))
     (if any-equivalent?
 	(let ((tree nil))
 	  ;; Let's just do it the stupid way -- it's not supposed to happen often.
 	  (dotimes (i (length (car new-pr)))
+	    ;; As above -- the funny `val-cmp-fn' value just blocks an optimization that can't fire anyway.
 	    (setq tree (WB-Map-Tree-With tree (svref (car new-pr) i)
-					 (svref (cdr new-pr) i))))
+					 (svref (cdr new-pr) i) key-cmp-fn (fn (_x _y) ':unequal))))
 	  tree)
       (if (> (length (car new-pr)) *WB-Tree-Max-Vector-Length*)
 	  (let ((split-point (floor (length (car new-pr)) 2)))
@@ -5271,10 +5281,10 @@ between equal trees."
 					 (Vector-Subseq (cdr new-pr) (1+ split-point)))))
 	new-pr))))
 
-(defun Vector-Pair-Union (pr1 pr2 val-fn lo hi)
+(defun Vector-Pair-Union (pr1 pr2 val-fn lo hi key-cmp-fn)
   (declare (optimize (speed 3) (safety 0))
 	   (type cons pr1 pr2)
-	   (type function val-fn))
+	   (type function val-fn key-cmp-fn))
   (let ((keys1 (the simple-vector (car pr1)))
 	(keys2 (the simple-vector (car pr2)))
 	(vals1 (the simple-vector (cdr pr1)))
@@ -5285,14 +5295,14 @@ between equal trees."
 	 (len2 (length keys2))))
     (declare (type fixnum i1 i2 len1 len2))
     (unless (eq lo Hedge-Negative-Infinity)
-      (do () ((or (= i1 len1) (less-than? lo (svref keys1 i1))))
+      (do () ((or (= i1 len1) (less-than?-cmp lo (svref keys1 i1) key-cmp-fn)))
 	(incf i1))
-      (do () ((or (= i2 len2) (less-than? lo (svref keys2 i2))))
+      (do () ((or (= i2 len2) (less-than?-cmp lo (svref keys2 i2) key-cmp-fn)))
 	(incf i2)))
     (unless (eq hi Hedge-Positive-Infinity)
-      (do () ((or (= i1 len1) (less-than? (svref keys1 (1- len1)) hi)))
+      (do () ((or (= i1 len1) (less-than?-cmp (svref keys1 (1- len1)) hi key-cmp-fn)))
 	(decf len1))
-      (do () ((or (= i2 len2) (less-than? (svref keys2 (1- len2)) hi)))
+      (do () ((or (= i2 len2) (less-than?-cmp (svref keys2 (1- len2)) hi key-cmp-fn)))
 	(decf len2)))
     (do ((keys nil)
 	 (vals nil)
@@ -5315,7 +5325,7 @@ between equal trees."
 	    (t
 	     (let ((key1 (svref keys1 i1))
 		   (key2 (svref keys2 i2))
-		   ((comp (compare key1 key2))))
+		   ((comp (funcall key-cmp-fn key1 key2))))
 	       (ecase comp
 		 ((:equal)
 		  (let ((new-val second-val (funcall val-fn (svref vals1 i1) (svref vals2 i2))))
@@ -5335,19 +5345,19 @@ between equal trees."
 		 ((:unequal)
 		  (let ((nonnull? key val
 			  (Equivalent-Map-Union key1 (svref vals1 i1)
-			   key2 (svref vals2 i2) val-fn)))
+			   key2 (svref vals2 i2) val-fn key-cmp-fn)))
 		    (when nonnull?
 		      (push key keys)
 		      (push val vals)
-		      (when (Equivalent-Map? key)
+		      (when (Equivalent-Node? key)
 			(setq any-equivalent? t))))
 		   (incf i1)
 		   (incf i2)))))))))
 
-(defun Vector-Pair-Intersect (pr1 pr2 val-fn lo hi)
+(defun Vector-Pair-Intersect (pr1 pr2 val-fn lo hi key-cmp-fn)
   (declare (optimize (speed 3) (safety 0))
 	   (type cons pr1 pr2)
-	   (type function val-fn))
+	   (type function val-fn key-cmp-fn))
   (let ((keys1 (the simple-vector (car pr1)))
 	(vals1 (the simple-vector (cdr pr1)))
 	(keys2 (the simple-vector (car pr2)))
@@ -5358,10 +5368,10 @@ between equal trees."
 	 (len2 (length keys2))))
     (declare (type fixnum i1 i2 len1 len2))
     (unless (eq lo Hedge-Negative-Infinity)
-      (do () ((or (= i1 len1) (less-than? lo (svref keys1 i1))))
+      (do () ((or (= i1 len1) (less-than?-cmp lo (svref keys1 i1) key-cmp-fn)))
 	(incf i1)))
     (unless (eq hi Hedge-Positive-Infinity)
-      (do () ((or (= i1 len1) (less-than? (svref keys1 (1- len1)) hi)))
+      (do () ((or (= i1 len1) (less-than?-cmp (svref keys1 (1- len1)) hi key-cmp-fn)))
 	(decf len1)))
     (do ((keys nil)
 	 (vals nil))
@@ -5370,7 +5380,7 @@ between equal trees."
 			 (Reverse-List-To-Vector vals))))
       (let ((key1 (svref keys1 i1))
 	    (key2 (svref keys2 i2))
-	    ((comp (compare key1 key2))))
+	    ((comp (funcall key-cmp-fn key1 key2))))
 	(ecase comp
 	  ((:equal)
 	    (let ((new-val second-val (funcall val-fn (svref vals1 i1) (svref vals2 i2))))
@@ -5387,7 +5397,10 @@ between equal trees."
 	   (incf i1)
 	   (incf i2)))))))
 
-(defun Vector-Pair-Diff-2 (pr1 pr2 lo hi)
+(defun Vector-Pair-Diff-2 (pr1 pr2 lo hi key-cmp-fn val-cmp-fn)
+  (declare (optimize (speed 3) (safety 0))
+	   (type cons pr1 pr2)
+	   (type function key-cmp-fn val-cmp-fn))
   (let ((keys1 (the simple-vector (car pr1)))
 	(vals1 (the simple-vector (cdr pr1)))
 	(keys2 (the simple-vector (car pr2)))
@@ -5398,14 +5411,14 @@ between equal trees."
 	 (len2 (length keys2))))
     (declare (type fixnum i1 i2 len1 len2))
     (unless (eq lo Hedge-Negative-Infinity)
-      (do () ((or (= i1 len1) (less-than? lo (svref keys1 i1))))
+      (do () ((or (= i1 len1) (less-than?-cmp lo (svref keys1 i1) key-cmp-fn)))
 	(incf i1))
-      (do () ((or (= i2 len2) (less-than? lo (svref keys2 i2))))
+      (do () ((or (= i2 len2) (less-than?-cmp lo (svref keys2 i2) key-cmp-fn)))
 	(incf i2)))
     (unless (eq hi Hedge-Positive-Infinity)
-      (do () ((or (= i1 len1) (less-than? (svref keys1 (1- len1)) hi)))
+      (do () ((or (= i1 len1) (less-than?-cmp (svref keys1 (1- len1)) hi key-cmp-fn)))
 	(decf len1))
-      (do () ((or (= i2 len2) (less-than? (svref keys2 (1- len2)) hi)))
+      (do () ((or (= i2 len2) (less-than?-cmp (svref keys2 (1- len2)) hi key-cmp-fn)))
 	(decf len2)))
     (do ((diff-1-keys nil)
 	 (diff-1-vals nil)
@@ -5428,10 +5441,10 @@ between equal trees."
 	    (key2 (svref keys2 i2))
 	    (val1 (svref vals1 i1))
 	    (val2 (svref vals2 i2))
-	    ((comp (compare key1 key2))))
+	    ((comp (funcall key-cmp-fn key1 key2))))
 	(ecase comp
 	  ((:equal)
-	   (unless (equal? val1 val2)
+	   (unless (equal?-cmp val1 val2 val-cmp-fn)
 	     (push key1 diff-1-keys)
 	     (push val1 diff-1-vals)
 	     (push key2 diff-2-keys)
@@ -5454,10 +5467,11 @@ between equal trees."
 	   (incf i1)
 	   (incf i2)))))))
 
-(defun Vector-Pair-Restrict (map-pr set-vec lo hi)
+(defun Vector-Pair-Restrict (map-pr set-vec lo hi key-cmp-fn)
   (declare (optimize (speed 3) (safety 0))
 	   (type cons map-pr)
-	   (type simple-vector set-vec))
+	   (type simple-vector set-vec)
+	   (type function key-cmp-fn))
   (let ((map-keys (the simple-vector (car map-pr)))
 	(map-vals (the simple-vector (cdr map-pr)))
 	(i1 0)
@@ -5466,14 +5480,14 @@ between equal trees."
 	 (len2 (length set-vec))))
     (declare (type fixnum i1 i2 len1 len2))
     (unless (eq lo Hedge-Negative-Infinity)
-      (do () ((or (= i1 len1) (less-than? lo (svref map-keys i1))))
+      (do () ((or (= i1 len1) (less-than?-cmp lo (svref map-keys i1) key-cmp-fn)))
 	(incf i1))
-      (do () ((or (= i2 len2) (less-than? lo (svref set-vec i2))))
+      (do () ((or (= i2 len2) (less-than?-cmp lo (svref set-vec i2) key-cmp-fn)))
 	(incf i2)))
     (unless (eq hi Hedge-Positive-Infinity)
-      (do () ((or (= i1 len1) (less-than? (svref map-keys (1- len1)) hi)))
+      (do () ((or (= i1 len1) (less-than?-cmp (svref map-keys (1- len1)) hi key-cmp-fn)))
 	(decf len1))
-      (do () ((or (= i2 len2) (less-than? (svref set-vec (1- len2)) hi)))
+      (do () ((or (= i2 len2) (less-than?-cmp (svref set-vec (1- len2)) hi key-cmp-fn)))
 	(decf len2)))
     (do ((keys nil)
 	 (vals nil))
@@ -5482,7 +5496,7 @@ between equal trees."
 			 (Reverse-List-To-Vector vals))))
       (let ((k (svref map-keys i1))
 	    (e (svref set-vec i2))
-	    ((comp (compare k e))))
+	    ((comp (funcall key-cmp-fn k e))))
 	(ecase comp
 	  (:equal
 	   (push k keys)
@@ -5497,10 +5511,11 @@ between equal trees."
 	   (incf i1)
 	   (incf i2)))))))
 
-(defun Vector-Pair-Restrict-Not (map-pr set-vec lo hi)
+(defun Vector-Pair-Restrict-Not (map-pr set-vec lo hi key-cmp-fn)
   (declare (optimize (speed 3) (safety 0))
 	   (type cons map-pr)
-	   (type simple-vector set-vec))
+	   (type simple-vector set-vec)
+	   (type function key-cmp-fn))
   (let ((map-keys (the simple-vector (car map-pr)))
 	(map-vals (the simple-vector (cdr map-pr)))
 	(i1 0)
@@ -5509,14 +5524,14 @@ between equal trees."
 	 (len2 (length set-vec))))
     (declare (type fixnum i1 i2 len1 len2))
     (unless (eq lo Hedge-Negative-Infinity)
-      (do () ((or (= i1 len1) (less-than? lo (svref map-keys i1))))
+      (do () ((or (= i1 len1) (less-than?-cmp lo (svref map-keys i1) key-cmp-fn)))
 	(incf i1))
-      (do () ((or (= i2 len2) (less-than? lo (svref set-vec i2))))
+      (do () ((or (= i2 len2) (less-than?-cmp lo (svref set-vec i2) key-cmp-fn)))
 	(incf i2)))
     (unless (eq hi Hedge-Positive-Infinity)
-      (do () ((or (= i1 len1) (less-than? (svref map-keys (1- len1)) hi)))
+      (do () ((or (= i1 len1) (less-than?-cmp (svref map-keys (1- len1)) hi key-cmp-fn)))
 	(decf len1))
-      (do () ((or (= i2 len2) (less-than? (svref set-vec (1- len2)) hi)))
+      (do () ((or (= i2 len2) (less-than?-cmp (svref set-vec (1- len2)) hi key-cmp-fn)))
 	(decf len2)))
     (do ((keys nil)
 	 (vals nil))
@@ -5529,7 +5544,7 @@ between equal trees."
 			 (Reverse-List-To-Vector vals))))
       (let ((k (svref map-keys i1))
 	    (e (svref set-vec i2))
-	    ((comp (compare k e))))
+	    ((comp (funcall key-cmp-fn k e))))
 	(ecase comp
 	  (:equal
 	   (incf i1)
@@ -5553,8 +5568,8 @@ between equal trees."
 (defmacro Do-WB-Map-Tree-Pairs ((key-var value-var tree-form &optional value-form)
 				&body body)
   ;; See comment at `Do-WB-Set-Tree-Members'.
-  (let ((body-fn (gensym "BODY-"))
-	(recur-fn (gensym "RECUR-")))
+  (let ((body-fn (gensymx #:body-))
+	(recur-fn (gensymx #:recur-)))
     `(block nil
        (labels ((,body-fn (,key-var ,value-var)
 		  . ,body)
@@ -5568,14 +5583,13 @@ between equal trees."
 		      (progn
 			(,recur-fn (WB-Map-Tree-Node-Left tree))
 			(let ((key (WB-Map-Tree-Node-Key tree)))
-			  (if (Equivalent-Map? key)
-			      (dolist (pr (Equivalent-Map-Alist key))
+			  (if (Equivalent-Node? key)
+			      (dolist (pr (Equivalent-Node-List key))
 				(,body-fn (car pr) (cdr pr)))
 			    (,body-fn key (WB-Map-Tree-Node-Value tree))))
 			(,recur-fn (WB-Map-Tree-Node-Right tree)))))))
 	 (,recur-fn ,tree-form))
        ,value-form)))
-
 
 (defun WB-Map-Tree-Compose (tree fn)
   (and tree
@@ -5587,11 +5601,11 @@ between equal trees."
 	       (val (WB-Map-Tree-Node-Value tree))
 	       (new-left (WB-Map-Tree-Compose (WB-Map-Tree-Node-Left tree) fn))
 	       (new-right (WB-Map-Tree-Compose (WB-Map-Tree-Node-Right tree) fn)))
-	   (if (Equivalent-Map? key)
+	   (if (Equivalent-Node? key)
 	       (Make-WB-Map-Tree-Node
 		 (Make-Equivalent-Map (mapcar (lambda (pr)
 						(cons (car pr) (funcall fn (cdr pr))))
-					      (Equivalent-Map-Alist key)))
+					      (Equivalent-Node-List key)))
 		 val new-left new-right)
 	     (Make-WB-Map-Tree-Node key (funcall fn val) new-left new-right))))))
 
@@ -5667,8 +5681,8 @@ between equal trees."
 	(if (consp node)
 	    (values (svref (car node) idx) (svref (cdr node) idx) t)
 	  (let ((key (WB-Map-Tree-Node-Key node)))
-	    (if (Equivalent-Map? key)
-		(let ((pr (nth (1- idx) (Equivalent-Map-Alist key))))
+	    (if (Equivalent-Node? key)
+		(let ((pr (nth (1- idx) (Equivalent-Node-List key))))
 		  (values (car pr) (cdr pr) t))
 	      (values key (WB-Map-Tree-Node-Value node) t))))))))
 
@@ -5702,8 +5716,8 @@ between equal trees."
 	    (t
 	     (walk (WB-Map-Tree-Node-Left node)
 		   (let ((key (WB-Map-Tree-Node-Key node)))
-		     (if (Equivalent-Map? key)
-			 (rlabels (iter (Equivalent-Map-Alist key))
+		     (if (Equivalent-Node? key)
+			 (rlabels (iter (Equivalent-Node-List key))
 			   (iter (prs)
 			     (if prs
 				 (lambda (op)
@@ -5745,8 +5759,8 @@ between equal trees."
 	    (t
 	     (walk (WB-Map-Tree-Node-Right node)
 		   (let ((key (WB-Map-Tree-Node-Key node)))
-		     (if (Equivalent-Map? key)
-			 (rlabels (iter (reverse (Equivalent-Map-Alist key)))
+		     (if (Equivalent-Node? key)
+			 (rlabels (iter (reverse (Equivalent-Node-List key)))
 			   (iter (prs)
 			     (if prs
 				 (lambda (op)
@@ -5767,16 +5781,13 @@ between equal trees."
 ;;; ================================================================================
 ;;; Equivalent-Map routines
 
-(defun Equivalent-Map-With (key1 val1 key2 val2)
-  (let ((nonnull? key val (Equivalent-Map-Union key1 val1 key2 val2)))
+(defun Equivalent-Map-With (key1 val1 key2 val2 key-cmp-fn)
+  (let ((nonnull? key val (Equivalent-Map-Union key1 val1 key2 val2 (fn (_a b) b) key-cmp-fn)))
     (declare (ignore nonnull?))
-    ;; `nonnull?' must be true since we used the default `val-fn'.
+    ;; `nonnull?' must be true given `val-fn'.
     (values key val)))
 
-(defun Equivalent-Map-Union (key1 val1 key2 val2
-			     &optional (val-fn #'(lambda (v1 v2)
-						   (declare (ignore v1))
-						   v2)))
+(defun Equivalent-Map-Union (key1 val1 key2 val2 val-fn key-cmp-fn)
   "Both `key1' and `key2' may be single values (representing a single key/value
 pair) or `Equivalent-Map's of key/value pairs.  That is, if `key1' is a
 `Equivalent-Map', `val1' is ignored, and similarly for `key2' and `val2'.
@@ -5784,23 +5795,23 @@ Returns one or more new key/value pairs in which the \"2\" pairs override
 the \"1\" pairs.  If the result is a single pair, it's returned as two values;
 otherwise one value is returned, which is an `Equivalent-Map'."
   (declare (optimize (speed 3) (safety 0))
-	   (type function val-fn)
+	   (type function key-cmp-fn val-fn)
 	   (dynamic-extent val-fn))
-  (if (Equivalent-Map? key1)
-      (if (Equivalent-Map? key2)
-	  (let ((alist1 (Equivalent-Map-Alist key1))
-		(alist2 (Equivalent-Map-Alist key2))
+  (if (Equivalent-Node? key1)
+      (if (Equivalent-Node? key2)
+	  (let ((alist1 (Equivalent-Node-List key1))
+		(alist2 (Equivalent-Node-List key2))
 		((result nil)))
 	    (declare (type list alist1 alist2))
 	    (dolist (pr1 alist1)
-	      (let ((pr2 (find (car pr1) alist2 :test #'equal? :key #'car)))
+	      (let ((pr2 (find (car pr1) alist2 :test (equal?-fn key-cmp-fn) :key #'car)))
 		(if pr2
 		    (let ((new-val second-val (funcall val-fn (cdr pr1) (cdr pr2))))
 		      (unless (eq second-val ':no-value)
 			(push (cons (car pr1) new-val) result)))
 		  (push pr1 result))))
 	    (dolist (pr2 alist2)
-	      (let ((pr1 (find (car pr2) alist1 :test #'equal? :key #'car)))
+	      (let ((pr1 (find (car pr2) alist1 :test (equal?-fn key-cmp-fn) :key #'car)))
 		(when (null pr1)
 		  (push pr2 result))))
 	    (cond ((null result) nil)
@@ -5808,8 +5819,8 @@ otherwise one value is returned, which is an `Equivalent-Map'."
 		   (values t (Make-Equivalent-Map result)))
 		  (t
 		   (values t (caar result) (cdar result)))))
-	(let ((alist1 (Equivalent-Map-Alist key1))
-	      ((pr1 (find key2 alist1 :test #'equal? :key #'car))))
+	(let ((alist1 (Equivalent-Node-List key1))
+	      ((pr1 (find key2 alist1 :test (equal?-fn key-cmp-fn) :key #'car))))
 	  (declare (type list alist1))
 	  (if pr1
 	      (progn
@@ -5821,9 +5832,9 @@ otherwise one value is returned, which is an `Equivalent-Map'."
 			(values t (Make-Equivalent-Map alist1)))
 		    (values t (Make-Equivalent-Map (cons (cons key2 new-val) alist1))))))
 	    (values t (Make-Equivalent-Map (cons (cons key2 val2) alist1))))))
-    (if (Equivalent-Map? key2)
-	(let ((alist2 (Equivalent-Map-Alist key2))
-	      ((pr2 (find key1 alist2 :test #'equal? :key #'car))))
+    (if (Equivalent-Node? key2)
+	(let ((alist2 (Equivalent-Node-List key2))
+	      ((pr2 (find key1 alist2 :test (equal?-fn key-cmp-fn) :key #'car))))
 	  (declare (type list alist2))
 	  (if pr2
 	      (progn
@@ -5835,13 +5846,13 @@ otherwise one value is returned, which is an `Equivalent-Map'."
 			(values t (Make-Equivalent-Map alist2)))
 		    (values t (Make-Equivalent-Map (cons (cons key1 new-val) alist2))))))
 	    (values t (Make-Equivalent-Map (cons (cons key1 val1) alist2)))))
-      (if (equal? key1 key2)
+      (if (equal?-cmp key1 key2 key-cmp-fn)
 	  (let ((new-val second-val (funcall val-fn val1 val2)))
 	    (and (not (eq second-val ':no-value))
 		 (values t key1 new-val)))
 	(values t (Make-Equivalent-Map (list (cons key1 val1) (cons key2 val2))))))))
 
-(defun Equivalent-Map-Update (key1 val1 key2 value-fn default second-arg)
+(defun Equivalent-Map-Update (key1 val1 key2 value-fn default second-arg key-cmp-fn)
   "`key1' may be either a single value (representing a single key/value pair)
 or an `Equivalent-Map' of key/value pairs.  That is, if `key1' is an
 `Equivalent-Map', `val1' is ignored.  Returns one or more new key/value pairs
@@ -5850,22 +5861,21 @@ on (a) either the previous such value, if any, or else `default', and (b)
 `second-arg'.  If the result is a single pair, it's returned as two values;
 otherwise one value is returned, which is an `Equivalent-Map'."
   (declare (optimize (speed 3) (safety 0))
-	   (type function value-fn)
-	   (dynamic-extent value-fn))
-  (if (Equivalent-Map? key1)
-      (let ((alist1 (Equivalent-Map-Alist key1))
-	    ((pr1 (find key2 alist1 :test #'equal? :key #'car))))
+	   (type function value-fn key-cmp-fn))
+  (if (Equivalent-Node? key1)
+      (let ((alist1 (Equivalent-Node-List key1))
+	    ((pr1 (find key2 alist1 :test (equal?-fn key-cmp-fn) :key #'car))))
 	(declare (type list alist1))
 	(if pr1
 	    (Make-Equivalent-Map (cons (cons key1 (funcall value-fn (cdr pr1) second-arg))
 				       (remove pr1 alist1)))
 	  (Make-Equivalent-Map (cons (cons key2 (funcall value-fn default second-arg)) alist1))))
-    (if (equal? key1 key2)
+    (if (equal?-cmp key1 key2 key-cmp-fn)
 	(values key1 (funcall value-fn val1 second-arg))
       (Make-Equivalent-Map (list (cons key1 val1)
 				 (cons key2 (funcall value-fn default second-arg)))))))
 
-(defun Equivalent-Map-Intersect (key1 val1 key2 val2 val-fn)
+(defun Equivalent-Map-Intersect (key1 val1 key2 val2 val-fn key-cmp-fn)
   "Both `key1' and `key2' may be single values (representing a single key/value
 pair) or `Equivalent-Map's of key/value pairs.  That is, if `key1' is a
 `Equivalent-Map', `val1' is ignored, and similarly for `key2' and `val2'.
@@ -5874,15 +5884,15 @@ single pair, returns true, the key, and the value; if it is more than one
 pair, returns true and an `Equivalent-Map' of the pairs.  If the intersection
 is null, returns false."
   (declare (optimize (speed 3) (safety 0))
-	   (type function val-fn))
-  (if (Equivalent-Map? key1)
-      (if (Equivalent-Map? key2)
-	  (let ((alist1 (Equivalent-Map-Alist key1))
-		(alist2 (Equivalent-Map-Alist key2))
+	   (type function val-fn key-cmp-fn))
+  (if (Equivalent-Node? key1)
+      (if (Equivalent-Node? key2)
+	  (let ((alist1 (Equivalent-Node-List key1))
+		(alist2 (Equivalent-Node-List key2))
 		(result nil))
 	    (declare (type list alist1 alist2))
 	    (dolist (pr1 alist1)
-	      (let ((pr2 (cl:find (car pr1) alist2 :test #'equal? :key #'car)))
+	      (let ((pr2 (cl:find (car pr1) alist2 :test (equal?-fn key-cmp-fn) :key #'car)))
 		(when pr2
 		  (let ((new-val second-val (funcall val-fn (cdr pr1) (cdr pr2))))
 		    (unless (eq second-val ':no-value)
@@ -5891,24 +5901,24 @@ is null, returns false."
 		 (if (cdr result)
 		     (values t (Make-Equivalent-Map result))
 		   (values t (caar result) (cdar result)))))
-	(let ((alist1 (Equivalent-Map-Alist key1))
-	      ((pr1 (cl:find key2 alist1 :test #'equal? :key #'car))))
+	(let ((alist1 (Equivalent-Node-List key1))
+	      ((pr1 (cl:find key2 alist1 :test (equal?-fn key-cmp-fn) :key #'car))))
 	  (declare (type list alist1))
 	  (and pr1
 	       (let ((new-val second-val (funcall val-fn (cdr pr1) val2)))
 		 (and (not (eq second-val ':no-value)) (values t key2 new-val))))))
-    (if (Equivalent-Map? key2)
-	(let ((alist2 (Equivalent-Map-Alist key2))
-	      ((pr2 (cl:find key1 alist2 :test #'equal? :key #'car))))
+    (if (Equivalent-Node? key2)
+	(let ((alist2 (Equivalent-Node-List key2))
+	      ((pr2 (cl:find key1 alist2 :test (equal?-fn key-cmp-fn) :key #'car))))
 	  (declare (type list alist2))
 	  (and pr2
 	       (let ((new-val second-val (funcall val-fn val1 (cdr pr2))))
 		 (and (not (eq second-val ':no-value)) (values t key1 new-val)))))
-      (and (equal? key1 key2)
+      (and (equal?-cmp key1 key2 key-cmp-fn)
 	   (let ((new-val second-val (funcall val-fn val1 val2)))
 	     (and (not (eq second-val ':no-value)) (values t key1 new-val)))))))
 
-(defun Equivalent-Map-Difference (key1 val1 key2 val2)
+(defun Equivalent-Map-Difference (key1 val1 key2 val2 key-cmp-fn val-cmp-fn)
   "Both `key1' and `key2' may be single values (representing a single key/value
 pair) or `Equivalent-Map's of key/value pairs.  That is, if `key1' is a
 `Equivalent-Map', `val1' is ignored, and similarly for `key2' and `val2'.
@@ -5916,37 +5926,40 @@ If the difference is nonnull, returns two or three values: if it is a single
 pair, returns true, the key, and the value; if it is more than one pair,
 returns true and an `Equivalent-Map' of the pairs.  If the difference is
 empty, returns false."
-  (if (Equivalent-Map? key1)
-      (let ((alist1 (Equivalent-Map-Alist key1)))
+  (declare (optimize (speed 3) (safety 0))
+	   (type function key-cmp-fn val-cmp-fn))
+  (if (Equivalent-Node? key1)
+      (let ((alist1 (Equivalent-Node-List key1)))
 	(declare (type list alist1))
-	(let ((alist2 (if (Equivalent-Map? key2) (Equivalent-Map-Alist key2)
+	(let ((alist2 (if (Equivalent-Node? key2) (Equivalent-Node-List key2)
 			(list (cons key2 val2))))
 	      (result nil))
 	  (declare (type list alist2))
 	  (dolist (pr1 alist1)
-	    (let ((pr2 (cl:find (car pr1) alist2 :test #'equal? :key #'car)))
-	      (when (or (null pr2) (not (equal? (cdr pr1) (cdr pr2))))
+	    (let ((pr2 (cl:find (car pr1) alist2 :test (equal?-fn key-cmp-fn) :key #'car)))
+	      (when (or (null pr2) (not (equal?-cmp (cdr pr1) (cdr pr2) val-cmp-fn)))
 		(push pr1 result))))
 	  (and result
 	       (if (cdr result)
 		   (values t (Make-Equivalent-Map result))
 		 (values t (caar result) (cdar result))))))
-    (if (Equivalent-Map? key2)
-	(let ((alist2 (Equivalent-Map-Alist key2))
-	      ((pr2 (cl:find key1 alist2 :test #'equal? :key #'car))))
+    (if (Equivalent-Node? key2)
+	(let ((alist2 (Equivalent-Node-List key2))
+	      ((pr2 (cl:find key1 alist2 :test (equal?-fn key-cmp-fn) :key #'car))))
 	  (declare (type list alist2))
-	  (and (or (null pr2) (not (equal? val1 (cdr pr2))))
+	  (and (or (null pr2) (not (equal?-cmp val1 (cdr pr2) val-cmp-fn)))
 	       (values t key1 val1)))
-      (and (or (not (equal? key1 key2)) (not (equal? val1 val2)))
+      (and (or (not (equal?-cmp key1 key2 key-cmp-fn)) (not (equal?-cmp val1 val2 val-cmp-fn)))
 	   (values t key1 val1)))))
 
-(defun Equivalent-Map-Less (eqvm key)
+(defun Equivalent-Map-Less (eqvm key key-cmp-fn)
   "Removes the pair associated with `key' from `eqvm', an `Equivalent-Map'.  If
 the result is a single pair, it's returned as two values; otherwise one value
 is returned, which is an `Equivalent-Map'."
-  (declare (optimize (speed 3) (safety 0)))
-  (let ((alist (Equivalent-Map-Alist eqvm))
-	((pr (assoc key alist :test #'equal?))))
+  (declare (optimize (speed 3) (safety 0))
+	   (type function key-cmp-fn))
+  (let ((alist (Equivalent-Node-List eqvm))
+	((pr (assoc key alist :test (equal?-fn key-cmp-fn)))))
     (if pr
 	(let ((result (cl:remove pr alist)))
 	  (declare (type list result))
@@ -5955,96 +5968,80 @@ is returned, which is an `Equivalent-Map'."
 	    (Make-Equivalent-Map result)))
       eqvm)))
 
-(defun Equivalent-Map-Restrict (key val set-elt)
-  (declare (optimize (speed 3) (safety 0)))
-  (if (Equivalent-Map? key)
-      (let ((alist1 (Equivalent-Map-Alist key))
-	    (mems2 (if (Equivalent-Set? set-elt) (Equivalent-Set-Members set-elt)
+(defun Equivalent-Map-Restrict (key val set-elt key-cmp-fn)
+  (declare (optimize (speed 3) (safety 0))
+	   (type function key-cmp-fn))
+  (if (Equivalent-Node? key)
+      (let ((alist1 (Equivalent-Node-List key))
+	    (mems2 (if (Equivalent-Node? set-elt) (Equivalent-Node-List set-elt)
 		     (list set-elt))))
 	(let ((result (cl:remove-if-not #'(lambda (pr)
-					    (member (car pr) mems2 :test #'equal?))
+					    (member (car pr) mems2 :test (equal?-fn key-cmp-fn)))
 					alist1)))
 	  (cond ((null result) nil)
 		((null (cdr result))
 		 (values t (caar result) (cdar result)))
 		(t
 		 (values t (Make-Equivalent-Map result) nil)))))
-    (if (Equivalent-Set? set-elt)
-	(and (member key (Equivalent-Set-Members set-elt) :test #'equal?)
+    (if (Equivalent-Node? set-elt)
+	(and (member key (Equivalent-Node-List set-elt) :test (equal?-fn key-cmp-fn))
 	     (values t key val))
-      (and (equal? key set-elt)
+      (and (equal?-cmp key set-elt key-cmp-fn)
 	   (values t key val)))))
 
-(defun Equivalent-Map-Restrict-Not (key val set-elt)
-  (declare (optimize (speed 3) (safety 0)))
-  (if (Equivalent-Map? key)
-      (let ((alist1 (Equivalent-Map-Alist key))
-	    (mems2 (if (Equivalent-Set? set-elt) (Equivalent-Set-Members set-elt)
+(defun Equivalent-Map-Restrict-Not (key val set-elt key-cmp-fn)
+  (declare (optimize (speed 3) (safety 0))
+	   (type function key-cmp-fn))
+  (if (Equivalent-Node? key)
+      (let ((alist1 (Equivalent-Node-List key))
+	    (mems2 (if (Equivalent-Node? set-elt) (Equivalent-Node-List set-elt)
 		     (list set-elt))))
 	(let ((result (cl:remove-if #'(lambda (pr)
-					(member (car pr) mems2 :test #'equal?))
+					(member (car pr) mems2 :test (equal?-fn key-cmp-fn)))
 				    alist1)))
 	  (cond ((null result) nil)
 		((null (cdr result))
 		 (values t (caar result) (cdar result)))
 		(t
 		 (values t (Make-Equivalent-Map result) nil)))))
-    (if (Equivalent-Set? set-elt)
-	(and (not (member key (Equivalent-Set-Members set-elt) :test #'equal?))
+    (if (Equivalent-Node? set-elt)
+	(and (not (member key (Equivalent-Node-List set-elt) :test (equal?-fn key-cmp-fn)))
 	     (values t key val))
-      (and (not (equal? key set-elt))
+      (and (not (equal?-cmp key set-elt key-cmp-fn))
 	   (values t key val)))))
 
-(defun Equivalent-Map-Compare (key1 val1 key2 val2 val-fn)
+(defun Equivalent-Map-Compare (key1 val1 key2 val2 key-cmp-fn val-cmp-fn)
   "Compares two pairs where the key of either or both may be an `Equivalent-Map'."
   (declare (optimize (speed 3) (safety 0))
-	   (type function val-fn))
-  (let ((comp (compare key1 key2)))
+	   (type function key-cmp-fn val-cmp-fn))
+  (let ((comp (funcall key-cmp-fn key1 key2)))
     (if (or (eq comp ':less) (eq comp ':greater))
 	comp
-      (if (Equivalent-Map? key1)
-	  (if (Equivalent-Map? key2)
-	      (let ((mems1 (Equivalent-Map-Alist key1))
-		    (mems2 (Equivalent-Map-Alist key2))
+      (if (Equivalent-Node? key1)
+	  (if (Equivalent-Node? key2)
+	      (let ((mems1 (Equivalent-Node-List key1))
+		    (mems2 (Equivalent-Node-List key2))
 		    ((len1 (length mems1))
 		     (len2 (length mems2))))
 		(cond ((< len1 len2) ':greater)
 		      ((> len1 len2) ':less)
 		      ((cl:every #'(lambda (pr1)
-				     (let ((pr2 (assoc (car pr1) mems2 :test #'equal?)))
-				       (and pr2 (equal? (cdr pr1) (cdr pr2)))))
+				     (let ((pr2 (assoc (car pr1) mems2 :test (equal?-fn key-cmp-fn))))
+				       (and pr2 (equal?-cmp (cdr pr1) (cdr pr2) val-cmp-fn))))
 				 mems1)
 		       ':equal)
 		      (t
-		       (let ((set1 (reduce #'WB-Set-Tree-With (mapcar #'cdr mems1)
-					   :initial-value nil))
-			     (set2 (reduce #'WB-Set-Tree-With (mapcar #'cdr mems2)
-					   :initial-value nil))
-			     ((comp (WB-Set-Tree-Compare set1 set2))))
+		       (let ((set1 (reduce (fn (s x) (WB-Set-Tree-With s (cdr x) val-cmp-fn))
+					   mems1 :initial-value nil))
+			     (set2 (reduce (fn (s x) (WB-Set-Tree-With s (cdr x) val-cmp-fn))
+					   mems2 :initial-value nil))
+			     ((comp (WB-Set-Tree-Compare set1 set2 val-cmp-fn))))
 			 (if (eq comp ':equal) ':unequal comp)))))
 	    ':less)
-	(if (Equivalent-Map? key2)
+	(if (Equivalent-Node? key2)
 	    ':greater
-	  (let ((val-comp (funcall val-fn val1 val2)))
+	  (let ((val-comp (funcall val-cmp-fn val1 val2)))
 	    (if (not (eq val-comp ':equal)) val-comp comp)))))))
-
-(defmethod compare (key (eqvm Equivalent-Map))
-  "Returns `:less' or `:greater' if `key' is less than resp. greater than the
-domain values in `eqvm'; or EITHER `:equal' or `:unequal' if `x' is equivalent
-to any domain value in `eqvm'."
-  (compare key (caar (Equivalent-Map-Alist eqvm))))
-
-(defmethod compare ((eqvm Equivalent-Map) key)
-  "Returns `:less' or `:greater' if the domain values in `eqvm' are less than
-resp. greater than `key'; or EITHER `:equal' or `:unequal' if `key' is
-equivalent to any domain value in `eqvm'."
-  (compare (caar (Equivalent-Map-Alist eqvm)) key))
-
-(defmethod compare ((eqvm1 Equivalent-Map) (eqvm2 Equivalent-Map))
-  "Returns `:less' or `:greater' if the domain values in `eqvm1' are less than
-resp. greater than those in `eqvm2'; or EITHER `:equal' or `:unequal' if those
-in `eqvm1' are equivalent to those in `eqvm2'."
-  (compare (caar (Equivalent-Map-Alist eqvm1)) (caar (Equivalent-Map-Alist eqvm2))))
 
 
 ;;; ================================================================================
@@ -6600,33 +6597,78 @@ the result, inserts `val', returning the new vector."
 			     (build (WB-Seq-Tree-Node-Right tree) result))))))
       (build tree nil))))
 
+(defun WB-Seq-Tree-From-Iterable (it len)
+  ;; (declare (optimize (speed 3) (safety 0)))
+  (and (> len 0)
+       (let ((npieces (ceiling len *WB-Tree-Max-Vector-Length*))
+	     ((piece-len remainder (floor len npieces))
+	      ((tmp-piece (make-array (1+ piece-len))))))
+	 (declare (type fixnum npieces piece-len remainder))
+	 (do ((ipiece 0 (1+ ipiece))
+	      (stack nil))
+	     ((= ipiece npieces)
+	      (do () ((null (cdr stack)))
+		(let ((right (pop stack))
+		      (left (pop stack)))
+		  (push (Make-WB-Seq-Tree-Node left right) stack)))
+	      (car stack))
+	   (declare (type fixnum ipiece))
+	   (let ((piece-len (if (< ipiece remainder) (1+ piece-len) piece-len)))
+	     (dotimes (i piece-len)
+	       (setf (svref tmp-piece i) (funcall it ':get)))
+	     (let (((piece (cond ((gmap (:result and) (fn (x _y) (typep x 'base-char))
+					(:arg simple-vector tmp-piece)
+					(:arg index 0 piece-len))
+				  (let ((str (make-string piece-len :element-type 'base-char)))
+				    (dotimes (i piece-len)
+				      (setf (schar str i) (svref tmp-piece i)))
+				    str))
+				 #+FSet-Ext-Strings
+				 ((gmap (:result and) (fn (x _y) (typep x 'character))
+					(:arg simple-vector tmp-piece)
+					(:arg index 0 piece-len))
+				  (let ((str (make-string piece-len :element-type 'character)))
+				    (dotimes (i piece-len)
+				      (setf (char str i) (svref tmp-piece i)))
+				    str))
+				 (t
+				  (subseq tmp-piece 0 piece-len))))))
+	       (push piece stack)
+	       (do ((i ipiece (ash i -1)))
+		   ((evenp i))
+		 (declare (type fixnum i))
+		 (let ((right (pop stack))
+		       (left (pop stack)))
+		   (push (Make-WB-Seq-Tree-Node left right) stack)))))))))
+
 
 ;;; ================================================================================
 ;;; Compare
 
-(defun WB-Seq-Tree-Compare (tree1 tree2)
+(defun WB-Seq-Tree-Compare (tree1 tree2 cmp-fn)
   (if (eq tree1 tree2) ':equal
     (let ((size1 (WB-Seq-Tree-Size tree1))
 	  (size2 (WB-Seq-Tree-Size tree2)))
       (cond ((< size1 size2) ':less)
 	    ((> size1 size2) ':greater)
-	    (t (WB-Seq-Tree-Compare-Rng tree1 0 tree2 0 0 size1))))))
+	    (t (WB-Seq-Tree-Compare-Rng tree1 0 tree2 0 0 size1 cmp-fn))))))
 
-(defun WB-Seq-Tree-Compare-Lexicographically (tree1 tree2)
+(defun WB-Seq-Tree-Compare-Lexicographically (tree1 tree2 cmp-fn)
   (let ((size1 (WB-Seq-Tree-Size tree1))
 	(size2 (WB-Seq-Tree-Size tree2)))
-    (let ((comp (WB-Seq-Tree-Compare-Rng tree1 0 tree2 0 0 (min size1 size2))))
+    (let ((comp (WB-Seq-Tree-Compare-Rng tree1 0 tree2 0 0 (min size1 size2) cmp-fn)))
       (cond ((or (eq comp ':less) (eq comp ':greater))
 	     comp)
 	    ((< size1 size2) ':less)
 	    ((> size1 size2) ':greater)
 	    (t comp)))))
 
-(defun WB-Seq-Tree-Compare-Rng (tree1 base1 tree2 base2 lo hi)
+(defun WB-Seq-Tree-Compare-Rng (tree1 base1 tree2 base2 lo hi cmp-fn)
   ;; See notes at `WB-Set-Tree-Compare-Rng'.
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Seq-Tree tree1 tree2)
-	   (type fixnum base1 base2 lo hi))
+	   (type fixnum base1 base2 lo hi)
+	   (type function cmp-fn))
   (cond ((and (eq tree1 tree2) (= base1 base2))	; historically-related seq optimization
 	 ':equal)
 	((= lo hi) ':equal)
@@ -6640,7 +6682,7 @@ the result, inserts `val', returning the new vector."
 	((and (simple-vector-p tree1) (simple-vector-p tree2))
 	 (let ((unequal? nil))
 	   (or (gmap (:result or) (fn (val1 val2)
-				    (let ((comp (compare val1 val2)))
+				    (let ((comp (funcall cmp-fn val1 val2)))
 				      (when (eq comp ':unequal)
 					(setq unequal? t))
 				      (and (or (eq comp ':less) (eq comp ':greater))
@@ -6651,7 +6693,7 @@ the result, inserts `val', returning the new vector."
 	((and (simple-string-p tree1) (simple-vector-p tree2))
 	 (let ((unequal? nil))
 	   (or (gmap (:result or) (fn (val1 val2)
-				    (let ((comp (compare val1 val2)))
+				    (let ((comp (funcall cmp-fn val1 val2)))
 				      (when (eq comp ':unequal)
 					(setq unequal? t))
 				      (and (or (eq comp ':less) (eq comp ':greater))
@@ -6662,7 +6704,7 @@ the result, inserts `val', returning the new vector."
 	((and (simple-vector-p tree1) (simple-string-p tree2))
 	 (let ((unequal? nil))
 	   (or (gmap (:result or) (fn (val1 val2)
-				    (let ((comp (compare val1 val2)))
+				    (let ((comp (funcall cmp-fn val1 val2)))
 				      (when (eq comp ':unequal)
 					(setq unequal? t))
 				      (and (or (eq comp ':less) (eq comp ':greater))
@@ -6671,7 +6713,7 @@ the result, inserts `val', returning the new vector."
 		     (:arg simple-string tree2 :start (- lo base2) :stop (- hi base2)))
 	       (if unequal? ':unequal ':equal))))
 	((or (stringp tree1) (simple-vector-p tree1))
-	 (let ((rev-comp (WB-Seq-Tree-Compare-Rng tree2 base2 tree1 base1 lo hi)))
+	 (let ((rev-comp (WB-Seq-Tree-Compare-Rng tree2 base2 tree1 base1 lo hi cmp-fn)))
 	   (ecase rev-comp
 	     (:less ':greater)
 	     (:greater ':less)
@@ -6684,14 +6726,14 @@ the result, inserts `val', returning the new vector."
 		 ((left1a base1a (WB-Seq-Tree-Trim left1 base1 lo new-mid))
 		  (tree2a base2a (WB-Seq-Tree-Trim tree2 base2 lo new-mid))
 		  ((left-comp (WB-Seq-Tree-Compare-Rng left1a base1a tree2a base2a
-						       lo new-mid)))))))
+						       lo new-mid cmp-fn)))))))
 	   (if (or (eq left-comp ':less) (eq left-comp ':greater))
 	       left-comp
 	     (let ((right1a base1a (WB-Seq-Tree-Trim (WB-Seq-Tree-Node-Right tree1)
 						     new-mid new-mid hi))
 		   (tree2a base2a (WB-Seq-Tree-Trim tree2 base2 new-mid hi))
 		   ((right-comp (WB-Seq-Tree-Compare-Rng right1a base1a tree2a base2a
-							 new-mid hi))))
+							 new-mid hi cmp-fn))))
 	       (if (not (eq right-comp ':equal))
 		   right-comp
 		 left-comp)))))))
@@ -6790,8 +6832,8 @@ the result, inserts `val', returning the new vector."
   ;; we're going to have a function call for every invocation of the body anyway?
   ;; First, this local call is faster, or should be, than a general funcall; and
   ;; second, some compilers may decide to inline `body-fn' if the body is small.
-  (let ((body-fn (gensym "BODY-"))
-	(recur-fn (gensym "RECUR-")))
+  (let ((body-fn (gensymx #:body-))
+	(recur-fn (gensymx #:recur-)))
     `(block nil
        (labels ((,body-fn (,var) . ,body)
 		(,recur-fn (tree)
@@ -6811,11 +6853,11 @@ the result, inserts `val', returning the new vector."
 (defmacro Do-WB-Seq-Tree-Members-Gen ((var tree-form start-form end-form from-end-form
 				       &optional value-form)
 				      &body body)
-  (let ((body-fn (gensym "BODY-"))
-	(recur-fn (gensym "RECUR-"))
-	(start-var (gensym "START-"))
-	(end-var (gensym "END-"))
-	(from-end-var (gensym "FROM-END-")))
+  (let ((body-fn (gensymx #:body-))
+	(recur-fn (gensymx #:recur-))
+	(start-var (gensymx #:start-))
+	(end-var (gensymx #:end-))
+	(from-end-var (gensymx #:from-end-)))
     `(block nil		; for `return' inside `body'
        (let ((,start-var ,start-form)
 	     (,end-var ,end-form)

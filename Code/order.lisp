@@ -29,7 +29,13 @@ and no more than one of A and B can compare `:equal' to C."))
   (or (eql a b)
       (eq (compare a b) ':equal)))
 
-;;; The macro definition of compare-slots has been moved to order-macros.lisp
+(defun eql-compare (a b)
+  "This simple comparison function returns `:equal' if the arguments are `eql',
+otherwise `:unequal'.  It might occasionally be useful as a value comparator
+for custom maps, when ordering is not important."
+  (if (eql a b) ':equal ':unequal))
+
+;;; The macro definition of compare-slots has been moved to macros.lisp
 
 ;;; Abstract classes
 
@@ -175,7 +181,15 @@ This is the right choice for the vast majority of mutable classes."
 (define-cross-type-compare-methods tuple)
 
 ;;; For users
+(define-cross-type-compare-methods identity-equality-mixin)
 (define-cross-type-compare-methods identity-ordering-mixin)
+
+;;; Override these two.  (Allegro warns about this; ignore it.)
+(defmethod compare ((obj1 identity-ordering-mixin) (obj2 identity-equality-mixin))
+  (compare-slots obj1 obj2 'serial-number))
+
+(defmethod compare ((obj1 identity-equality-mixin) (obj2 identity-ordering-mixin))
+  (compare-slots obj1 obj2 'serial-number))
 
 
 ;;; Nil
@@ -299,16 +313,17 @@ This is the right choice for the vast majority of mutable classes."
   ;; Also, we want to handle dotted lists.
   (compare-lists-lexicographically a b))
 
-(defun compare-lists-lexicographically (a b)
+(defun compare-lists-lexicographically (a b &optional (val-compare-fn #'compare))
+  (declare (type function val-compare-fn))
   (do ((a a (cdr a))
        (b b (cdr b))
        (default ':equal))
       ((or (atom a) (atom b))
-       (let ((comp (compare a b)))
+       (let ((comp (funcall val-compare-fn a b)))
 	 (if (eq comp ':equal) default comp)))
     (when (eq a b)			; we could get lucky
       (return default))
-    (let ((comp (compare (car a) (car b))))
+    (let ((comp (funcall val-compare-fn (car a) (car b))))
       (when (or (eq comp ':less) (eq comp ':greater))
 	(return comp))
       (when (eq comp ':unequal)
@@ -397,12 +412,12 @@ and thus of types named by those symbols.")
 
 ;;; User code that specifically wants lexicographic comparison can call this
 ;;; in the `compare' method for the user type in question.
-(defgeneric compare-lexicographically (a b)
+(defgeneric compare-lexicographically (a b &key)
   (:documentation
     "Returns the result of a lexicographic comparison of `a' and `b', which
 can be strings, vectors, lists, or seqs."))
 
-(defmethod compare-lexicographically ((a string) (b string))
+(defmethod compare-lexicographically ((a string) (b string) &key)
   (if (eq a b)
       ':equal
     (let ((len-a (length a))
@@ -425,10 +440,11 @@ can be strings, vectors, lists, or seqs."))
 	    (cond ((char< ca cb) (return ':less))
 		  ((char> ca cb) (return ':greater)))))))))
 
-(defmethod compare-lexicographically ((a list) (b list))
-  (compare-lists-lexicographically a b))
+(defmethod compare-lexicographically ((a list) (b list) &key (val-compare-fn #'compare))
+  (compare-lists-lexicographically a b val-compare-fn))
 
-(defmethod compare-lexicographically ((a vector) (b vector))
+(defmethod compare-lexicographically ((a vector) (b vector) &key (val-compare-fn #'compare))
+  (declare (type function val-compare-fn))
   (if (eq a b)
       ':equal
     (let ((len-a (length a))
@@ -439,7 +455,7 @@ can be strings, vectors, lists, or seqs."))
 		    (cond ((< len-a len-b) ':less)
 			  ((> len-a len-b) ':greater)
 			  (t default)))
-	    (let ((res (compare (svref a i) (svref b i))))
+	    (let ((res (funcall val-compare-fn (svref a i) (svref b i))))
 	      (when (or (eq res ':less) (eq res ':greater))
 		(return res))
 	      (when (eq res ':unequal)
@@ -448,7 +464,7 @@ can be strings, vectors, lists, or seqs."))
 		  (cond ((< len-a len-b) ':less)
 			((> len-a len-b) ':greater)
 			(t default)))
-	  (let ((res (compare (aref a i) (aref b i))))
+	  (let ((res (funcall val-compare-fn (aref a i) (aref b i))))
 	    (when (or (eq res ':less) (eq res ':greater))
 	      (return res))
 	    (when (eq res ':unequal)

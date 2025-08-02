@@ -11,6 +11,8 @@
 
 (defgeneric hash-value (x))
 
+(define-hash-function compare hash-value)
+
 ;;; As of this writing, these methods are tentative.  They should be gone over for performance
 ;;; and hash quality (well-distributed-ness) in the major Lisp implementations.
 
@@ -34,6 +36,8 @@
   (sxhash x)) ; I guess
 
 (defmethod hash-value ((x symbol))
+  ;; None of SBCL, CCL, Allegro, LispWorks, or CLASP include the package in the hash.  Of these,
+  ;; only on SBCL is the hash of a symbol different from that of its `symbol-name'.
   (sxhash x))
 
 (defmethod hash-value ((x string))
@@ -55,7 +59,13 @@
 	 (len (length x)))
 	((= i len) result))))
 
-(defmethod hash-value ((x function))
-  ;; We need this method to exist because functions can be range values in maps, but
-  ;; there's nothing interesting it can do portably.
+
+(defun zero (x)
+  (declare (ignore x))
   0)
+
+;;; `eql-compare' can be used as a value comparison function in cases where a better one
+;;; is not readily available, and getting value comparison right is less important than
+;;; performance.  In such a case, using `zero' as a hash function also makes sense.
+(define-hash-function eql-compare zero)
+

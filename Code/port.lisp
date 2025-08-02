@@ -14,26 +14,15 @@
 ;;; `without-interrupts'.  On kernel-threads implementations, we have to do
 ;;; real locking.
 
-#+(and allegro (not os-threads))
-(progn
-  (defun make-lock (&optional name)
-    (declare (ignore name))
-    nil)
-  (defmacro with-lock ((lock &key (wait? t)) &body body)
-    (declare (ignore lock wait?))
-    `(excl:without-interrupts . ,body))
-  (defmacro read-memory-barrier ()
-    'nil)
-  (defmacro write-memory-barrier ()
-    'nil))
-
-#+(and allegro os-threads)          ; &&& untested
+#+allegro
 (progn
   (defun make-lock (&optional name)
     (apply #'mp:make-process-lock (and name `(:name ,name))))
   ;; If `wait?' is false, and the lock is not available, returns without executing the body.
   (defmacro with-lock ((lock &key (wait? t)) &body body)
-    `(mp:with-process-lock (,lock :timeout (if ,wait? nil 0))
+    `(mp:with-process-lock (,lock :timeout ,(cond ((eq wait? 't) nil)  ; hush, Allegro
+						  ((eq wait? 'nil) 0)
+						  (t `(if ,wait? nil 0))))
        . ,body))
   ;; For those implementations that support SMP but don't give us direct ways
   ;; to generate memory barriers, we assume that grabbing a lock suffices.
@@ -377,11 +366,15 @@
 	 (,op . ,(mapcar (lambda (var arg) (or var arg))
 			 vars args))))))
 
+(defmacro without-optimization (&body body)
+  "Turns off optimization, and thus the compiler's complaints when it can't."
+  `(locally (declare (optimize (speed 1) (safety 1)))
+     . ,body))
 
-;;; This little oddity exists because of a limitation in Python (that's the
-;;; CMUCL compiler).  Given a call to `length' on type `(or null simple-vector)',
-;;; Python isn't quite smart enough to optimize the call unless we do the case
-;;; breakdown for it like this.
+
+;;; This little oddity exists because of a limitation in the SBCL/CMUCL compiler.
+;;; Given a call to `length' on type `(or null simple-vector)', it isn't quite
+;;; smart enough to optimize the call unless we do the case breakdown for it like this.
 #+(or cmu scl)
 (defmacro length-nv (x)
   (ext:once-only ((x x))
