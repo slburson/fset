@@ -408,3 +408,11 @@
 #-(or cmu scl sbcl)
 (defmacro length-nv (x)
   `(length ,x))
+
+
+;;; ----------------
+;;; Miscellaneous utilities
+
+(defun eqv (a b &rest more)
+  (and (or (eq a b) (and a b))
+       (gmap (:result and) #'eqv (:arg constant a) (:arg list more))))

@@ -1543,7 +1543,8 @@ to use a custom ordering, supply the comparison function name (a symbol) as
 (defun empty-wb-custom-set (compare-fn-name)
   "Returns an empty `wb-set' ordered according to `compare-fn-name', which
 must be a symbol."
-  (assert (and (symbolp compare-fn-name) (not (null compare-fn-name))))
+  (assert (and compare-fn-name (symbolp compare-fn-name) (symbol-package compare-fn-name)) ()
+	  "compare-fn-name must be a nonnull interned symbol")
   (if (eq compare-fn-name 'compare)
       *empty-wb-set*
     (let ((prev-instance (gethash compare-fn-name +empty-wb-custom-set-cache+))
@@ -1746,27 +1747,23 @@ a subset of `super' and the two are not equal."
       (WB-Set-Tree-Disjoint? (contents s1) (contents s2) (compare-fn s1))
     (call-next-method)))
 
-;;; This is a little inconsistent with FSet's past practice, though not in a way that could
-;;; break existing code (unless it uses CH-sets, which are still in a pre-alpha state).
-;;; But it's in the direction FSet is going.  Specifically, it will report two sets as equal
-;;; iff they contain the same elements; the root method on `compare' distinguishes by class,
-;;; so that two sets of different classes could never be equal.
-(defmethod compare ((s1 set) (s2 set))
-  "Fallback method for mixed implementations."
-  (let ((size1 (size s1))
-	(size2 (size s2)))
-    (cond ((< size1 size2) ':less)
-	  ((> size1 size2) ':greater)
-	  ((do-set (x s1 t)
-	     (unless (contains? s2 x)
-	       (return nil)))
-	   ':equal)
-	  (t ':unequal))))
-
 (define-wb-set-methods compare ((s1 wb-set) (s2 wb-set))
   (if-same-compare-fns (s1 s2)
       (WB-Set-Tree-Compare (contents s1) (contents s2) (compare-fn s1))
-    (call-next-method)))
+    ;; Just as comparing sets of different classes just compares the classes, so comparing WB-sets
+    ;; with different compare-fns just compares the compare-fns.
+    (let ((name-comp (compare (wb-set-compare-fn-name s1) (wb-set-compare-fn-name s2))))
+      (ecase name-comp
+	((:less :greater)
+	  name-comp)
+	(:equal
+	  ;; Hoo boy.  The compare-fn has been redefined since one of the sets was created.
+	  ;; Update them and try again.
+	  (compare (convert 'wb-set s1 :compare-fn-name (wb-set-compare-fn-name s1))
+		   (convert 'wb-set s2 :compare-fn-name (wb-set-compare-fn-name s1))))
+	(:unequal
+	  ;; Shouldn't be possible, since we check the symbol-package in `empty-wb-custom-set'.
+	  (error "Can't compare wb-sets with uninterned compare-fn-names with same symbol-name"))))))
 
 (defgeneric internal-do-set (set elt-fn value-fn)
   (:documentation
@@ -2063,15 +2060,17 @@ for the possibility of different set implementations; it is not for public use.
   "Returns a set of the values, optionally filtered by `filterp'.  If
 `compare-fn-name' is nonnull, it specifies a custom ordering."
   (let ((proto-var (gensymx #:prototype-))
+	(cfn-var (gensymx #:cfn-))
 	(cf-var (gensymx #:cmp-)))
     `(nil #'(lambda (s x) (WB-Set-Tree-With s x ,cf-var))
 	  #'(lambda (s)
-	      (if (or (null compare-fn-name) (eq (wb-set-compare-fn ,proto-var) #'compare))
+	      (if (or (null ,cfn-var) (eq (wb-set-compare-fn ,proto-var) #'compare))
 		  (make-wb-set s)
 		(make-wb-custom-set s (wb-custom-set-org ,proto-var))))
 	  ,filterp
 	  ((,proto-var (empty-wb-set ,compare-fn-name))
-	   ((,cf-var (wb-set-compare-fn ,proto-var)))))))
+	   ((,cfn-var (wb-set-compare-fn-name ,proto-var))
+	    (,cf-var (wb-set-compare-fn ,proto-var)))))))
 
 
 (gmap:def-gmap-res-type union (&key filterp)
@@ -2129,7 +2128,8 @@ comparison function as `compare-fn-name'."
 (deflex +empty-ch-custom-set-cache+ (make-hash-table :test 'equal))
 
 (defun empty-ch-custom-set (compare-fn-name)
-  (assert (and (symbolp compare-fn-name) (not (null compare-fn-name))))
+  (assert (and compare-fn-name (symbolp compare-fn-name) (symbol-package compare-fn-name)) ()
+	  "compare-fn-name must be a nonnull interned symbol")
   (if (eq compare-fn-name 'compare)
       *empty-ch-set*
     (let ((prev-instance (gethash compare-fn-name +empty-ch-custom-set-cache+))
@@ -2281,7 +2281,18 @@ comparison function as `compare-fn-name'."
   (if-same-ch-set-orgs (s1 s2 hsorg)
       (ch-set-tree-compare (ch-set-contents s1) (ch-set-contents s2)
 			   (hash-set-org-compare-fn hsorg))
-    (call-next-method)))
+    ;; See `define-wb-set-methods compare' above.
+    (let ((s1-cfn-name (hash-set-org-compare-fn-name (ch-set-org s1)))
+	  (s2-cfn-name (hash-set-org-compare-fn-name (ch-set-org s2)))
+	  ((name-comp (compare s1-cfn-name s2-cfn-name))))
+      (ecase name-comp
+	((:less :greater)
+	  name-comp)
+	(:equal
+	  (compare (convert 'ch-set s1 :compare-fn-name s1-cfn-name)
+		   (convert 'ch-set s2 :compare-fn-name s1-cfn-name)))
+	(:unequal
+	  (error "Can't compare ch-sets with uninterned compare-fn-names with same symbol-name"))))))
 
 (defmethod internal-do-set ((s ch-set) elt-fn value-fn)
   (declare ;(optimize (speed 3) (safety 0))
@@ -2387,7 +2398,8 @@ must be a symbol."
 (deflex +empty-wb-custom-bag-cache+ (make-hash-table :test 'equal))
 
 (defun empty-wb-custom-bag (compare-fn-name)
-  (assert (and (symbolp compare-fn-name) (not (null compare-fn-name))))
+  (assert (and compare-fn-name (symbolp compare-fn-name) (symbol-package compare-fn-name)) ()
+	  "compare-fn-name must be a nonnull interned symbol")
   (if (eq compare-fn-name 'compare)
       *empty-wb-bag*
     (let ((prev-instance (gethash compare-fn-name +empty-wb-custom-bag-cache+))
@@ -2798,26 +2810,21 @@ multiplicity, but the two bags are not equal."
       (when (contains? s x)
 	(return nil)))))
 
-(defmethod compare ((b1 bag) (b2 bag))
-  "Fallback method for mixed implementations."
-  (let ((size1 (size b1))
-	(size2 (size b2))
-	(set-size1 (set-size b1))
-	(set-size2 (set-size b2)))
-    (cond ((< size1 size2) ':less)
-	  ((> size1 size2) ':greater)
-	  ((< set-size1 set-size2) ':less)
-	  ((> set-size1 set-size2) ':greater)
-	  ((do-bag-pairs (x n1 b1 t)
-	     (unless (= n1 (multiplicity b2 x))
-	       (return nil)))
-	   ':equal)
-	  (t ':unequal))))
-
 (defmethod compare ((b1 wb-bag) (b2 wb-bag))
   (if-same-wb-bag-orgs (b1 b2 tsorg)
       (WB-Bag-Tree-Compare (wb-bag-contents b1) (wb-bag-contents b2) (tree-set-org-compare-fn tsorg))
-    (call-next-method)))
+    ;; See `define-wb-set-methods compare' above.
+    (let ((b1-cfn-name (tree-set-org-compare-fn-name (wb-bag-org b1)))
+	  (b2-cfn-name (tree-set-org-compare-fn-name (wb-bag-org b2)))
+	  ((name-comp (compare b1-cfn-name b2-cfn-name))))
+      (ecase name-comp
+	((:less :greater)
+	  name-comp)
+	(:equal
+	  (compare (convert 'wb-bag b1 :compare-fn-name b1-cfn-name)
+		   (convert 'wb-bag b2 :compare-fn-name b1-cfn-name)))
+	(:unequal
+	  (error "Can't compare wb-bags with uninterned compare-fn-names with same symbol-name"))))))
 
 (defgeneric internal-do-bag-pairs (bag elt-fn value-fn)
   (:documentation
@@ -3245,8 +3252,12 @@ the default implementation of maps in FSet."
 (deflex +empty-wb-custom-map-cache+ (make-hash-table :test 'equal))
 
 (defun empty-wb-custom-map (default key-compare-fn-name val-compare-fn-name)
-  (assert (and (symbolp key-compare-fn-name) (not (null key-compare-fn-name))))
-  (assert (and (symbolp val-compare-fn-name) (not (null val-compare-fn-name))))
+  (assert (and key-compare-fn-name (symbolp key-compare-fn-name)
+	       (symbol-package key-compare-fn-name))
+	  () "key-compare-fn-name must be a nonnull interned symbol")
+  (assert (and val-compare-fn-name (symbolp val-compare-fn-name)
+	       (symbol-package val-compare-fn-name))
+	  () "val-compare-fn-name must be a nonnull interned symbol")
   (if (and (eq key-compare-fn-name 'compare) (eq val-compare-fn-name 'compare))
       (if (null default) *empty-wb-map*
 	(make-wb-map nil +fset-default-tree-map-org+ default))
@@ -3372,34 +3383,6 @@ the default implementation of maps in FSet."
 	((set-prototype (empty-wb-set (tree-map-org-key-compare-fn-name tmorg)))))
     (make-wb-set (WB-Map-Tree-Domain (wb-map-contents m)) (wb-set-org set-prototype))))
 
-(defmethod compare ((m1 map) (m2 map))
-  "Fallback method for mixed implementations."
-  (let ((size1 (size m1))
-	(size2 (size m2)))
-    (cond ((< size1 size2) ':less)
-	  ((> size1 size2) ':greater)
-	  ((let ((vcf1 (val-compare-fn m1))
-		 (vcf2 (val-compare-fn m2)))
-	     (do-map (k v1 m1 t)
-	       (let ((v2 v2? (lookup m2 k)))
-		 (unless (and v2?
-			      (let ((eqv1? (equal?-cmp v1 v2 vcf1))
-				    (eqv2? (equal?-cmp v1 v2 vcf2)))
-				;; Requiring `(eq vcf1 vcf2)' seems a little too strong.  This is our
-				;; next best choice.
-				(unless (eqv eqv1? eqv2?)
-				  (error "Can't compare maps with incompatible val-compare-fns, ~A vs. ~A"
-					 (tree-map-org-val-compare-fn-name (wb-map-org m1))
-					 (tree-map-org-val-compare-fn-name (wb-map-org m2))))
-				eqv1?))
-		   (return nil)))))
-	   ':equal)
-	  (t ':unequal))))
-
-(defun eqv (a b &rest more)
-  (and (or (eq a b) (and a b))
-       (gmap (:result and) #'eqv (:arg constant a) (:arg list more))))
-
 ;;; Prior to FSet 1.4.0, this method ignored the defaults, so two maps with the same
 ;;; key/value pairs but different defaults compared `:equal'.  While that was clearly
 ;;; a bug, there is a remote chance that someone has inadvertently depended on this
@@ -3417,7 +3400,20 @@ the default implementation of maps in FSet."
 	      (if (or (eq comp ':unequal) (eq def-comp ':unequal))
 		  ':unequal
 		':equal)))))
-    (call-next-method)))
+    ;; See `define-wb-set-methods compare' above.
+    (let ((m1-kcfn-name (tree-map-org-key-compare-fn-name (wb-map-org map1)))
+	  (m1-vcfn-name (tree-map-org-val-compare-fn-name (wb-map-org map1)))
+	  (m2-kcfn-name (tree-map-org-key-compare-fn-name (wb-map-org map2)))
+	  (m2-vcfn-name (tree-map-org-val-compare-fn-name (wb-map-org map2)))
+	  ((name-comp (compare (list m1-kcfn-name m1-vcfn-name) (list m2-kcfn-name m2-vcfn-name)))))
+      (ecase name-comp
+	((:less :greater)
+	  name-comp)
+	(:equal
+	  (compare (convert 'wb-map map1 :key-compare-fn-name m1-kcfn-name :val-compare-fn-name m1-vcfn-name)
+		   (convert 'wb-map map2 :key-compare-fn-name m1-kcfn-name :val-compare-fn-name m1-vcfn-name)))
+	(:unequal
+	  (error "Can't compare wb-maps with uninterned compare-fn-names with same symbol-name"))))))
 
 (defgeneric internal-do-map (map elt-fn value-fn)
   (:documentation
@@ -4019,8 +4015,12 @@ Note that `filterp', if supplied, must take two arguments."
 (deflex +empty-ch-custom-map-cache+ (make-hash-table :test 'equal))
 
 (defun empty-ch-custom-map (default key-compare-fn-name val-compare-fn-name)
-  (assert (and (symbolp key-compare-fn-name) (not (null key-compare-fn-name))))
-  (assert (and (symbolp val-compare-fn-name) (not (null val-compare-fn-name))))
+  (assert (and key-compare-fn-name (symbolp key-compare-fn-name)
+	       (symbol-package key-compare-fn-name))
+	  () "key-compare-fn-name must be a nonnull interned symbol")
+  (assert (and val-compare-fn-name (symbolp val-compare-fn-name)
+	       (symbol-package val-compare-fn-name))
+	  () "val-compare-fn-name must be a nonnull interned symbol")
   (if (and (eq key-compare-fn-name 'compare) (eq val-compare-fn-name 'compare))
       (if (null default) *empty-ch-map*
 	(make-ch-map nil (ch-map-org *empty-ch-map*) default))
