@@ -2947,6 +2947,14 @@ between equal trees."
 				     lo cmp-fn))
 	      (or (eq hi Hedge-Positive-Infinity)
 		  (less-than?-cmp (svref (car tree) 0) hi cmp-fn))
+	      ;; If it contains no elements within the range, also drop it.
+	      (let ((split-point-lo (if (eq lo Hedge-Negative-Infinity)
+					0
+				      (Vector-Set-Binary-Search-Lo (car tree) lo cmp-fn)))
+		    (split-point-hi (if (eq hi Hedge-Positive-Infinity)
+					(length (the simple-vector (car tree)))
+				      (Vector-Set-Binary-Search-Hi (car tree) hi cmp-fn))))
+		(> split-point-hi split-point-lo))
 	      tree))
 	(t
 	 (let ((val (WB-Bag-Tree-Node-Value tree)))
@@ -5114,6 +5122,14 @@ between equal trees."
 				     lo key-cmp-fn))
 	      (or (eq hi Hedge-Positive-Infinity)
 		  (less-than?-cmp (svref (car tree) 0) hi key-cmp-fn))
+	      ;; If it contains no elements within the range, also drop it.
+	      (let ((split-point-lo (if (eq lo Hedge-Negative-Infinity)
+					0
+				      (Vector-Set-Binary-Search-Lo (car tree) lo key-cmp-fn)))
+		    (split-point-hi (if (eq hi Hedge-Positive-Infinity)
+					(length (the simple-vector (car tree)))
+				      (Vector-Set-Binary-Search-Hi (car tree) hi key-cmp-fn))))
+		(> split-point-hi split-point-lo))
 	      tree))
 	(t
 	 (let ((key (WB-Map-Tree-Node-Key tree)))
