@@ -2073,6 +2073,8 @@
   (macrolet ((test (form)
 	       `(unless ,form
 		  (error "Test failed: ~S" ',form))))
+    ;; Bug in `WB-Set-Tree-Find-Equal'.
+    (test (null (lookup (with (wb-set -5 -4 -3 -2 -1 1 2 3 4 5) 0) 0.0)))
     ;; Test `convert' methods that take custom compare-fns.
     (test (equal (convert 'list (convert 'wb-set (set 1 2) :compare-fn-name 'erapmoc))
 		 '(2 1)))
@@ -2436,6 +2438,8 @@
 	(unless (= (size tmp) (length s0))
 	  (error "Set size or with failed on iteration ~D, adding ~A: ~D, ~D" i r
 		 (size tmp) (length s0)))
+	(unless (contains? tmp r)
+	  (error "Set contains? failed on iteration ~D" i))
 	(unless (and (subset? fs0 tmp)
 		     (or (contains? fs0 r) (not (subset? tmp fs0))))
 	  (error "Set subset? failed on iteration ~D" i))
