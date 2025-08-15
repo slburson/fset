@@ -45,6 +45,19 @@ do the comparison only once for each pair of values.
 (in-package :fset)
 
 
+(defmacro equal?-fn (cmp-fn)
+  `(lambda (a b) (eq (funcall ,cmp-fn a b) ':equal)))
+
+(defmacro equal?-cmp (a b cmp-fn)
+  `(eq (funcall ,cmp-fn ,a ,b) ':equal))
+
+(defmacro less-than?-cmp (a b cmp-fn)
+  `(eq (funcall ,cmp-fn ,a ,b) ':less))
+
+(defmacro greater-than?-cmp (a b cmp-fn)
+  `(eq (funcall ,cmp-fn ,a ,b) ':greater))
+
+
 ;;; ================================================================================
 ;;; ================================================================================
 ;;; Weight-balanced trees
@@ -278,18 +291,6 @@ containing the values; otherwise `nil'."
 	      (WB-Set-Tree-Find-Equivalent (WB-Set-Tree-Node-Left tree) value cmp-fn))
 	     ((:greater)
 	      (WB-Set-Tree-Find-Equivalent (WB-Set-Tree-Node-Right tree) value cmp-fn)))))))
-
-(defmacro equal?-fn (cmp-fn)
-  `(lambda (a b) (eq (funcall ,cmp-fn a b) ':equal)))
-
-(defmacro equal?-cmp (a b cmp-fn)
-  `(eq (funcall ,cmp-fn ,a ,b) ':equal))
-
-(defmacro less-than?-cmp (a b cmp-fn)
-  `(eq (funcall ,cmp-fn ,a ,b) ':less))
-
-(defmacro greater-than?-cmp (a b cmp-fn)
-  `(eq (funcall ,cmp-fn ,a ,b) ':greater))
 
 (defun WB-Set-Tree-Find-Equal (tree value cmp-fn)
   "If `tree' contains a value equal to `value', returns (first value) true and
