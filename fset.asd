@@ -3,9 +3,8 @@
 ;;; File: fset.asd
 ;;; Contents: ASDF definitions for FSet
 ;;;
-;;; This file is part of FSet.  Copyright (c) 2007-2024 Scott L. Burson.
-;;; FSet is licensed under the Lisp Lesser GNU Public License, or LLGPL.
-;;; See: http://opensource.franz.com/preamble.html
+;;; This file is part of FSet.  Copyright (c) 2007-2025 Scott L. Burson.
+;;; FSet is licensed under the 2-clause BSD license; see LICENSE.
 ;;; This license provides NO WARRANTY.
 
 
@@ -17,7 +16,7 @@ See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
   :version "1.5.0"
   :homepage "https://gitlab.common-lisp.net/fset/fset/-/wikis/home"
   :source-control "https://github.com/slburson/fset"
-  :licence "LLGPL"
+  :licence "BSD-2-Clause"
   :depends-on (:misc-extensions :mt19937 :named-readtables)
   :serial t
   :components

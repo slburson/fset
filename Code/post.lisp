@@ -3,8 +3,8 @@
 ;;; File: post.lisp
 ;;; Contents: Fixups to do at the end of loading FSet.
 ;;;
-;;; This file is part of FSet.  Copyright (c) 2007-2025 Scott L. Burson.
-;;; FSet is licensed under the Lisp Lesser GNU Public License, or LLGPL.
+;;; This file is part of FSet.  Copyright (c) 2025 Scott L. Burson.
+;;; FSet is licensed under the 2-clause BSD license; see LICENSE.
 ;;; This license provides NO WARRANTY.
 
 (in-package :fset)

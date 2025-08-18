@@ -3,8 +3,8 @@
 ;;; File: reader.lisp
 ;;; Contents: Reader macros and supporting code for FSet
 ;;;
-;;; This file is part of FSet.  Copyright (c) 2007-2012 Scott L. Burson.
-;;; FSet is licensed under the Lisp Lesser GNU Public License, or LLGPL.
+;;; This file is part of FSet.  Copyright (c) 2007-2025 Scott L. Burson.
+;;; FSet is licensed under the 2-clause BSD license; see LICENSE.
 ;;; This license provides NO WARRANTY.
 
 (in-package :fset)

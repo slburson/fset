@@ -4,8 +4,8 @@
 ;;; Contents: CHAMP implementation for FSet.
 ;;; See: https://michael.steindorfer.name/publications/phd-thesis-efficient-immutable-collections.pdf
 ;;;
-;;; This file is part of FSet.  Copyright (c) 2024 Scott L. Burson.
-;;; FSet is licensed under the Lisp Lesser GNU Public License, or LLGPL.
+;;; This file is part of FSet.  Copyright (c) 2024-2025 Scott L. Burson.
+;;; FSet is licensed under the 2-clause BSD license; see LICENSE.
 ;;; This license provides NO WARRANTY.
 
 (in-package :fset)
