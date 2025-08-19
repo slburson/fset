@@ -295,7 +295,10 @@ If you're using `define-class' from Misc-Extensions, you can just say:
 ;;; This incantation lets you use `:equality' as a slot option in `define-class',
 ;;; to specify the equality slots.
 (add-define-class-extension ':equality 'define-class-equality-slots-extension)
-(defun define-class-equality-slots-extension (class slots)
+(defun define-class-equality-slots-extension (class slots expanded-slot-specs)
+  (dolist (slot slots)
+    (unless (member ':constant (second (assoc slot expanded-slot-specs)))
+      (error "Slot ~S marked as :equality; must also be :constant" slot)))
   `(define-equality-slots ,class . ,(mapcar (fn (x) `',x) slots)))
 
 
