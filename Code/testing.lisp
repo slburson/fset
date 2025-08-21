@@ -1584,7 +1584,7 @@
 	      (*print-readably* nil))
 	  (test (equal? (prin1-to-string (bag 1)) "#{% 1 %}"))
 	  (test (equal? (prin1-to-string (bag 1 2)) "#{% 1 2 %}"))
-	  (test (equal? (prin1-to-string (bag 1 1)) "#{% (1 2) %}"))))
+	  (test (equal? (prin1-to-string (bag 1 1)) "#{% #%(1 2) %}"))))
 
       (test (equal? (reduce #'+ (seq)) 0))
       (test (equal? (reduce '+ (seq)) 0))
@@ -2206,7 +2206,7 @@
 		       (with-default (map (1 2) (3 4)) 'x)
 		       (with-default (seq 4 17 33) 42)
 		       (tuple (+K0+ 1))
-		       (bag 1)
+		       (bag 1 '(% foo 3))
 		       (bag 1 2)
 		       (bag 1 1)))
 	 (let ((str (prin1-to-string x)))

@@ -3115,7 +3115,8 @@ different bag implementations; it is not for public use.  `elt-fn' and
         (if (> n 1)
 	    ;; There might be a bag entry for 'quote or 'function...
 	    (let (#+sbcl (sb-pretty:*pprint-quote-with-syntactic-sugar* nil))
-	      (write (if *print-readably* `(% ,x ,n) `(,x ,n)) :stream stream))
+	      (princ "#%" stream)
+	      (write `(,x ,n) :stream stream))
           (write x :stream stream))))))
 
 (gmap:def-gmap-arg-type bag (bag)
