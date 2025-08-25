@@ -687,7 +687,12 @@ true, and advances one element; if it is exhausted, it returns two `nil' values
 \(three, for a map\).
 
 The bag method takes a `pairs?' keyword argument; if true, it returns each element
-only once, with its multiplicity as the second value, as for a map."))
+only once, with its multiplicity as the second value, as for a map.
+
+The seq method takes `start' and `end' keyword arguments to restrict the range
+of the iteration, and `from-end?' to reverse its direction.  `start' is
+inclusive and defaults to 0; `end' is exclusive and defaults to the size of the
+seq."))
 
 (defgeneric fun-iterator (collection &key from-end?)
   (:documentation
@@ -4441,8 +4446,10 @@ not symbols."))
 				     (funcall value-fn))
 	(funcall elt-fn x))))
 
-(defmethod iterator ((s wb-seq) &key)
-  (Make-WB-Seq-Tree-Iterator (wb-seq-contents s)))
+(defmethod iterator ((s wb-seq) &key start end from-end?)
+  (if from-end?
+      (Make-WB-Seq-Tree-Rev-Iterator (wb-seq-contents s) start end)
+    (Make-WB-Seq-Tree-Iterator (wb-seq-contents s) start end)))
 
 (defmethod fun-iterator ((s wb-seq) &key from-end?)
   (if from-end?
@@ -4825,17 +4832,31 @@ not symbols."))
       (write x :stream stream))
     (format stream " ]~:[~;/~:*~S~]" (seq-default seq))))
 
-(gmap:def-gmap-arg-type seq (seq)
-  "Yields the elements of `seq'."
-  `((the function (iterator ,seq))
+(gmap:def-gmap-arg-type seq (seq &key start end from-end?)
+  "Yields the elements of `seq'.  The keyword arguments `start' and `end'
+can be supplied to restrict the range of the iteration; `start' is inclusive
+and defaults to 0, while `end' is exclusive and defaults to the size of the
+seq.  If `from-end?' is true, the elements will be yielded in reverse order."
+  `((the function (iterator ,seq :start ,start :end ,end :from-end? ,from-end?))
     #'(lambda (it) (funcall it ':done?))
     #'(lambda (it) (funcall it ':get))))
 
-(gmap:def-gmap-arg-type wb-seq (seq)
-  "Yields the elements of `seq'."
-  `((Make-WB-Seq-Tree-Iterator-Internal (wb-seq-contents ,seq))
-    #'WB-Seq-Tree-Iterator-Done?
-    #'WB-Seq-Tree-Iterator-Get))
+(gmap:def-gmap-arg-type wb-seq (seq &key start end from-end?)
+  "Yields the elements of `seq'.  The keyword arguments `start' and `end'
+can be supplied to restrict the range of the iteration; `start' is inclusive
+and defaults to 0, while `end' is exclusive and defaults to the size of the
+seq.  If `from-end?' is true, the elements will be yielded in reverse order."
+  (flet ((fwd ()
+	   `((Make-WB-Seq-Tree-Iterator-Internal (wb-seq-contents ,seq) ,start ,end)
+	     #'WB-Seq-Tree-Iterator-Done?
+	     #'WB-Seq-Tree-Iterator-Get))
+	 (rev ()
+	   `((Make-WB-Seq-Tree-Rev-Iterator-Internal (wb-seq-contents ,seq) ,start ,end)
+	     #'WB-Seq-Tree-Rev-Iterator-Done?
+	     #'WB-Seq-Tree-Rev-Iterator-Get)))
+    (cond ((null from-end?) (fwd))
+	  ((atom from-end?) (rev))
+	  (t `(if ,from-end? ,(rev) ,(fwd))))))
 
 (gmap:def-gmap-res-type seq (&key filterp)
   "Returns a seq of the values, optionally filtered by `filterp'."
