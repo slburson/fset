@@ -8,15 +8,15 @@
 ;;; This license provides NO WARRANTY.
 
 
-(asdf:defsystem FSet
+(defsystem FSet
   :description "A functional set-theoretic collections library.
 See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
 "
   :author "Scott L. Burson <Scott@sympoiesis.com>"
-  :version "1.5.0"
+  :version "1.5.1"
   :homepage "https://gitlab.common-lisp.net/fset/fset/-/wikis/home"
   :source-control "https://github.com/slburson/fset"
-  :licence "BSD-2-Clause"
+  :license "BSD-2-Clause"
   :depends-on (:misc-extensions :mt19937 :named-readtables)
   :serial t
   :components
@@ -45,7 +45,7 @@ See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
              #+lispworks
              (:file "lispworks-inspect")))))
 
-(asdf:defsystem :FSet/test
+(defsystem :FSet/test
   :description "Test system for FSet"
   :depends-on (:fset)
   :components
@@ -54,4 +54,28 @@ See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
 
 (defmethod perform ((o test-op) (c (eql (find-system :fset))))
   (load-system :fset/test)
-  (funcall (intern "RUN-TEST-SUITE" :fset) 20))
+  (funcall (intern (symbol-name '#:run-test-suite) :fset) 200))
+
+(defsystem :FSet/Iterate
+  :description "FSet definitions for the Iterate macro."
+  :author "Scott L. Burson <Scott@sympoiesis.com>"
+  :homepage "https://gitlab.common-lisp.net/fset/fset/-/wikis/home"
+  :source-control "https://github.com/slburson/fset"
+  :license "BSD-2-Clause"
+  :depends-on ("fset" "iterate")
+  :components ((:module "Code"
+		:serial t
+		:components ((:file "iterate-defs")
+			     (:file "iterate")))))
+
+(defsystem :FSet/Iterate/test
+  :description "Test system for FSet/Iterate"
+  :depends-on (:fset/iterate)
+  :components ((:module "Code"
+		:serial t
+		:components ((:file "iterate-tests")))))
+
+(defmethod perform ((o test-op) (c (eql (find-system :fset/iterate))))
+  (load-system :fset/iterate/test)
+  (funcall (intern (symbol-name '#:test-fset/iterate) :fset/iterate)))
+

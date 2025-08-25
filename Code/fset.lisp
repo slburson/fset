@@ -1705,6 +1705,21 @@ or hash function, as `s'."))
       (make s1 (WB-Set-Tree-Diff (contents s1) (contents s2) (compare-fn s1)))
     (call-next-method)))
 
+;;; Intended for internal use by `complement-sets.lisp'.  This returns `s2 - s1', but the
+;;; result is like `s1', not `s2'.
+(defmethod set-difference-rev ((s1 set) (s2 set))
+  "Fallback method for mixed implementations."
+  (let ((result (empty-set-like s1)))
+    (do-set (x s2)
+      (unless (contains? s1 x)
+	(includef result x)))
+    result))
+
+(define-wb-set-methods set-difference-rev ((s1 wb-set) (s2 wb-set))
+  (if-same-compare-fns (s1 s2)
+      (make s1 (WB-Set-Tree-Diff (contents s2) (contents s1) (compare-fn s1)))
+    (call-next-method)))
+
 (defmethod set-difference-2 ((s1 set) (s2 set))
   "Fallback method for mixed implementations."
   (let ((res1 s1)

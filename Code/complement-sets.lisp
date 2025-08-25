@@ -80,21 +80,21 @@ complement set."
   (make-complement-set (set-difference (complement-set-complement cs) s)))
 
 (defmethod union ((s set) (cs complement-set) &key)
-  (make-complement-set (set-difference (complement-set-complement cs) s)))
+  (make-complement-set (set-difference-rev s (complement-set-complement cs))))
 
 (defmethod intersection ((cs1 complement-set) (cs2 complement-set) &key)
   (make-complement-set (union (complement-set-complement cs1)
 			      (complement-set-complement cs2))))
 
 (defmethod intersection ((cs complement-set) (s set) &key)
-  (set-difference s (complement-set-complement cs)))
+  (set-difference-rev (complement-set-complement cs) s))
 
 (defmethod intersection ((s set) (cs complement-set) &key)
   (set-difference s (complement-set-complement cs)))
 
 (defmethod set-difference ((cs1 complement-set) (cs2 complement-set) &key)
   ;; The Venn diagram is very helpful for understanding this.
-  (set-difference (complement-set-complement cs2) (complement-set-complement cs1)))
+  (set-difference-rev (complement-set-complement cs1) (complement-set-complement cs2)))
 
 (defmethod set-difference ((cs complement-set) (s set) &key)
   (make-complement-set (union (complement-set-complement cs) s)))
@@ -137,4 +137,8 @@ complement set."
 
 (defmethod compare ((s set) (cs complement-set))
   ':less)
+
+(defmethod make-load-form ((cs complement-set) &optional environment)
+  (declare (ignore environment))
+  `(complement ',(complement-set-complement cs)))
 

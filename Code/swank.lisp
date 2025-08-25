@@ -19,9 +19,9 @@
   (append (emacs-inspect-partial (subrange-coll sr) (subrange-lo sr) (subrange-hi sr))
 	  (emacs-inspect-footer (subrange-coll sr))))
 
-;;; Could use `append' method combination.
-(defmethod emacs-inspect-footer ((x t))
-  nil)
+(defgeneric emacs-inspect-footer (collection)
+  (:method-combination append :most-specific-last)
+  (:method append ((x t)) nil))
 
 (defmethod swank::emacs-inspect ((s set))
   (append (emacs-inspect-partial s 0 (size s))
@@ -47,11 +47,20 @@
 					  ,(format nil "** Show entries ~D - ~D **" hi2 (1- hi)))
 				 '(:newline))))))))
 
-(defmethod emacs-inspect-footer ((s set))
+(defmethod emacs-inspect-footer append ((s set))
   (let ((cmp-fn-name (compare-fn-name s)))
     (and (not (eq cmp-fn-name 'compare))
 	 (cons '(:newline)
 	       (swank::label-value-line "compare-fn" cmp-fn-name)))))
+
+(defmethod emacs-inspect-footer append ((s wb-set))
+  (list '(:newline) '(:newline)
+	`(:value ,(wb-set-contents s) "[Show internal tree]")))
+
+(defmethod emacs-inspect-footer append ((s ch-set))
+  ;; &&& Also show hash fn?
+  (list '(:newline) '(:newline)
+	`(:value ,(ch-set-contents s) "[Show internal tree]")))
 
 (defmethod swank::emacs-inspect ((s seq))
   (append (emacs-inspect-partial s 0 (size s))
@@ -75,11 +84,15 @@
 					  ,(format nil "** Show entries ~D - ~D **" hi2 (1- hi)))
 				 '(:newline))))))))
 
-(defmethod emacs-inspect-footer ((s seq))
+(defmethod emacs-inspect-footer append ((s seq))
   (let ((default (default s)))
     (and default
 	 (cons '(:newline)
 	       (swank::label-value-line "default" default)))))
+
+(defmethod emacs-inspect-footer append ((s wb-seq))
+  (list '(:newline) '(:newline)
+	`(:value ,(wb-seq-contents s) "[Show internal tree]")))
 
 (defmethod swank::emacs-inspect ((m map))
   (append (emacs-inspect-partial m 0 (size m))
@@ -105,7 +118,7 @@
 					  ,(format nil "** Show entries ~D - ~D **" hi2 (1- hi)))
 				 '(:newline))))))))
 
-(defmethod emacs-inspect-footer ((m map))
+(defmethod emacs-inspect-footer append ((m map))
   (append '((:newline))
 	  (let ((key-cmp-fn-name (key-compare-fn-name m)))
 	    (and (not (eq key-cmp-fn-name 'compare))
@@ -116,6 +129,15 @@
 	  (let ((default (default m)))
 	    (and default
 		 (swank::label-value-line "default" default)))))
+
+(defmethod emacs-inspect-footer append ((s wb-map))
+  (list '(:newline) '(:newline)
+	`(:value ,(wb-map-contents s) "[Show internal tree]")))
+
+(defmethod emacs-inspect-footer append ((s ch-map))
+  ;; &&& Also show hash fns?
+  (list '(:newline) '(:newline)
+	`(:value ,(ch-map-contents s) "[Show internal tree]")))
 
 (defmethod swank::emacs-inspect ((b bag))
   (append (emacs-inspect-partial b 0 (set-size b))
@@ -141,7 +163,7 @@
 					  ,(format nil "** Show entries ~D - ~D **" hi2 (1- hi)))
 				 '(:newline))))))))
 
-(defmethod emacs-inspect-footer ((b bag))
+(defmethod emacs-inspect-footer append ((b bag))
   (let ((cmp-fn-name (compare-fn-name b)))
     (and (not (eq cmp-fn-name 'compare))
 	 (cons '(:newline)
@@ -179,7 +201,7 @@
   (append (emacs-inspect-partial (complement cs) 0 (size (complement cs)))
 	  (emacs-inspect-footer cs)))
 
-(defmethod emacs-inspect-footer ((cs complement-set))
+(defmethod emacs-inspect-footer append ((cs complement-set))
   '((:newline)
     "This is a complement set.  The values displayed are the ones NOT in the set."
     (:newline)))
