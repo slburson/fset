@@ -20,6 +20,12 @@
 		      (collect x)))
 		  '(3 4)))
 
+    (test (equal? (iter (with s = (empty-set))
+                        (for x in '(3 4))
+                        (setf s (with s x))
+                        (finally (return s)))
+		  (set 3 4)))
+
     (test (equal? (iter (for x :in-set (set 1 3 7)) (collect x))
 		  '(1 3 7)))
     (test (equal? (iter (for x :in-bag (bag 1 3 3 7)) (collect x))

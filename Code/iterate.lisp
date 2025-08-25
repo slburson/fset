@@ -11,19 +11,23 @@
 
 ;;; Both FSet and Iterate export a `with', and we would prefer not to write a package prefix
 ;;; on either of them.  Fortunately, we can have this particular piece of cake and eat it too,
-;;; because Iterate doesn't fdefine `with'; it keeps its clause definitions in a variable,
-;;; `*clause-info-index*'.  Also, it wouldn't make any sense to call `fset:with' for effect,
-;;; i.e., without using the return value; so a call to `fset:with' will never look to Iterate
-;;; like the head of a clause.  All we have to do is...
-(eval-when (:load-toplevel :execute)
-  (unless (assoc 'with (cdr iter::*clause-info-index*))
-    (let ((info (iter::copy-clause-info (cdr (assoc 'iter:with (cdr iter::*clause-info-index*))))))
-      (setf (iter::clause-info-keywords info)
-	    (substitute 'with 'iter:with (iter::clause-info-keywords info)))
-      (setf (iter::clause-info-req-keywords info)
-	    (substitute 'with 'iter:with (iter::clause-info-req-keywords info)))
-      (push (cons 'with info) (cdr iter::*clause-info-index*)))))
+;;; because Iterate doesn't fdefine `with'; it defines it as a clause. We can force Iterate to
+;;; treat `fset:with` as a special form, superseding clause dispatch, and decide based on whether
+;;; we are at the top level to expand into a binding or a function call.
 
+(defun walk-with (&rest form)
+  (assert (eql (car form) 'fset:with))
+  (if iter::*top-level?*
+      (iter::walk
+       `(iter:with ,@(rest form)))
+      (cons (car form)
+            (iter::walk-arglist (rest form)))))
+
+(eval-when (:load-toplevel :execute)
+  (pushnew
+   (cons 'fset:with 'walk-with)
+   iter::*special-form-alist*
+   :test #'equal))
 
 ;;; ================ Drivers/Generators ================
 
