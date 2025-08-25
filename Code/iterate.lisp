@@ -40,6 +40,15 @@
     (setq *loop-end-used?* t)
     (return-driver-code :next (list test setqs) :variable var)))
 
+(defclause-driver (for var in-iterator x)
+  "Elements of any FSet iterator."
+  (top-level-check)
+  (let ((iter-var (make-var-and-binding 'iter `(iterator ,x)))
+	((setqs (do-dsetq var `(funcall ,iter-var ':get)))
+	 (test `(when (funcall ,iter-var ':done?) (go ,*loop-end*)))))
+    (setq *loop-end-used?* t)
+    (return-driver-code :next (list test setqs) :variable var)))
+
 (defclause-driver (for var-or-var*count in-bag bag)
   "Elements or pairs of a bag.  If `var-or-var*count' is a symbol, it
 will be bound to successive values from the bag, with repetitions of

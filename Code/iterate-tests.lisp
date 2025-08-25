@@ -28,6 +28,8 @@
 
     (test (equal? (iter (for x :in-set (set 1 3 7)) (collect x))
 		  '(1 3 7)))
+    (test (equal? (iter (for x :in-iterator (set 1 3 7)) (collect x))
+		  '(1 3 7)))
     (test (equal? (iter (for x :in-bag (bag 1 3 3 7)) (collect x))
 		  '(1 3 3 7)))
     (test (equal? (iter (for (x n) :in-bag (bag 1 3 3 7)) (collect (cons x n)))
