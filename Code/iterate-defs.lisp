@@ -29,11 +29,12 @@
 			  #:substitute #:substitute-if #:substitute-if-not
 			  #:some #:every #:notany #:notevery)
   (:shadowing-import-from :new-let #:let #:cond)
-  (:import-from :iterate #:defclause #:defclause-driver #:top-level-check #:make-var-and-binding
-		#:do-dsetq #:*loop-end* #:*loop-end-used?* #:*result-var* #:return-driver-code
-		#:clause-error #:local-binding-check #:make-accum-var-binding #:extract-var
-		#:walk-expr #:return-code #:return-reduction-code #:make-accum-var-default-binding
-		#:if-1st-time)
+  (:import-from :iterate #:defclause #:defclause-driver
+		#:top-level-check #:local-binding-check #:check-sequence-keywords #:clause-error
+		#:make-binding #:make-var-and-binding #:make-accum-var-binding
+		#:do-dsetq #:*loop-end* #:*loop-end-used?* #:*result-var*
+		#:return-driver-code #:return-code #:return-reduction-code
+		#:extract-var #:walk-expr #:if-1st-time)
   (:shadow #:unioning)
   (:export #:collect-set #:collect-bag #:collect-seq #:collect-map #:collect-map-to-sets
 	   #:unioning #:intersecting #:concating #:map-unioning #:map-intersecting))
