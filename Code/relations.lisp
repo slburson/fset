@@ -799,7 +799,7 @@ in which case there is no restriction."))
   "Returns a seq of size equal to the arity of `rel'.  For each 1 bit in `mask',
 the corresponding result element is the index to use for that tuple position."
   ;; First we see what indices exist on each position.
-  (let ((ex-inds (gmap (:result list)
+  (let ((ex-inds (gmap (:result seq)
 		       (fn (i) (and (logbitp i mask)
 				    (@ (wb-list-relation-indices rel)
 				       (ash 1 i))))
@@ -807,7 +807,7 @@ the corresponding result element is the index to use for that tuple position."
 	((unindexed (gmap (:result list)
 			  (lambda (index i)
 			    (and (logbitp i mask) (null index)))
-			  (:arg list ex-inds)
+			  (:arg seq ex-inds)
 			  (:arg index 0)))))
     ;; Now, if there were any instantiated positions for which an index did
     ;; not exist, construct indices for them.
@@ -837,7 +837,7 @@ the corresponding result element is the index to use for that tuple position."
 		(:arg vector new-indices))
 	  (setf (wb-list-relation-indices rel) indices))
 	(gmap (:result seq) (fn (ex-ind new-index) (or ex-ind new-index))
-	      (:arg list ex-inds)
+	      (:arg seq ex-inds)
 	      (:arg vector new-indices))))))
 
 (defmethod with ((rel wb-list-relation) tuple &optional (arg2 nil arg2?))
