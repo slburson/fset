@@ -63,6 +63,7 @@ See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
   :source-control "https://github.com/slburson/fset"
   :license "BSD-2-Clause"
   :depends-on ("fset" "iterate")
+  :in-order-to ((test-op (load-op "fset/iterate/test")))
   :components ((:module "Code"
 		:serial t
 		:components ((:file "iterate-defs")
@@ -71,11 +72,7 @@ See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
 (defsystem :FSet/Iterate/test
   :description "Test system for FSet/Iterate"
   :depends-on (:fset/iterate)
+  :perform (test-op (o c) (symbol-call :fset/iterate/test :test-fset/iterate))
   :components ((:module "Code"
 		:serial t
 		:components ((:file "iterate-tests")))))
-
-(defmethod perform ((o test-op) (c (eql (find-system :fset/iterate))))
-  (load-system :fset/iterate/test)
-  (funcall (intern (symbol-name '#:test-fset/iterate) :fset/iterate)))
-
