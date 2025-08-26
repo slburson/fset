@@ -10,6 +10,7 @@
 (in-package :fset/iterate/test)
 
 (defun test-fset/iterate ()
+  (format t "Testing FSet/Iterate...")
   (macrolet ((test (form)
 	       `(unless ,form
 		  (error "Test failed: ~S" ',form))))
@@ -81,13 +82,13 @@
     (test (equal? (iter (for x in '(q w e r t y u i o p)) (collect-seq x))
 		  (convert 'seq '(q w e r t y u i o p))))
 
-    (test (equal? (iter (for (k v) in '((a 3) (b 7) (c 4))) (collect-map k v))
+    (test (equal? (iter (for (k v) in '((a 3) (b 7) (c 4))) (collect-map (k v)))
 		  (map ('a 3) ('b 7) ('c 4))))
     (test (equal? (iter (for (k v) in '((a 3) (b 7) (c 4)))
-		    (collect-map k v :initial-value (wb-custom-map 'fset::erapmoc nil)))
+		    (collect-map (k v) :initial-value (wb-custom-map 'fset::erapmoc nil)))
 		  (wb-custom-map 'fset::erapmoc nil ('a 3) ('b 7) ('c 4))))
     (test (equal? (iter (for (k v) in '((a 3) (b 7) (c 4) (b 13) (d 22) (a 12) (a 17)))
-		    (collect-map-to-sets k v))
+		    (collect-map-to-sets (k v)))
 		  (map ('a (set 3 12 17)) ('b (set 7 13)) ('c (set 4)) ('d (set 22)) :default (set))))
 
     (test (equal? (iter (for s in (list (set 1 2) (set 2 5))) (unioning s))
@@ -115,4 +116,5 @@
 		  (map ('a 8))))
     (test (equal? (iter (for m in (list (map ('a 4) ('b 7)) (map ('a 8) ('c 42))))
 		    (map-intersecting m combining-with #'+))
-		  (map ('a 12))))))
+		  (map ('a 12)))))
+  (format t "passed~%"))

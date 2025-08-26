@@ -167,38 +167,34 @@ Use `initial-value' to construct a different kind of bag."
     (make-accum-var-binding var-spec init-val nil :type nil)
     (return-code :body `((setq ,var ,op-expr)))))
 
-(defmacro collect-map (key-expr val-expr &rest args)
-  "This macro exists for Iterate's code walker to expand it into an
-actual clause."
-  `(%collect-map ,key-expr -> ,val-expr ,@args))
-
 ;;; The arrow (or some keyword, anyway) is required by Iterate.  Be glad I didn't use Unicode `→' :-)
-(defclause (%collect-map key-expr -> val-expr &optional initial-value init-val into var-spec)
+(defclause (collect-map key*val &optional initial-value init-val into var-spec)
   "Collects key/value pairs into a map, by default a `wb-map' ordered by
-`compare'.  Use `initial-value' to construct a different kind of map."
+`compare'.  Use `initial-value' to construct a different kind of map.
+`key*val' must be a list of two expressions, for key and value."
+  (unless (and (listp key*val) (= (length key*val) 2))
+    (clause-error "~A should be a list of two expressions" key*val))
   (local-binding-check init-val)
   (let ((var-spec (or var-spec *result-var*))
 	((var (extract-var var-spec))
-	  ((op-expr `(with ,var ,(walk-expr key-expr) ,(walk-expr val-expr))))))
+	 ((op-expr `(with ,var ,(walk-expr (first key*val)) ,(walk-expr (second key*val)))))))
     (make-accum-var-binding var-spec (or init-val '(wb-map)) nil :type nil)
     (return-code :body `((setq ,var ,op-expr)))))
 
-(defmacro collect-map-to-sets (key-expr val-expr &rest args)
-  "This macro exists for Iterate's code walker to expand it into an
-actual clause."
-  `(%collect-map-to-sets ,key-expr -> ,val-expr ,@args))
-
-(defclause (%collect-map-to-sets key-expr -> val-expr &optional initial-value init-val into var-spec)
+(defclause (collect-map-to-sets key*val &optional initial-value init-val into var-spec)
   "Collects key/value pairs into a map, collecting values for each key into a
-set.  By default, the result a `wb-map' ordered by `compare', and the value
-sets are `wb-sets' ordered by `compare'.  Use `initial-value' to construct a
-different kind of map; the map's default must be a set \(or bag\)."
+set.  `key*val' must be a list of two expressions, for key and value.  By
+default, the result a `wb-map' ordered by `compare', and the value sets are
+`wb-sets' ordered by `compare'.  Use `initial-value' to construct a different
+kind of map; the map's default must be a set \(or bag\)."
+  (unless (and (listp key*val) (= (length key*val) 2))
+    (clause-error "~A should be a list of two expressions" key*val))
   (local-binding-check init-val)
   (let ((var-spec (or var-spec *result-var*))
 	(key-var (fset::gensymx #:key-))
 	((var (extract-var var-spec))
-	 ((op-expr `(let ((,key-var ,(walk-expr key-expr)))
-		      (with ,var ,key-var (with (lookup ,var ,key-var) ,(walk-expr val-expr))))))))
+	 ((op-expr `(let ((,key-var ,(walk-expr (first key*val))))
+		      (with ,var ,key-var (with (lookup ,var ,key-var) ,(walk-expr (second key*val)))))))))
     (make-accum-var-binding var-spec (or init-val '(wb-map :default (wb-set))) nil :type nil)
     (return-code :body `((setq ,var ,op-expr)))))
 
