@@ -89,19 +89,16 @@ corresponding multiplicity."
 (defclause-driver (for var in-seq seq
 		       &optional from from upfrom upfrom downfrom downfrom
 		       to to downto downto above above below below
-		       by step)
+		       by step with-index with-index)
   "Elements of a seq.  The index range can be specified with `from'/`upfrom'
 or `downfrom', and/or `to', `downto', `above', or `below', stepped by `by'."
   (top-level-check)
-  (unless (> 2 (size (filter #'identity (seq from upfrom downfrom))))
-    (clause-error "Only one of FROM, UPFROM, or DOWNFROM may be specified"))
-  (unless (> 2 (size (filter #'identity (seq to downto above below))))
-    (clause-error "Only one of TO, DOWNTO, ABOVE, or BELOW may be specified"))
+  (check-sequence-keywords from upfrom downfrom to downto above below t)
   (let ((start end from-end?
-	  (cond ((and (or from upfrom) (or to below))
-		 (values (or from upfrom) (or below `(1+ ,to)) nil))
-		((and (or from downfrom) (or downto above))
-		 (values (or downto `(1+ ,above)) `(1+ ,(or from downfrom)) t))
+	  (cond ((and from (or to below))
+		 (values from (or below `(1+ ,to)) nil))
+		((and from (or downto above))
+		 (values (or downto `(1+ ,above)) `(1+ ,from) t))
 		((or from upfrom)
 		 (values (or from upfrom) nil nil))
 		(downfrom
@@ -111,20 +108,26 @@ or `downfrom', and/or `to', `downto', `above', or `below', stepped by `by'."
 		(downto
 		 (values downto nil t))
 		(above
-		 (values `(1+ ,above) nil nil))
+		 (values `(1+ ,above) nil t))
 		(below
-		 (values nil below t))
+		 (values nil below nil))
 		(t
 		 (values nil nil nil))))
-	((iter-var (make-var-and-binding 'seq-iter `(iterator ,seq :start ,start :end ,end :from-end? ,from-end?)))
-	 ((setqs (do-dsetq var (if step
-				   `(prog1
-				      (funcall ,iter-var ':get)
-				      ;; Obviously not ideal if `step' is large; at some point we should
-				      ;; switch to indexing.  But when depends on the size of the seq.
-				      (dotimes (i (1- ,step)) (funcall ,iter-var ':get)))
-				 `(funcall ,iter-var ':get))))
-	  (test `(when (funcall ,iter-var ':done?) (go ,*loop-end*))))))
+	((start-var (make-var-and-binding 'start (or start 0)))
+	 (end-var (make-var-and-binding 'end (or end `(size ,seq))))
+	 ((iter-var (make-var-and-binding 'seq-iter `(iterator ,seq :start ,start-var :end ,end-var
+								    :from-end? ,from-end?)))
+	  (ignore-me (and with-index (make-binding with-index (if from-end? end-var `(1- ,start-var)))))
+	  ((setqs (append (do-dsetq var (if step
+					    `(prog1
+						 (funcall ,iter-var ':get)
+					       ;; Obviously not ideal if `step' is large; at some point we should
+					       ;; switch to indexing.  But when depends on the size of the seq.
+					       (dotimes (i (1- ,step)) (funcall ,iter-var ':get)))
+					  `(funcall ,iter-var ':get)))
+			  (and with-index `(,with-index ,(if from-end? `(1- ,with-index) `(1+ ,with-index))))))
+	   (test `(when (funcall ,iter-var ':done?) (go ,*loop-end*)))))))
+    (declare (ignore ignore-me))
     (setq *loop-end-used?* t)
     (return-driver-code :next (list test setqs) :variable var)))
 
