@@ -18,7 +18,7 @@ See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
   :source-control "https://github.com/slburson/fset"
   :license "BSD-2-Clause"
   :depends-on (:misc-extensions :mt19937 :named-readtables)
-  :in-order-to ((test-op (load-op "fset/test")))
+  :in-order-to ((test-op (test-op "fset/test")))
   :serial t
   :components
   ((:module "Code"
@@ -61,7 +61,7 @@ See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
   :source-control "https://github.com/slburson/fset"
   :license "BSD-2-Clause"
   :depends-on ("fset" "iterate")
-  :in-order-to ((test-op (load-op "fset/iterate/test")))
+  :in-order-to ((test-op (test-op "fset/iterate/test")))
   :components ((:module "Code"
 		:serial t
 		:components ((:file "iterate-defs")
