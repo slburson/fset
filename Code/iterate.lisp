@@ -18,16 +18,11 @@
 (defun walk-with (&rest form)
   (assert (eql (car form) 'fset:with))
   (if iter::*top-level?*
-      (iter::walk
-       `(iter:with ,@(rest form)))
-      (cons (car form)
-            (iter::walk-arglist (rest form)))))
+      (iter::walk `(iter:with ,@(rest form)))
+    (cons (car form) (iter::walk-arglist (rest form)))))
 
 (eval-when (:load-toplevel :execute)
-  (pushnew
-   (cons 'fset:with 'walk-with)
-   iter::*special-form-alist*
-   :test #'equal))
+  (pushnew (cons 'fset:with 'walk-with) iter::*special-form-alist* :test #'equal))
 
 ;;; ================ Drivers/Generators ================
 
