@@ -11,19 +11,18 @@
 
 ;;; Both FSet and Iterate export a `with', and we would prefer not to write a package prefix
 ;;; on either of them.  Fortunately, we can have this particular piece of cake and eat it too,
-;;; because Iterate doesn't fdefine `with'; it keeps its clause definitions in a variable,
-;;; `*clause-info-index*'.  Also, it wouldn't make any sense to call `fset:with' for effect,
-;;; i.e., without using the return value; so a call to `fset:with' will never look to Iterate
-;;; like the head of a clause.  All we have to do is...
-(eval-when (:load-toplevel :execute)
-  (unless (assoc 'with (cdr iter::*clause-info-index*))
-    (let ((info (iter::copy-clause-info (cdr (assoc 'iter:with (cdr iter::*clause-info-index*))))))
-      (setf (iter::clause-info-keywords info)
-	    (substitute 'with 'iter:with (iter::clause-info-keywords info)))
-      (setf (iter::clause-info-req-keywords info)
-	    (substitute 'with 'iter:with (iter::clause-info-req-keywords info)))
-      (push (cons 'with info) (cdr iter::*clause-info-index*)))))
+;;; because Iterate doesn't fdefine `with'; it defines it as a clause. We can force Iterate to
+;;; treat `fset:with` as a special form, superseding clause dispatch, and decide based on whether
+;;; we are at the top level to expand into a binding or a function call.
 
+(defun walk-with (&rest form)
+  (assert (eql (car form) 'fset:with))
+  (if iter::*top-level?*
+      (iter::walk `(iter:with ,@(rest form)))
+      (apply #'iter::walk-cdr form)))
+
+(eval-when (:load-toplevel :execute)
+  (pushnew (cons 'fset:with 'walk-with) iter::*special-form-alist* :test #'equal))
 
 ;;; ================ Drivers/Generators ================
 
@@ -31,6 +30,15 @@
   "Elements of a set."
   (top-level-check)
   (let ((iter-var (make-var-and-binding 'set-iter `(iterator ,set)))
+	((setqs (do-dsetq var `(funcall ,iter-var ':get)))
+	 (test `(when (funcall ,iter-var ':done?) (go ,*loop-end*)))))
+    (setq *loop-end-used?* t)
+    (return-driver-code :next (list test setqs) :variable var)))
+
+(defclause-driver (for var in-iterator x)
+  "Elements of any FSet iterator."
+  (top-level-check)
+  (let ((iter-var (make-var-and-binding 'iter `(iterator ,x)))
 	((setqs (do-dsetq var `(funcall ,iter-var ':get)))
 	 (test `(when (funcall ,iter-var ':done?) (go ,*loop-end*)))))
     (setq *loop-end-used?* t)
@@ -155,27 +163,33 @@ Use `initial-value' to construct a different kind of bag."
     (return-code :body `((setq ,var ,op-expr)))))
 
 ;;; The arrow (or some keyword, anyway) is required by Iterate.  Be glad I didn't use Unicode `→' :-)
-(defclause (collect-map key-expr -> val-expr &optional initial-value init-val into var-spec)
+(defclause (collect-map key*val &optional initial-value init-val into var-spec)
   "Collects key/value pairs into a map, by default a `wb-map' ordered by
-`compare'.  Use `initial-value' to construct a different kind of map."
+`compare'.  Use `initial-value' to construct a different kind of map.
+`key*val' must be a list of two expressions, for key and value."
+  (unless (and (listp key*val) (= (length key*val) 2))
+    (clause-error "~A should be a list of two expressions" key*val))
   (local-binding-check init-val)
   (let ((var-spec (or var-spec *result-var*))
 	((var (extract-var var-spec))
-	 ((op-expr `(with ,var ,(walk-expr key-expr) ,(walk-expr val-expr))))))
+	 ((op-expr `(with ,var ,(walk-expr (first key*val)) ,(walk-expr (second key*val)))))))
     (make-accum-var-binding var-spec (or init-val '(wb-map)) nil :type nil)
     (return-code :body `((setq ,var ,op-expr)))))
 
-(defclause (collect-map-to-sets key-expr -> val-expr &optional initial-value init-val into var-spec)
+(defclause (collect-map-to-sets key*val &optional initial-value init-val into var-spec)
   "Collects key/value pairs into a map, collecting values for each key into a
-set.  By default, the result a `wb-map' ordered by `compare', and the value
-sets are `wb-sets' ordered by `compare'.  Use `initial-value' to construct a
-different kind of map; the map's default must be a set \(or bag\)."
+set.  `key*val' must be a list of two expressions, for key and value.  By
+default, the result a `wb-map' ordered by `compare', and the value sets are
+`wb-sets' ordered by `compare'.  Use `initial-value' to construct a different
+kind of map; the map's default must be a set \(or bag\)."
+  (unless (and (listp key*val) (= (length key*val) 2))
+    (clause-error "~A should be a list of two expressions" key*val))
   (local-binding-check init-val)
   (let ((var-spec (or var-spec *result-var*))
 	(key-var (fset::gensymx #:key-))
 	((var (extract-var var-spec))
-	 ((op-expr `(let ((,key-var ,(walk-expr key-expr)))
-		      (with ,var ,key-var (with (lookup ,var ,key-var) ,(walk-expr val-expr))))))))
+	 ((op-expr `(let ((,key-var ,(walk-expr (first key*val))))
+		      (with ,var ,key-var (with (lookup ,var ,key-var) ,(walk-expr (second key*val)))))))))
     (make-accum-var-binding var-spec (or init-val '(wb-map :default (wb-set))) nil :type nil)
     (return-code :body `((setq ,var ,op-expr)))))
 

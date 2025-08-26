@@ -13,11 +13,12 @@
 See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
 "
   :author "Scott L. Burson <Scott@sympoiesis.com>"
-  :version "1.5.1"
+  :version "1.5.2"
   :homepage "https://gitlab.common-lisp.net/fset/fset/-/wikis/home"
   :source-control "https://github.com/slburson/fset"
   :license "BSD-2-Clause"
   :depends-on (:misc-extensions :mt19937 :named-readtables)
+  :in-order-to ((test-op (test-op "fset/test")))
   :serial t
   :components
   ((:module "Code"
@@ -48,13 +49,10 @@ See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
 (defsystem :FSet/test
   :description "Test system for FSet"
   :depends-on (:fset)
+  :perform (test-op (o c) (symbol-call :fset :run-test-suite 200))
   :components
   ((:module "Code"
 	    :components ((:file "testing")))))
-
-(defmethod perform ((o test-op) (c (eql (find-system :fset))))
-  (load-system :fset/test)
-  (funcall (intern (symbol-name '#:run-test-suite) :fset) 200))
 
 (defsystem :FSet/Iterate
   :description "FSet definitions for the Iterate macro."
@@ -63,6 +61,7 @@ See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
   :source-control "https://github.com/slburson/fset"
   :license "BSD-2-Clause"
   :depends-on ("fset" "iterate")
+  :in-order-to ((test-op (test-op "fset/iterate/test")))
   :components ((:module "Code"
 		:serial t
 		:components ((:file "iterate-defs")
@@ -71,11 +70,7 @@ See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
 (defsystem :FSet/Iterate/test
   :description "Test system for FSet/Iterate"
   :depends-on (:fset/iterate)
+  :perform (test-op (o c) (symbol-call :fset/iterate/test :test-fset/iterate))
   :components ((:module "Code"
 		:serial t
 		:components ((:file "iterate-tests")))))
-
-(defmethod perform ((o test-op) (c (eql (find-system :fset/iterate))))
-  (load-system :fset/iterate/test)
-  (funcall (intern (symbol-name '#:test-fset/iterate) :fset/iterate)))
-

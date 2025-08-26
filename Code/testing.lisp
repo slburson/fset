@@ -68,6 +68,7 @@
 (defun run-test-suite (n-iterations &optional random-seed)
   ;; `Test-Misc' was huge and wouldn't compile in ABCL (JVM function size limitations),
   ;; so I broke it up.
+  (format t "Testing FSet...")
   (Test-Misc-0)
   (Test-Misc-1)
   (Test-Misc-2)
@@ -87,7 +88,8 @@
       (Test-Map-Operations i (Test-Set-Operations i))
       (Test-Bag-Operations i)
       (Test-Seq-Operations i)
-      (Test-Tuple-Operations i))))
+      (Test-Tuple-Operations i)))
+  (format t "passed~%"))
 
 
 (defun Test-Misc-0 ()
