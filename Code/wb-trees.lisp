@@ -250,7 +250,7 @@ greatest member if there are more than one."
 	      (car (cl:last (Equivalent-Node-List val)))
 	    val))))))
 
-(defun WB-Set-Tree-Member? (tree value cmp-fn)
+(defun WB-Set-Tree-Contains? (tree value cmp-fn)
   "Returns true iff `value' is a member of `tree'."
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Set-Tree tree)
@@ -267,9 +267,9 @@ greatest member if there are more than one."
 	      (and (Equivalent-Node? node-val)
 		   (member value (Equivalent-Node-List node-val) :test (equal?-fn cmp-fn))))
 	     ((:less)
-	      (WB-Set-Tree-Member? (WB-Set-Tree-Node-Left tree) value cmp-fn))
+	      (WB-Set-Tree-Contains? (WB-Set-Tree-Node-Left tree) value cmp-fn))
 	     ((:greater)
-	      (WB-Set-Tree-Member? (WB-Set-Tree-Node-Right tree) value cmp-fn)))))))
+	      (WB-Set-Tree-Contains? (WB-Set-Tree-Node-Right tree) value cmp-fn)))))))
 
 (defun WB-Set-Tree-Find-Equivalent (tree value cmp-fn)
   "If `tree' contains one or more values equivalent to `value', returns (first
@@ -301,10 +301,8 @@ containing the values; otherwise `nil'."
   (cond ((null tree) nil)
 	((simple-vector-p tree)
 	 (let ((found? idx (Vector-Set-Binary-Search tree value cmp-fn)))
-	   (and found?
-		(let ((v (svref tree idx)))
-		  (and (equal?-cmp v value cmp-fn)
-		       (values t (svref tree idx)))))))
+	   (and (eq found? ':equal)
+		(values t (svref tree idx)))))
 	(t
 	 (let ((node-val (WB-Set-Tree-Node-Value tree))
 	       ((comp (funcall cmp-fn value node-val))))
@@ -1654,7 +1652,7 @@ to those members above `lo' and below `hi'."
     (if (null node)
 	(values nil nil)
       (progn
-	(incf (the fixnum (svref iter (1+ sp))))
+	(setf (svref iter (1+ sp)) (1+ idx))
 	(WB-Set-Tree-Iterator-Canonicalize iter)
 	(values (if (simple-vector-p node) (svref node idx)
 		  (let ((val (WB-Set-Tree-Node-Value node)))
@@ -1667,13 +1665,13 @@ to those members above `lo' and below `hi'."
 ;;; ----------------
 ;;; Functional iterators.  Fun!!!
 
-(defun WB-Set-Tree-Fun-Iter (tree)
+(defun WB-Set-Tree-Fun-Iter (tree &optional (cont (lambda (op)
+						    (ecase op
+						      (:first (values nil nil))
+						      (:empty? t)
+						      (:more? nil)))))
   (declare (optimize (speed 3) (safety 0)))
-  (rlabels (walk tree (lambda (op)
-			(ecase op
-			  (:first (values nil nil))
-			  (:empty? t)
-			  (:more? nil))))
+  (rlabels (walk tree cont)
     (walk (node cont)
       (cond ((null node)
 	     cont)
@@ -1711,13 +1709,13 @@ to those members above `lo' and below `hi'."
 			   (:empty? nil)
 			   (:more? t)))))))))))
 
-(defun WB-Set-Tree-Rev-Fun-Iter (tree)
+(defun WB-Set-Tree-Rev-Fun-Iter (tree &optional (cont (lambda (op)
+							(ecase op
+							  (:first (values nil nil))
+							  (:empty? t)
+							  (:more? nil)))))
   (declare (optimize (speed 3) (safety 0)))
-  (rlabels (walk tree (lambda (op)
-			(ecase op
-			  (:first (values nil nil))
-			  (:empty? t)
-			  (:more? nil))))
+  (rlabels (walk tree cont)
     (walk (node cont)
       (cond ((null node)
 	     cont)
@@ -2895,6 +2893,12 @@ between equal trees."
 		 new-left new-right)
 	     (Make-Raw-WB-Set-Tree-Node size value new-left new-right))))))
 
+(defun WB-Bag-Tree-Split-Above (tree value cmp-fn)
+  (WB-Bag-Tree-Split tree value Hedge-Positive-Infinity cmp-fn))
+
+(defun WB-Bag-Tree-Split-Below (tree value cmp-fn)
+  (WB-Bag-Tree-Split tree Hedge-Negative-Infinity value cmp-fn))
+
 
 ;;; ================================================================================
 ;;; Support routines for the above (bags)
@@ -2952,6 +2956,14 @@ between equal trees."
 				     lo cmp-fn))
 	      (or (eq hi Hedge-Positive-Infinity)
 		  (less-than?-cmp (svref (car tree) 0) hi cmp-fn))
+	      ;; If it contains no elements within the range, also drop it.
+	      (let ((split-point-lo (if (eq lo Hedge-Negative-Infinity)
+					0
+				      (Vector-Set-Binary-Search-Lo (car tree) lo cmp-fn)))
+		    (split-point-hi (if (eq hi Hedge-Positive-Infinity)
+					(length (the simple-vector (car tree)))
+				      (Vector-Set-Binary-Search-Hi (car tree) hi cmp-fn))))
+		(> split-point-hi split-point-lo))
 	      tree))
 	(t
 	 (let ((val (WB-Bag-Tree-Node-Value tree)))
@@ -4486,7 +4498,8 @@ or else `default'."
 ;;; Map-less
 
 (defun WB-Map-Tree-Less (tree key key-cmp-fn)
-  "Returns a new tree like `tree', but with any entry for `key' removed."
+  "Returns a new tree like `tree', but with any entry for `key' removed.
+If such an entry was found, returns the associated value as a second value."
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Map-Tree tree)
 	   (type function key-cmp-fn))
@@ -4494,9 +4507,10 @@ or else `default'."
 	((consp tree)
 	 (let ((found? idx (Vector-Set-Binary-Search (car tree) key key-cmp-fn)))
 	   (if (eq found? ':equal)
-	       (and (> (length (the simple-vector (car tree))) 1)
-		    (cons (Vector-Remove-At (car tree) idx)
-			  (Vector-Remove-At (cdr tree) idx)))
+	       (values (and (> (length (the simple-vector (car tree))) 1)
+			    (cons (Vector-Remove-At (car tree) idx)
+				  (Vector-Remove-At (cdr tree) idx)))
+		       (svref (cdr tree) idx))
 	     tree)))
 	(t
 	 (let ((node-key (WB-Map-Tree-Node-Key tree))
@@ -4506,27 +4520,31 @@ or else `default'."
 	      (if (not (Equivalent-Node? node-key))
 		  (if (eq comp ':unequal)
 		      tree
-		    (WB-Map-Tree-Join (WB-Map-Tree-Node-Left tree)
-				      (WB-Map-Tree-Node-Right tree) key-cmp-fn))
-		(let ((key val (Equivalent-Map-Less node-key key key-cmp-fn)))
-		  (if (eq key node-key)
+		    (values (WB-Map-Tree-Join (WB-Map-Tree-Node-Left tree)
+					      (WB-Map-Tree-Node-Right tree) key-cmp-fn)
+			    (WB-Map-Tree-Node-Value tree)))
+		(let ((less-key less-val range-val (Equivalent-Map-Less node-key key key-cmp-fn)))
+		  (if (eq less-key node-key)
 		      tree
-		    (WB-Map-Tree-Build-Node key val (WB-Map-Tree-Node-Left tree)
-					    (WB-Map-Tree-Node-Right tree))))))
+		    (values (WB-Map-Tree-Build-Node less-key less-val (WB-Map-Tree-Node-Left tree)
+						    (WB-Map-Tree-Node-Right tree))
+			    range-val)))))
 	     ((:less)
 	      (let ((left (WB-Map-Tree-Node-Left tree))
-		    ((new-left (WB-Map-Tree-Less left key key-cmp-fn))))
+		    ((new-left range-val (WB-Map-Tree-Less left key key-cmp-fn))))
 		(if (eq new-left left)
 		    tree
-		  (WB-Map-Tree-Build-Node node-key (WB-Map-Tree-Node-Value tree)
-					  new-left (WB-Map-Tree-Node-Right tree)))))
+		  (values (WB-Map-Tree-Build-Node node-key (WB-Map-Tree-Node-Value tree)
+						  new-left (WB-Map-Tree-Node-Right tree))
+			  range-val))))
 	     ((:greater)
 	      (let ((right (WB-Map-Tree-Node-Right tree))
-		    ((new-right (WB-Map-Tree-Less right key key-cmp-fn))))
+		    ((new-right range-val (WB-Map-Tree-Less right key key-cmp-fn))))
 		(if (eq new-right right)
 		    tree
-		  (WB-Map-Tree-Build-Node node-key (WB-Map-Tree-Node-Value tree)
-					  (WB-Map-Tree-Node-Left tree) new-right)))))))))
+		  (values (WB-Map-Tree-Build-Node node-key (WB-Map-Tree-Node-Value tree)
+						  (WB-Map-Tree-Node-Left tree) new-right)
+			  range-val)))))))))
 
 
 (defun WB-Map-Tree-Minimum-Pair (tree)
@@ -5063,6 +5081,12 @@ between equal trees."
 				(if (less-than?-cmp left-last right-last key-cmp-fn) right-last left-last))))))))
     (recur len)))
 
+(defun WB-Map-Tree-Split-Above (tree value cmp-fn)
+  (WB-Map-Tree-Split tree value Hedge-Positive-Infinity cmp-fn))
+
+(defun WB-Map-Tree-Split-Below (tree value cmp-fn)
+  (WB-Map-Tree-Split tree Hedge-Negative-Infinity value cmp-fn))
+
 
 ;;; ================================================================================
 ;;; Support routines for the above (maps)
@@ -5120,6 +5144,14 @@ between equal trees."
 				     lo key-cmp-fn))
 	      (or (eq hi Hedge-Positive-Infinity)
 		  (less-than?-cmp (svref (car tree) 0) hi key-cmp-fn))
+	      ;; If it contains no elements within the range, also drop it.
+	      (let ((split-point-lo (if (eq lo Hedge-Negative-Infinity)
+					0
+				      (Vector-Set-Binary-Search-Lo (car tree) lo key-cmp-fn)))
+		    (split-point-hi (if (eq hi Hedge-Positive-Infinity)
+					(length (the simple-vector (car tree)))
+				      (Vector-Set-Binary-Search-Hi (car tree) hi key-cmp-fn))))
+		(> split-point-hi split-point-lo))
 	      tree))
 	(t
 	 (let ((key (WB-Map-Tree-Node-Key tree)))
@@ -5696,13 +5728,13 @@ between equal trees."
 ;;; ----------------
 ;;; Functional iterators.  Fun!!!
 
-(defun WB-Map-Tree-Fun-Iter (tree)
+(defun WB-Map-Tree-Fun-Iter (tree &optional (cont (lambda (op)
+						    (ecase op
+						      (:first (values nil nil nil))
+						      (:empty? t)
+						      (:more? nil)))))
   (declare (optimize (speed 3) (safety 0)))
-  (rlabels (walk tree (lambda (op)
-			(ecase op
-			  (:first (values nil nil nil))
-			  (:empty? t)
-			  (:more? nil))))
+  (rlabels (walk tree cont)
     (walk (node cont)
       (cond ((null node)
 	     cont)
@@ -5740,13 +5772,13 @@ between equal trees."
 			   (:empty? nil)
 			   (:more? t)))))))))))
 
-(defun WB-Map-Tree-Rev-Fun-Iter (tree)
+(defun WB-Map-Tree-Rev-Fun-Iter (tree &optional (cont (lambda (op)
+							(ecase op
+							  (:first (values nil nil nil))
+							  (:empty? t)
+							  (:more? nil)))))
   (declare (optimize (speed 3) (safety 0)))
-  (rlabels (walk tree (lambda (op)
-			(ecase op
-			  (:first (values nil nil nil))
-			  (:empty? t)
-			  (:more? nil))))
+  (rlabels (walk tree cont)
     (walk (node cont)
       (cond ((null node)
 	     cont)
@@ -5961,7 +5993,8 @@ empty, returns false."
 (defun Equivalent-Map-Less (eqvm key key-cmp-fn)
   "Removes the pair associated with `key' from `eqvm', an `Equivalent-Map'.  If
 the result is a single pair, it's returned as two values; otherwise one value
-is returned, which is an `Equivalent-Map'."
+is returned, which is an `Equivalent-Map'.  If a pair is removed, its value is
+returned as the third value."
   (declare (optimize (speed 3) (safety 0))
 	   (type function key-cmp-fn))
   (let ((alist (Equivalent-Node-List eqvm))
@@ -5970,8 +6003,8 @@ is returned, which is an `Equivalent-Map'."
 	(let ((result (cl:remove pr alist)))
 	  (declare (type list result))
 	  (if (= (length result) 1)
-	      (values (caar result) (cdar result))
-	    (Make-Equivalent-Map result)))
+	      (values (caar result) (cdar result) (cdr pr))
+	    (values (Make-Equivalent-Map result) nil (cdr pr))))
       eqvm)))
 
 (defun Equivalent-Map-Restrict (key val set-elt key-cmp-fn)

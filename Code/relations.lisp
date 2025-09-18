@@ -70,7 +70,7 @@ constructed."
 (defmethod contains? ((br wb-2-relation) x &optional (y nil y?))
   (check-three-arguments y? 'contains? 'wb-2-relation)
   (let ((found? set-tree (WB-Map-Tree-Lookup (wb-2-relation-map0 br) x #'compare)))
-    (and found? (WB-Set-Tree-Member? set-tree y #'compare))))
+    (and found? (WB-Set-Tree-Contains? set-tree y #'compare))))
 
 ;;; &&& Aaagh -- not sure this makes sense -- (setf (lookup rel x) ...) doesn't do
 ;;; the right thing at all, relative to this.  Maybe the setf expander for `lookup'/`@'
@@ -286,19 +286,19 @@ constructed."
     (make-wb-2-relation new-size new-map0 new-map1)))
 
 
-(defmethod compose ((rel wb-2-relation) (fn function))
+(defmethod compose ((rel wb-2-relation) (fn function) &key)
   (2-relation-fn-compose rel fn))
 
-(defmethod compose ((rel wb-2-relation) (fn symbol))
+(defmethod compose ((rel wb-2-relation) (fn symbol) &key)
   (2-relation-fn-compose rel (coerce fn 'function)))
 
-(defmethod compose ((rel wb-2-relation) (fn map))
+(defmethod compose ((rel wb-2-relation) (fn map) &key)
   (2-relation-fn-compose rel fn))
 
-(defmethod compose ((rel wb-2-relation) (fn seq))
+(defmethod compose ((rel wb-2-relation) (fn seq) &key)
   (2-relation-fn-compose rel fn))
 
-(defmethod compose ((rel1 wb-2-relation) (rel2 wb-2-relation))
+(defmethod compose ((rel1 wb-2-relation) (rel2 wb-2-relation) &key)
   (join rel1 1 rel2 0))
 
 (defun 2-relation-fn-compose (rel fn)
@@ -539,6 +539,24 @@ Note that `filterp', if supplied, must take two arguments."
 	  (t
 	   (WB-Map-Tree-Compare (wb-2-relation-map0 a) (wb-2-relation-map0 b)
 				#'compare (fn (a b) (WB-Set-Tree-Compare a b #'compare)))))))
+
+(defmethod hash-value ((rel wb-2-relation))
+  ;; As with the other WB types, we do bounded-effort hashing without caching.
+  (let ((result 0)
+	(i 0)
+	(mult 1))
+    (Do-WB-Map-Tree-Pairs (x ys (wb-2-relation-map0 rel))
+      (hash-mixf result (hash-multiply mult (hash-value-fixnum x)))
+      (setq mult (hash-multiply mult 13))
+      (let ((j 0))
+	(Do-WB-Set-Tree-Members (y ys)
+	  (hash-mixf result (hash-multiply mult (hash-value-fixnum y)))
+	  (setq mult (hash-multiply mult 3))
+	  (when (= (incf j) 8)
+	    (return))))
+      (when (= (incf i) 8)
+	(return)))
+    result))
 
 
 (defgeneric transitive-closure (2-relation set)

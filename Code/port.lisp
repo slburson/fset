@@ -201,7 +201,7 @@
 #+(and ecl threads)
 (progn
   (defun make-lock (&optional name)
-    (apply #'mp:make-lock (and name `(:name ,name))))
+    (apply #'mp:make-lock :recursive t (and name `(:name ,name))))
   (defmacro with-lock ((lock &key (wait? t)) &body body)
     (let ((lock-var (gensym "LOCK-"))
 	  (wait?-var (gensym "WAIT?-"))
@@ -309,17 +309,15 @@
 ;;; two bitfields to fit in a fixnum less the sign bit.
 ;;; These numbers are noncritical except possibly for small fixnums.
 
-;;; Fixnum widths of known implementations:
+;;; Fixnum widths of known implementations, exclusive of sign bit:
 ;;; SBCL >= 1.0.53, 64-bit:		62
 ;;; ECL, 64-bit:			61
 ;;; SBCL < 1.0.53, OpenMCL/Clozure CL,
-;;;   Scieneer CL, 64-bit		60
-;;; CLISP, 64-bit			48
-;;; Symbolics L-, I-machine; ABCL	31
+;;;   Scieneer CL, Allegro, 64-bit:	60
+;;; Symbolics L-, I-machine; ABCL:	31
 ;;; Allegro, CMUCL, SBCL, ECL
-;;;   LispWorks (most), 32-bit		29
-;;; CLISP, 32-bit; CADR, LMI Lambda	24
-;;; LispWorks 4 on Linux		23
+;;;   LispWorks (most), 32-bit:		29
+;;; CADR, LMI Lambda:			24
 
 (defconstant Tuple-Value-Index-Size
   (floor (+ 5 (integer-length most-positive-fixnum)) 3)
@@ -374,6 +372,81 @@
 
 ;;; ----------------
 
+;;; These are macros because Allegro (still!) doesn't inline user functions.
+(defmacro hash-mix (&rest args)
+  "Returns the \"mix\" of the values, where \"mix\" is a commutative and
+associative operation with an inverse.  All values MUST be fixnums; the
+result is a fixnum."
+  ;; On implementations where we can reliably get fixnum addition and subtraction without
+  ;; overflow checks at speed-3 safety-0, using them will give us better distributional properties.
+  ;; On other implementations, we fall back to XOR.
+  #+(or sbcl ccl allegro lispworks)
+  ;; To make SBCL happy, we have to build a binary tree with `the fixnum' at each level.
+  (labels ((build (fn expr args)
+	     (if (null args) expr
+	       (build fn `(the fixnum (,fn ,expr (the fixnum ,(car args)))) (cdr args)))))
+    `(locally (declare (optimize (speed 3) (safety 0)))
+       ,(build '+ `(the fixnum ,(car args)) (cdr args))))
+  ;; Oddly, addition doesn't seem to work on ABCL, even though it's using an `ladd' instruction; it
+  ;; makes a bignum (given suitable operands) anyway.
+  ;; CLASP also checks for overflow on addition.
+  #-(or sbcl ccl allegro lispworks)
+  `(locally (declare (optimize (speed 3) (safety 0)))
+     (the fixnum (logxor . ,(mapcar (fn (x) `(the fixnum ,x)) args)))))
+
+(defmacro hash-unmix (hash &rest to-unmix)
+  "Returns the result of \"unmixing\" each of `to-unmix' from `hash'.  All
+values MUST be fixnums; the result is a fixnum."
+  ;; As above.
+  #+(or sbcl ccl allegro lispworks)
+  (labels ((build (fn expr args)
+	     (if (null args) expr
+	       (build fn `(the fixnum (,fn ,expr (the fixnum ,(car args)))) (cdr args)))))
+    `(locally (declare (optimize (speed 3) (safety 0)))
+       ,(build '- `(the fixnum ,hash) to-unmix)))
+  #-(or sbcl ccl allegro lispworks)
+  `(locally (declare (optimize (speed 3) (safety 0)))
+     (the fixnum (logxor (the fixnum ,hash) . ,(mapcar (fn (x) `(the fixnum ,x)) to-unmix)))))
+
+(defmacro hash-multiply (ha hb)
+  "Returns the product of `ha' and `hb' modulo 2^fixnum_length.  Both MUST be
+fixnums; the result is a fixnum."
+  #+(or sbcl ccl allegro lispworks)
+  `(locally (declare (optimize (speed 3) (safety 0)))
+     (the fixnum (* (the fixnum ,ha) (the fixnum ,hb))))
+  #-(or sbcl ccl allegro lispworks)
+  `(locally (declare (optimize (speed 3) (safety 0)))
+     (let ((prod (* (the fixnum ,ha) (the fixnum ,hb)))
+	   ((fprod (the fixnum (logand most-positive-fixnum prod)))))
+       (if (< prod 0) (- fprod) fprod))))
+
+(define-modify-macro hash-mixf (&rest args)
+  hash-mix)
+(define-modify-macro hash-unmixf (hash &rest to-unmix)
+  hash-unmix)
+
+(declaim (inline symbol-hash-value))
+(defun symbol-hash-value (sym)
+  #-(or ccl allegro lispworks)
+  (sxhash sym)
+  ;; Some CLs don't cache the hash, AFAICT.  So we use a plist slot.  Of course, this works best if
+  ;; the plist is otherwise empty; but it usually is.
+  #+(or ccl allegro lispworks)
+  (or (get sym 'hash-value)
+      (setf (get sym 'hash-value) (sxhash sym))))
+
+(declaim (inline class-hash-value))
+(defun class-hash-value (x)
+  #-(or ccl lispworks)
+  (sxhash (class-of x))
+  #+ccl
+  (symbol-hash-value (slot-value (class-of x) 'ccl::name))
+  #+lispworks
+  (symbol-hash-value (slot-value (class-of x) 'clos::name)))
+
+
+;;; ----------------
+
 ;;; A macro used mostly by the bag code to get generic arithmetic in speed-3
 ;;; routines without all those compiler notes from CMUCL, SBCL, or Scieneer
 ;;; CL.
@@ -414,5 +487,11 @@
 ;;; Miscellaneous utilities
 
 (defun eqv (a b &rest more)
+  "True if `b' and all of `more' are boolean-equal to `a`, i.e., all null or
+all nonnull.  (Not the even-parity function.)"
   (and (or (eq a b) (and a b))
-       (gmap (:result and) #'eqv (:arg constant a) (:arg list more))))
+       (gmap (:result and) (fn (x) (or (eq x a) (and x a))) (:arg list more))))
+
+(defun swap-if (pred x y)
+  (if pred (values y x)
+    (values x y)))

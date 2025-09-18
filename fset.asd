@@ -13,7 +13,7 @@
 See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
 "
   :author "Scott L. Burson <Scott@sympoiesis.com>"
-  :version "1.5.2"
+  :version "1.6.0"
   :homepage "https://gitlab.common-lisp.net/fset/fset/-/wikis/home"
   :source-control "https://github.com/slburson/fset"
   :license "BSD-2-Clause"

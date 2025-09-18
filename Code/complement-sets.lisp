@@ -40,6 +40,8 @@ complement set."
   (complement-set-complement cs))
 
 (defun full-set ()
+  "The set containing everything.  It is a complement set, so it cannot be
+enumerated, but certain other operations are defined on it."
   (make-complement-set (empty-set)))
 
 (defmethod contains? ((cs complement-set) x &optional (y nil y?))
@@ -137,6 +139,11 @@ complement set."
 
 (defmethod compare ((s set) (cs complement-set))
   ':less)
+
+(defmethod hash-value ((cs complement-set))
+  ;; Using one's complement instead of two's, so the full set has a different hash (-1)
+  ;; from the empty set (0).
+  (logxor -1 (hash-value-fixnum (complement-set-complement cs))))
 
 (defmethod make-load-form ((cs complement-set) &optional environment)
   (declare (ignore environment))

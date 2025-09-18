@@ -162,7 +162,6 @@ Use `initial-value' to construct a different kind of bag."
     (make-accum-var-binding var-spec init-val nil :type nil)
     (return-code :body `((setq ,var ,op-expr)))))
 
-;;; The arrow (or some keyword, anyway) is required by Iterate.  Be glad I didn't use Unicode `→' :-)
 (defclause (collect-map key*val &optional initial-value init-val into var-spec)
   "Collects key/value pairs into a map, by default a `wb-map' ordered by
 `compare'.  Use `initial-value' to construct a different kind of map.
@@ -179,7 +178,7 @@ Use `initial-value' to construct a different kind of bag."
 (defclause (collect-map-to-sets key*val &optional initial-value init-val into var-spec)
   "Collects key/value pairs into a map, collecting values for each key into a
 set.  `key*val' must be a list of two expressions, for key and value.  By
-default, the result a `wb-map' ordered by `compare', and the value sets are
+default, the result is a `wb-map' ordered by `compare', and the value sets are
 `wb-sets' ordered by `compare'.  Use `initial-value' to construct a different
 kind of map; the map's default must be a set \(or bag\)."
   (unless (and (listp key*val) (= (length key*val) 2))
