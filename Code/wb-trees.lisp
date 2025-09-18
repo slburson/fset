@@ -3,8 +3,8 @@
 ;;; File: wb-trees.lisp
 ;;; Contents: Weight-balanced binary tree implementation for FSet.
 ;;;
-;;; This file is part of FSet.  Copyright (c) 2007-2024 Scott L. Burson.
-;;; FSet is licensed under the Lisp Lesser GNU Public License, or LLGPL.
+;;; This file is part of FSet.  Copyright (c) 2007-2025 Scott L. Burson.
+;;; FSet is licensed under the 2-clause BSD license; see LICENSE.
 ;;; This license provides NO WARRANTY.
 
 #||
@@ -43,6 +43,19 @@ do the comparison only once for each pair of values.
 ||#
 
 (in-package :fset)
+
+
+(defmacro equal?-fn (cmp-fn)
+  `(lambda (a b) (eq (funcall ,cmp-fn a b) ':equal)))
+
+(defmacro equal?-cmp (a b cmp-fn)
+  `(eq (funcall ,cmp-fn ,a ,b) ':equal))
+
+(defmacro less-than?-cmp (a b cmp-fn)
+  `(eq (funcall ,cmp-fn ,a ,b) ':less))
+
+(defmacro greater-than?-cmp (a b cmp-fn)
+  `(eq (funcall ,cmp-fn ,a ,b) ':greater))
 
 
 ;;; ================================================================================
@@ -237,7 +250,7 @@ greatest member if there are more than one."
 	      (car (cl:last (Equivalent-Node-List val)))
 	    val))))))
 
-(defun WB-Set-Tree-Member? (tree value cmp-fn)
+(defun WB-Set-Tree-Contains? (tree value cmp-fn)
   "Returns true iff `value' is a member of `tree'."
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Set-Tree tree)
@@ -252,11 +265,11 @@ greatest member if there are more than one."
 	     (:equal t)
 	     ((:unequal)
 	      (and (Equivalent-Node? node-val)
-		   (member value (Equivalent-Node-List node-val) :test #'equal?)))
+		   (member value (Equivalent-Node-List node-val) :test (equal?-fn cmp-fn))))
 	     ((:less)
-	      (WB-Set-Tree-Member? (WB-Set-Tree-Node-Left tree) value cmp-fn))
+	      (WB-Set-Tree-Contains? (WB-Set-Tree-Node-Left tree) value cmp-fn))
 	     ((:greater)
-	      (WB-Set-Tree-Member? (WB-Set-Tree-Node-Right tree) value cmp-fn)))))))
+	      (WB-Set-Tree-Contains? (WB-Set-Tree-Node-Right tree) value cmp-fn)))))))
 
 (defun WB-Set-Tree-Find-Equivalent (tree value cmp-fn)
   "If `tree' contains one or more values equivalent to `value', returns (first
@@ -279,18 +292,6 @@ containing the values; otherwise `nil'."
 	     ((:greater)
 	      (WB-Set-Tree-Find-Equivalent (WB-Set-Tree-Node-Right tree) value cmp-fn)))))))
 
-(defmacro equal?-fn (cmp-fn)
-  `(lambda (a b) (eq (funcall ,cmp-fn a b) ':equal)))
-
-(defmacro equal?-cmp (a b cmp-fn)
-  `(eq (funcall ,cmp-fn ,a ,b) ':equal))
-
-(defmacro less-than?-cmp (a b cmp-fn)
-  `(eq (funcall ,cmp-fn ,a ,b) ':less))
-
-(defmacro greater-than?-cmp (a b cmp-fn)
-  `(eq (funcall ,cmp-fn ,a ,b) ':greater))
-
 (defun WB-Set-Tree-Find-Equal (tree value cmp-fn)
   "If `tree' contains a value equal to `value', returns (first value) true and
 \(second value) the value; otherwise `nil'."
@@ -300,20 +301,19 @@ containing the values; otherwise `nil'."
   (cond ((null tree) nil)
 	((simple-vector-p tree)
 	 (let ((found? idx (Vector-Set-Binary-Search tree value cmp-fn)))
-	   (and found?
-		(let ((v (svref tree idx)))
-		  (and (equal?-cmp v value cmp-fn)
-		       (values t (svref tree idx)))))))
+	   (and (eq found? ':equal)
+		(values t (svref tree idx)))))
 	(t
 	 (let ((node-val (WB-Set-Tree-Node-Value tree))
 	       ((comp (funcall cmp-fn value node-val))))
 	   (ecase comp
-	     ((:equal :unequal)
-	      (if (Equivalent-Node? node-val)
-		  (let ((v (cl:find value (Equivalent-Node-List node-val)
-				    :test (equal?-fn cmp-fn))))
-		    (and v (values t v)))
-		(values t node-val)))
+	     (:equal (values t (if (Equivalent-Node? node-val)
+				   (car (Equivalent-Node-List node-val))
+				 node-val)))
+	     (:unequal
+	      (and (Equivalent-Node? node-val)
+		   (let ((mem (member value (Equivalent-Node-List node-val) :test (equal?-fn cmp-fn))))
+		     (and mem (values t (car mem))))))
 	     ((:less)
 	      (WB-Set-Tree-Find-Equal (WB-Set-Tree-Node-Left tree) value cmp-fn))
 	     ((:greater)
@@ -1652,7 +1652,7 @@ to those members above `lo' and below `hi'."
     (if (null node)
 	(values nil nil)
       (progn
-	(incf (the fixnum (svref iter (1+ sp))))
+	(setf (svref iter (1+ sp)) (1+ idx))
 	(WB-Set-Tree-Iterator-Canonicalize iter)
 	(values (if (simple-vector-p node) (svref node idx)
 		  (let ((val (WB-Set-Tree-Node-Value node)))
@@ -1665,13 +1665,13 @@ to those members above `lo' and below `hi'."
 ;;; ----------------
 ;;; Functional iterators.  Fun!!!
 
-(defun WB-Set-Tree-Fun-Iter (tree)
+(defun WB-Set-Tree-Fun-Iter (tree &optional (cont (lambda (op)
+						    (ecase op
+						      (:first (values nil nil))
+						      (:empty? t)
+						      (:more? nil)))))
   (declare (optimize (speed 3) (safety 0)))
-  (rlabels (walk tree (lambda (op)
-			(ecase op
-			  (:first (values nil nil))
-			  (:empty? t)
-			  (:more? nil))))
+  (rlabels (walk tree cont)
     (walk (node cont)
       (cond ((null node)
 	     cont)
@@ -1709,13 +1709,13 @@ to those members above `lo' and below `hi'."
 			   (:empty? nil)
 			   (:more? t)))))))))))
 
-(defun WB-Set-Tree-Rev-Fun-Iter (tree)
+(defun WB-Set-Tree-Rev-Fun-Iter (tree &optional (cont (lambda (op)
+							(ecase op
+							  (:first (values nil nil))
+							  (:empty? t)
+							  (:more? nil)))))
   (declare (optimize (speed 3) (safety 0)))
-  (rlabels (walk tree (lambda (op)
-			(ecase op
-			  (:first (values nil nil))
-			  (:empty? t)
-			  (:more? nil))))
+  (rlabels (walk tree cont)
     (walk (node cont)
       (cond ((null node)
 	     cont)
@@ -2184,15 +2184,18 @@ appear in `tree'.  As a second value, returns the value found, if any."
 	 (let ((node-val (WB-Bag-Tree-Node-Value tree))
 	       ((comp (funcall cmp-fn value node-val))))
 	   (ecase comp
-	     ((:equal :unequal)
+	     (:equal
+	      (if (Equivalent-Node? node-val)
+		  (let ((pr (car (Equivalent-Node-List node-val))))
+		    (values (cdr pr) (car pr)))
+		(values (WB-Bag-Tree-Node-Count tree) node-val)))
+	     (:unequal
 	      (if (Equivalent-Node? node-val)
 		  (let ((pr (assoc value (Equivalent-Node-List node-val)
 				   :test (equal?-fn cmp-fn))))
 		    (if pr (values (cdr pr) (car pr))
 		      (values 0 nil)))
-		(if (eq comp ':equal)
-		    (values (WB-Bag-Tree-Node-Count tree) node-val)
-		  (values 0 nil))))
+		(values 0 nil)))
 	     ((:less)
 	      (WB-Bag-Tree-Multiplicity (WB-Bag-Tree-Node-Left tree) value cmp-fn))
 	     ((:greater)
@@ -2889,6 +2892,12 @@ between equal trees."
 		 size (Make-Equivalent-Set (mapcar #'car (Equivalent-Node-List value)))
 		 new-left new-right)
 	     (Make-Raw-WB-Set-Tree-Node size value new-left new-right))))))
+
+(defun WB-Bag-Tree-Split-Above (tree value cmp-fn)
+  (WB-Bag-Tree-Split tree value Hedge-Positive-Infinity cmp-fn))
+
+(defun WB-Bag-Tree-Split-Below (tree value cmp-fn)
+  (WB-Bag-Tree-Split tree Hedge-Negative-Infinity value cmp-fn))
 
 
 ;;; ================================================================================
@@ -4311,12 +4320,13 @@ the associated value; otherwise `nil'."
 	 (let ((node-key (WB-Map-Tree-Node-Key tree))
 	       ((comp (funcall key-cmp-fn key node-key))))
 	   (ecase comp
-	     ((:equal :unequal)
-	       (if (Equivalent-Node? node-key)
-		   (let ((pr (assoc key (Equivalent-Node-List node-key) :test (equal?-fn key-cmp-fn))))
-		     (and pr (values t (cdr pr))))
-		 (and (eq comp ':equal)
-		      (values t (WB-Map-Tree-Node-Value tree)))))
+	     (:equal (values t (if (Equivalent-Node? node-key)
+				   (cdar (Equivalent-Node-List node-key))
+				 (WB-Map-Tree-Node-Value tree))))
+	     (:unequal
+	       (and (Equivalent-Node? node-key)
+		    (let ((pr (assoc key (Equivalent-Node-List node-key) :test (equal?-fn key-cmp-fn))))
+		      (and pr (values t (cdr pr))))))
 	     (:less
 	       (WB-Map-Tree-Lookup (WB-Map-Tree-Node-Left tree) key key-cmp-fn))
 	     (:greater
@@ -4488,7 +4498,8 @@ or else `default'."
 ;;; Map-less
 
 (defun WB-Map-Tree-Less (tree key key-cmp-fn)
-  "Returns a new tree like `tree', but with any entry for `key' removed."
+  "Returns a new tree like `tree', but with any entry for `key' removed.
+If such an entry was found, returns the associated value as a second value."
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Map-Tree tree)
 	   (type function key-cmp-fn))
@@ -4496,9 +4507,10 @@ or else `default'."
 	((consp tree)
 	 (let ((found? idx (Vector-Set-Binary-Search (car tree) key key-cmp-fn)))
 	   (if (eq found? ':equal)
-	       (and (> (length (the simple-vector (car tree))) 1)
-		    (cons (Vector-Remove-At (car tree) idx)
-			  (Vector-Remove-At (cdr tree) idx)))
+	       (values (and (> (length (the simple-vector (car tree))) 1)
+			    (cons (Vector-Remove-At (car tree) idx)
+				  (Vector-Remove-At (cdr tree) idx)))
+		       (svref (cdr tree) idx))
 	     tree)))
 	(t
 	 (let ((node-key (WB-Map-Tree-Node-Key tree))
@@ -4508,27 +4520,31 @@ or else `default'."
 	      (if (not (Equivalent-Node? node-key))
 		  (if (eq comp ':unequal)
 		      tree
-		    (WB-Map-Tree-Join (WB-Map-Tree-Node-Left tree)
-				      (WB-Map-Tree-Node-Right tree) key-cmp-fn))
-		(let ((key val (Equivalent-Map-Less node-key key key-cmp-fn)))
-		  (if (eq key node-key)
+		    (values (WB-Map-Tree-Join (WB-Map-Tree-Node-Left tree)
+					      (WB-Map-Tree-Node-Right tree) key-cmp-fn)
+			    (WB-Map-Tree-Node-Value tree)))
+		(let ((less-key less-val range-val (Equivalent-Map-Less node-key key key-cmp-fn)))
+		  (if (eq less-key node-key)
 		      tree
-		    (WB-Map-Tree-Build-Node key val (WB-Map-Tree-Node-Left tree)
-					    (WB-Map-Tree-Node-Right tree))))))
+		    (values (WB-Map-Tree-Build-Node less-key less-val (WB-Map-Tree-Node-Left tree)
+						    (WB-Map-Tree-Node-Right tree))
+			    range-val)))))
 	     ((:less)
 	      (let ((left (WB-Map-Tree-Node-Left tree))
-		    ((new-left (WB-Map-Tree-Less left key key-cmp-fn))))
+		    ((new-left range-val (WB-Map-Tree-Less left key key-cmp-fn))))
 		(if (eq new-left left)
 		    tree
-		  (WB-Map-Tree-Build-Node node-key (WB-Map-Tree-Node-Value tree)
-					  new-left (WB-Map-Tree-Node-Right tree)))))
+		  (values (WB-Map-Tree-Build-Node node-key (WB-Map-Tree-Node-Value tree)
+						  new-left (WB-Map-Tree-Node-Right tree))
+			  range-val))))
 	     ((:greater)
 	      (let ((right (WB-Map-Tree-Node-Right tree))
-		    ((new-right (WB-Map-Tree-Less right key key-cmp-fn))))
+		    ((new-right range-val (WB-Map-Tree-Less right key key-cmp-fn))))
 		(if (eq new-right right)
 		    tree
-		  (WB-Map-Tree-Build-Node node-key (WB-Map-Tree-Node-Value tree)
-					  (WB-Map-Tree-Node-Left tree) new-right)))))))))
+		  (values (WB-Map-Tree-Build-Node node-key (WB-Map-Tree-Node-Value tree)
+						  (WB-Map-Tree-Node-Left tree) new-right)
+			  range-val)))))))))
 
 
 (defun WB-Map-Tree-Minimum-Pair (tree)
@@ -5064,6 +5080,12 @@ between equal trees."
 				(if (less-than?-cmp left-first right-first key-cmp-fn) left-first right-first)
 				(if (less-than?-cmp left-last right-last key-cmp-fn) right-last left-last))))))))
     (recur len)))
+
+(defun WB-Map-Tree-Split-Above (tree value cmp-fn)
+  (WB-Map-Tree-Split tree value Hedge-Positive-Infinity cmp-fn))
+
+(defun WB-Map-Tree-Split-Below (tree value cmp-fn)
+  (WB-Map-Tree-Split tree Hedge-Negative-Infinity value cmp-fn))
 
 
 ;;; ================================================================================
@@ -5706,13 +5728,13 @@ between equal trees."
 ;;; ----------------
 ;;; Functional iterators.  Fun!!!
 
-(defun WB-Map-Tree-Fun-Iter (tree)
+(defun WB-Map-Tree-Fun-Iter (tree &optional (cont (lambda (op)
+						    (ecase op
+						      (:first (values nil nil nil))
+						      (:empty? t)
+						      (:more? nil)))))
   (declare (optimize (speed 3) (safety 0)))
-  (rlabels (walk tree (lambda (op)
-			(ecase op
-			  (:first (values nil nil nil))
-			  (:empty? t)
-			  (:more? nil))))
+  (rlabels (walk tree cont)
     (walk (node cont)
       (cond ((null node)
 	     cont)
@@ -5750,13 +5772,13 @@ between equal trees."
 			   (:empty? nil)
 			   (:more? t)))))))))))
 
-(defun WB-Map-Tree-Rev-Fun-Iter (tree)
+(defun WB-Map-Tree-Rev-Fun-Iter (tree &optional (cont (lambda (op)
+							(ecase op
+							  (:first (values nil nil nil))
+							  (:empty? t)
+							  (:more? nil)))))
   (declare (optimize (speed 3) (safety 0)))
-  (rlabels (walk tree (lambda (op)
-			(ecase op
-			  (:first (values nil nil nil))
-			  (:empty? t)
-			  (:more? nil))))
+  (rlabels (walk tree cont)
     (walk (node cont)
       (cond ((null node)
 	     cont)
@@ -5971,7 +5993,8 @@ empty, returns false."
 (defun Equivalent-Map-Less (eqvm key key-cmp-fn)
   "Removes the pair associated with `key' from `eqvm', an `Equivalent-Map'.  If
 the result is a single pair, it's returned as two values; otherwise one value
-is returned, which is an `Equivalent-Map'."
+is returned, which is an `Equivalent-Map'.  If a pair is removed, its value is
+returned as the third value."
   (declare (optimize (speed 3) (safety 0))
 	   (type function key-cmp-fn))
   (let ((alist (Equivalent-Node-List eqvm))
@@ -5980,8 +6003,8 @@ is returned, which is an `Equivalent-Map'."
 	(let ((result (cl:remove pr alist)))
 	  (declare (type list result))
 	  (if (= (length result) 1)
-	      (values (caar result) (cdar result))
-	    (Make-Equivalent-Map result)))
+	      (values (caar result) (cdar result) (cdr pr))
+	    (values (Make-Equivalent-Map result) nil (cdr pr))))
       eqvm)))
 
 (defun Equivalent-Map-Restrict (key val set-elt key-cmp-fn)
@@ -6955,81 +6978,187 @@ the result, inserts `val', returning the new vector."
 ;;; ----------------
 ;;; Stateful iterator
 
-(defun Make-WB-Seq-Tree-Iterator (tree)
-  (let ((iter (Make-WB-Seq-Tree-Iterator-Internal tree)))
+(defun Make-WB-Seq-Tree-Iterator (tree &optional start end)
+  (let ((iter (Make-WB-Seq-Tree-Iterator-Internal tree start end)))
     (lambda (op)
       (ecase op
 	(:get (WB-Seq-Tree-Iterator-Get iter))
 	(:done? (WB-Seq-Tree-Iterator-Done? iter))
 	(:more? (not (WB-Seq-Tree-Iterator-Done? iter)))))))
 
-(defun Make-WB-Seq-Tree-Iterator-Internal (tree)
-  (WB-Seq-Tree-Iterator-Canonicalize
-    (Make-WB-Tree-Iterator tree (WB-Seq-Tree-Size tree) 2 nil)))
+(defun Make-WB-Seq-Tree-Iterator-Internal (tree &optional start end)
+  (declare (optimize (speed 3) (safety 1))
+	   (type (or null fixnum) start end))
+  (let ((tree-size (WB-Seq-Tree-Size tree))
+	((iter (Make-WB-Tree-Iterator tree tree-size 2 nil))))
+    (setq start (if start (max 0 start) 0))
+    (setq end (max start (if end (min tree-size end) tree-size)))
+    (unless (= start end)
+      (let ((node tree)
+	    (tmp-start start)
+	    (sp -1))
+	(declare (fixnum tmp-start sp))
+	(loop
+	  (if (or (stringp node) (simple-vector-p node))
+	      (progn
+		(incf sp 2)
+		(setf (svref iter sp) node)
+		(setf (svref iter (1+ sp)) tmp-start)
+		(setf (svref iter 0) sp)
+		(return))
+	    (let ((left (WB-Seq-Tree-Node-Left node))
+		  ((left-size (WB-Seq-Tree-Size left))))
+	      (if (< tmp-start left-size)
+		  (progn
+		    (incf sp 2)
+		    (setf (svref iter sp) node)
+		    (setf (svref iter (1+ sp)) 0)
+		    (setq node left))
+		(progn
+		  (decf tmp-start left-size)
+		  (setq node (WB-Seq-Tree-Node-Right node)))))))))
+    ;; `iter' is already canonical.
+    (cons iter (- end start))))
 
 (defun WB-Seq-Tree-Iterator-Canonicalize (iter)
   (declare (optimize (speed 3) (safety 0)))
-  (loop
-    (let ((sp (svref iter 0))
-	  ((node (svref iter sp))
-	   (idx (svref iter (1+ sp)))))
-      (declare (fixnum sp idx))
-      (cond ((null node)
-	     (if (= sp 1)
-		 (return)
-	       (progn
-		 (decf sp 2)
-		 (setf (svref iter 0) sp)
-		 (incf (the fixnum (svref iter (1+ sp)))))))
-	    ((simple-string-p node)
-	     (cond ((< idx (length node))
-		    (return))
-		   ((= sp 1)
-		    (setf (svref iter 1) nil)
-		    (return))
-		   (t
-		    (decf sp 2)
-		    (setf (svref iter 0) sp)
-		    (incf (the fixnum (svref iter (1+ sp)))))))
-	    ((simple-vector-p node)
-	     (cond ((< idx (length node))
-		    (return))
-		   ((= sp 1)
-		    (setf (svref iter 1) nil)
-		    (return))
-		   (t
-		    (decf sp 2)
-		    (setf (svref iter 0) sp)
-		    (incf (the fixnum (svref iter (1+ sp)))))))
-	    ((= idx 0)
-	     (unless (< (+ sp 3) (length iter))
-	       (error "Internal FSet error: iterator stack overflow.  Please report this bug."))
-	     (incf sp 2)
-	     (setf (svref iter 0) sp)
-	     (setf (svref iter sp) (WB-Seq-Tree-Node-Left node))
-	     (setf (svref iter (1+ sp)) 0))
-	    (t
-	     ;; Tail recursion
-	     (setf (svref iter sp) (WB-Seq-Tree-Node-Right node))
-	     (setf (svref iter (1+ sp)) 0)))))
-  iter)
+  (unless (zerop (the fixnum (cdr iter)))
+    (let ((stack (car iter)))
+      (loop
+	(let ((sp (svref stack 0))
+	      ((node (svref stack sp))
+	       (idx (svref stack (1+ sp)))))
+	  (declare (fixnum sp idx))
+	  (cond ((or (simple-string-p node) (simple-vector-p node))
+		 (if (or (< idx (length node)) (= sp 1))
+		     (return)
+		   (progn
+		     (decf sp 2)
+		     (setf (svref stack 0) sp)
+		     (incf (the fixnum (svref stack (1+ sp)))))))
+		((= idx 0)
+		 (unless (< (+ sp 3) (length stack))
+		   (error "Internal FSet error: iterator stack overflow.  Please report this bug."))
+		 (incf sp 2)
+		 (setf (svref stack 0) sp)
+		 (setf (svref stack sp) (WB-Seq-Tree-Node-Left node))
+		 (setf (svref stack (1+ sp)) 0))
+		(t
+		 ;; Tail recursion
+		 (setf (svref stack sp) (WB-Seq-Tree-Node-Right node))
+		 (setf (svref stack (1+ sp)) 0))))))))
 
 (defun WB-Seq-Tree-Iterator-Done? (iter)
   (declare (optimize (speed 3) (safety 0)))
-  (null (svref iter (svref iter 0))))
+  (zerop (the fixnum (cdr iter))))
 
 (defun WB-Seq-Tree-Iterator-Get (iter)
   (declare (optimize (speed 3) (safety 0)))
-  (let ((sp (svref iter 0))
-	((node (svref iter sp))
-	 (idx (svref iter (1+ sp)))))
-    (declare (fixnum idx))
-    (if (null node)
-	(values nil nil)
-      (progn
-	(incf (the fixnum (svref iter (1+ sp))))
-	(WB-Seq-Tree-Iterator-Canonicalize iter)
-	(values (if (simple-string-p node) (schar node idx) (svref node idx)) t)))))
+  (if (zerop (the fixnum (cdr iter)))
+      (values nil nil)
+    (let ((stack (car iter))
+	  ((sp (svref stack 0))
+	   ((node (svref stack sp))
+	    (idx (svref stack (1+ sp))))))
+      (declare (fixnum idx))
+      (decf (the fixnum (cdr iter)))
+      (incf (the fixnum (svref stack (1+ sp))))
+      (WB-Seq-Tree-Iterator-Canonicalize iter)
+      (values (if (simple-string-p node) (schar node idx) (svref node idx)) t))))
+
+
+(defun Make-WB-Seq-Tree-Rev-Iterator (tree &optional start end)
+  (let ((iter (Make-WB-Seq-Tree-Rev-Iterator-Internal tree start end)))
+    (lambda (op)
+      (ecase op
+	(:get (WB-Seq-Tree-Rev-Iterator-Get iter))
+	(:done? (WB-Seq-Tree-Rev-Iterator-Done? iter))
+	(:more? (not (WB-Seq-Tree-Rev-Iterator-Done? iter)))))))
+
+(defun Make-WB-Seq-Tree-Rev-Iterator-Internal (tree &optional start end)
+  (declare (optimize (speed 3) (safety 1))
+	   (type (or null fixnum) start end))
+  (let ((tree-size (WB-Seq-Tree-Size tree))
+	((iter (Make-WB-Tree-Iterator tree tree-size 2 nil))))
+    ;; We flip the coordinate system so `start' and `end' are nonnegative distances from the right end.
+    (setq end (if end (max 0 (- tree-size end)) 0))
+    (setq start (max end (if start (- tree-size (max 0 start)) tree-size)))
+    (unless (= start end)
+      (let ((node tree)
+	    (tmp-end end)
+	    (sp -1))
+	(declare (fixnum tmp-end sp))
+	(loop
+	  (when (or (stringp node) (simple-vector-p node))
+	    (incf sp 2)
+	    (setf (svref iter sp) node)
+	    (setf (svref iter (1+ sp)) (- (length node) tmp-end))
+	    (setf (svref iter 0) sp)
+	    (return))
+	  (let ((right (WB-Seq-Tree-Node-Right node))
+		((right-size (WB-Seq-Tree-Size right))))
+	    (if (< tmp-end right-size)
+		(progn
+		  (incf sp 2)
+		  (setf (svref iter sp) node)
+		  (setf (svref iter (1+ sp)) 1)
+		  (setq node right))
+	      (progn
+		(decf tmp-end right-size)
+		(setq node (WB-Seq-Tree-Node-Left node))))))))
+    ;; `iter' is already canonical.
+    (cons iter (- start end))))
+
+(defun WB-Seq-Tree-Rev-Iterator-Canonicalize (iter)
+  (declare (optimize (debug 3) (safety 0)))
+  (unless (zerop (the fixnum (cdr iter)))
+    (let ((stack (car iter)))
+      (loop
+	(let ((sp (svref stack 0))
+	      ((node (svref stack sp))
+	       (idx (svref stack (1+ sp)))))
+	  (declare (fixnum sp)
+		   (type (or null fixnum) idx))
+	  (cond ((or (simple-string-p node) (simple-vector-p node))
+		 (when (null idx)
+		   (setf (svref stack (1+ sp)) (length node))
+		   (return))
+		 (when (or (> idx 0) (= sp 1))
+		   (return))
+		 (decf sp 2)
+		 (setf (svref stack 0) sp)
+		 (decf (the fixnum (svref stack (1+ sp)))))
+		((null idx)
+		 (setf (svref stack (1+ sp)) 1)
+		 (unless (< (+ sp 3) (length stack))
+		   (error "Internal FSet error: iterator stack overflow.  Please report this bug."))
+		 (incf sp 2)
+		 (setf (svref stack 0) sp)
+		 (setf (svref stack sp) (WB-Seq-Tree-Node-Right node))
+		 (setf (svref stack (1+ sp)) nil))
+		(t
+		 ;; Tail recursion
+		 (setf (svref stack sp) (WB-Seq-Tree-Node-Left node))
+		 (setf (svref stack (1+ sp)) nil))))))))
+
+(defun WB-Seq-Tree-Rev-Iterator-Done? (iter)
+  (declare (optimize (speed 3) (safety 0)))
+  (zerop (the fixnum (cdr iter))))
+
+(defun WB-Seq-Tree-Rev-Iterator-Get (iter)
+  (declare (optimize (debug 3) (safety 0)))
+  (if (zerop (the fixnum (cdr iter)))
+      (values nil nil)
+    (let ((stack (car iter))
+	  ((sp (svref stack 0))
+	   ((node (svref stack sp))
+	    (idx (svref stack (1+ sp))))))
+      (declare (fixnum idx))
+      (decf (the fixnum (cdr iter)))
+      (decf idx)
+      (setf (svref stack (1+ sp)) idx)
+      (WB-Seq-Tree-Rev-Iterator-Canonicalize iter)
+      (values (if (simple-string-p node) (schar node idx) (svref node idx)) t))))
 
 ;;; ----------------
 ;;; Functional iterators.  Fun!!!

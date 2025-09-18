@@ -3,8 +3,8 @@
 ;;; File: tuples.lisp
 ;;; Contents: Dynamic tuples implementation.
 ;;;
-;;; This file is part of FSet.  Copyright (c) 2007-2024 Scott L. Burson.
-;;; FSet is licensed under the Lisp Lesser GNU Public License, or LLGPL.
+;;; This file is part of FSet.  Copyright (c) 2007-2025 Scott L. Burson.
+;;; FSet is licensed under the 2-clause BSD license; see LICENSE.
 ;;; This license provides NO WARRANTY.
 
 
@@ -102,7 +102,7 @@
 
 (defstruct (dyn-tuple
 	    (:include tuple)
-	    (:constructor make-dyn-tuple (descriptor contents))
+	    (:constructor make-dyn-tuple (descriptor contents &optional hash-value))
 	    (:predicate dyn-tuple?)
 	    (:print-function print-dyn-tuple)
 	    (:copier nil))
@@ -111,7 +111,9 @@ reordered key vectors.  This is the default implementation of tuples in FSet."
   ;; A `Tuple-Desc'.
   (descriptor nil :read-only t)
   ;; A vector of value chunks (vectors) (all these vectors being simple).
-  (contents nil :read-only t))
+  (contents nil :read-only t)
+  ;; If nonnull, the cumulative `hash-value' of the keys and values.
+  (hash-value nil :type (or null fixnum)))
 
 
 (defstruct (tuple-key
@@ -177,13 +179,24 @@ for `default'."
   (declare (ignore level))
   (format stream "#<Key ~A>" (tuple-key-name key)))
 
-(defmethod compare ((key1 tuple-key) (key2 tuple-key))
-  ;(compare (tuple-key-number key1) (tuple-key-number key2))  inlined...
+(declaim (inline key-compare))
+(defun key-compare (key1 key2)
   (let ((n1 (tuple-key-number key1))
 	(n2 (tuple-key-number key2)))
     (cond ((< n1 n2) ':less)
 	  ((> n1 n2) ':greater)
 	  (t ':equal))))
+(defmethod compare ((key1 tuple-key) (key2 tuple-key))
+  (key-compare key1 key2))
+
+(declaim (inline key-hash-value))
+(defun key-hash-value (key)
+  (1+ (tuple-key-number key)))
+
+(defmethod hash-value ((key tuple-key))
+  (key-hash-value key))
+
+(define-hash-function key-compare key-hash-value)
 
 
 (defconstant Tuple-Value-Chunk-Bits 4)
@@ -192,7 +205,7 @@ for `default'."
 
 (defstruct (Tuple-Desc
 	     (:constructor Make-Tuple-Desc-Internal (Key-Set Pairs Lock Serial-Number)))
-  ;; The set (as an FSet set) of `tuple-key's for which tuples using this index
+  ;; The set (as an FSet ch-set) of `tuple-key's for which tuples using this index
   ;; contain values.
   (Key-Set nil :read-only t)
   ;; The pair vector, which contains two copies of the pair sequence, each pair
@@ -205,10 +218,10 @@ for `default'."
   ;; reorder map is a list with one element for each chunk in the target; that
   ;; element is `nil' if the chunk is unchanged, else it is a vector of indices
   ;; into the source tuple (where an index of `nil' indicates an insertion).  (mutable)
-  (Reorder-Map-Map (empty-map))
+  (Reorder-Map-Map (empty-ch-map nil 'Tuple-Desc-Compare 'eql-compare))
   ;; Cache used by `Tuple-With': for each key not in this descriptor but that has been
   ;; added to tuples with this descriptor, the descriptor for the new tuple.  (mutable)
-  (Next-Desc-Map (empty-map))
+  (Next-Desc-Map (empty-ch-map nil 'key-compare 'eql-compare))
   ;; Serial number (used for `Reorder-Map-Map').
   (Serial-Number 0 :type fixnum :read-only t))
 
@@ -222,15 +235,26 @@ for `default'."
 			      (prog1 +Tuple-Desc-Next-Serial-Number+
 				(incf +Tuple-Desc-Next-Serial-Number+)))))
 
-(deflex +Tuple-Descriptor-Map+ (empty-map))
+(deflex +Tuple-Descriptor-Map+ (empty-ch-map))
 
-(defmethod compare ((x Tuple-Desc) (y Tuple-Desc))
+(declaim (inline tuple-desc-compare))
+(defun tuple-desc-compare (x y)
   (if (eq x y) ':equal
     (let ((xser (Tuple-Desc-Serial-Number x))
 	  (yser (Tuple-Desc-Serial-Number y)))
       (cond ((< xser yser) ':less)
 	    ((> xser yser) ':greater)
 	    (t ':equal)))))
+(defmethod compare ((x Tuple-Desc) (y Tuple-Desc))
+  (tuple-desc-compare x y))
+
+(declaim (inline tuple-desc-hash-value))
+(defun tuple-desc-hash-value (td)
+  (Tuple-Desc-Serial-Number td))
+(defmethod hash-value ((td Tuple-Desc))
+  (Tuple-Desc-Hash-Value td))
+
+(define-hash-function tuple-desc-compare tuple-desc-hash-value)
 
 ;;; Urgh, Allegro 6 doesn't obey inline declarations, so we use a macro for this.
 ;;; This takes its argument doubled for the convenience of the common case (lookup).
@@ -256,10 +280,10 @@ for `default'."
 
 (defun empty-dyn-tuple ()
   "Returns an empty dyn-tuple."
-  (let ((desc (lookup +Tuple-Descriptor-Map+ (empty-map))))
+  (let ((desc (lookup +Tuple-Descriptor-Map+ (empty-ch-set))))
     (unless desc
-      (setq desc (Make-Tuple-Desc (empty-set) (vector)))
-      (setf (lookup +Tuple-Descriptor-Map+ (empty-map)) desc))
+      (setq desc (Make-Tuple-Desc (empty-ch-set) (vector)))
+      (setf (lookup +Tuple-Descriptor-Map+ (empty-ch-set)) desc))
   (make-dyn-tuple desc (vector))))
 
 (deflex +Tuple-Random-Value+ 0
@@ -375,13 +399,19 @@ don't worry about locking it, either.")
 		     (simple-vector pairs contents chunk))
 	    (dotimes (i (length chunk))
 	      (setf (svref new-chunk i) (svref chunk i)))
-	    (setf (svref new-chunk val-idx) val)
-	    (if single-chunk? (make-dyn-tuple desc new-chunk)
-	      (progn
-		(dotimes (i (length contents))
-		  (setf (svref new-contents i) (svref contents i)))
-		(setf (svref new-contents ichunk) new-chunk)
-		(make-dyn-tuple desc new-contents)))))
+	    (let ((prev-hash (dyn-tuple-hash-value tuple))
+		  ((new-hash (and prev-hash
+				  (let ((prev-val (svref new-chunk val-idx)))
+				    (hash-mix prev-hash
+					      (hash-unmix (hash-value-fixnum val)
+							  (hash-value-fixnum prev-val))))))))
+	      (setf (svref new-chunk val-idx) val)
+	      (if single-chunk? (make-dyn-tuple desc new-chunk)
+		(progn
+		  (dotimes (i (length contents))
+		    (setf (svref new-contents i) (svref contents i)))
+		  (setf (svref new-contents ichunk) new-chunk)
+		  (make-dyn-tuple desc new-contents new-hash))))))
       (let ((old-desc (dyn-tuple-descriptor tuple)))
 	(unless (< (the fixnum (size (Tuple-Desc-Key-Set old-desc)))
 		   (1- (ash 1 Tuple-Value-Index-Size)))
@@ -453,9 +483,12 @@ don't worry about locking it, either.")
 		 (reorder-map reorder-map (cdr reorder-map))
 		 (new-chunks nil))
 		((<= n 0)
-		 (if (cdr new-chunks)
-		     (make-dyn-tuple new-desc (coerce (nreverse new-chunks) 'vector))
-		   (make-dyn-tuple new-desc (car new-chunks))))
+		 (let ((prev-hash (dyn-tuple-hash-value tuple))
+		       ((new-hash (and prev-hash (hash-mix prev-hash (key-hash-value key)
+							   (hash-value-fixnum val))))))
+		   (if (cdr new-chunks)
+		       (make-dyn-tuple new-desc (coerce (nreverse new-chunks) 'vector) new-hash)
+		     (make-dyn-tuple new-desc (car new-chunks) new-hash))))
 	      (declare (fixnum i n))
 	      (if (null (car reorder-map))
 		  (push (if (<= (1- nkeys) Tuple-Value-Chunk-Size) old-chunks
@@ -521,8 +554,8 @@ When done, returns `value'."
 			#'(lambda (,key-var ,value-var) . ,body)
 			#'(lambda () ,value))))
 
-(defmacro Do-Tuple-Internal ((key-var value-var tuple-form &optional value-form)
-			     &body body)
+(defmacro Do-Tuple-Pairs ((key-var value-var tuple-form &optional value-form)
+			  &body body)
   (let ((tuple-var (gensymx #:tuple-))
 	(desc-var (gensymx #:desc-))
 	(contents-var (gensymx #:contents-))
@@ -551,7 +584,7 @@ When done, returns `value'."
 (defmethod internal-do-tuple ((tup tuple) elt-fn value-fn)
   (declare (optimize (speed 3) (safety 0))
 	   (type function elt-fn value-fn))
-  (Do-Tuple-Internal (x y tup (funcall value-fn))
+  (Do-Tuple-Pairs (x y tup (funcall value-fn))
     (funcall elt-fn x y)))
 
 (defun print-dyn-tuple (tuple stream level)
@@ -593,6 +626,15 @@ When done, returns `value'."
 	      (return res))
 	    (when (eq res ':unequal)
 	      (setq default ':unequal))))))))
+
+(defmethod hash-value ((tup tuple))
+  (or (dyn-tuple-hash-value tup)
+      (let ((hash 0)
+	    (mult 1))
+	(Do-Tuple-Pairs (k v tup)
+	  (hash-mixf hash (hash-multiply mult (hash-mix (key-hash-value k) (hash-value-fixnum v))))
+	  (setf mult (hash-multiply mult 13)))
+	(setf (dyn-tuple-hash-value tup) hash))))
 
 
 (defmethod with ((tuple tuple) (key tuple-key) &optional (value nil value?))

@@ -3,8 +3,8 @@
 ;;; File: macros.lisp
 ;;; Contents: Collected macros, separated out for compilation and coverage purposes
 ;;;
-;;; This file is part of FSet.  Copyright (c) 2007-2024 Scott L. Burson.
-;;; FSet is licensed under the Lisp Lesser GNU Public License, or LLGPL.
+;;; This file is part of FSet.  Copyright (c) 2007-2025 Scott L. Burson.
+;;; FSet is licensed under the 2-clause BSD license; see LICENSE.
 ;;; This license provides NO WARRANTY.
 
 (in-package :fset)
@@ -19,15 +19,10 @@
 (defmacro gensymx (arg)
   `(gensym (string ',arg)))
 
-(defmacro postincf (place &optional (delta 1) &environment env)
-  (let ((vars vals store-vars setter getter (get-setf-expansion place env))
-	(tmp (gensymx #:tmp-)))
-    `(let* (,@(mapcar #'list vars vals)
-	    (,(car store-vars) ,getter)
-	    (,tmp ,(car store-vars)))
-       (incf ,(car store-vars) ,delta)
-       ,setter
-       ,tmp)))
+(defmacro postincf (place &optional (delta 1))
+  ;; I used to do the `get-setf-expansion' thing and save the value in a local, but this
+  ;; seems to give better code, at least on SBCL on AMD64.
+  `(1- (incf ,place ,delta)))
 
 
 ;;; ================================================================================
@@ -272,11 +267,11 @@ If you're using `define-class' from Misc-Extensions, you can just say:
     (error "At least one slot/accessor must be supplied"))
   (let ((x-var (gensymx #:x-)))
     (rlabels `(let ((,x-var ,obj))
-		,(rec `(hash-value ,(call (car slots/accessors) x-var)) (cdr slots/accessors)))
+		,(rec `(hash-value-fixnum ,(call (car slots/accessors) x-var)) (cdr slots/accessors)))
       (rec (value accs)
 	(if (null accs) value
-	  (rec `(logxor (logand most-positive-fixnum (* 17 ,value))
-			(hash-value ,(call (car accs) x-var)))
+	  (rec `(hash-mix (hash-multiply 17 ,value)
+			  (hash-value-fixnum ,(call (car accs) x-var)))
 	       (cdr accs))))
       (call (fn arg)
 	;; Makes the expansion more readable, if nothing else
@@ -295,7 +290,10 @@ If you're using `define-class' from Misc-Extensions, you can just say:
 ;;; This incantation lets you use `:equality' as a slot option in `define-class',
 ;;; to specify the equality slots.
 (add-define-class-extension ':equality 'define-class-equality-slots-extension)
-(defun define-class-equality-slots-extension (class slots)
+(defun define-class-equality-slots-extension (class slots expanded-slot-specs)
+  (dolist (slot slots)
+    (unless (member ':constant (second (assoc slot expanded-slot-specs)))
+      (error "Slot ~S marked as :equality; must also be :constant" slot)))
   `(define-equality-slots ,class . ,(mapcar (fn (x) `',x) slots)))
 
 
@@ -779,52 +777,68 @@ as two values, and executes `body'.  When done, returns `value'."
 			`(make-wb-custom-set ,contents (wb-custom-set-org ,like-coll))))
 	     . ,body))))))
 
-(defmacro if-same-ch-set-orgs ((s1 s2 hscomp-var) then else)
+(defmacro if-same-ch-set-orgs ((s1 s2 hsorg-var) then else)
   (let ((s1-var (gensymx #:s1-))
 	(s2-var (gensymx #:s2-))
-	(hscomp1-var (gensymx #:hscomp1-))
-	(hscomp2-var (gensymx #:hscomp2-)))
+	(hsorg1-var (gensymx #:hsorg1-))
+	(hsorg2-var (gensymx #:hsorg2-)))
     `(let ((,s1-var ,s1)
 	   (,s2-var ,s2)
-	   ((,hscomp1-var (ch-set-org ,s1-var))
-	    (,hscomp2-var (ch-set-org ,s2-var))))
-       (if (or (eq ,hscomp1-var ,hscomp2-var)
-	       (and (eq (hash-set-org-hash-fn ,hscomp1-var) (hash-set-org-hash-fn ,hscomp2-var))
-		    (eq (hash-set-org-compare-fn ,hscomp1-var) (hash-set-org-compare-fn ,hscomp2-var))))
-	   (let ((,hscomp-var ,hscomp1-var))
+	   ((,hsorg1-var (ch-set-org ,s1-var))
+	    (,hsorg2-var (ch-set-org ,s2-var))))
+       (if (or (eq ,hsorg1-var ,hsorg2-var)
+	       (and (eq (hash-set-org-hash-fn ,hsorg1-var) (hash-set-org-hash-fn ,hsorg2-var))
+		    (eq (hash-set-org-compare-fn ,hsorg1-var) (hash-set-org-compare-fn ,hsorg2-var))))
+	   (let ((,hsorg-var ,hsorg1-var))
 	     ,then)
 	 ,else))))
 
-(defmacro if-same-wb-bag-orgs ((b1 b2 tscomp-var) then else)
+(defmacro if-same-wb-bag-orgs ((b1 b2 tsorg-var) then else)
   (let ((b1-var (gensymx #:b1-))
 	(b2-var (gensymx #:b2-))
-	(tscomp1-var (gensymx #:tscomp1-))
-	(tscomp2-var (gensymx #:tscomp2-)))
+	(tsorg1-var (gensymx #:tsorg1-))
+	(tsorg2-var (gensymx #:tsorg2-)))
     `(let ((,b1-var ,b1)
 	   (,b2-var ,b2)
-	   ((,tscomp1-var (wb-bag-org ,b1-var))
-	    (,tscomp2-var (wb-bag-org ,b2-var))))
-       (if (or (eq ,tscomp1-var ,tscomp2-var)
-	       (eq (tree-set-org-compare-fn ,tscomp1-var) (tree-set-org-compare-fn ,tscomp2-var)))
-	   (let ((,tscomp-var ,tscomp1-var))
+	   ((,tsorg1-var (wb-bag-org ,b1-var))
+	    (,tsorg2-var (wb-bag-org ,b2-var))))
+       (if (or (eq ,tsorg1-var ,tsorg2-var)
+	       (eq (tree-set-org-compare-fn ,tsorg1-var) (tree-set-org-compare-fn ,tsorg2-var)))
+	   (let ((,tsorg-var ,tsorg1-var))
 	     ,then)
 	 ,else))))
 
-(defmacro if-same-wb-map-orgs ((m2 b2 tmcomp-var) then else)
-  (let ((m2-var (gensymx #:m2-))
-	(b2-var (gensymx #:b2-))
-	(tmcomp1-var (gensymx #:tmcomp1-))
-	(tmcomp2-var (gensymx #:tmcomp2-)))
-    `(let ((,m2-var ,m2)
-	   (,b2-var ,b2)
-	   ((,tmcomp1-var (wb-map-org ,m2-var))
-	    (,tmcomp2-var (wb-map-org ,b2-var))))
-       (if (or (eq ,tmcomp1-var ,tmcomp2-var)
-	       (and (eq (tree-map-org-key-compare-fn ,tmcomp1-var)
-			(tree-map-org-key-compare-fn ,tmcomp2-var))
-		    (eq (tree-map-org-val-compare-fn ,tmcomp1-var)
-			(tree-map-org-val-compare-fn ,tmcomp2-var))))
-	   (let ((,tmcomp-var ,tmcomp1-var))
+(defmacro if-same-wb-map-orgs ((m1 m2 tmorg-var) then else)
+  (let ((m1-var (gensymx #:m1-))
+	(m2-var (gensymx #:m2-))
+	(tmorg1-var (gensymx #:tmorg1-))
+	(tmorg2-var (gensymx #:tmorg2-)))
+    `(let ((,m1-var ,m1)
+	   (,m2-var ,m2)
+	   ((,tmorg1-var (wb-map-org ,m1-var))
+	    (,tmorg2-var (wb-map-org ,m2-var))))
+       (if (or (eq ,tmorg1-var ,tmorg2-var)
+	       (and (eq (tree-map-org-key-compare-fn ,tmorg1-var) (tree-map-org-key-compare-fn ,tmorg2-var))
+		    (eq (tree-map-org-val-compare-fn ,tmorg1-var) (tree-map-org-val-compare-fn ,tmorg2-var))))
+	   (let ((,tmorg-var ,tmorg1-var))
+	     ,then)
+	 ,else))))
+
+(defmacro if-same-ch-map-orgs ((m1 m2 hmorg-var) then else)
+  (let ((m1-var (gensymx #:m1-))
+	(m2-var (gensymx #:m2-))
+	(hmorg1-var (gensymx #:hmorg1-))
+	(hmorg2-var (gensymx #:hmorg2-)))
+    `(let ((,m1-var ,m1)
+	   (,m2-var ,m2)
+	   ((,hmorg1-var (ch-map-org ,m1-var))
+	    (,hmorg2-var (ch-map-org ,m2-var))))
+       (if (or (eq ,hmorg1-var ,hmorg2-var)
+	       (and (eq (hash-map-org-key-hash-fn ,hmorg1-var) (hash-map-org-key-hash-fn ,hmorg2-var))
+		    (eq (hash-map-org-key-compare-fn ,hmorg1-var) (hash-map-org-key-compare-fn ,hmorg2-var))
+		    (eq (hash-map-org-val-hash-fn ,hmorg1-var) (hash-map-org-val-hash-fn ,hmorg2-var))
+		    (eq (hash-map-org-val-compare-fn ,hmorg1-var) (hash-map-org-val-compare-fn ,hmorg2-var))))
+	   (let ((,hmorg-var ,hmorg1-var))
 	     ,then)
 	 ,else))))
 
@@ -869,6 +883,19 @@ as two values, and executes `body'.  When done, returns `value'."
 	   ((tmorg (wb-map-org prototype))
 	    ((key-compare-fn (tree-map-org-key-compare-fn tmorg))
 	     (val-compare-fn (tree-map-org-val-compare-fn tmorg)))))
+       ,(if identity-test
+	    `(if ,identity-test ,coll ,body)
+	  body))))
+
+(defmacro convert-to-ch-map (coll default identity-test &body contents-forms)
+  (let ((body `(let ((tree (progn . ,contents-forms)))
+		 (make-ch-map tree hmorg ,default))))
+    `(let ((prototype (empty-ch-map nil key-compare-fn-name val-compare-fn-name))
+	   ((hmorg (ch-map-org prototype))
+	    ((key-hash-fn (hash-map-org-key-hash-fn hmorg))
+	     (key-compare-fn (hash-map-org-key-compare-fn hmorg))
+	     (val-hash-fn (hash-map-org-val-hash-fn hmorg))
+	     (val-compare-fn (hash-map-org-val-compare-fn hmorg)))))
        ,(if identity-test
 	    `(if ,identity-test ,coll ,body)
 	  body))))

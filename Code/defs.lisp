@@ -3,8 +3,8 @@
 ;;; File: defs.lisp
 ;;; Contents: Package, system, and other build-related definitions for FSet.
 ;;;
-;;; This file is part of FSet.  Copyright (c) 2007-2024 Scott L. Burson.
-;;; FSet is licensed under the Lisp Lesser GNU Public License, or LLGPL.
+;;; This file is part of FSet.  Copyright (c) 2007-2025 Scott L. Burson.
+;;; FSet is licensed under the 2-clause BSD license; see LICENSE.
 ;;; This license provides NO WARRANTY.
 
 (in-package :cl-user)
@@ -47,7 +47,7 @@
 	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal #:eql-compare
 	   #:define-equality-slots #:define-comparison-slots #:define-hash-function
 	   #:unwrap-equivalent-node ; custom comparison functions may have to call this
-	   #:hash-value #:zero
+	   #:hash-value #:hash-value-fixnum #:zero #:hash-mix #:hash-mixf #:hash-multiply
 	   #:identity-equality-mixin #:identity-ordering-mixin
 	   #:define-cross-type-compare-methods
 	   #:compare-lexicographically
@@ -57,7 +57,7 @@
 	   #:empty-wb-set #:empty-wb-bag #:empty-wb-map #:empty-wb-seq
 	   #:empty-dyn-tuple #:empty-ch-set #:empty-ch-map
 	   #:empty-replay-set #:empty-wb-replay-set #:empty-replay-map #:empty-wb-replay-map
-	   #:least #:greatest #:lookup #:rank #:at-rank #:at-index #:@
+	   #:least #:greatest #:lookup #:rank #:at-rank #:index #:at-index #:@
 	   #:with #:less #:split-from #:split-above #:split-through #:split-below
 	   #:union #:bag-sum #:intersection #:bag-product #:complement
 	   #:set-difference #:set-difference-2 #:bag-difference #:bag-pairs
@@ -166,7 +166,7 @@
 	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal #:eql-compare
 	   #:define-equality-slots #:define-comparison-slots #:define-hash-function
 	   #:unwrap-equivalent-node ; custom comparison functions may have to call this
-	   #:hash-value #:zero
+	   #:hash-value #:hash-value-fixnum #:zero #:hash-mix #:hash-mixf #:hash-multiply
 	   #:identity-equality-mixin #:identity-ordering-mixin
 	   #:define-cross-type-compare-methods
 	   #:compare-lexicographically
@@ -175,7 +175,7 @@
 	   #:empty-set #:empty-bag #:empty-map #:empty-seq #:empty-tuple
 	   #:empty-wb-set #:empty-wb-bag #:empty-wb-map #:empty-wb-seq
 	   #:empty-dyn-tuple
-	   #:least #:greatest #:lookup #:rank #:at-rank #:@
+	   #:least #:greatest #:lookup #:rank #:at-rank #:index #:at-index #:@
 	   #:with #:less #:split-from #:split-above #:split-through #:split-below
 	   #:union #:bag-sum #:intersection #:bag-product #:complement
 	   #:set-difference #:set-difference-2 #:bag-difference #:bag-pairs

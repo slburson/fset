@@ -3,8 +3,8 @@
 ;;; File: reader.lisp
 ;;; Contents: Reader macros and supporting code for FSet
 ;;;
-;;; This file is part of FSet.  Copyright (c) 2007-2012 Scott L. Burson.
-;;; FSet is licensed under the Lisp Lesser GNU Public License, or LLGPL.
+;;; This file is part of FSet.  Copyright (c) 2007-2025 Scott L. Burson.
+;;; FSet is licensed under the 2-clause BSD license; see LICENSE.
 ;;; This license provides NO WARRANTY.
 
 (in-package :fset)
@@ -719,13 +719,13 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
 
 (defun fset-setup-readtable (readtable)
   "Adds FSet reader macros to `readtable'.  Returns `readtable'."
-  (set-dispatch-macro-character #\# #\{ '|#{-reader| readtable)
+  (set-dispatch-macro-character #\# #\{ #'|#{-reader| readtable)
   (set-macro-character #\} (get-macro-character #\)) nil readtable)
-  (set-dispatch-macro-character #\# #\[ '|#[-reader| readtable)
+  (set-dispatch-macro-character #\# #\[ #'|#[-reader| readtable)
   (set-macro-character #\] (get-macro-character #\)) nil readtable)
-  (set-dispatch-macro-character #\# #\~ '|#~-reader| readtable)
-  (set-dispatch-macro-character #\# #\$ '|#$-reader| readtable)
-  (set-dispatch-macro-character #\# #\% '|#%-reader| readtable)
+  (set-dispatch-macro-character #\# #\~ #'|#~-reader| readtable)
+  (set-dispatch-macro-character #\# #\$ #'|#$-reader| readtable)
+  (set-dispatch-macro-character #\# #\% #'|#%-reader| readtable)
   readtable)
 
 (defvar *fset-readtable* (fset-setup-readtable (copy-readtable nil))
@@ -734,13 +734,13 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
 ;;; Named-Readtables provides a better way to switch readtables.
 (named-readtables:defreadtable fset-readtable
   (:merge :standard)
-  (:dispatch-macro-char #\# #\{ '|#{-reader|)
+  (:dispatch-macro-char #\# #\{ #'|#{-reader|)
   (:macro-char #\} (get-macro-character #\)) nil)
-  (:dispatch-macro-char #\# #\[ '|#[-reader|)
+  (:dispatch-macro-char #\# #\[ #'|#[-reader|)
   (:macro-char #\] (get-macro-character #\)) nil)
-  (:dispatch-macro-char #\# #\~ '|#~-reader|)
-  (:dispatch-macro-char #\# #\$ '|#$-reader|)
-  (:dispatch-macro-char #\# #\% '|#%-reader|))
+  (:dispatch-macro-char #\# #\~ #'|#~-reader|)
+  (:dispatch-macro-char #\# #\$ #'|#$-reader|)
+  (:dispatch-macro-char #\# #\% #'|#%-reader|))
 
 
 ;;; These function in the traditional Lisp manner, constructing the structures
@@ -770,7 +770,7 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
 	  (unless (eql (read-char stream) #\})
 	    (error "Incorrect #{% ... %} syntax"))
 	  (dolist (x stuff)
-	    (if (and (consp x) (eq (car x) '%))
+	    (if (and (consp x) (eq (car x) '%%))
 		(adjoinf result (cadr x) (caddr x))
 	      (adjoinf result x)))
 	  result))
@@ -804,16 +804,25 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
       (setf result (with result (get-tuple-key (car pr)) (cadr pr))))
     result))
 
+(defun |rereading-#%-reader| (stream subchar arg)
+  (declare (ignore subchar arg))
+  (let ((subform (read stream t nil t)))
+    (unless (and (consp subform) (consp (cdr subform)) (null (cddr subform)))
+      (error "\"#%\" must be followed by a 2-element list."))
+    ;; We need to use an unexported symbol to mark this case.  Otherwise, if they happened
+    ;; to have a list starting with `%' in their bag, we would screw up.
+    `(%% . ,subform)))
+
 (defun fset-setup-rereading-readtable (readtable)
   "Adds the FSet rereading reader macros to `readtable'.  These reader macros
 will correctly read structure printed by the FSet print functions.  Returns
 `readtable'."
-  (set-dispatch-macro-character #\# #\{ '|rereading-#{-reader| readtable)
+  (set-dispatch-macro-character #\# #\{ #'|rereading-#{-reader| readtable)
   (set-macro-character #\} (get-macro-character #\)) nil readtable)
-  (set-dispatch-macro-character #\# #\[ '|rereading-#[-reader| readtable)
+  (set-dispatch-macro-character #\# #\[ #'|rereading-#[-reader| readtable)
   (set-macro-character #\] (get-macro-character #\)) nil readtable)
-  (set-dispatch-macro-character #\# #\~ '|rereading-#~-reader| readtable)
-  (set-dispatch-macro-character #\# #\% '|#%-reader| readtable)
+  (set-dispatch-macro-character #\# #\~ #'|rereading-#~-reader| readtable)
+  (set-dispatch-macro-character #\# #\% #'|rereading-#%-reader| readtable)
   readtable)
 
 (defvar *fset-rereading-readtable* (fset-setup-rereading-readtable (copy-readtable nil))
@@ -823,9 +832,9 @@ print functions.")
 
 (named-readtables:defreadtable fset-rereading-readtable
   (:merge :standard)
-  (:dispatch-macro-char #\# #\{ '|rereading-#{-reader|)
+  (:dispatch-macro-char #\# #\{ #'|rereading-#{-reader|)
   (:macro-char #\} (get-macro-character #\)) nil)
-  (:dispatch-macro-char #\# #\[ '|rereading-#[-reader|)
+  (:dispatch-macro-char #\# #\[ #'|rereading-#[-reader|)
   (:macro-char #\] (get-macro-character #\)) nil)
-  (:dispatch-macro-char #\# #\~ '|rereading-#~-reader|)
-  (:dispatch-macro-char #\# #\% '|rereading-#%-reader|))
+  (:dispatch-macro-char #\# #\~ #'|rereading-#~-reader|)
+  (:dispatch-macro-char #\# #\% #'|rereading-#%-reader|))

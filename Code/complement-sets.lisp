@@ -3,8 +3,8 @@
 ;;; File: complement-sets.lisp
 ;;; Contents: Sets implemented as complements of other sets
 ;;;
-;;; This file is part of FSet.  Copyright (c) 2007-2024 Scott L. Burson.
-;;; FSet is licensed under the Lisp Lesser GNU Public License, or LLGPL.
+;;; This file is part of FSet.  Copyright (c) 2007-2025 Scott L. Burson.
+;;; FSet is licensed under the 2-clause BSD license; see LICENSE.
 ;;; This license provides NO WARRANTY.
 
 ;;; Complement sets don't add any new functionality, but they can be a notational
@@ -40,6 +40,8 @@ complement set."
   (complement-set-complement cs))
 
 (defun full-set ()
+  "The set containing everything.  It is a complement set, so it cannot be
+enumerated, but certain other operations are defined on it."
   (make-complement-set (empty-set)))
 
 (defmethod contains? ((cs complement-set) x &optional (y nil y?))
@@ -80,21 +82,21 @@ complement set."
   (make-complement-set (set-difference (complement-set-complement cs) s)))
 
 (defmethod union ((s set) (cs complement-set) &key)
-  (make-complement-set (set-difference (complement-set-complement cs) s)))
+  (make-complement-set (set-difference-rev s (complement-set-complement cs))))
 
 (defmethod intersection ((cs1 complement-set) (cs2 complement-set) &key)
   (make-complement-set (union (complement-set-complement cs1)
 			      (complement-set-complement cs2))))
 
 (defmethod intersection ((cs complement-set) (s set) &key)
-  (set-difference s (complement-set-complement cs)))
+  (set-difference-rev (complement-set-complement cs) s))
 
 (defmethod intersection ((s set) (cs complement-set) &key)
   (set-difference s (complement-set-complement cs)))
 
 (defmethod set-difference ((cs1 complement-set) (cs2 complement-set) &key)
   ;; The Venn diagram is very helpful for understanding this.
-  (set-difference (complement-set-complement cs2) (complement-set-complement cs1)))
+  (set-difference-rev (complement-set-complement cs1) (complement-set-complement cs2)))
 
 (defmethod set-difference ((cs complement-set) (s set) &key)
   (make-complement-set (union (complement-set-complement cs) s)))
@@ -137,4 +139,13 @@ complement set."
 
 (defmethod compare ((s set) (cs complement-set))
   ':less)
+
+(defmethod hash-value ((cs complement-set))
+  ;; Using one's complement instead of two's, so the full set has a different hash (-1)
+  ;; from the empty set (0).
+  (logxor -1 (hash-value-fixnum (complement-set-complement cs))))
+
+(defmethod make-load-form ((cs complement-set) &optional environment)
+  (declare (ignore environment))
+  `(complement ',(complement-set-complement cs)))
 

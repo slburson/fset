@@ -3,8 +3,8 @@
 ;;; File: replay.lisp
 ;;; Contents: Replay sets and maps.
 ;;;
-;;; This file is part of FSet.  Copyright (c) 2007-2024 Scott L. Burson.
-;;; FSet is licensed under the Lisp Lesser GNU Public License, or LLGPL.
+;;; This file is part of FSet.  Copyright (c) 2007-2025 Scott L. Burson.
+;;; FSet is licensed under the 2-clause BSD license; see LICENSE.
 ;;; This license provides NO WARRANTY.
 
 (in-package :fset)
@@ -93,6 +93,13 @@ sets are printed as \"#{= ... }\"."
     (if tree (values (WB-Set-Tree-Greatest tree) t)
         (values nil nil))))
 
+(defmethod index ((s wb-replay-set) x)
+  (let ((idx 0)
+	(compare-fn (tree-set-org-compare-fn (wb-replay-set-org s))))
+    (do-wb-set-tree-members (e (wb-replay-set-contents s))
+      (when (equal?-cmp e x compare-fn)
+	(return idx)))))
+
 (defmethod at-index ((m wb-replay-set) index)
   (let ((ordering (wb-replay-set-ordering m))
 	((size (wb-seq-tree-size ordering))))
@@ -107,7 +114,7 @@ sets are printed as \"#{= ... }\"."
 (defmethod contains? ((s wb-replay-set) x &optional (y nil y?))
   (declare (ignore y))
   (check-two-arguments y? 'contains? 'wb-set)
-  (wb-set-tree-member? (wb-replay-set-contents s) x (tree-set-org-compare-fn (wb-replay-set-org s))))
+  (wb-set-tree-contains? (wb-replay-set-contents s) x (tree-set-org-compare-fn (wb-replay-set-org s))))
 
 (defmethod lookup ((s wb-replay-set) value)
   (wb-set-tree-find-equal (wb-replay-set-contents s) value
@@ -147,6 +154,17 @@ sets are printed as \"#{= ... }\"."
 		    ':unequal
 		  ':equal)))))
       (call-next-method))))
+
+(defmethod hash-value ((rs wb-replay-set))
+  (let ((result 0)
+	(i 0)
+	(mult 1))
+    (do-wb-seq-tree-members (x (wb-replay-set-ordering rs))
+      (hash-mixf result (hash-multiply mult (hash-value-fixnum x)))
+      (setq mult (hash-multiply mult 13))
+      (when (= (incf i) 32)
+	(return)))
+    result))
 
 (defmethod convert ((to-type (eql 'list)) (s wb-replay-set) &key)
   (convert 'list (convert 'seq s)))

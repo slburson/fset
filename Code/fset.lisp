@@ -4,7 +4,7 @@
 ;;; Contents: Top level of FSet, the fast functional set-theoretic datatypes package.
 ;;;
 ;;; This file is part of FSet.  Copyright (c) 2007-2025 Scott L. Burson.
-;;; FSet is licensed under the Lisp Lesser GNU Public License, or LLGPL.
+;;; FSet is licensed under the 2-clause BSD license; see LICENSE.
 ;;; This license provides NO WARRANTY.
 
 (in-package :fset)
@@ -127,7 +127,9 @@ as two values, else false and `nil'; this is useful for canonicalization."))
 
 (defgeneric rank (collection value)
   (:documentation
-    "If `collection' is a set or bag that contains `value', returns the rank
+    "Defined on tree \(WB\) collections only.  See `index'.
+
+If `collection' is a set or bag that contains `value', returns the rank
 of `value' in the ordering defined by `compare', and a true second value.
 If `collection' is a map whose domain contains `value', returns the rank of
 `value' in the domain of the map, and a true second value.  If `value' is
@@ -141,12 +143,29 @@ ignored for this purpose."))
 
 (defgeneric at-rank (collection rank)
   (:documentation
-    "On a set, returns the element with rank `rank'; on a bag, returns
+    "Defined on tree \(WB\) collections only.  See `at-index'.
+
+On a set, returns the element with rank `rank'; on a bag, returns
 that element with its multiplicity as a second value; on a map, returns
 the pair with that rank as two values.  Note that if there are values/keys
 that are unequal but equivalent in the collection, an arbitrary order will be
 imposed on them for this purpose; but another collection that is `equal?'
-but not `eq' to this one will in general order them differently."))
+but not `eq' to this one will in general order them differently.
+
+Also, if the collection is hash-based (`ch-set' etc.), the ordering will be
+based on the hash values, so it won't be predictable or usable for any other
+purpose, though it will be deterministic."))
+
+(defgeneric index (collection value)
+  (:documentation
+    "If `collection' contains `value' \(or for a map, if its domain does\),
+returns the index of `value' in the collection's iteration order; otherwise
+null.  On `wb-set', `wb-map', and `wb-bag', the index is the same as the rank
+\(see `rank'\)."))
+
+(defgeneric at-index (collection index)
+  (:documentation
+    "Returns the element/pair whose index in the iteration order is `index'."))
 
 (defgeneric with (collection value1 &optional value2)
   (:documentation
@@ -165,6 +184,26 @@ updated bag; `value2' defaults to 1.  On a map, removes the pair whose key is
 `value1', if present, returning the updated map.  On a seq, removes the element
 at index `value1', if that index is in bounds, and shifts subsequent elements
 down, returning the updated seq."))
+
+(defgeneric split-from (collection value)
+  (:documentation
+    "Defined on tree \(WB\) sets, maps, and bags only.  Returns the
+subcollection with elements/keys greater than or equal to `value'."))
+
+(defgeneric split-above (collection value)
+  (:documentation
+    "Defined on tree \(WB\) sets, maps, and bags only.  Returns the
+subcollection with elements/keys greater than `value'."))
+
+(defgeneric split-through (collection value)
+  (:documentation
+    "Defined on tree \(WB\) sets, maps, and bags only.  Returns the
+subcollection with elements/keys less than or equal to `value'."))
+
+(defgeneric split-below (collection value)
+  (:documentation
+    "Defined on tree \(WB\) sets, maps, and bags only.  Returns the
+subcollection with elements/keys less than `value'."))
 
 (defgeneric union (set-or-bag1 set-or-bag2 &key)
   (:documentation
@@ -393,7 +432,7 @@ also in `set'."))
     "Returns a map containing only those pairs of `map' whose keys are
 not in `set'."))
 
-(defgeneric compose (map1 map2-or-fn)
+(defgeneric compose (map1 map2-or-fn &key)
   (:documentation
     "Returns a new map with the same domain as `map1', which maps each member
 of that domain to the result of applying first `map1' to it, then applying
@@ -540,6 +579,12 @@ Method summary:     to-type       collection type         notes
                      wb-map             hash-table        16
                      hash-table         map               8
                      wb-map             ch-map            16
+                     ch-map             ch-map            0, 16
+                     ch-map             map               16
+                     ch-map             list              6, 7, 16
+                     ch-map             seq               6, 7, 16
+                     ch-map             sequence          6, 7, 16
+                     ch-map             hash-table        16
 
                      seq                seq               0
                      wb-seq             wb-seq            0
@@ -687,7 +732,12 @@ true, and advances one element; if it is exhausted, it returns two `nil' values
 \(three, for a map\).
 
 The bag method takes a `pairs?' keyword argument; if true, it returns each element
-only once, with its multiplicity as the second value, as for a map."))
+only once, with its multiplicity as the second value, as for a map.
+
+The seq method takes `start' and `end' keyword arguments to restrict the range
+of the iteration, and `from-end?' to reverse its direction.  `start' is
+inclusive and defaults to 0; `end' is exclusive and defaults to the size of the
+seq."))
 
 (defgeneric fun-iterator (collection &key from-end?)
   (:documentation
@@ -1598,7 +1648,7 @@ or hash function, as `s'."))
 (define-wb-set-methods contains? ((s wb-set) x &optional (y nil y?))
   (declare (ignore y))
   (check-two-arguments y? 'contains? 'wb-set)
-  (WB-Set-Tree-Member? (contents s) x (compare-fn s)))
+  (WB-Set-Tree-Contains? (contents s) x (compare-fn s)))
 
 ;;; Note, first value is `t' or `nil'.
 (define-wb-set-methods lookup ((s wb-set) key)
@@ -1616,6 +1666,13 @@ or hash function, as `s'."))
 	     :format-control "Rank ~D out of bounds on ~A"
 	     :format-arguments (list rank s)))
     (WB-Set-Tree-Rank-Element contents rank)))
+
+(defmethod index ((s wb-set) x)
+  (let ((rank found? (rank s x)))
+    (and found? rank)))
+
+(defmethod at-index ((s wb-set) idx)
+  (at-rank s idx))
 
 (define-wb-set-methods least ((s wb-set))
   (let ((tree (contents s)))
@@ -1647,7 +1704,7 @@ or hash function, as `s'."))
 
 (define-wb-set-methods split-from ((s wb-set) value)
   (let ((new-contents (WB-Set-Tree-Split-Above (contents s) value (compare-fn s))))
-    (make s (if (WB-Set-Tree-Member? (contents s) value (compare-fn s))
+    (make s (if (WB-Set-Tree-Contains? (contents s) value (compare-fn s))
 		(WB-Set-Tree-With new-contents value (compare-fn s))
 	      new-contents))))
 
@@ -1656,7 +1713,7 @@ or hash function, as `s'."))
 
 (define-wb-set-methods split-through ((s wb-set) value)
   (let ((new-contents (WB-Set-Tree-Split-Below (contents s) value (compare-fn s))))
-    (make s (if (WB-Set-Tree-Member? (contents s) value (compare-fn s))
+    (make s (if (WB-Set-Tree-Contains? (contents s) value (compare-fn s))
 		(WB-Set-Tree-With new-contents value (compare-fn s))
 	      new-contents))))
 
@@ -1698,6 +1755,21 @@ or hash function, as `s'."))
 (define-wb-set-methods set-difference ((s1 wb-set) (s2 wb-set) &key)
   (if-same-compare-fns (s1 s2)
       (make s1 (WB-Set-Tree-Diff (contents s1) (contents s2) (compare-fn s1)))
+    (call-next-method)))
+
+;;; Intended for internal use by `complement-sets.lisp'.  This returns `s2 - s1', but the
+;;; result is like `s1', not `s2'.
+(defmethod set-difference-rev ((s1 set) (s2 set))
+  "Fallback method for mixed implementations."
+  (let ((result (empty-set-like s1)))
+    (do-set (x s2)
+      (unless (contains? s1 x)
+	(includef result x)))
+    result))
+
+(define-wb-set-methods set-difference-rev ((s1 wb-set) (s2 wb-set))
+  (if-same-compare-fns (s1 s2)
+      (make s1 (WB-Set-Tree-Diff (contents s2) (contents s1) (compare-fn s1)))
     (call-next-method)))
 
 (defmethod set-difference-2 ((s1 set) (s2 set))
@@ -1765,6 +1837,20 @@ a subset of `super' and the two are not equal."
 	  ;; Shouldn't be possible, since we check the symbol-package in `empty-wb-custom-set'.
 	  (error "Can't compare wb-sets with uninterned compare-fn-names with same symbol-name"))))))
 
+(define-wb-set-methods hash-value ((s wb-set))
+  ;; I expect this to be rarely used, so I don't want to make everybody pay the cost of a
+  ;; cache slot (I already went to a lot of trouble not to make everybody pay the cost of
+  ;; a compare-fn slot).  So instead, I bound the number of elements to hash ... let's say 32.
+  (let ((result 0)
+	(i 0)
+	(mult 1))
+    (do-wb-set-tree-members (x (contents s))
+      (hash-mixf result (hash-multiply mult (hash-value-fixnum x)))
+      (setq mult (hash-multiply mult 13))
+      (when (= (incf i) 32)
+	(return)))
+    result))
+
 (defgeneric internal-do-set (set elt-fn value-fn)
   (:documentation
     "Calls `elt-fn' on successive elements of the set; when done, calls `value-fn'
@@ -1804,6 +1890,14 @@ for the possibility of different set implementations; it is not for public use.
 	(setq result (WB-Set-Tree-With result x compare-fn))))
     result))
 
+;;; A set is another kind of boolean-valued map.
+(defmethod filter ((pred set) (s set))
+  (intersection pred s))
+
+;;; A bag is yet another kind of boolean-valued map.
+(defmethod filter ((pred bag) (s set))
+  (intersection pred s))
+
 (define-wb-set-methods partition ((pred function) (s wb-set))
   (let ((res1 res2 (wb-set-partition pred (contents s) (compare-fn s))))
     (values (make s res1) (make s res2))))
@@ -1826,14 +1920,6 @@ for the possibility of different set implementations; it is not for public use.
 	  (setq result-1 (WB-Set-Tree-With result-1 x compare-fn))
 	(setq result-2 (WB-Set-Tree-With result-2 x compare-fn))))
     (values result-1 result-2)))
-
-;;; A set is another kind of boolean-valued map.
-(defmethod filter ((pred set) (s set))
-  (intersection pred s))
-
-;;; A bag is yet another kind of boolean-valued map.
-(defmethod filter ((pred bag) (s set))
-  (intersection pred s))
 
 (define-wb-set-methods image ((fn function) (s wb-set))
   (make s (wb-set-image fn (contents s) (compare-fn s))))
@@ -2059,27 +2145,32 @@ for the possibility of different set implementations; it is not for public use.
 (gmap:def-gmap-res-type wb-set (&key filterp compare-fn-name)
   "Returns a set of the values, optionally filtered by `filterp'.  If
 `compare-fn-name' is nonnull, it specifies a custom ordering."
-  (let ((proto-var (gensymx #:prototype-))
-	(cfn-var (gensymx #:cfn-))
+  (let ((org-var (gensymx #:org-))
 	(cf-var (gensymx #:cmp-)))
     `(nil #'(lambda (s x) (WB-Set-Tree-With s x ,cf-var))
 	  #'(lambda (s)
-	      (if (or (null ,cfn-var) (eq (wb-set-compare-fn ,proto-var) #'compare))
+	      (if (eq ,cf-var #'compare)
 		  (make-wb-set s)
-		(make-wb-custom-set s (wb-custom-set-org ,proto-var))))
+		(make-wb-custom-set s ,org-var)))
 	  ,filterp
-	  ((,proto-var (empty-wb-set ,compare-fn-name))
-	   ((,cfn-var (wb-set-compare-fn-name ,proto-var))
-	    (,cf-var (wb-set-compare-fn ,proto-var)))))))
+	  ((,org-var (wb-set-org (empty-wb-set ,compare-fn-name)))
+	   ((,cf-var (tree-set-org-compare-fn ,org-var)))))))
 
 
 (gmap:def-gmap-res-type union (&key filterp)
   "Returns the union of the values, optionally filtered by `filterp'."
-  `((set) #'union nil ,filterp))
+  ;; Written to take the implementation and organization from the first value.
+  `(nil #'(lambda (s x) (if (null s) x (union s x)))
+	#'(lambda (s) (or s (set)))
+	,filterp))
 
 (gmap:def-gmap-res-type intersection (&key filterp)
-  "Returns the intersection of the values, optionally filtered by `filterp'."
-  `((complement (set)) #'intersection nil ,filterp))
+  "Returns the intersection of the values, optionally filtered by `filterp'.
+\(If no values are supplied, returns the full set; see `full-set'.\)"
+  ;; Written to take the implementation and organization from the first value.
+  `(nil #'(lambda (s x) (if (null s) x (intersection s x)))
+	#'(lambda (s) (or s (full-set)))
+	,filterp))
 
 (defmethod make-load-form ((s wb-set) &optional environment)
   (declare (ignore environment))
@@ -2179,6 +2270,25 @@ comparison function as `compare-fn-name'."
     (ch-set-tree-contains? (ch-set-contents s) x (hash-set-org-hash-fn hsorg)
 			   (hash-set-org-compare-fn hsorg))))
 
+(defmethod lookup ((s ch-set) key)
+  (let ((hsorg (ch-set-org s)))
+    (ch-set-tree-contains? (ch-set-contents s) key (hash-set-org-hash-fn hsorg)
+			   (hash-set-org-compare-fn hsorg))))
+
+(defmethod index ((s ch-set) x)
+  (let ((hsorg (ch-set-org s)))
+    (ch-set-tree-index (ch-set-contents s) x (hash-set-org-hash-fn hsorg)
+		       (hash-set-org-compare-fn hsorg))))
+
+(defmethod at-index ((s ch-set) index)
+  (let ((contents (ch-set-contents s))
+	((size (ch-set-tree-size contents))))
+    (unless (and (>= index 0) (< index size))
+      (error 'simple-type-error :datum index :expected-type `(integer 0 (,size))
+				:format-control "Index ~D out of bounds on ~A"
+				:format-arguments (list index s)))
+    (ch-set-tree-index-element contents index)))
+
 (defmethod with ((s ch-set) value &optional (arg2 nil arg2?))
   (declare (ignore arg2))
   (check-two-arguments arg2? 'with 'ch-set)
@@ -2216,11 +2326,69 @@ comparison function as `compare-fn-name'."
 		   hsorg)
     (call-next-method)))
 
+(defmethod set-difference ((s1 ch-set) (s2 ch-set) &key)
+  (if-same-ch-set-orgs (s1 s2 hsorg)
+      (make-ch-set (ch-set-tree-diff (ch-set-contents s1) (ch-set-contents s2)
+				     (hash-set-org-hash-fn hsorg)
+				     (hash-set-org-compare-fn hsorg))
+		   hsorg)
+    (call-next-method)))
+
+(defmethod set-difference-rev ((s1 ch-set) (s2 ch-set))
+  (if-same-ch-set-orgs (s1 s2 hsorg)
+      (make-ch-set (ch-set-tree-diff (ch-set-contents s1) (ch-set-contents s2)
+				     (hash-set-org-hash-fn hsorg)
+				     (hash-set-org-compare-fn hsorg))
+		   hsorg)
+    (call-next-method)))
+
+(defmethod set-difference-2 ((s1 ch-set) (s2 ch-set))
+  (if-same-ch-set-orgs (s1 s2 hsorg)
+      (let ((s1-diff-s2 s2-diff-s1 (ch-set-tree-diff-2 (ch-set-contents s1) (ch-set-contents s2)
+						       (hash-set-org-hash-fn hsorg)
+						       (hash-set-org-compare-fn hsorg))))
+	(values (make-ch-set s1-diff-s2 hsorg) (make-ch-set s2-diff-s1 hsorg)))
+    (call-next-method)))
+
+(defmethod subset? ((s1 ch-set) (s2 ch-set))
+  (if-same-ch-set-orgs (s1 s2 hsorg)
+      (ch-set-tree-subset? (ch-set-contents s1) (ch-set-contents s2)
+			   (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg))
+    (call-next-method)))
+
 (defmethod disjoint? ((s1 ch-set) (s2 ch-set))
   (if-same-ch-set-orgs (s1 s2 hsorg)
       (ch-set-tree-disjoint? (ch-set-contents s1) (ch-set-contents s2)
 			     (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg))
     (call-next-method)))
+
+(defmethod partition ((pred function) (s ch-set))
+  (let ((hsorg (ch-set-org s))
+	((res1 res2 (ch-set-partition pred (ch-set-contents s) hsorg))))
+    (values (make-ch-set res1 hsorg) (make-ch-set res2 hsorg))))
+
+(defmethod partition ((pred symbol) (s ch-set))
+  (let ((hsorg (ch-set-org s))
+	((res1 res2 (ch-set-partition (coerce-to-function pred) (ch-set-contents s) hsorg))))
+    (values (make-ch-set res1 hsorg) (make-ch-set res2 hsorg))))
+
+(defmethod partition ((pred map) (s ch-set))
+  (let ((hsorg (ch-set-org s))
+	((res1 res2 (ch-set-partition #'(lambda (x) (lookup pred x)) (ch-set-contents s) hsorg))))
+    (values (make-ch-set res1 hsorg) (make-ch-set res2 hsorg))))
+
+(defun ch-set-partition (pred contents hsorg)
+  (declare (optimize (speed 3) (safety 0))
+	   (type function pred))
+  (let ((result-1 nil)
+	(result-2 nil)
+	(hash-fn (hash-set-org-hash-fn hsorg))
+	(compare-fn (hash-set-org-compare-fn hsorg)))
+    (do-ch-set-tree-members (x contents)
+      (if (funcall pred x)
+	  (setq result-1 (ch-set-tree-with result-1 x hash-fn compare-fn))
+	(setq result-2 (ch-set-tree-with result-2 x hash-fn compare-fn))))
+    (values result-1 result-2)))
 
 (defmethod filter ((pred function) (s ch-set))
   (ch-set-filter pred s))
@@ -2265,18 +2433,6 @@ comparison function as `compare-fn-name'."
 				     (hash-set-org-compare-fn hsorg))))
     (make-ch-set result hsorg)))
 
-;;; Analogous to `at-rank' on a WB-Set, but I didn't want to make this a method of that, because
-;;; the ordering, though deterministic, is not one that will make any sense to a client.
-;;; &&& Needs `defgeneric'
-(defmethod at-index ((s ch-set) index)
-  (let ((contents (ch-set-contents s))
-	((size (ch-set-tree-size contents))))
-    (unless (and (>= index 0) (< index size))
-      (error 'simple-type-error :datum index :expected-type `(integer 0 (,size))
-	     :format-control "Index ~D out of bounds on ~A"
-				:format-arguments (list index s)))
-    (ch-set-tree-index-element contents index)))
-
 (defmethod compare ((s1 ch-set) (s2 ch-set))
   (if-same-ch-set-orgs (s1 s2 hsorg)
       (ch-set-tree-compare (ch-set-contents s1) (ch-set-contents s2)
@@ -2294,21 +2450,22 @@ comparison function as `compare-fn-name'."
 	(:unequal
 	  (error "Can't compare ch-sets with uninterned compare-fn-names with same symbol-name"))))))
 
+(defmethod hash-value ((s ch-set))
+  (ch-set-tree-hash-value (ch-set-contents s)))
+
 (defmethod internal-do-set ((s ch-set) elt-fn value-fn)
-  (declare ;(optimize (speed 3) (safety 0))
+  (declare (optimize (speed 3) (safety 0))
 	   (type function elt-fn value-fn))
   (do-ch-set-tree-members (x (ch-set-contents s) (funcall value-fn))
     (funcall elt-fn x)))
 
 (defmethod iterator ((s ch-set) &key)
-  ;; O(log n) per element.   &&& Write a proper tree iterator.
-  (let ((tree (ch-set-contents s))
-	(idx 0))
-    (lambda (op)
-      (ecase op
-	(:get (ch-set-tree-index-element tree (postincf idx)))
-	(:done? (>= idx (ch-set-tree-size tree)))
-	(:more? (< idx (ch-set-tree-size tree)))))))
+  (make-ch-set-tree-iterator (ch-set-contents s)))
+
+(defmethod fun-iterator ((s ch-set) &key from-end?)
+  (if from-end?
+      (ch-set-tree-rev-fun-iter (ch-set-contents s))
+    (ch-set-tree-fun-iter (ch-set-contents s))))
 
 (defmethod convert ((to-type (eql 'ch-set)) (s set) &key compare-fn-name)
   (convert-to-ch-set s nil
@@ -2328,20 +2485,23 @@ comparison function as `compare-fn-name'."
 (defmethod convert ((to-type (eql 'ch-set)) (l list) &key compare-fn-name)
   (convert-to-ch-set l nil
     (let ((tree nil))
-      (dolist (x l tree)
-	(setq tree (ch-set-tree-with tree x hash-fn compare-fn))))))
+      (dolist (x l)
+	(setq tree (ch-set-tree-with tree x hash-fn compare-fn)))
+      tree)))
 
 (defmethod convert ((to-type (eql 'ch-set)) (s seq) &key compare-fn-name)
   (convert-to-ch-set s nil
     (let ((tree nil))
-      (do-seq (x s :value tree)
-	(setq tree (ch-set-tree-with tree x hash-fn compare-fn))))))
+      (do-seq (x s)
+	(setq tree (ch-set-tree-with tree x hash-fn compare-fn)))
+      tree)))
 
 (defmethod convert ((to-type (eql 'ch-set)) (s sequence) &key compare-fn-name)
   (convert-to-ch-set s nil
     (let ((tree nil))
-      (dotimes (i (length s) tree)
-	(setq tree (ch-set-tree-with tree (elt s i) hash-fn compare-fn))))))
+      (dotimes (i (length s))
+	(setq tree (ch-set-tree-with tree (elt s i) hash-fn compare-fn)))
+      tree)))
 
 (defun print-ch-set (set stream level)
   (declare (ignore level))
@@ -2355,6 +2515,25 @@ comparison function as `compare-fn-name'."
       (write-char #\Space stream)
       (pprint-newline :linear stream)
       (write x :stream stream))))
+
+;;; A bit faster than `set', if you know it's a `ch-set'.
+(gmap:def-gmap-arg-type ch-set (set)
+  `((make-ch-set-tree-iterator-internal (ch-set-contents ,set))
+    #'ch-set-tree-iterator-done?
+    #'ch-set-tree-iterator-get))
+
+(gmap:def-gmap-res-type ch-set (&key filterp compare-fn-name)
+  "Returns a set of the values, optionally filtered by `filterp'.  If
+`compare-fn-name' is nonnull, it specifies a custom ordering."
+  (let ((org-var (gensymx #:org-))
+	(hf-var (gensymx #:hash-))
+	(cf-var (gensymx #:cmp-)))
+    `(nil #'(lambda (s x) (ch-set-tree-with s x ,hf-var ,cf-var))
+	  #'(lambda (s) (make-ch-set s ,org-var))
+	  ,filterp
+	  ((,org-var (ch-set-org (empty-ch-set ,compare-fn-name)))
+	   ((,hf-var (hash-set-org-hash-fn ,org-var))
+	    (,cf-var (hash-set-org-compare-fn ,org-var)))))))
 
 (defmethod make-load-form ((s ch-set) &optional environment)
   (declare (ignore environment))
@@ -2467,6 +2646,13 @@ must be a symbol."
 	     :format-arguments (list rank s)))
     (WB-Bag-Tree-Rank-Pair contents rank)))
 
+(defmethod index ((b wb-bag) x)
+  (let ((rank found? (rank b x)))
+    (and found? rank)))
+
+(defmethod at-index ((b wb-bag) idx)
+  (at-rank b idx))
+
 (defmethod least ((b wb-bag))
   (let ((tree (wb-bag-contents b)))
     (if tree
@@ -2507,6 +2693,30 @@ must be a symbol."
     (make-wb-bag (WB-Bag-Tree-Less (wb-bag-contents b) value (tree-set-org-compare-fn (wb-bag-org b))
 				   multiplicity)
 		 (wb-bag-org b))))
+
+(defmethod split-from ((b wb-bag) value)
+  (let ((compare-fn (tree-set-org-compare-fn (wb-bag-org b)))
+	((new-contents (WB-Bag-Tree-Split-Above (wb-bag-contents b) value compare-fn))))
+    (make-wb-bag (if (< 0 (WB-Bag-Tree-Multiplicity (wb-bag-contents b) value compare-fn))
+		     (WB-Bag-Tree-With new-contents value compare-fn)
+		   new-contents)
+		 (wb-bag-org b))))
+
+(defmethod split-above ((b wb-bag) value)
+  (make-wb-bag (WB-Bag-Tree-Split-Above (wb-bag-contents b) value (tree-set-org-compare-fn (wb-bag-org b)))
+	       (wb-bag-org b)))
+
+(defmethod split-through ((b wb-bag) value)
+  (let ((compare-fn (tree-set-org-compare-fn (wb-bag-org b)))
+	((new-contents (WB-Bag-Tree-Split-Below (wb-bag-contents b) value compare-fn))))
+    (make-wb-bag (if (< 0 (WB-Bag-Tree-Multiplicity (wb-bag-contents b) value compare-fn))
+		     (WB-Bag-Tree-With new-contents value compare-fn)
+		   new-contents)
+		 (wb-bag-org b))))
+
+(defmethod split-below ((b wb-bag) value)
+  (make-wb-bag (WB-Bag-Tree-Split-Below (wb-bag-contents b) value (tree-set-org-compare-fn (wb-bag-org b)))
+	       (wb-bag-org b)))
 
 (defmethod union ((b1 bag) (b2 bag) &key)
   "Fallback method for mixed implementations."
@@ -2826,6 +3036,19 @@ multiplicity, but the two bags are not equal."
 	(:unequal
 	  (error "Can't compare wb-bags with uninterned compare-fn-names with same symbol-name"))))))
 
+(defmethod hash-value ((b wb-bag))
+  ;; I expect this to be rarely used, so I don't want to make everybody pay the cost of a
+  ;; cache slot.  So instead, I bound the number of elements to hash ... let's say 32.
+  (let ((result 0)
+	(i 0)
+	(mult 1))
+    (do-wb-bag-tree-pairs (x n (wb-bag-contents b))
+      (hash-mixf result (hash-multiply (hash-multiply n mult) (hash-value-fixnum x)))
+      (setq mult (hash-multiply mult 13))
+      (when (= (incf i) 32)
+	(return)))
+    result))
+
 (defgeneric internal-do-bag-pairs (bag elt-fn value-fn)
   (:documentation
     "Calls `elt-fn' on successive pairs of the bag (the second argument is
@@ -3115,7 +3338,8 @@ different bag implementations; it is not for public use.  `elt-fn' and
         (if (> n 1)
 	    ;; There might be a bag entry for 'quote or 'function...
 	    (let (#+sbcl (sb-pretty:*pprint-quote-with-syntactic-sugar* nil))
-	      (write (if *print-readably* `(% ,x ,n) `(,x ,n)) :stream stream))
+	      (princ "#%" stream)
+	      (write `(,x ,n) :stream stream))
           (write x :stream stream))))))
 
 (gmap:def-gmap-arg-type bag (bag)
@@ -3358,6 +3582,13 @@ the default implementation of maps in FSet."
 	     :format-arguments (list rank m)))
     (WB-Map-Tree-Rank-Pair contents rank)))
 
+(defmethod index ((m wb-map) x)
+  (let ((rank found? (rank m x)))
+    (and found? rank)))
+
+(defmethod at-index ((m wb-map) idx)
+  (at-rank m idx))
+
 (defmethod with ((m wb-map) key &optional (value nil value?))
   (check-three-arguments value? 'with 'wb-map)
   (let ((contents (wb-map-contents m))
@@ -3373,10 +3604,36 @@ the default implementation of maps in FSet."
   (check-two-arguments arg2? 'less 'wb-map)
   (let ((contents (wb-map-contents m))
 	(tmorg (wb-map-org m))
-	((new-contents (WB-Map-Tree-Less contents key (tree-map-org-key-compare-fn tmorg)))))
+	((new-contents range-val (WB-Map-Tree-Less contents key (tree-map-org-key-compare-fn tmorg)))))
     (if (eq new-contents contents)
 	m
-      (make-wb-map new-contents tmorg (map-default m)))))
+      (values (make-wb-map new-contents tmorg (map-default m)) range-val))))
+
+(defmethod split-from ((m wb-map) key)
+  (let ((tmorg (wb-map-org m))
+	((key-compare-fn (tree-map-org-key-compare-fn tmorg))
+	 ((new-contents (WB-Map-Tree-Split-Above (wb-map-contents m) key key-compare-fn))
+	  (val? val (WB-Map-Tree-Lookup (wb-map-contents m) key key-compare-fn)))))
+    (make-wb-map (if val? (WB-Map-Tree-With new-contents key val key-compare-fn (tree-map-org-val-compare-fn tmorg))
+		   new-contents)
+		 tmorg (map-default m))))
+
+(defmethod split-above ((m wb-map) key)
+  (make-wb-map (WB-Map-Tree-Split-Above (wb-map-contents m) key (tree-map-org-key-compare-fn (wb-map-org m)))
+	       (wb-map-org m) (map-default m)))
+
+(defmethod split-through ((m wb-map) key)
+  (let ((tmorg (wb-map-org m))
+	((key-compare-fn (tree-map-org-key-compare-fn tmorg))
+	 ((new-contents (WB-Map-Tree-Split-Below (wb-map-contents m) key key-compare-fn))
+	  (val? val (WB-Map-Tree-Lookup (wb-map-contents m) key key-compare-fn)))))
+    (make-wb-map (if val? (WB-Map-Tree-With new-contents key val key-compare-fn (tree-map-org-val-compare-fn tmorg))
+		   new-contents)
+		 tmorg (map-default m))))
+
+(defmethod split-below ((m wb-map) key)
+  (make-wb-map (WB-Map-Tree-Split-Below (wb-map-contents m) key (tree-map-org-key-compare-fn (wb-map-org m)))
+	       (wb-map-org m) (map-default m)))
 
 (defmethod domain ((m wb-map))
   (let ((tmorg (wb-map-org m))
@@ -3415,6 +3672,19 @@ the default implementation of maps in FSet."
 	(:unequal
 	  (error "Can't compare wb-maps with uninterned compare-fn-names with same symbol-name"))))))
 
+(defmethod hash-value ((m wb-map))
+  ;; I expect this to be rarely used, so I don't want to make everybody pay the cost of a
+  ;; cache slot.  So instead, I bound the number of pairs to hash ... let's say 32.
+  (let ((result 0)
+	(i 0)
+	(mult 1))
+    (do-wb-map-tree-pairs (k v (wb-map-contents m))
+      (hash-mixf result (hash-multiply mult (hash-mix (hash-value-fixnum k) (hash-value-fixnum v))))
+      (setq mult (hash-multiply mult 13))
+      (when (= (incf i) 32)
+	(return)))
+    result))
+
 (defgeneric internal-do-map (map elt-fn value-fn)
   (:documentation
     "Calls `elt-fn' on successive pairs of the map (as two arguments); when done,
@@ -3426,7 +3696,6 @@ symbols."))
 (defmethod internal-do-map ((m wb-map) elt-fn value-fn)
   (declare (optimize (speed 3) (safety 0))
 	   (type function elt-fn value-fn))
-  ;; Expect Python note about "can't use known return convention"
   (Do-WB-Map-Tree-Pairs (x y (wb-map-contents m) (funcall value-fn))
     (funcall elt-fn x y)))
 
@@ -3540,8 +3809,8 @@ symbols."))
       (make-wb-map (WB-Map-Tree-Union (wb-map-contents map1) (wb-map-contents map2)
 				      (coerce val-fn 'function) (tree-map-org-key-compare-fn tmorg))
 		   tmorg (let ((def1 (map-default map1))
-			     (def2 (map-default map2)))
-			 (and (or def1 def2) (funcall val-fn def1 def2))))
+			       (def2 (map-default map2)))
+			   (and (or def1 def2) (funcall val-fn def1 def2))))
     (call-next-method)))
 
 (defmethod map-intersection ((m1 map) (m2 map) &optional (val-fn (fn (_v1 v2) v2)))
@@ -3566,7 +3835,7 @@ symbols."))
       (make-wb-map (WB-Map-Tree-Intersect (wb-map-contents map1) (wb-map-contents map2)
 					  (coerce val-fn 'function) (tree-map-org-key-compare-fn tmorg))
 		   tmorg (let ((def1 (map-default map1))
-			     (def2 (map-default map2)))
+			       (def2 (map-default map2)))
 			 (and (or def1 def2) (funcall val-fn def1 def2))))
     (call-next-method)))
 
@@ -3636,65 +3905,45 @@ symbols."))
 (defun compose-functions (f1 f2)
   (lambda (&rest args) (multiple-value-call f2 (apply f1 args))))
 
-(defmethod compose ((f1 function) (f2 function))
+(defmethod compose ((f1 function) (f2 function) &key)
   (compose-functions f1 f2))
 
-(defmethod compose ((f1 symbol) (f2 function))
-  (compose-functions f1 f2))
+(defmethod compose ((f1 symbol) (f2 function) &key)
+  (compose-functions (symbol-function f1) f2))
 
-(defmethod compose ((f1 function) (f2 symbol))
-  (compose-functions f1 f2))
+(defmethod compose ((f1 function) (f2 symbol) &key)
+  (compose-functions f1 (symbol-function f2)))
 
-(defmethod compose ((f1 symbol) (f2 symbol))
-  (compose-functions f1 f2))
+(defmethod compose ((f1 symbol) (f2 symbol) &key)
+  (compose-functions (symbol-function f1) (symbol-function f2)))
 
-(defmethod compose ((m1 map) (m2 map))
-  "Fallback method for mixed implementations."
-  (let ((result (empty-map-like m1)))
-    (do-map (k v1 m1)
-      (setf (lookup result k) (lookup m2 v1)))
-    result))
+;;; I've removed the fallback method for `compose', as it's not needed -- the maps
+;;; don't need to match anyway.
 
-(defmethod compose ((map1 wb-map) (map2 wb-map))
-  (let ((tree2 (wb-map-contents map2))
-	(kcf2 (tree-map-org-key-compare-fn (wb-map-org map2))))
-    (make-wb-map (WB-Map-Tree-Compose (wb-map-contents map1)
-				      #'(lambda (x)
-					  (let ((val2? val2 (WB-Map-Tree-Lookup tree2 x kcf2)))
-					    (if val2? val2 (map-default map2)))))
-		 (wb-map-org map1)
-		 (let ((new-default? new-default
-			 (WB-Map-Tree-Lookup tree2 (map-default map1) kcf2)))
-		   (if new-default? new-default (map-default map2))))))
+(defmethod compose ((map1 wb-map) (map2 map) &key val-compare-fn-name)
+  "The returned map's `val-compare-fn-name' can be specified; it defaults
+to `compare'."
+  (make-wb-map (WB-Map-Tree-Compose (wb-map-contents map1)
+				    (fn (x)
+				      (let ((val2 val2? (lookup map2 x)))
+					(if val2? val2 (map-default map2)))))
+	       (wb-map-org (empty-wb-map nil (key-compare-fn-name map1) val-compare-fn-name))
+	       (let ((new-default new-default? (lookup map2 (map-default map1))))
+		 (if new-default? new-default (map-default map2)))))
 
-(defmethod compose ((m map) (fn function))
-  (map-fn-compose m fn))
+(defmethod compose ((m wb-map) (fn function) &key val-compare-fn-name)
+  (wb-map-fn-compose m fn val-compare-fn-name))
 
-(defmethod compose ((m map) (fn symbol))
-  (map-fn-compose m (coerce-to-function fn)))
+(defmethod compose ((m wb-map) (fn symbol) &key val-compare-fn-name)
+  (wb-map-fn-compose m (symbol-function fn) val-compare-fn-name))
 
-(defmethod compose ((m map) (s seq))
-  (map-fn-compose m (fn (x) (lookup s x))))
+(defmethod compose ((m wb-map) (s seq) &key val-compare-fn-name)
+  (wb-map-fn-compose m (fn (x) (lookup s x)) val-compare-fn-name))
 
-(defun map-fn-compose (m fn)
+(defun wb-map-fn-compose (m fn val-compare-fn-name)
   (declare (type function fn))
-  (let ((result (empty-map-like m)))
-    (do-map (k v m)
-      (setf (lookup result k) (funcall fn v)))
-    result))
-
-(defmethod compose ((m wb-map) (fn function))
-  (wb-map-fn-compose m fn))
-
-(defmethod compose ((m wb-map) (fn symbol))
-  (wb-map-fn-compose m (coerce-to-function fn)))
-
-(defmethod compose ((m wb-map) (s seq))
-  (wb-map-fn-compose m (fn (x) (lookup s x))))
-
-(defun wb-map-fn-compose (m fn)
-  (declare (type function fn))
-  (make-wb-map (WB-Map-Tree-Compose (wb-map-contents m) fn) (wb-map-org m)
+  (make-wb-map (WB-Map-Tree-Compose (wb-map-contents m) fn)
+	       (wb-map-org (empty-wb-map nil (key-compare-fn-name m) val-compare-fn-name))
 	       (funcall fn (map-default m))))
 
 (defmethod convert ((to-type (eql 'map)) (m map) &key)
@@ -3925,7 +4174,7 @@ symbols."))
   "Consumes two values from the mapped function; returns a map of the pairs.
 Note that `filterp', if supplied, must take two arguments."
   `(nil (:consume 2 (fn (m x y) (WB-Map-Tree-With m x y #'compare #'compare)))
-	#'(lambda (tree) (make-wb-map tree +fset-default-tree-map-org+ ,default))
+	#'(lambda (tree) (make-wb-map tree (wb-map-org *empty-wb-map*) ,default))
     ,filterp))
 
 (gmap:def-gmap-res-type wb-map (&key filterp default key-compare-fn-name val-compare-fn-name)
@@ -4070,14 +4319,34 @@ Note that `filterp', if supplied, must take two arguments."
 (defmethod val-compare-fn-name ((m ch-map))
   (hash-map-org-val-compare-fn-name (ch-map-org m)))
 
+(defmethod key-hash-fn ((m ch-map))
+  (hash-map-org-key-hash-fn (ch-map-org m)))
+
+(defmethod val-hash-fn ((m ch-map))
+  (hash-map-org-val-hash-fn (ch-map-org m)))
+
 (defmethod with-default ((m ch-map) new-default)
   (make-ch-map (ch-map-contents m) (ch-map-org m) new-default))
 
 (defmethod empty? ((m ch-map))
   (null (ch-map-contents m)))
 
+(defmethod arb ((m ch-map))
+  (let ((tree (ch-map-contents m)))
+    (if tree
+	(let ((key val (ch-map-tree-arb-pair tree)))
+	  (values key val t))
+      (values nil nil nil))))
+
 (defmethod size ((m ch-map))
   (ch-map-tree-size (ch-map-contents m)))
+
+(defmethod contains? ((m ch-map) x &optional (y nil y?))
+  (check-three-arguments y? 'contains? 'wb-map)
+  (let ((hmorg (ch-map-org m))
+	((val? val (ch-map-tree-lookup (ch-map-contents m) x
+				       (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)))))
+    (and val? (equal?-cmp val y (hash-map-org-val-compare-fn hmorg)))))
 
 (defmethod with ((m ch-map) key &optional (value nil value?))
   (check-three-arguments value? 'with 'ch-map)
@@ -4095,11 +4364,12 @@ Note that `filterp', if supplied, must take two arguments."
   (check-two-arguments arg2? 'less 'ch-map)
   (let ((contents (ch-map-contents m))
 	(hmorg (ch-map-org m))
-	((new-contents (ch-map-tree-less contents key (hash-map-org-key-hash-fn hmorg)
-					 (hash-map-org-key-compare-fn hmorg) (hash-map-org-val-hash-fn hmorg)))))
+	((new-contents range-val
+	   (ch-map-tree-less contents key (hash-map-org-key-hash-fn hmorg)
+			     (hash-map-org-key-compare-fn hmorg) (hash-map-org-val-hash-fn hmorg)))))
     (if (eq new-contents contents)
 	m
-      (make-ch-map new-contents hmorg (map-default m)))))
+      (values (make-ch-map new-contents hmorg (map-default m)) range-val))))
 
 (defmethod lookup ((m ch-map) key)
   (let ((hmorg (ch-map-org m))
@@ -4108,21 +4378,240 @@ Note that `filterp', if supplied, must take two arguments."
     ;; Our internal convention is the reverse of the external one.
     (values (if val? val (map-default m)) val?)))
 
+(defmethod index ((m ch-map) key)
+  (declare (optimize (debug 3)))
+  (let ((hmorg (ch-map-org m)))
+    (ch-map-tree-index (ch-map-contents m) key (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg))))
+
+(defmethod at-index ((m ch-map) index)
+  (let ((contents (ch-map-contents m))
+	((size (ch-map-tree-size contents))))
+    (unless (and (>= index 0) (< index size))
+      (error 'simple-type-error :datum index :expected-type `(integer 0 (,size))
+				:format-control "Index ~D out of bounds on ~A"
+				:format-arguments (list index m)))
+    (ch-map-tree-index-pair contents index)))
+
+(defmethod domain ((m ch-map))
+  (let ((hmorg (ch-map-org m))
+	((set-prototype (empty-ch-set (hash-map-org-key-compare-fn-name hmorg)))))
+    (make-ch-set (ch-map-tree-domain (ch-map-contents m) (hash-map-org-key-hash-fn hmorg))
+		 (ch-set-org set-prototype))))
+
+(defmethod range ((m ch-map))
+  (let ((hmorg (ch-map-org m))
+	((set-prototype (empty-ch-set (hash-map-org-val-compare-fn-name hmorg)))
+	 (val-hash-fn (hash-map-org-val-hash-fn hmorg))
+	 (val-compare-fn (hash-map-org-val-compare-fn hmorg)))
+	(result nil))
+    (do-map (key val m)
+      (declare (ignore key))
+      (setq result (ch-set-tree-with result val val-hash-fn val-compare-fn)))
+    (make-ch-set result (ch-set-org set-prototype))))
+
 (defmethod domain-contains? ((m ch-map) x)
   (let ((hmorg (ch-map-org m)))
     (ch-map-tree-lookup (ch-map-contents m) x (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg))))
 
+(defmethod compare ((map1 ch-map) (map2 ch-map))
+  (if-same-ch-map-orgs (map1 map2 hmorg)
+      (let ((val-compare-fn (hash-map-org-val-compare-fn hmorg))
+	    ((comp (ch-map-tree-compare (ch-map-contents map1) (ch-map-contents map2)
+					(hash-map-org-key-compare-fn hmorg) (hash-map-org-val-hash-fn hmorg)
+					val-compare-fn))))
+	(if (member comp '(:less :greater))
+	    comp
+	  (let ((def-comp (funcall val-compare-fn (map-default map1) (map-default map2))))
+	    (if (member def-comp '(:less :greater))
+		def-comp
+	      (if (or (eq comp ':unequal) (eq def-comp ':unequal))
+		  ':unequal
+		':equal)))))
+    ;; See `define-wb-set-methods compare' above.
+    (let ((m1-kcfn-name (hash-map-org-key-compare-fn-name (ch-map-org map1)))
+	  (m1-vcfn-name (hash-map-org-val-compare-fn-name (ch-map-org map1)))
+	  (m2-kcfn-name (hash-map-org-key-compare-fn-name (ch-map-org map2)))
+	  (m2-vcfn-name (hash-map-org-val-compare-fn-name (ch-map-org map2)))
+	  ((name-comp (compare (list m1-kcfn-name m1-vcfn-name) (list m2-kcfn-name m2-vcfn-name)))))
+      (ecase name-comp
+	((:less :greater)
+	  name-comp)
+	(:equal
+	  (compare (convert 'wb-map map1 :key-compare-fn-name m1-kcfn-name :val-compare-fn-name m1-vcfn-name)
+		   (convert 'wb-map map2 :key-compare-fn-name m1-kcfn-name :val-compare-fn-name m1-vcfn-name)))
+	(:unequal
+	  (error "Can't compare wb-maps with uninterned compare-fn-names with same symbol-name"))))))
+
+(defmethod hash-value ((m ch-map))
+  (let ((tree (ch-map-contents m)))
+    (hash-mix (ch-map-tree-key-hash tree) (ch-map-tree-value-hash tree (hash-map-org-val-hash-fn (ch-map-org m))))))
+
+(defmethod map-union ((m1 ch-map) (m2 ch-map) &optional (val-fn (fn (_v1 v2) v2)))
+  (if-same-ch-map-orgs (m1 m2 hmorg)
+      (make-ch-map (ch-map-tree-union (ch-map-contents m1) (ch-map-contents m2)
+				      (coerce val-fn 'function)
+				      (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)
+				      (hash-map-org-val-hash-fn hmorg) (hash-map-org-val-compare-fn hmorg))
+		   hmorg (let ((def1 (map-default m1))
+			       (def2 (map-default m2)))
+			   (and (or def1 def2) (funcall val-fn def1 def2))))
+    (call-next-method)))
+
+(defmethod map-intersection ((m1 ch-map) (m2 ch-map) &optional (val-fn (fn (_v1 v2) v2)))
+  (if-same-ch-map-orgs (m1 m2 hmorg)
+      (make-ch-map (ch-map-tree-intersection (ch-map-contents m1) (ch-map-contents m2)
+					     (coerce val-fn 'function)
+					     (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)
+					     (hash-map-org-val-hash-fn hmorg) (hash-map-org-val-compare-fn hmorg))
+		   hmorg (let ((def1 (map-default m1))
+			       (def2 (map-default m2)))
+			   (and (or def1 def2) (funcall val-fn def1 def2))))
+    (call-next-method)))
+
+(defmethod map-difference-2 ((map1 ch-map) (map2 ch-map))
+  (if-same-ch-map-orgs (map1 map2 hmorg)
+      (let ((newc1 newc2 (ch-map-tree-diff-2 (ch-map-contents map1) (ch-map-contents map2)
+					     (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)
+					     (hash-map-org-val-hash-fn hmorg) (hash-map-org-val-compare-fn hmorg))))
+	(values (make-ch-map newc1 hmorg (map-default map1))
+		(make-ch-map newc2 hmorg (map-default map2))))
+    (call-next-method)))
+
+(defmethod restrict ((m ch-map) (s ch-set))
+  (let ((hmorg (ch-map-org m))
+	(hsorg (ch-set-org s)))
+    (if (eq (hash-map-org-key-compare-fn hmorg) (hash-set-org-compare-fn hsorg))
+	(make-ch-map (ch-map-tree-restrict (ch-map-contents m) (ch-set-contents s)
+					   (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)
+					   (hash-map-org-val-hash-fn hmorg))
+		     hmorg (map-default m))
+      (call-next-method))))
+
+(defmethod restrict-not ((m ch-map) (s ch-set))
+  (let ((hmorg (ch-map-org m))
+	(hsorg (ch-set-org s)))
+    (if (eq (hash-map-org-key-compare-fn hmorg) (hash-set-org-compare-fn hsorg))
+	(make-ch-map (ch-map-tree-restrict-not (ch-map-contents m) (ch-set-contents s)
+					       (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)
+					       (hash-map-org-val-hash-fn hmorg))
+		     hmorg (map-default m))
+      (call-next-method))))
+
+(defmethod compose ((map1 ch-map) (map2 map) &key val-compare-fn-name)
+  (let ((prototype (empty-ch-map nil (key-compare-fn-name map1) val-compare-fn-name)))
+    (make-ch-map (ch-map-tree-compose (ch-map-contents map1)
+				      (fn (x)
+					(let ((val2 val2? (lookup map2 x)))
+					  (if val2? val2 (map-default map2)))))
+		 (ch-map-org prototype)
+		 (let ((new-default? new-default
+			 (lookup map2 (map-default map1))))
+		   (if new-default? new-default (map-default map2))))))
+
+(defmethod compose ((m ch-map) (fn function) &key val-compare-fn-name)
+  (ch-map-fn-compose m fn val-compare-fn-name))
+
+(defmethod compose ((m ch-map) (fn symbol) &key val-compare-fn-name)
+  (ch-map-fn-compose m (symbol-function fn) val-compare-fn-name))
+
+(defmethod compose ((m ch-map) (s seq) &key val-compare-fn-name)
+  (ch-map-fn-compose m (fn (x) (lookup s x)) val-compare-fn-name))
+
+(defun ch-map-fn-compose (m fn val-compare-fn-name)
+  (declare (type function fn))
+  (let ((prototype (empty-ch-map nil (key-compare-fn-name m) val-compare-fn-name)))
+    (make-ch-map (ch-map-tree-compose (ch-map-contents m) fn)
+		 (ch-map-org prototype)
+		 (funcall fn (map-default m)))))
+
 (defmethod internal-do-map ((m ch-map) elt-fn value-fn)
-  (declare ;(optimize (speed 3) (safety 0))
+  (declare (optimize (speed 3) (safety 0))
 	   (type function elt-fn value-fn))
   (do-ch-map-tree-pairs (x y (ch-map-contents m) (funcall value-fn))
     (funcall elt-fn x y)))
+
+(defmethod iterator ((m ch-map) &key)
+  (make-ch-map-tree-iterator (ch-map-contents m)))
+
+(defmethod fun-iterator ((s ch-map) &key from-end?)
+  (if from-end?
+      (ch-map-tree-rev-fun-iter (ch-map-contents s))
+    (ch-map-tree-fun-iter (ch-map-contents s))))
 
 (defmethod convert ((to-type (eql 'wb-map)) (m ch-map) &key key-compare-fn-name val-compare-fn-name)
   (convert-to-wb-map m nil nil
     (let ((tree nil))
       (do-ch-map-tree-pairs (k v (ch-map-contents m) tree)
 	(setq tree (WB-Map-Tree-With tree k v key-compare-fn val-compare-fn))))))
+
+(defmethod convert ((to-type (eql 'ch-map)) (m map) &key key-compare-fn-name val-compare-fn-name)
+  (let ((prototype (empty-ch-map nil key-compare-fn-name val-compare-fn-name))
+	((hmorg (ch-map-org prototype))
+	 ((key-hash-fn (hash-map-org-key-hash-fn hmorg))
+	  (key-compare-fn (hash-map-org-key-compare-fn hmorg))
+	  (val-hash-fn (hash-map-org-val-hash-fn hmorg))
+	  (val-compare-fn (hash-map-org-val-compare-fn hmorg))))
+	(result nil))
+    (do-map (k v m)
+      (setq result (ch-map-tree-with result k v key-hash-fn key-compare-fn val-hash-fn val-compare-fn)))
+    (make-ch-map result hmorg (map-default m))))
+
+(defmethod convert ((to-type (eql 'ch-map)) (m ch-map)
+		    &key (default nil default?) key-compare-fn-name val-compare-fn-name)
+  "The result uses `default' if supplied, otherwise has the same default as `m'."
+  (convert-to-ch-map m (if default? default (map-default m))
+      (let ((m-hmorg (ch-map-org m)))
+	(or (eq m-hmorg hmorg)
+	    (and (eq key-hash-fn (hash-map-org-key-hash-fn m-hmorg))
+		 (eq key-compare-fn (hash-map-org-key-compare-fn m-hmorg))
+		 (eq val-hash-fn (hash-map-org-val-hash-fn m-hmorg))
+		 (eq val-compare-fn (hash-map-org-val-compare-fn m-hmorg)))))
+    (let ((tree nil))
+      (do-ch-map-tree-pairs (k v (ch-map-contents m))
+	(setq tree (ch-map-tree-with tree k v key-hash-fn key-compare-fn val-hash-fn val-compare-fn)))
+      tree)))
+
+(defmethod convert ((to-type (eql 'ch-map)) (l list)
+		    &key (key-fn #'car) (value-fn #'cdr)
+		      key-compare-fn-name val-compare-fn-name)
+  (declare (type function key-fn value-fn))
+  (convert-to-ch-map l nil nil
+    (let ((tree nil))
+      (dolist (x l)
+	(setq tree (ch-map-tree-with tree (funcall key-fn x) (funcall value-fn x)
+				     key-hash-fn key-compare-fn val-hash-fn val-compare-fn)))
+      tree)))
+
+(defmethod convert ((to-type (eql 'ch-map)) (s seq)
+		    &key (key-fn #'car) (value-fn #'cdr)
+		      key-compare-fn-name val-compare-fn-name)
+  (declare (type function key-fn value-fn))
+  (convert-to-ch-map l nil nil
+    (let ((tree nil))
+      (do-seq (x s)
+	(setq tree (ch-map-tree-with tree (funcall key-fn x) (funcall value-fn x)
+				     key-hash-fn key-compare-fn val-hash-fn val-compare-fn)))
+      tree)))
+
+(defmethod convert ((to-type (eql 'ch-map)) (s sequence)
+		    &key (key-fn #'car) (value-fn #'cdr)
+		      key-compare-fn-name val-compare-fn-name)
+  (declare (type function key-fn value-fn))
+  (convert-to-ch-map l nil nil
+    (let ((tree nil))
+      (dotimes (i (length s))
+	(let ((x (elt s i)))
+	  (setq tree (ch-map-tree-with tree (funcall key-fn x) (funcall value-fn x)
+				       key-hash-fn key-compare-fn val-hash-fn val-compare-fn))))
+      tree)))
+
+(defmethod convert ((to-type (eql 'ch-map)) (ht hash-table) &key key-compare-fn-name val-compare-fn-name)
+  (convert-to-ch-map ht nil nil
+    (let ((tree nil))
+      (maphash (lambda (k v)
+		 (setq tree (ch-map-tree-with tree k v key-hash-fn key-compare-fn val-hash-fn val-compare-fn)))
+	       ht)
+      tree)))
 
 (defun print-ch-map (map stream level)
   (declare (ignore level))
@@ -4143,6 +4632,34 @@ Note that `filterp', if supplied, must take two arguments."
       ;; There might be a map entry for 'quote or 'function...
       (let (#+sbcl (sb-pretty:*pprint-quote-with-syntactic-sugar* nil))
 	(write (list x y) :stream stream)))))
+
+(gmap:def-gmap-arg-type ch-map (map)
+  "Yields each pair of `map', as two values."
+  `((make-ch-map-tree-iterator-internal (ch-map-contents ,map))
+    #'ch-map-tree-iterator-done?
+    (:values 2 #'ch-map-tree-iterator-get)))
+
+(gmap:def-gmap-res-type ch-map (&key filterp default key-compare-fn-name val-compare-fn-name)
+  "Consumes two values from the mapped function; returns a wb-map of the pairs.
+Note that `filterp', if supplied, must take two arguments."
+  (let ((org-var (gensymx #:org-))
+	(khf-var (gensymx #:key-hash-))
+	(kcf-var (gensymx #:key-cmp-))
+	(vhf-var (gensymx #:val-hash-))
+	(vcf-var (gensymx #:val-cmp-)))
+    `(nil (:consume 2 (fn (tree k v) (ch-map-tree-with tree k v ,khf-var ,kcf-var ,vhf-var ,vcf-var)))
+	  #'(lambda (tree) (make-ch-map tree ,org-var ,default))
+	  ,filterp
+	  ((,org-var (ch-map-org (empty-ch-map nil ,key-compare-fn-name ,val-compare-fn-name)))
+	   ((,khf-var (hash-map-org-key-hash-fn ,org-var))
+	    (,kcf-var (hash-map-org-key-compare-fn ,org-var))
+	    (,vhf-var (hash-map-org-val-hash-fn ,org-var))
+	    (,vcf-var (hash-map-org-val-compare-fn ,org-var)))))))
+
+(defmethod make-load-form ((m ch-map) &optional environment)
+  (declare (ignore environment))
+  `(convert 'ch-map ',(convert 'list m) :key-compare-fn-name ',(hash-map-org-key-compare-fn-name (ch-map-org m))
+					:val-compare-fn-name ',(hash-map-org-val-compare-fn-name (ch-map-org m))))
 
 
 ;;; ================================================================================
@@ -4407,6 +4924,19 @@ This is the default implementation of seqs in FSet."
 	      ':unequal
 	    ':equal))))))
 
+(defmethod hash-value ((s wb-seq))
+  ;; Currently doing bounded hashing, but &&& am considering changing it to do caching
+  ;; with incremental update.
+  (let ((result 0)
+	(i 0)
+	(mult 1))
+    (do-wb-seq-tree-members (x (wb-seq-contents s))
+      (hash-mixf result (hash-multiply mult (hash-value-fixnum x)))
+      (setq mult (hash-multiply mult 13))
+      (when (= (incf i) 32)
+	(return)))
+    result))
+
 (defmethod compare-lexicographically ((s1 wb-seq) (s2 wb-seq) &key (val-compare-fn #'compare))
   (WB-Seq-Tree-Compare-Lexicographically (wb-seq-contents s1) (wb-seq-contents s2) val-compare-fn))
 
@@ -4440,8 +4970,10 @@ not symbols."))
 				     (funcall value-fn))
 	(funcall elt-fn x))))
 
-(defmethod iterator ((s wb-seq) &key)
-  (Make-WB-Seq-Tree-Iterator (wb-seq-contents s)))
+(defmethod iterator ((s wb-seq) &key start end from-end?)
+  (if from-end?
+      (Make-WB-Seq-Tree-Rev-Iterator (wb-seq-contents s) start end)
+    (Make-WB-Seq-Tree-Iterator (wb-seq-contents s) start end)))
 
 (defmethod fun-iterator ((s wb-seq) &key from-end?)
   (if from-end?
@@ -4824,17 +5356,31 @@ not symbols."))
       (write x :stream stream))
     (format stream " ]~:[~;/~:*~S~]" (seq-default seq))))
 
-(gmap:def-gmap-arg-type seq (seq)
-  "Yields the elements of `seq'."
-  `((the function (iterator ,seq))
+(gmap:def-gmap-arg-type seq (seq &key start end from-end?)
+  "Yields the elements of `seq'.  The keyword arguments `start' and `end'
+can be supplied to restrict the range of the iteration; `start' is inclusive
+and defaults to 0, while `end' is exclusive and defaults to the size of the
+seq.  If `from-end?' is true, the elements will be yielded in reverse order."
+  `((the function (iterator ,seq :start ,start :end ,end :from-end? ,from-end?))
     #'(lambda (it) (funcall it ':done?))
     #'(lambda (it) (funcall it ':get))))
 
-(gmap:def-gmap-arg-type wb-seq (seq)
-  "Yields the elements of `seq'."
-  `((Make-WB-Seq-Tree-Iterator-Internal (wb-seq-contents ,seq))
-    #'WB-Seq-Tree-Iterator-Done?
-    #'WB-Seq-Tree-Iterator-Get))
+(gmap:def-gmap-arg-type wb-seq (seq &key start end from-end?)
+  "Yields the elements of `seq'.  The keyword arguments `start' and `end'
+can be supplied to restrict the range of the iteration; `start' is inclusive
+and defaults to 0, while `end' is exclusive and defaults to the size of the
+seq.  If `from-end?' is true, the elements will be yielded in reverse order."
+  (flet ((fwd ()
+	   `((Make-WB-Seq-Tree-Iterator-Internal (wb-seq-contents ,seq) ,start ,end)
+	     #'WB-Seq-Tree-Iterator-Done?
+	     #'WB-Seq-Tree-Iterator-Get))
+	 (rev ()
+	   `((Make-WB-Seq-Tree-Rev-Iterator-Internal (wb-seq-contents ,seq) ,start ,end)
+	     #'WB-Seq-Tree-Rev-Iterator-Done?
+	     #'WB-Seq-Tree-Rev-Iterator-Get)))
+    (cond ((null from-end?) (fwd))
+	  ((atom from-end?) (rev))
+	  (t `(if ,from-end? ,(rev) ,(fwd))))))
 
 (gmap:def-gmap-res-type seq (&key filterp)
   "Returns a seq of the values, optionally filtered by `filterp'."
@@ -4904,16 +5450,16 @@ not symbols."))
 (defun compose-with-key-fn (fn collection)
   (lambda (key) (lookup collection (funcall fn key))))
 
-(defmethod compose ((fn function) (m wb-map))
+(defmethod compose ((fn function) (m map) &key)
   (compose-with-key-fn fn m))
 
-(defmethod compose ((fn symbol) (m wb-map))
+(defmethod compose ((fn symbol) (m map) &key)
   (compose-with-key-fn fn m))
 
-(defmethod compose ((fn function) (s seq))
+(defmethod compose ((fn function) (s seq) &key)
   (compose-with-key-fn fn s))
 
-(defmethod compose ((fn symbol) (s seq))
+(defmethod compose ((fn symbol) (s seq) &key)
   (compose-with-key-fn fn s))
 
 
