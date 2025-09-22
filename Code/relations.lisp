@@ -502,32 +502,6 @@ is mapped to multiple range values."))
 	(:done? (WB-Map-Tree-Iterator-Done? outer))
 	(:more? (not (WB-Map-Tree-Iterator-Done? outer)))))))
 
-(gmap:def-gmap-arg-type 2-relation (rel)
-  "Yields each pair of `rel', as two values."
-  `((the function (iterator ,rel))
-    #'(lambda (it) (funcall it ':done?))
-    (:values 2 #'(lambda (it) (funcall it ':get)))))
-
-(gmap:def-gmap-arg-type wb-2-relation (rel)
-  "Yields each pair of `rel', as two values."
-  `((the function (iterator ,rel))
-    #'(lambda (it) (funcall it ':done?))
-    (:values 2 #'(lambda (it) (funcall it ':get)))))
-
-(gmap:def-gmap-res-type 2-relation (&key filterp)
-  "Consumes two values from the mapped function; returns a 2-relation of the pairs.
-Note that `filterp', if supplied, must take two arguments."
-  `(nil (:consume 2 #'(lambda (alist x y) (cons (cons x y) alist)))
-	#'(lambda (alist) (list-to-wb-2-relation alist #'car #'cdr))
-	,filterp))
-
-(gmap:def-gmap-res-type wb-2-relation (&key filterp)
-  "Consumes two values from the mapped function; returns a 2-relation of the pairs.
-Note that `filterp', if supplied, must take two arguments."
-  `(nil (:consume 2 #'(lambda (alist x y) (cons (cons x y) alist)))
-	#'(lambda (alist) (list-to-wb-2-relation alist #'car #'cdr))
-	,filterp))
-
 
 (define-cross-type-compare-methods relation)
 
@@ -935,11 +909,6 @@ positions in the original pattern."
 	(when (> i 0)
 	  (format stream " ")))
       (format stream "*}~@[^~D~]" (arity rel)))))
-
-(gmap:def-gmap-arg-type list-relation (rel)
-  `((Make-WB-Set-Tree-Iterator-Internal (wb-set-contents (wb-list-relation-tuples ,rel)))
-    #'WB-Set-Tree-Iterator-Done?
-    #'WB-Set-Tree-Iterator-Get))
 
 
 ;;; --------------------------------------------------------------------------------

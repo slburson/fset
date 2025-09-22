@@ -254,6 +254,23 @@ in which case the expression must evaluate to a set, all of whose members
 become members of the result set."
   (expand-replay-set-constructor-form 'wb-replay-set args compare-fn-name))
 
+(defmacro ch-replay-set (&rest args)
+  "Constructs a ch-replay-set according to the supplied argument subforms.  Each
+argument subform can be an expression, whose value will be a member of the
+result set; or a list of the form ($ `expression'), in which case the
+expression must evaluate to a set, all of whose members become members of the
+result set."
+  (expand-replay-set-constructor-form 'ch-replay-set args))
+
+(defmacro ch-custom-replay-set (compare-fn-name &rest args)
+  "Constructs a ch-replay-set with a custom ordering, according to the supplied
+argument subforms.  `compare-fn-name' must be a symbol naming the desired
+comparison function.  Each of `args' can be an expression, whose value
+will be a member of the result set; or a list of the form ($ `expression'),
+in which case the expression must evaluate to a set, all of whose members
+become members of the result set."
+  (expand-replay-set-constructor-form 'ch-replay-set args compare-fn-name))
+
 (defun expand-replay-set-constructor-form (type-name args &optional compare-fn-name)
   ;; We MUST maintain ORDER!!!  Yow!!!
   (let ((result `(,(empty-instance-function type-name)
@@ -476,6 +493,30 @@ the map's default.  The result is constructed from the denoted mappings in
 left-to-right order; so if a given key is supplied by more than one argument
 subform, its associated value will be given by the rightmost such subform."
   (expand-replay-map-constructor-form 'wb-replay-map args key-compare-fn-name val-compare-fn-name))
+
+(defmacro ch-replay-map (&rest args)
+  "Constructs a ch-replay-map according to the supplied argument subforms.  Each
+argument subform can be a list of the form (`key-expr' `value-expr'), denoting
+a mapping from the value of `key-expr' to the value of `value-expr'; or a list
+of the form ($ `expression'), in which case the expression must evaluate to a
+map, denoting all its mappings; or the symbol `:default', in which case the
+next argument subform is a form whose value will become the map's default.  The
+result is constructed from the denoted mappings in left-to-right order; so if a
+given key is supplied by more than one argument subform, its associated value
+will be given by the rightmost such subform."
+  (expand-replay-map-constructor-form 'ch-replay-map args))
+
+(defmacro ch-custom-replay-map (key-compare-fn-name val-compare-fn-name &rest args)
+  "Constructs a ch-replay-map with a custom ordering, according to the supplied
+argument subforms.  Each of `args' can be a list of the form \(`key-expr'
+`value-expr'\), denoting a mapping from the value of `key-expr' to the value of
+`value-expr'; or a list of the form \($ `expression'\), in which case the
+expression must evaluate to a map, denoting all its mappings; or the symbol
+`:default', in which case the value of the next argument subform will become
+the map's default.  The result is constructed from the denoted mappings in
+left-to-right order; so if a given key is supplied by more than one argument
+subform, its associated value will be given by the rightmost such subform."
+  (expand-replay-map-constructor-form 'ch-replay-map args key-compare-fn-name val-compare-fn-name))
 
 (defun expand-replay-map-constructor-form (type-name args &optional key-compare-fn-name val-compare-fn-name)
   ;; We MUST maintain ORDER!!!  Yow!!!

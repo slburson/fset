@@ -35,11 +35,11 @@
 	   #:collection? #:set? #:bag? #:map? #:seq? #:tuple?
 	   #:wb-set #:wb-bag #:wb-map #:wb-seq #:dyn-tuple
 	   #:ch-set #:ch-map
-	   #:replay-set #:replay-set? #:wb-replay-set #:wb-replay-set?
-	   #:replay-map #:replay-map? #:wb-replay-map #:wb-replay-map?
+	   #:replay-set #:replay-set? #:wb-replay-set #:wb-replay-set? #:ch-replay-set #:ch-replay-set?
+	   #:replay-map #:replay-map? #:wb-replay-map #:wb-replay-map? #:ch-replay-map #:ch-replay-map?
 	   #:wb-custom-set #:wb-custom-bag #:wb-custom-map
 	   #:ch-custom-set #:ch-custom-map
-	   #:wb-custom-replay-set #:wb-custom-replay-map
+	   #:wb-custom-replay-set #:wb-custom-replay-map #:ch-custom-replay-set #:ch-custom-replay-map
 	   ;; `Equal?' is exported because users may want to call it; `Compare'
 	   ;; because they may want to extend it; and `Compare-Slots' because it's
 	   ;; useful in extending `Compare'.  But `Less-Than?' and `Greater-Than?'
@@ -57,6 +57,7 @@
 	   #:empty-wb-set #:empty-wb-bag #:empty-wb-map #:empty-wb-seq
 	   #:empty-dyn-tuple #:empty-ch-set #:empty-ch-map
 	   #:empty-replay-set #:empty-wb-replay-set #:empty-replay-map #:empty-wb-replay-map
+	   #:empty-ch-replay-set #:empty-ch-replay-map
 	   #:least #:greatest #:lookup #:rank #:at-rank #:index #:at-index #:@
 	   #:with #:less #:split-from #:split-above #:split-through #:split-below
 	   #:union #:bag-sum #:intersection #:bag-product #:complement
@@ -113,7 +114,7 @@
            #:fset-readtable #:fset-rereading-readtable))
 
 ;;; Since we've shadowed `cl:count', we need to do this.
-(gmap:copy-gmap-type 'cl:count 'fset:count)
+(gmap:def-result-type-synonym fset:count cl:count)
 
 
 ;;; The need has arisen to define a second FSet package.  There are two motivations:
@@ -154,11 +155,11 @@
 	   #:collection? #:set? #:bag? #:map? #:seq? #:tuple?
 	   #:wb-set #:wb-bag #:wb-map #:wb-seq #:dyn-tuple
 	   #:ch-set #:ch-map
-	   #:replay-set #:replay-set? #:wb-replay-set #:wb-replay-set?
-	   #:replay-map #:replay-map? #:wb-replay-map #:wb-replay-map?
+	   #:replay-set #:replay-set? #:wb-replay-set #:wb-replay-set? #:ch-replay-set #:ch-replay-set?
+	   #:replay-map #:replay-map? #:wb-replay-map #:wb-replay-map? #:ch-replay-map #:ch-replay-map?
 	   #:wb-custom-set #:wb-custom-bag #:wb-custom-map
 	   #:ch-custom-set #:ch-custom-map
-	   #:wb-custom-replay-set #:wb-custom-replay-map
+	   #:wb-custom-replay-set #:wb-custom-replay-map #:ch-custom-replay-set #:ch-custom-replay-map
 	   ;; `Equal?' is exported because users may want to call it; `Compare'
 	   ;; because they may want to extend it; and `Compare-Slots' because it's
 	   ;; useful in extending `Compare'.  But `Less-Than?' and `Greater-Than?'
@@ -174,7 +175,9 @@
 	   #:contains? #:domain-contains? #:range-contains? #:member? #:multiplicity
 	   #:empty-set #:empty-bag #:empty-map #:empty-seq #:empty-tuple
 	   #:empty-wb-set #:empty-wb-bag #:empty-wb-map #:empty-wb-seq
-	   #:empty-dyn-tuple
+	   #:empty-dyn-tuple #:empty-ch-set #:empty-ch-map
+	   #:empty-replay-set #:empty-wb-replay-set #:empty-replay-map #:empty-wb-replay-map
+	   #:empty-ch-replay-set #:empty-ch-replay-map
 	   #:least #:greatest #:lookup #:rank #:at-rank #:index #:at-index #:@
 	   #:with #:less #:split-from #:split-above #:split-through #:split-below
 	   #:union #:bag-sum #:intersection #:bag-product #:complement
@@ -231,7 +234,7 @@
            #:fset-readtable #:fset-rereading-readtable))
 
 ;;; Since we've shadowed `cl:count', we need to do this.
-(gmap:copy-gmap-type 'cl:count 'fset2:count)
+(gmap:def-result-type-synonym fset2:count cl:count)
 
 
 ;;; A convenient package for experimenting with FSet.  Also serves as an example

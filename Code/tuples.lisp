@@ -719,16 +719,6 @@ of calling `val-fn' on the value from `tuple1' and the value from `tuple2'.
       (setq tup (Tuple-With tup (funcall key-fn x) (funcall value-fn x))))
     tup))
 
-(gmap:def-gmap-arg-type tuple (tuple)
-  "Yields each pair of `tuple', as two values."
-  `((convert 'list ,tuple)
-    #'null
-    (:values 2 #'(lambda (al) (values (caar al) (cdar al))))
-    #'cdr))
-
-(gmap:def-gmap-res-type tuple (&key filterp)
-  `((empty-dyn-tuple) (:consume 2 #'Tuple-With) nil ,filterp))
-
 (defmethod make-load-form ((tup dyn-tuple) &optional environment)
   (declare (ignore environment))
   `(convert 'dyn-tuple ',(convert 'list tup)))
@@ -740,7 +730,7 @@ of calling `val-fn' on the value from `tuple1' and the value from `tuple2'.
 
 ;;; ================================================================================
 
-(define-wb-set-methods image ((key tuple-key) (s wb-set))
+(define-wb-set-method image ((key tuple-key) (s wb-set))
   (make s (wb-set-image #'(lambda (x) (lookup x key)) (contents s) (compare-fn s))))
 
 (defmethod image ((key tuple-key) (s seq))
