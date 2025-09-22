@@ -1100,6 +1100,20 @@ Note that `filterp', if supplied, must take two arguments."
     #'wb-seq-tree-iterator-done?
     #'wb-seq-tree-iterator-get))
 
+;;; CHAMP is the default now.
+(gmap:def-result-type replay-set (&key filterp)
+  "Returns a replay-set of the values, optionally filtered by `filterp'."
+  (let ((ordering-var (gensymx #:ordering-)))
+    `(nil #'(lambda (s x)
+	      (let ((ts (ch-set-tree-with s x #'hash-value #'compare)))
+		(unless (eq ts s)
+		  (push x ,ordering-var))
+		ts))
+	  #'(lambda (s) (make-ch-replay-set s (wb-seq-tree-from-list (nreverse ,ordering-var))
+					    (ch-set-org *empty-ch-set*)))
+	  ,filterp
+	  ((,ordering-var nil)))))
+
 (gmap:def-result-type wb-replay-set (&key filterp compare-fn-name)
   "Returns a wb-replay-set of the values, optionally filtered by `filterp'.  If
 `compare-fn-name' is nonnull, it specifies a custom ordering for the internal
@@ -1118,8 +1132,6 @@ mapped function, in the order in which they were first encountered."
 	  (includef rs x))
 	rs)
     #'(lambda (rs) (convert 'list rs))))
-
-(gmap:def-result-type-synonym replay-set ch-replay-set)
 
 (gmap:def-result-type ch-replay-set (&key filterp compare-fn-name)
   "Returns a ch-replay-set of the values, optionally filtered by `filterp'.  If
@@ -1159,8 +1171,19 @@ set, though, of course, this doesn't affect the iteration order."
       nil
       ((,map-var ,map)))))
 
-;;; CHAMP is the default now.
-(gmap:def-result-type-synonym replay-map ch-replay-map)
+(gmap:def-gmap-res-type replay-map (&key filterp default)
+  "Consumes two values from the mapped function; returns a replay-map of the
+pairs.  Note that `filterp', if supplied, must take two arguments."
+  (let ((ordering-var (gensymx #:ordering-)))
+    `(nil (:consume 2 #'(lambda (s k v)
+			  (let ((ts (ch-map-tree-with s k v #'hash-value #'compare #'hash-value #'compare)))
+			    (unless (eq ts s)
+			      (push k ,ordering-var))
+			    ts)))
+	  #'(lambda (s) (make-ch-replay-map s (wb-seq-tree-from-list (nreverse ,ordering-var))
+					    (ch-map-org *empty-ch-map*) ,default))
+	  ,filterp
+	  ((,ordering-var nil)))))
 
 (gmap:def-result-type wb-replay-map (&key filterp default key-compare-fn-name val-compare-fn-name)
   "Consumes two values from the mapped function; returns a wb-replay-map of the
