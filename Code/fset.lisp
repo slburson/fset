@@ -3725,6 +3725,35 @@ symbols."))
 	(setq result (WB-Map-Tree-With result x y key-compare-fn val-compare-fn))))
     result))
 
+(defmethod filter ((pred function) (m ch-map))
+  (ch-map-filter pred m))
+
+(defmethod filter ((pred symbol) (m ch-map))
+  (ch-map-filter (coerce-to-function pred) m))
+
+(defun ch-map-filter (pred m)
+  (declare (optimize (speed 3) (safety 0))
+	   (type function pred))
+  (let* ((result nil)
+         (hmorg (ch-map-org m))
+         (key-hash-fn
+           (hash-map-org-key-hash-fn hmorg))
+         (key-compare-fn
+           (hash-map-org-key-compare-fn hmorg))
+         (val-hash-fn
+           (hash-map-org-val-hash-fn hmorg))
+         (val-compare-fn
+           (hash-map-org-val-compare-fn hmorg)))
+    (do-ch-map-tree-pairs (k v (ch-map-contents m))
+      (when (funcall pred k v)
+	(setq result
+              (ch-map-tree-with result k v
+                                key-hash-fn
+				key-compare-fn
+                                val-hash-fn
+                                val-compare-fn))))
+    (make-ch-map result hmorg (ch-map-default m))))
+
 (defmethod image ((fn function) (m wb-map))
   (let ((tmorg (wb-map-org m)))
     (make-wb-map (wb-map-image fn m (tree-map-org-key-compare-fn tmorg) (tree-map-org-val-compare-fn tmorg))
