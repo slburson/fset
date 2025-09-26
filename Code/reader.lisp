@@ -653,10 +653,25 @@ result of
 contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
   (expand-2-relation-constructor-form 'wb-2-relation args))
 
-(defun expand-2-relation-constructor-form (type-name subforms)
-  (let ((empty-form (ecase type-name
-		      (2-relation '(empty-2-relation))
-		      (wb-2-relation '(empty-wb-2-relation)))))
+(defmacro wb-custom-2-relation (key-compare-fn-name val-compare-fn-name &rest args)
+  "Constructs a wb-2-relation with a custom ordering, according to the supplied
+argument subforms.  Each argument subform can be a list of the form \(`key-expr'
+`value-expr'\), denoting a mapping from the value of `key-expr' to the value of
+`value-expr'; or a list of the form ($ `expression'), in which case the
+expression must evaluate to a 2-relation, all of whose mappings will be included
+in the result.  Also, each of 'key-expr' and 'value-expr' can be of the form
+\($ `expression'\), in which case the expression must evaluate to a set, and
+the elements of the set are used individually to form pairs; for example, the
+result of
+
+  (wb-custom-2-relation 'key-cmp 'val-cmp (($ (set 1 2)) ($ (set 'a 'b))))
+
+contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
+  (expand-2-relation-constructor-form 'wb-2-relation args key-compare-fn-name val-compare-fn-name))
+
+(defun expand-2-relation-constructor-form (type-name subforms &optional key-compare-fn-name val-compare-fn-name)
+  (let ((empty-form `(,(empty-instance-function type-name)
+		       . ,(and key-compare-fn-name `(,key-compare-fn-name ,val-compare-fn-name)))))
     (labels ((recur (subforms result)
 	       (if (null subforms) result
 		 (let ((subform (car subforms)))

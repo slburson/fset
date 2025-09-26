@@ -666,6 +666,13 @@ iteration to the index of the current element of `seq'.  When done, returns
 			,@(and end? `(:end ,end))
 			,@(and from-end?? `(:from-end? ,from-end?))))))
 
+(defmacro do-2-relation ((key val br &optional value) &body body)
+  "Enumerates all pairs of the relation `br', binding them successively to `key' and `val'
+and executing `body'."
+  `(block nil
+     (internal-do-2-relation ,br (lambda (,key ,val) . ,body)
+			     (lambda () ,value))))
+
 (defmacro do-elements ((var iterable &optional value) &body body)
   "Here `iterable' is any object for which there is a method on `iterator', q.v.
 Calls `iterator' on `iterable', passing no keyword arguments, to obtain an
@@ -852,7 +859,7 @@ If `:from-end?' is true, iterates in reverse order."
 (gmap:def-gmap-res-type bag (&key filterp)
   "Returns a bag of the values, optionally filtered by `filterp'."
   `(nil
-    (fn (b x) (WB-Bag-Tree-With b x #'compare))
+    #'(lambda (b x) (WB-Bag-Tree-With b x #'compare))
     #'(lambda (b) (make-wb-bag b +fset-default-tree-set-org+))
     ,filterp))
 
@@ -860,7 +867,7 @@ If `:from-end?' is true, iterates in reverse order."
   "Consumes two values from the mapped function; returns a bag of the pairs.
 Note that `filterp', if supplied, must take two arguments."
   `(nil
-    (:consume 2 (fn (b x n) (WB-Bag-Tree-With b x #'compare n)))
+    (:consume 2 #'(lambda (b x n) (WB-Bag-Tree-With b x #'compare n)))
     #'(lambda (b) (make-wb-bag b +fset-default-tree-set-org+))
     ,filterp))
 
@@ -919,7 +926,7 @@ comparison function in the result, supply `compare-fn-name`."
 (gmap:def-gmap-res-type map (&key filterp default)
   "Consumes two values from the mapped function; returns a map of the pairs.
 Note that `filterp', if supplied, must take two arguments."
-  `(nil (:consume 2 (fn (m x y) (WB-Map-Tree-With m x y #'compare #'compare)))
+  `(nil (:consume 2 #'(lambda (m x y) (WB-Map-Tree-With m x y #'compare #'compare)))
 	#'(lambda (tree) (make-wb-map tree (wb-map-org *empty-wb-map*) ,default))
     ,filterp))
 
@@ -929,7 +936,7 @@ Note that `filterp', if supplied, must take two arguments."
   (let ((proto-var (gensymx #:prototype-))
 	(kcf-var (gensymx #:key-cmp-))
 	(vcf-var (gensymx #:val-cmp-)))
-    `(nil (:consume 2 (fn (tree k v) (WB-Map-Tree-With tree k v ,kcf-var ,vcf-var)))
+    `(nil (:consume 2 #'(lambda (tree k v) (WB-Map-Tree-With tree k v ,kcf-var ,vcf-var)))
 	  #'(lambda (tree) (make-wb-map tree (wb-map-org ,proto-var) ,default))
 	  ,filterp
 	  ((,proto-var (empty-wb-map nil ,key-compare-fn-name ,val-compare-fn-name))
@@ -946,7 +953,7 @@ as the map default."
        #'(lambda (prev-m m)
 	   (if (null prev-m) m
 	     ,(if val-fn? `(map-union prev-m m ,val-fn-var) '#'map-union)))
-       ,(and default? `(fn (m) (with-default (or m (empty-wb-map)) ,default)))
+       ,(and default? `#'(lambda (m) (with-default (or m (empty-wb-map)) ,default)))
        ,filterp
        ((,val-fn-var ,val-fn)))))
 
@@ -971,7 +978,7 @@ values, with each one mapped to a set of the corresponding second values.
 Note that `filterp', if supplied, must take two arguments."
   `((empty-wb-map (set) ,key-compare-fn-name ,val-compare-fn-name)
     ;; &&& Could use `WB-Map-Tree-Update-Value' here.
-    (:consume 2 (fn (m x y) (with m x (with (lookup m x) y))))
+    (:consume 2 #'(lambda (m x y) (with m x (with (lookup m x) y))))
     nil ,filterp))
 
 (gmap:def-gmap-arg-type ch-map (map)
@@ -988,7 +995,7 @@ Note that `filterp', if supplied, must take two arguments."
 	(kcf-var (gensymx #:key-cmp-))
 	(vhf-var (gensymx #:val-hash-))
 	(vcf-var (gensymx #:val-cmp-)))
-    `(nil (:consume 2 (fn (tree k v) (ch-map-tree-with tree k v ,khf-var ,kcf-var ,vhf-var ,vcf-var)))
+    `(nil (:consume 2 #'(lambda (tree k v) (ch-map-tree-with tree k v ,khf-var ,kcf-var ,vhf-var ,vcf-var)))
 	  #'(lambda (tree) (make-ch-map tree ,org-var ,default))
 	  ,filterp
 	  ((,org-var (ch-map-org (empty-ch-map nil ,key-compare-fn-name ,val-compare-fn-name)))
@@ -1068,14 +1075,32 @@ seq.  If `from-end?' is true, the elements will be yielded in reverse order."
     #'(lambda (it) (funcall it ':done?))
     (:values 2 #'(lambda (it) (funcall it ':get)))))
 
+;;; People might expect it under this name.
+(gmap:def-arg-type-synonym fun-2-relation fun-map)
+
 (gmap:def-result-type-synonym 2-relation wb-2-relation)
 
-(gmap:def-gmap-res-type wb-2-relation (&key filterp)
-  "Consumes two values from the mapped function; returns a 2-relation of the pairs.
+(gmap:def-gmap-res-type wb-2-relation (&key filterp key-compare-fn-name val-compare-fn-name)
+  "Consumes two values from the mapped function; returns a wb-map of the pairs.
 Note that `filterp', if supplied, must take two arguments."
-  `(nil (:consume 2 #'(lambda (alist x y) (cons (cons x y) alist)))
-	#'(lambda (alist) (list-to-wb-2-relation alist #'car #'cdr))
-	,filterp))
+  (let ((org-var (gensymx #:org-))
+	(size-var (gensymx #:size-))
+	(kcf-var (gensymx #:key-cmp-))
+	(vcf-var (gensymx #:val-cmp-)))
+    `(nil (:consume 2 #'(lambda (tree k v)
+			  (let ((ignore prev (WB-Map-Tree-Lookup tree k ,kcf-var))
+				((new (WB-Set-Tree-With prev v ,vcf-var))))
+			    (declare (ignore ignore))
+			    (if (eq prev new) tree
+			      (progn
+				(incf ,size-var)
+				(WB-Map-Tree-With tree k new ,kcf-var #'eql-compare))))))
+	  #'(lambda (tree) (make-wb-2-relation ,size-var tree nil ,org-var))
+	  ,filterp
+	  ((,org-var (wb-2-relation-org (empty-wb-2-relation ,key-compare-fn-name ,val-compare-fn-name)))
+	   ((,kcf-var (tree-map-org-key-compare-fn ,org-var))
+	     (,vcf-var (tree-map-org-val-compare-fn ,org-var)))
+	   (,size-var 0)))))
 
 (gmap:def-gmap-arg-type list-relation (rel)
   `((Make-WB-Set-Tree-Iterator-Internal (wb-set-contents (wb-list-relation-tuples ,rel)))
@@ -1373,6 +1398,22 @@ the iteration order."
 	     ,then)
 	 ,else))))
 
+(defmacro if-same-wb-2-relation-orgs ((br1 br2 tmorg-var) then else)
+  (let ((br1-var (gensymx #:br1-))
+	(br2-var (gensymx #:br2-))
+	(tmorg1-var (gensymx #:tmorg1-))
+	(tmorg2-var (gensymx #:tmorg2-)))
+    `(let ((,br1-var ,br1)
+	   (,br2-var ,br2)
+	   ((,tmorg1-var (wb-2-relation-org ,br1-var))
+	    (,tmorg2-var (wb-2-relation-org ,br2-var))))
+       (if (or (eq ,tmorg1-var ,tmorg2-var)
+	       (and (eq (tree-map-org-key-compare-fn ,tmorg1-var) (tree-map-org-key-compare-fn ,tmorg2-var))
+		    (eq (tree-map-org-val-compare-fn ,tmorg1-var) (tree-map-org-val-compare-fn ,tmorg2-var))))
+	   (let ((,tmorg-var ,tmorg1-var))
+	     ,then)
+	 ,else))))
+
 
 ;;; Boilerplate macros.  The free references to and bindings of fixed names are intentional.
 
@@ -1427,6 +1468,17 @@ the iteration order."
 	     (key-compare-fn (hash-map-org-key-compare-fn hmorg))
 	     (val-hash-fn (hash-map-org-val-hash-fn hmorg))
 	     (val-compare-fn (hash-map-org-val-compare-fn hmorg)))))
+       ,(if identity-test
+	    `(if ,identity-test ,coll ,body)
+	  body))))
+
+(defmacro convert-to-wb-2-relation (coll default identity-test &body contents-forms)
+  (let ((body `(let ((tree0 tree1 (progn . ,contents-forms)))
+		 (make-wb-2-relation tree0 tree1 tmorg ,default))))
+    `(let ((prototype (empty-wb-map nil key-compare-fn-name val-compare-fn-name))
+	   ((tmorg (wb-map-org prototype))
+	    ((key-compare-fn (tree-map-org-key-compare-fn tmorg))
+	     (val-compare-fn (tree-map-org-val-compare-fn tmorg)))))
        ,(if identity-test
 	    `(if ,identity-test ,coll ,body)
 	  body))))

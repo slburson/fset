@@ -2160,9 +2160,9 @@ comparison function as `compare-fn-name'."
 				   compare-fn-name)))
 	  ((hash-fn (symbol-function hash-fn-name))))
       (if (and prev-instance
-	       (let ((prev-comp (ch-set-org prev-instance)))
-		 (and (eq compare-fn (hash-set-org-compare-fn prev-comp))
-		      (eq hash-fn (hash-set-org-hash-fn prev-comp)))))
+	       (let ((prev-org (ch-set-org prev-instance)))
+		 (and (eq compare-fn (hash-set-org-compare-fn prev-org))
+		      (eq hash-fn (hash-set-org-hash-fn prev-org)))))
 	  prev-instance
 	(setf (gethash compare-fn-name +empty-ch-custom-set-cache+)
 	      (make-ch-set nil (make-hash-set-org compare-fn-name compare-fn hash-fn)))))))
@@ -3328,9 +3328,9 @@ the default implementation of maps in FSet."
 	  (key-compare-fn (symbol-function key-compare-fn-name))
 	  (val-compare-fn (symbol-function val-compare-fn-name)))
       (if (and prev-instance
-	       (let ((prev-comp (wb-map-org prev-instance)))
-		 (and (eq key-compare-fn (tree-map-org-key-compare-fn prev-comp))
-		      (eq val-compare-fn (tree-map-org-val-compare-fn prev-comp))
+	       (let ((prev-org (wb-map-org prev-instance)))
+		 (and (eq key-compare-fn (tree-map-org-key-compare-fn prev-org))
+		      (eq val-compare-fn (tree-map-org-val-compare-fn prev-org))
 		      (equal?-cmp default (map-default prev-instance) val-compare-fn))))
 	  prev-instance
 	(setf (gethash cache-key +empty-wb-custom-map-cache+)
@@ -3471,9 +3471,13 @@ the default implementation of maps in FSet."
 	       (wb-map-org m) (map-default m)))
 
 (defmethod domain ((m wb-map))
-  (let ((tmorg (wb-map-org m))
-	((set-prototype (empty-wb-set (tree-map-org-key-compare-fn-name tmorg)))))
-    (make-wb-set (WB-Map-Tree-Domain (wb-map-contents m)) (wb-set-org set-prototype))))
+  (let ((tmorg (wb-map-org m)))
+    (make-wb-set (WB-Map-Tree-Domain (wb-map-contents m))
+		 ;; We don't go through `empty-wb-set' here, because that would retrieve the current
+		 ;; `symbol-function' of the `key-compare-fn-name', which might have been changed since
+		 ;; the map was created.
+		 (make-tree-set-org (tree-map-org-key-compare-fn-name tmorg)
+				    (tree-map-org-key-compare-fn tmorg)))))
 
 ;;; Prior to FSet 1.4.0, this method ignored the defaults, so two maps with the same
 ;;; key/value pairs but different defaults compared `:equal'.  While that was clearly
@@ -3623,11 +3627,7 @@ symbols."))
 (defmethod map-union ((m1 map) (m2 map) &optional (val-fn (fn (_v1 v2) v2)))
   "Fallback method for mixed implementations."
   (let ((result m1)
-	(vcf1 (val-compare-fn m1))
-	(vcf2 (val-compare-fn m2)))
-    (unless (eq vcf1 vcf2)
-      (error "Can't take map-union of maps with different val-compare-fns, ~A vs. ~A"
-	     vcf1 vcf2))
+	(vcf1 (val-compare-fn m1)))
     (do-map (k v2 m2)
       (let ((v1 v1? (lookup m1 k)))
 	(if (not v1?)
@@ -3651,14 +3651,10 @@ symbols."))
 (defmethod map-intersection ((m1 map) (m2 map) &optional (val-fn (fn (_v1 v2) v2)))
   "Fallback method for mixed implementations."
   (let ((result (empty-map-like m1))
-	(vcf1 (val-compare-fn m1))
-	(vcf2 (val-compare-fn m2)))
-    (unless (eq vcf1 vcf2)
-      (error "Can't take map-intersection of maps with different val-compare-fns, ~A vs. ~A"
-	     vcf1 vcf2))
+	(vcf1 (val-compare-fn m1)))
     (do-map (k v1 m1)
       (let ((v2 v2? (lookup m2 k)))
-	(when v2?
+	(when (and v2? (not (equal?-cmp v1 v2 vcf1)))
 	  (let ((new-v second-val (funcall val-fn v1 v2)))
 	    (unless (eq second-val ':no-value)
 	      (setf (lookup result k) new-v))))))
@@ -3680,16 +3676,13 @@ symbols."))
 	(result2 (empty-map-like m2))
 	(vcf1 (val-compare-fn m1))
 	(vcf2 (val-compare-fn m2)))
-    (unless (eq vcf1 vcf2)
-      (error "Can't take map-difference-2 of maps with different val-compare-fns, ~A vs. ~A"
-	     vcf1 vcf2))
     (do-map (k v1 m1)
       (let ((v2 v2? (lookup m2 k)))
-	(when (or (not v2?) (not (equal?-cmp v1 v2 vcf1)))
+	(unless (and v2? (equal?-cmp v1 v2 vcf1))
 	  (setf (lookup result1 k) v1))))
     (do-map (k v2 m2)
       (let ((v1 v1? (lookup m1 k)))
-	(when (or (not v1?) (not (equal?-cmp v1 v2 vcf1)))
+	(unless (and v1? (equal?-cmp v1 v2 vcf2))
 	  (setf (lookup result2 k) v2))))
     (values result1 result2)))
 
