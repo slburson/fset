@@ -1310,6 +1310,18 @@ the iteration order."
 	    :format-control "~A on a ~A takes three arguments"
 	    :format-arguments (list ,(copy-tree op) ,(copy-tree type)))))
 
+(defmacro equal?-fn (cmp-fn)
+  `(lambda (a b) (eq (funcall ,cmp-fn a b) ':equal)))
+
+(defmacro equal?-cmp (a b cmp-fn)
+  `(eq (funcall ,cmp-fn ,a ,b) ':equal))
+
+(defmacro less-than?-cmp (a b cmp-fn)
+  `(eq (funcall ,cmp-fn ,a ,b) ':less))
+
+(defmacro greater-than?-cmp (a b cmp-fn)
+  `(eq (funcall ,cmp-fn ,a ,b) ':greater))
+
 (defmacro define-wb-set-method (name param-list &body body)
   (let ((decls nil)
 	(doc-string body (if (stringp (car body)) (values (car body) (cdr body))

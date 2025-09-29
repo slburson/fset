@@ -40,17 +40,14 @@
 	   #:wb-custom-set #:wb-custom-bag #:wb-custom-map
 	   #:ch-custom-set #:ch-custom-map
 	   #:wb-custom-replay-set #:wb-custom-replay-map #:ch-custom-replay-set #:ch-custom-replay-map
-	   ;; `Equal?' is exported because users may want to call it; `Compare'
-	   ;; because they may want to extend it; and `Compare-Slots' because it's
-	   ;; useful in extending `Compare'.  But `Less-Than?' and `Greater-Than?'
-	   ;; are unlikely to be useful in user code.
 	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal #:eql-compare
 	   #:define-equality-slots #:define-comparison-slots #:define-hash-function
 	   #:unwrap-equivalent-node ; custom comparison functions may have to call this
 	   #:hash-value #:hash-value-fixnum #:zero #:hash-mix #:hash-mixf #:hash-multiply
 	   #:identity-equality-mixin #:identity-ordering-mixin
 	   #:define-cross-type-compare-methods
-	   #:compare-lexicographically
+	   #:compare-lexicographically #:compare-lists-lexicographically #:compare-strings-lexicographically
+	   #:compare-vectors-lexicographically #:compare-seqs-lexicographically
 	   #:empty? #:nonempty? #:size #:set-size #:arb
 	   #:contains? #:domain-contains? #:range-contains? #:member? #:multiplicity
 	   #:empty-set #:empty-bag #:empty-map #:empty-seq #:empty-tuple
@@ -160,17 +157,14 @@
 	   #:wb-custom-set #:wb-custom-bag #:wb-custom-map
 	   #:ch-custom-set #:ch-custom-map
 	   #:wb-custom-replay-set #:wb-custom-replay-map #:ch-custom-replay-set #:ch-custom-replay-map
-	   ;; `Equal?' is exported because users may want to call it; `Compare'
-	   ;; because they may want to extend it; and `Compare-Slots' because it's
-	   ;; useful in extending `Compare'.  But `Less-Than?' and `Greater-Than?'
-	   ;; are unlikely to be useful in user code.
 	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal #:eql-compare
 	   #:define-equality-slots #:define-comparison-slots #:define-hash-function
 	   #:unwrap-equivalent-node ; custom comparison functions may have to call this
 	   #:hash-value #:hash-value-fixnum #:zero #:hash-mix #:hash-mixf #:hash-multiply
-	   #:identity-equality-mixin #:identity-ordering-mixin
+	   #:identity-equality-mixin
 	   #:define-cross-type-compare-methods
-	   #:compare-lexicographically
+	   #:compare-lexicographically #:compare-lists-lexicographically #:compare-strings-lexicographically
+	   #:compare-vectors-lexicographically #:compare-seqs-lexicographically
 	   #:empty? #:nonempty? #:size #:set-size #:arb
 	   #:contains? #:domain-contains? #:range-contains? #:member? #:multiplicity
 	   #:empty-set #:empty-bag #:empty-map #:empty-seq #:empty-tuple

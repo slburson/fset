@@ -45,19 +45,6 @@ do the comparison only once for each pair of values.
 (in-package :fset)
 
 
-(defmacro equal?-fn (cmp-fn)
-  `(lambda (a b) (eq (funcall ,cmp-fn a b) ':equal)))
-
-(defmacro equal?-cmp (a b cmp-fn)
-  `(eq (funcall ,cmp-fn ,a ,b) ':equal))
-
-(defmacro less-than?-cmp (a b cmp-fn)
-  `(eq (funcall ,cmp-fn ,a ,b) ':less))
-
-(defmacro greater-than?-cmp (a b cmp-fn)
-  `(eq (funcall ,cmp-fn ,a ,b) ':greater))
-
-
 ;;; ================================================================================
 ;;; ================================================================================
 ;;; Weight-balanced trees

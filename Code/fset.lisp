@@ -4671,6 +4671,26 @@ This is the default implementation of seqs in FSet."
 	      ':unequal
 	    ':equal))))))
 
+(defun compare-seqs-lexicographically (a b &optional (val-compare-fn #'compare))
+  (declare (type function val-compare-fn))
+  (if (eq a b) ':equal
+    (let ((a-size (size a))
+	  (b-size (size b))
+	  (default ':equal))
+      (or (gmap :or (fn (ea eb)
+		      (let ((comp (funcall val-compare-fn ea eb)))
+			(ecase comp
+			  ((:less :greater) comp)
+			  (:equal nil)
+			  (:unequal
+			    (setq default ':unequal)
+			    nil))))
+		(:arg seq a)
+		(:arg seq b))
+	  (cond ((< a-size b-size) ':less)
+		((> a-size b-size) ':greater))
+	  default))))
+
 (defmethod hash-value ((s wb-seq))
   ;; Currently doing bounded hashing, but &&& am considering changing it to do caching
   ;; with incremental update.
