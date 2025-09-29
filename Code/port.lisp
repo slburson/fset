@@ -411,10 +411,10 @@ values MUST be fixnums; the result is a fixnum."
 (defmacro hash-multiply (ha hb)
   "Returns the product of `ha' and `hb' modulo 2^fixnum_length.  Both MUST be
 fixnums; the result is a fixnum."
-  #+(or sbcl ccl allegro lispworks)
+  #+(or sbcl allegro lispworks)
   `(locally (declare (optimize (speed 3) (safety 0)))
      (the fixnum (* (the fixnum ,ha) (the fixnum ,hb))))
-  #-(or sbcl ccl allegro lispworks)
+  #-(or sbcl allegro lispworks)
   `(locally (declare (optimize (speed 3) (safety 0)))
      (let ((prod (* (the fixnum ,ha) (the fixnum ,hb)))
 	   ((fprod (the fixnum (logand most-positive-fixnum prod)))))
