@@ -673,6 +673,11 @@ and executing `body'."
      (internal-do-2-relation ,br (lambda (,key ,val) . ,body)
 			     (lambda () ,value))))
 
+(defmacro do-list-relation ((tuple rel &optional value) &body body)
+  `(block nil
+     (internal-do-list-relation ,rel (lambda (,tuple) . ,body)
+				(lambda () ,value))))
+
 (defmacro do-elements ((var iterable &optional value) &body body)
   "Here `iterable' is any object for which there is a method on `iterator', q.v.
 Calls `iterator' on `iterable', passing no keyword arguments, to obtain an
@@ -1075,13 +1080,15 @@ seq.  If `from-end?' is true, the elements will be yielded in reverse order."
     #'(lambda (it) (funcall it ':done?))
     (:values 2 #'(lambda (it) (funcall it ':get)))))
 
+(gmap:def-arg-type-synonym ch-2-relation wb-2-relation)
+
 ;;; People might expect it under this name.
 (gmap:def-arg-type-synonym fun-2-relation fun-map)
 
 (gmap:def-result-type-synonym 2-relation wb-2-relation)
 
 (gmap:def-gmap-res-type wb-2-relation (&key filterp key-compare-fn-name val-compare-fn-name)
-  "Consumes two values from the mapped function; returns a wb-map of the pairs.
+  "Consumes two values from the mapped function; returns a wb-2-relation of the pairs.
 Note that `filterp', if supplied, must take two arguments."
   (let ((org-var (gensymx #:org-))
 	(size-var (gensymx #:size-))
@@ -1100,6 +1107,33 @@ Note that `filterp', if supplied, must take two arguments."
 	  ((,org-var (wb-2-relation-org (empty-wb-2-relation ,key-compare-fn-name ,val-compare-fn-name)))
 	   ((,kcf-var (tree-map-org-key-compare-fn ,org-var))
 	     (,vcf-var (tree-map-org-val-compare-fn ,org-var)))
+	   (,size-var 0)))))
+
+(gmap:def-gmap-res-type ch-2-relation (&key filterp key-compare-fn-name val-compare-fn-name)
+  "Consumes two values from the mapped function; returns a ch-2-relation of the pairs.
+Note that `filterp', if supplied, must take two arguments."
+  (let ((org-var (gensymx #:org-))
+	(size-var (gensymx #:size-))
+	(kcf-var (gensymx #:key-cmp-))
+	(khf-var (gensymx #:key-hash-))
+	(vcf-var (gensymx #:val-cmp-))
+	(vhf-var (gensymx #:val-hash-)))
+    `(nil (:consume 2 #'(lambda (tree k v)
+			  (let ((ignore prev (ch-map-tree-lookup tree k ,khf-var ,kcf-var))
+				((new (ch-set-tree-with prev v ,vhf-var ,vcf-var))))
+			    (declare (ignore ignore))
+			    (if (eq prev new) tree
+			      (progn
+				(incf ,size-var)
+				(ch-map-tree-with tree k new ,khf-var ,kcf-var
+						  #'ch-set-tree-hash-value #'eql-compare))))))
+	  #'(lambda (tree) (make-ch-2-relation ,size-var tree nil ,org-var))
+	  ,filterp
+	  ((,org-var (ch-2-relation-org (empty-ch-2-relation ,key-compare-fn-name ,val-compare-fn-name)))
+	   ((,kcf-var (hash-map-org-key-compare-fn ,org-var))
+	    (,khf-var (hash-map-org-key-hash-fn ,org-var))
+	    (,vcf-var (hash-map-org-val-compare-fn ,org-var))
+	    (,vhf-var (hash-map-org-val-hash-fn ,org-var)))
 	   (,size-var 0)))))
 
 (gmap:def-gmap-arg-type list-relation (rel)
@@ -1398,19 +1432,37 @@ the iteration order."
 	     ,then)
 	 ,else))))
 
-(defmacro if-same-wb-2-relation-orgs ((br1 br2 tmorg-var) then else)
-  (let ((br1-var (gensymx #:br1-))
-	(br2-var (gensymx #:br2-))
+(defmacro if-same-wb-2-relation-orgs ((rel1 rel2 tmorg-var) then else)
+  (let ((rel1-var (gensymx #:rel1-))
+	(rel2-var (gensymx #:rel2-))
 	(tmorg1-var (gensymx #:tmorg1-))
 	(tmorg2-var (gensymx #:tmorg2-)))
-    `(let ((,br1-var ,br1)
-	   (,br2-var ,br2)
-	   ((,tmorg1-var (wb-2-relation-org ,br1-var))
-	    (,tmorg2-var (wb-2-relation-org ,br2-var))))
+    `(let ((,rel1-var ,rel1)
+	   (,rel2-var ,rel2)
+	   ((,tmorg1-var (wb-2-relation-org ,rel1-var))
+	    (,tmorg2-var (wb-2-relation-org ,rel2-var))))
        (if (or (eq ,tmorg1-var ,tmorg2-var)
 	       (and (eq (tree-map-org-key-compare-fn ,tmorg1-var) (tree-map-org-key-compare-fn ,tmorg2-var))
 		    (eq (tree-map-org-val-compare-fn ,tmorg1-var) (tree-map-org-val-compare-fn ,tmorg2-var))))
 	   (let ((,tmorg-var ,tmorg1-var))
+	     ,then)
+	 ,else))))
+
+(defmacro if-same-ch-2-relation-orgs ((rel1 rel2 hmorg-var) then else)
+  (let ((rel1-var (gensymx #:rel1-))
+	(rel2-var (gensymx #:rel2-))
+	(hmorg1-var (gensymx #:hmorg1-))
+	(hmorg2-var (gensymx #:hmorg2-)))
+    `(let ((,rel1-var ,rel1)
+	   (,rel2-var ,rel2)
+	   ((,hmorg1-var (ch-2-relation-org ,rel1-var))
+	    (,hmorg2-var (ch-2-relation-org ,rel2-var))))
+       (if (or (eq ,hmorg1-var ,hmorg2-var)
+	       (and (eq (hash-map-org-key-hash-fn ,hmorg1-var) (hash-map-org-key-hash-fn ,hmorg2-var))
+		    (eq (hash-map-org-key-compare-fn ,hmorg1-var) (hash-map-org-key-compare-fn ,hmorg2-var))
+		    (eq (hash-map-org-val-hash-fn ,hmorg1-var) (hash-map-org-val-hash-fn ,hmorg2-var))
+		    (eq (hash-map-org-val-compare-fn ,hmorg1-var) (hash-map-org-val-compare-fn ,hmorg2-var))))
+	   (let ((,hmorg-var ,hmorg1-var))
 	     ,then)
 	 ,else))))
 

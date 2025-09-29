@@ -9,6 +9,8 @@
 
 (in-package :fset)
 
+(defvar *emacs-inspect-internals* nil)
+
 (defstruct (subrange
 	     (:constructor make-subrange (coll lo hi)))
   coll
@@ -25,7 +27,9 @@
 
 (defmethod swank::emacs-inspect ((s set))
   (append (emacs-inspect-partial s 0 (size s))
-	  (emacs-inspect-footer s)))
+	  (emacs-inspect-footer s)
+	  (and *emacs-inspect-internals*
+	       (cons '(:newline) (call-next-method)))))
 
 (defmethod emacs-inspect-partial ((s set) lo hi)
   (append (if (<= hi (+ lo 32))
@@ -64,7 +68,9 @@
 
 (defmethod swank::emacs-inspect ((s seq))
   (append (emacs-inspect-partial s 0 (size s))
-	  (emacs-inspect-footer s)))
+	  (emacs-inspect-footer s)
+	  (and *emacs-inspect-internals*
+	       (cons '(:newline) (call-next-method)))))
 
 (defmethod emacs-inspect-partial ((s seq) lo hi)
   (append (if (<= hi (+ lo 32))
@@ -96,7 +102,9 @@
 
 (defmethod swank::emacs-inspect ((m map))
   (append (emacs-inspect-partial m 0 (size m))
-	  (emacs-inspect-footer m)))
+	  (emacs-inspect-footer m)
+	  (and *emacs-inspect-internals*
+	       (cons '(:newline) (call-next-method)))))
 
 (defmethod emacs-inspect-partial ((m map) lo hi)
   (append (if (<= hi (+ lo 16))
@@ -170,7 +178,10 @@
 	       (swank::label-value-line "compare-fn" cmp-fn-name)))))
 
 (defmethod swank::emacs-inspect ((tup tuple))
-  (emacs-inspect-partial tup 0 (size tup)))
+  (append (emacs-inspect-partial tup 0 (size tup))
+	  (emacs-inspect-footer tup)
+	  (and *emacs-inspect-internals*
+	       (cons '(:newline) (call-next-method)))))
 
 (defmethod emacs-inspect-partial ((tup tuple) lo hi)
   (if (<= hi (+ lo 32))
@@ -191,15 +202,21 @@
 
 (defmethod swank::emacs-inspect ((br 2-relation))
   (append (emacs-inspect-partial (convert 'map-to-sets br) 0 (size br))
-	  (emacs-inspect-footer br)))
+	  (emacs-inspect-footer br)
+	  (and *emacs-inspect-internals*
+	       (cons '(:newline) (call-next-method)))))
 
 (defmethod swank::emacs-inspect ((lr list-relation))
   (append (emacs-inspect-partial (convert 'set lr) 0 (size lr))
-	  (emacs-inspect-footer lr)))
+	  (emacs-inspect-footer lr)
+	  (and *emacs-inspect-internals*
+	       (cons '(:newline) (call-next-method)))))
 
 (defmethod swank::emacs-inspect ((cs complement-set))
   (append (emacs-inspect-partial (complement cs) 0 (size (complement cs)))
-	  (emacs-inspect-footer cs)))
+	  (emacs-inspect-footer cs)
+	  (and *emacs-inspect-internals*
+	       (cons '(:newline) (call-next-method)))))
 
 (defmethod emacs-inspect-footer append ((cs complement-set))
   '((:newline)

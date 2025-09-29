@@ -315,16 +315,19 @@ multiplicity."))
 (defmethod filter-pairs (fn (collection t))
   (filter fn collection))
 
-(defgeneric image (fn collection)
+(defgeneric image (fn collection &key)
   (:documentation
     "Returns a new collection containing the result of applying `fn' to each
-member of `collection', which may be a set, bag, or seq.  In the bag case,
+member of `collection', which may be a set, bag, map, or seq.  In the bag case,
 the multiplicity of each member of the result is the sum of the multiplicities
-of the values that `fn' maps to it.  As well as a Lisp function, `fn' can be a
-map, or a set (which is treated as mapping its members to true and everything
-else to false).  `collection' can also be a map, in which case `fn' must be a
-Lisp function of two arguments that returns two values (the map-default of the
-result is that of `collection'); also see `compose'."))
+of the values that `fn' maps to it.  In the map case, `fn' is expected to return
+two values, which become the new domain and range values.  Except in the seq
+case, you may wish to specify the organization of the result, so the set and
+bag methods take keyword argument `:compare-fn-name', and the map method takes
+`:key-compare-fn-name' and `:val-compare-fn-name'.
+
+As well as a Lisp function, `fn' can be a map, or a set (which is treated as
+mapping its members to true and everything else to false)."))
 
 (defgeneric reduce (fn collection &key key initial-value)
   (:documentation
@@ -1310,28 +1313,28 @@ Also works on an FSet seq."))
 	(push x res2)))
     (values (nreverse res1) (nreverse res2))))
 
-(defmethod image ((fn function) (l list))
+(defmethod image ((fn function) (l list) &key)
   (mapcar fn l))
 
-(defmethod image ((fn symbol) (l list))
+(defmethod image ((fn symbol) (l list) &key)
   (mapcar (coerce fn 'function) l))
 
-(defmethod image ((fn map) (l list))
+(defmethod image ((fn map) (l list) &key)
   (mapcar (lambda (x) (lookup fn x)) l))
 
-(defmethod image ((fn set) (l list))
+(defmethod image ((fn set) (l list) &key)
   (mapcar (lambda (x) (lookup fn x)) l))
 
-(defmethod image ((fn function) (l vector))
+(defmethod image ((fn function) (l vector) &key)
   (cl:map 'vector fn l))
 
-(defmethod image ((fn symbol) (l vector))
+(defmethod image ((fn symbol) (l vector) &key)
   (cl:map 'vector (coerce fn 'function) l))
 
-(defmethod image ((fn map) (l vector))
+(defmethod image ((fn map) (l vector) &key)
   (cl:map 'vector (lambda (x) (lookup fn x)) l))
 
-(defmethod image ((fn set) (l vector))
+(defmethod image ((fn set) (l vector) &key)
   (cl:map 'vector (lambda (x) (lookup fn x)) l))
 
 
@@ -1899,26 +1902,28 @@ for the possibility of different set implementations; it is not for public use.
 	(setq result-2 (WB-Set-Tree-With result-2 x compare-fn))))
     (values result-1 result-2)))
 
-(define-wb-set-method image ((fn function) (s wb-set))
-  (make s (wb-set-image fn (contents s) (compare-fn s))))
+(define-wb-set-method image ((fn function) (s wb-set) &key compare-fn-name)
+  (wb-set-image fn (contents s) (or compare-fn-name (compare-fn-name s))))
 
-(define-wb-set-method image ((fn symbol) (s wb-set))
-  (make s (wb-set-image (coerce-to-function fn) (contents s) (compare-fn s))))
+(define-wb-set-method image ((fn symbol) (s wb-set) &key compare-fn-name)
+  (wb-set-image (coerce-to-function fn) (contents s)
+		(or compare-fn-name (compare-fn-name s))))
 
-(define-wb-set-method image ((fn map) (s wb-set))
-  (make s (wb-set-image fn (contents s) (compare-fn s))))
+(define-wb-set-method image ((fn map) (s wb-set) &key compare-fn-name)
+  (wb-set-image fn (contents s) (or compare-fn-name (compare-fn-name s))))
 
-(define-wb-set-method image ((fn set) (s wb-set))
-  (make s (wb-set-image fn (contents s) (compare-fn s))))
+(define-wb-set-method image ((fn set) (s wb-set) &key compare-fn-name)
+  (wb-set-image fn (contents s) (or compare-fn-name (compare-fn-name s))))
 
-(define-wb-set-method image ((fn bag) (s wb-set))
-  (make s (wb-set-image fn (contents s) (compare-fn s))))
+(define-wb-set-method image ((fn bag) (s wb-set) &key compare-fn-name)
+  (wb-set-image fn (contents s) (or compare-fn-name (compare-fn-name s))))
 
-(defun wb-set-image (fn contents compare-fn)
-  (let ((result nil))
+(defun wb-set-image (fn contents compare-fn-name)
+  (let ((org (wb-set-org (empty-wb-set compare-fn-name)))
+	(result nil))
     (do-wb-set-tree-members (x contents)
-      (setq result (WB-Set-Tree-With result (@ fn x) compare-fn)))
-    result))
+      (setq result (WB-Set-Tree-With result (@ fn x) (tree-set-org-compare-fn org))))
+    (make-wb-set result org)))
 
 (defmethod reduce ((fn function) (s set) &key key (initial-value nil init?))
   (set-reduce fn s initial-value (and key (coerce-to-function key)) init?))
@@ -2340,24 +2345,24 @@ comparison function as `compare-fn-name'."
 				       (hash-set-org-compare-fn hsorg)))))
     (make-ch-set result hsorg)))
 
-(defmethod image ((fn function) (s ch-set))
-  (ch-set-image fn s))
+(defmethod image ((fn function) (s ch-set) &key compare-fn-name)
+  (ch-set-image fn s compare-fn-name))
 
-(defmethod image ((fn symbol) (s ch-set))
-  (ch-set-image (coerce-to-function fn) s))
+(defmethod image ((fn symbol) (s ch-set) &key compare-fn-name)
+  (ch-set-image (coerce-to-function fn) s compare-fn-name))
 
-(defmethod image ((fn map) (s ch-set))
-  (ch-set-image fn s))
+(defmethod image ((fn map) (s ch-set) &key compare-fn-name)
+  (ch-set-image fn s compare-fn-name))
 
-(defmethod image ((fn set) (s ch-set))
-  (ch-set-image fn s))
+(defmethod image ((fn set) (s ch-set) &key compare-fn-name)
+  (ch-set-image fn s compare-fn-name))
 
-(defmethod image ((fn bag) (s ch-set))
-  (ch-set-image fn s))
+(defmethod image ((fn bag) (s ch-set) &key compare-fn-name)
+  (ch-set-image fn s compare-fn-name))
 
-(defun ch-set-image (fn s)
+(defun ch-set-image (fn s compare-fn-name)
   (let ((result nil)
-	(hsorg (ch-set-org s)))
+	(hsorg (ch-set-org (if compare-fn-name (empty-ch-set compare-fn-name) s))))
     (do-ch-set-tree-members (x (ch-set-contents s))
       (setq result (ch-set-tree-with result (@ fn x) (hash-set-org-hash-fn hsorg)
 				     (hash-set-org-compare-fn hsorg))))
@@ -2545,10 +2550,12 @@ must be a symbol."
       (values nil nil))))
 
 (defmethod rank ((b wb-bag) x)
+  "Returns the rank in the set ordering, i.e. the upper bound is the `set-size'."
   (let ((found? rank (WB-Bag-Tree-Rank (wb-bag-contents b) x (tree-set-org-compare-fn (wb-bag-org b)))))
     (values (if found? rank (1- rank)) found?)))
 
 (defmethod at-rank ((s wb-bag) rank)
+  "Takes the rank in the set ordering, i.e. the upper bound is the `set-size'."
   (let ((contents (wb-bag-contents s))
 	((size (WB-Bag-Tree-Size contents))))
     (unless (and (>= rank 0) (< rank size))
@@ -3023,26 +3030,27 @@ different bag implementations; it is not for public use.  `elt-fn' and
 	(setq result (with result x n))))
     result))
 
-(defmethod image ((fn function) (b bag))
-  (bag-image fn b))
+(defmethod image ((fn function) (b bag) &key compare-fn-name)
+  (bag-image fn b compare-fn-name))
 
-(defmethod image ((fn symbol) (b bag))
-  (bag-image (coerce-to-function fn) b))
+(defmethod image ((fn symbol) (b bag) &key compare-fn-name)
+  (bag-image (coerce-to-function fn) b compare-fn-name))
 
-(defmethod image ((fn map) (b bag))
-  (bag-image fn b))
+(defmethod image ((fn map) (b bag) &key compare-fn-name)
+  (bag-image fn b compare-fn-name))
 
-(defmethod image ((fn set) (b bag))
-  (bag-image fn b))
+(defmethod image ((fn set) (b bag) &key compare-fn-name)
+  (bag-image fn b compare-fn-name))
 
-(defmethod image ((fn bag) (b bag))
-  (bag-image fn b))
+(defmethod image ((fn bag) (b bag) &key compare-fn-name)
+  (bag-image fn b compare-fn-name))
 
-(defun bag-image (fn b)
-  (let ((result (empty-bag-like b)))
+(defun bag-image (fn b compare-fn-name)
+  (let ((org (wb-bag-org (if compare-fn-name (empty-wb-bag compare-fn-name) b)))
+	(result nil))
     (do-bag-pairs (x n b)
-      (setq result (with result (@ fn x) n)))
-    result))
+      (setq result (WB-Bag-Tree-With result (@ fn x) (tree-set-org-compare-fn org) n)))
+    (make-wb-bag result org)))
 
 (defmethod reduce ((fn function) (b bag) &key key (initial-value nil init?))
   (bag-reduce fn b initial-value (and key (coerce-to-function key)) init?))
@@ -3564,24 +3572,23 @@ symbols."))
 	(setq result (WB-Map-Tree-With result x y key-compare-fn val-compare-fn))))
     result))
 
-(defmethod image ((fn function) (m wb-map))
-  (let ((tmorg (wb-map-org m)))
-    (make-wb-map (wb-map-image fn m (tree-map-org-key-compare-fn tmorg) (tree-map-org-val-compare-fn tmorg))
-		 tmorg (map-default m))))
+(defmethod image ((fn function) (m wb-map) &key key-compare-fn-name val-compare-fn-name)
+  (wb-map-image fn m key-compare-fn-name val-compare-fn-name (map-default m)))
 
-(defmethod image ((fn symbol) (m wb-map))
-  (let ((tmorg (wb-map-org m)))
-    (make-wb-map (wb-map-image (coerce-to-function fn) m
-			       (tree-map-org-key-compare-fn tmorg) (tree-map-org-val-compare-fn tmorg))
-		 tmorg (map-default m))))
+(defmethod image ((fn symbol) (m wb-map) &key key-compare-fn-name val-compare-fn-name)
+  (wb-map-image (coerce-to-function fn) m key-compare-fn-name val-compare-fn-name (map-default m)))
 
-(defun wb-map-image (fn m key-compare-fn val-compare-fn)
+(defun wb-map-image (fn m key-compare-fn-name val-compare-fn-name default)
   (declare (type function fn))
-  (let ((result nil))
+  (let ((m-org (wb-map-org m))
+	((res-org (wb-map-org (empty-wb-map nil (or key-compare-fn-name (tree-map-org-key-compare-fn-name m-org))
+					    (or val-compare-fn-name (tree-map-org-val-compare-fn-name m-org))))))
+	(result nil))
     (do-map (x y m)
       (let ((new-x new-y (funcall fn x y)))
-	(setq result (WB-Map-Tree-With result new-x new-y key-compare-fn val-compare-fn))))
-    result))
+	(setq result (WB-Map-Tree-With result new-x new-y (tree-map-org-key-compare-fn res-org)
+				       (tree-map-org-val-compare-fn res-org)))))
+    (make-wb-map result res-org default)))
 
 (defmethod reduce ((fn function) (m map) &key key (initial-value nil init?))
   (map-reduce fn m initial-value (and key (coerce-to-function key)) init?))
@@ -4800,19 +4807,19 @@ not symbols."))
       ;; 'group' can't be empty if 's' was nonempty.
       (with-last result group))))
 
-(defmethod image ((fn function) (s seq))
+(defmethod image ((fn function) (s seq) &key)
   (seq-image fn s))
 
-(defmethod image ((fn symbol) (s seq))
+(defmethod image ((fn symbol) (s seq) &key)
   (seq-image (coerce-to-function fn) s))
 
-(defmethod image ((fn map) (s seq))
+(defmethod image ((fn map) (s seq) &key)
   (seq-image #'(lambda (x) (lookup fn x)) s))
 
-(defmethod image ((fn set) (s seq))
+(defmethod image ((fn set) (s seq) &key)
   (seq-image #'(lambda (x) (lookup fn x)) s))
 
-(defmethod image ((fn bag) (s seq))
+(defmethod image ((fn bag) (s seq) &key)
   (seq-image #'(lambda (x) (lookup fn x)) s))
 
 (defun seq-image (fn s)

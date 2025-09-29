@@ -100,13 +100,13 @@
 	   #:full-set
 	   ;; Relations
 	   #:relation #:relation? #:2-relation #:2-relation? #:wb-2-relation #:wb-2-relation?
-	   #:empty-2-relation #:empty-wb-2-relation #:do-2-relation
+	   #:empty-2-relation #:empty-wb-2-relation #:empty-ch-2-relation #:do-2-relation
 	   #:lookup-inv #:inverse #:join #:conflicts #:map-to-sets
 	   #:list-relation #:list-relation? #:wb-list-relation #:wb-list-relation?
-	   #:empty-list-relation #:empty-wb-list-relation #:do-list-relation
+	   #:empty-list-relation #:empty-wb-list-relation #:empty-ch-list-relation #:do-list-relation
 	   #:arity #:query #:query-multi #:query-multi-restricted
 	   #:assertion-db #:empty-assertion-db #:empty-wb-assertion-db
-	   #:query-registry #:empty-query-registry #:with-query #:less-query
+	   #:query-registry #:empty-query-registry #:empty-ch-query-registry #:with-query #:less-query
 	   #:all-queries #:do-all-queries #:lookup-multi #:forward-key #:lookup-restricted
 	   #:lookup-multi-restricted
 
@@ -220,13 +220,13 @@
 	   #:full-set
 	   ;; Relations
 	   #:relation #:relation? #:2-relation #:2-relation? #:wb-2-relation #:wb-2-relation?
-	   #:empty-2-relation #:empty-wb-2-relation #:do-2-relation
+	   #:empty-2-relation #:empty-wb-2-relation #:empty-chb-2-relation #:do-2-relation
 	   #:lookup-inv #:inverse #:join #:conflicts #:map-to-sets
 	   #:list-relation #:list-relation? #:wb-list-relation #:wb-list-relation?
-	   #:empty-list-relation #:empty-wb-list-relation #:do-list-relation
+	   #:empty-list-relation #:empty-wb-list-relation #:empty-ch-list-relation #:do-list-relation
 	   #:arity #:query #:query-multi #:query-multi-restricted
 	   #:assertion-db #:empty-assertion-db #:empty-wb-assertion-db
-	   #:query-registry #:empty-query-registry #:with-query #:less-query
+	   #:query-registry #:empty-query-registry #:empty-ch-query-registry #:with-query #:less-query
 	   #:all-queries #:do-all-queries #:lookup-multi #:forward-key #:lookup-restricted
 	   #:lookup-multi-restricted
 

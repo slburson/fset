@@ -614,6 +614,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 			(lambda (op) (funcall (the function (subnode (1+ i))) op)))
 		cont))))))))
 
+;;; LOL, this is pretty pointless since the ordering is so obscure.  Oh well, it's written...
 (defun ch-set-tree-rev-fun-iter (tree)
   (declare (optimize (speed 3) (safety 0)))
   (rlabels (walk tree (lambda (op)
@@ -1369,6 +1370,9 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
     (dotimes (i (- len idx))
       (setf (svref v (+ idx i 2)) (svref vec (+ idx i))))
     v))
+
+(defun ch-map-tree-hash-value (tree val-hash-fn)
+  (hash-mix (ch-map-tree-key-hash tree) (ch-map-tree-value-hash tree val-hash-fn)))
 
 (declaim (ftype (function (ch-map-tree) fixnum) ch-map-tree-key-hash))
 (defun ch-map-tree-key-hash (tree)
