@@ -150,6 +150,7 @@
   (:shadow ;; Names shadowed from `fset:' to implement FSet2 semantics
 	   #:set #:map #:wb-map #:wb-custom-map #:ch-map #:ch-custom-map
 	   #:empty-set #:empty-map #:empty-wb-map #:empty-ch-map #:empty-seq #:empty-wb-seq
+	   #:rank
 	   ;; These just changed from `&optional' to `&key'
 	   #:empty-wb-set #:empty-ch-set #:empty-wb-bag #:empty-wb-replay-set #:empty-ch-replay-set
 	   #:empty-replay-map #:empty-wb-replay-map #:empty-ch-replay-map

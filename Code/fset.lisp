@@ -164,6 +164,20 @@ equivalent to `value', an arbitrary order will be imposed on them for this
 purpose; but another collection that is `equal?' but not `eq' to this one
 will in general order them differently.  Also, on a bag, multiplicities are
 ignored for this purpose."))
+(defgeneric fset2:rank (collection value)
+  (:documentation
+    "Defined on tree \(WB\) collections only.  See `index'.
+
+If `collection' is a set or bag that contains `value', returns the rank
+of `value' in the ordering defined by `compare', and a true second value.
+If `collection' is a map whose domain contains `value', returns the rank of
+`value' in the domain of the map, and a true second value.  If `value' is
+not in the collection, the second value is false, and the first value is the
+rank that `value' would have if it were added.  Note that if there are
+values/keys that are unequal but equivalent to `value', an arbitrary order
+will be imposed on them for this purpose; but another collection that is
+`equal?' but not `eq' to this one will in general order them differently.
+Also, on a bag, multiplicities are ignored for this purpose."))
 
 (defgeneric at-rank (collection rank)
   (:documentation
@@ -1733,6 +1747,9 @@ or hash function, as `s'."))
 (define-wb-set-method rank ((s wb-set) x)
   (let ((found? rank (WB-Set-Tree-Rank (contents s) x (compare-fn s))))
     (values (if found? rank (1- rank)) found?)))
+(define-wb-set-method fset2:rank ((s wb-set) x)
+  (let ((found? rank (WB-Set-Tree-Rank (contents s) x (compare-fn s))))
+    (values rank found?)))
 
 (define-wb-set-method at-rank ((s wb-set) rank)
   (let ((contents (contents s))
@@ -2686,6 +2703,10 @@ must be a symbol."
   "Returns the rank in the set ordering, i.e. the upper bound is the `set-size'."
   (let ((found? rank (WB-Bag-Tree-Rank (wb-bag-contents b) x (tree-set-org-compare-fn (wb-bag-org b)))))
     (values (if found? rank (1- rank)) found?)))
+(defmethod fset2:rank ((b wb-bag) x)
+  "Returns the rank in the set ordering, i.e. the upper bound is the `set-size'."
+  (let ((found? rank (WB-Bag-Tree-Rank (wb-bag-contents b) x (tree-set-org-compare-fn (wb-bag-org b)))))
+    (values rank found?)))
 
 (defmethod at-rank ((s wb-bag) rank)
   "Takes the rank in the set ordering, i.e. the upper bound is the `set-size'."
@@ -3586,6 +3607,10 @@ The map's default is `nil' unless a different default is supplied, or
   (let ((found? rank (WB-Map-Tree-Rank (wb-map-contents m) x
 				       (tree-map-org-key-compare-fn (wb-map-org m)))))
     (values (if found? rank (1- rank)) found?)))
+(defmethod fset2:rank ((m wb-map) x)
+  (let ((found? rank (WB-Map-Tree-Rank (wb-map-contents m) x
+				       (tree-map-org-key-compare-fn (wb-map-org m)))))
+    (values rank found?)))
 
 (defmethod at-rank ((m wb-map) rank)
   (let ((contents (wb-map-contents m))

@@ -4439,7 +4439,8 @@
 	     (gmap (:result set)
 		   (fn (method) (cddr (getf (slot-value method 'sb-pcl::plist) ':name)))
 		   (:arg list (slot-value gf 'sb-pcl::methods)))))
-      (dolist (gf-name '(lookup map-union map-intersection map-difference-2 compose image filter partition))
+      (dolist (gf-name '(lookup map-union map-intersection map-difference-2 compose image filter partition
+			 rank))
 	(let ((fset-gf (symbol-function (intern (string gf-name) ':fset)))
 	      (fset2-gf (symbol-function gf-name))
 	      ((missing extra (set-difference-2 (methods fset-gf) (methods fset2-gf)))))
@@ -4572,4 +4573,6 @@
 		    (ch-map ('a 12) :no-default)))
       (test-error (compose (ch-map ('a 7)) (map (7 12) :no-default)))
       (test (equal? (compose (ch-map ('a 7) :no-default) (map (7 12) :no-default))
-		    (ch-map ('a 12) :no-default))))))
+		    (ch-map ('a 12) :no-default)))
+
+      (test (= (rank (wb-set 1 3 5) 2) 1)))))
