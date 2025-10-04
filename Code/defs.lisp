@@ -150,7 +150,7 @@
   (:shadow ;; Names shadowed from `fset:' to implement FSet2 semantics
 	   #:set #:map #:wb-map #:wb-custom-map #:ch-map #:ch-custom-map
 	   #:empty-set #:empty-map #:empty-wb-map #:empty-ch-map #:empty-seq #:empty-wb-seq
-	   #:rank
+	   #:rank #:define-tuple-key #:get-tuple-key
 	   ;; These just changed from `&optional' to `&key'
 	   #:empty-wb-set #:empty-ch-set #:empty-wb-bag #:empty-wb-replay-set #:empty-ch-replay-set
 	   #:empty-replay-map #:empty-wb-replay-map #:empty-ch-replay-map
@@ -194,6 +194,7 @@
 	   #:with-default #:without-default #:default
 	   #:map-domain-error #:map-domain-error-map #:map-domain-error-key
 	   #:seq-bounds-error #:seq-bounds-error-seq #:seq-bounds-error-index
+	   #:tuple-key-unbound-error #:tuple-key-unbound-error-tuple #:tuple-key-unbound-error-key
 	   #:empty-seq-error #:empty-seq-error-seq
 	   #:map-union #:map-intersection #:map-difference-2
 	   #:restrict #:restrict-not #:compose
@@ -212,7 +213,7 @@
 	   #:do-set #:do-bag #:do-bag-pairs #:do-map #:do-map-domain #:do-seq #:do-tuple
 	   #:adjoinf #:removef #:includef #:excludef
 	   #:unionf #:intersectf #:set-differencef #:map-unionf #:map-intersectf #:imagef #:composef
-	   #:define-tuple-key #:def-tuple-key #:get-tuple-key #:tuple-key-name #:tuple-key?
+	   #:define-tuple-key #:get-tuple-key #:tuple-key-name #:tuple-key?
 	   #:tuple-merge
 	   #:fset-setup-readtable #:*fset-readtable*
 	   #:fset-setup-rereading-readtable #:*fset-rereading-readtable*

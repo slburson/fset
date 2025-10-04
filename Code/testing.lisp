@@ -15,7 +15,7 @@
   Value)
 
 (def-tuple-key +K0+)
-(def-tuple-key +K1+)
+(def-tuple-key +K1+ (fn (tup) (@ tup +K0+)))
 (def-tuple-key +K2+)
 (def-tuple-key +K3+)
 (def-tuple-key +K4+)
@@ -263,11 +263,12 @@
 						      ($ (tuple (+K1+ 2) (+K2+ 3)))
 						      (+K0+ 2)
 						      ($ (tuple (+K4+ 7) (+K2+ 8))))))
-			 #'< :key (fn (x) (tuple-key-number (car x))))
+			 #'string< :key (fn (x) (tuple-key-name (car x))))
 		   `((,+K0+ . 2) (,+K1+ . 2) (,+K2+ . 8) (,+K4+ . 7))))
       (test (less-than? (tuple (+K0+ 1)) (tuple (+K0+ 2))))
       (test (unequal? (tuple (+K0+ 1.0) (+K1+ 'c)) (tuple (+K0+ 1) (+K1+ 'c))))
       (test (less-than? (tuple (+K0+ 1.0) (+K1+ 'c)) (tuple (+K0+ 1) (+K1+ 'd))))
+      (test (equal? (@ (tuple (+K0+ 'foo) (+K2+ 'zot)) +K1+) 'foo))
       (test (not (equal? (map (3 7) :default 0) (map (3 7) :default 1))))
       (test (not (equal? (with-default (seq 42 17) 6) (with-default (seq 42 17) 9))))
 
@@ -4424,6 +4425,8 @@
 
 (in-package :fset2)
 
+(define-tuple-key +k5+ :default 'plugh)
+
 (defun fset::test-fset2 ()
   (macrolet ((test (form)
 	       `(unless ,form
@@ -4575,4 +4578,11 @@
       (test (equal? (compose (ch-map ('a 7) :no-default) (map (7 12) :no-default))
 		    (ch-map ('a 12) :no-default)))
 
-      (test (= (rank (wb-set 1 3 5) 2) 1)))))
+      (test (= (rank (wb-set 1 3 5) 2) 1))
+      (test (equal? (@ (tuple) +k5+) 'plugh))
+      (let ((k (get-tuple-key 'fubar :default 11)))
+	(test (equal? (@ (tuple) k) 11))
+	(setq k (get-tuple-key 'fubar :no-default? t))
+	(test-error (@ (tuple) k))
+	(setq k (get-tuple-key 'fubar :default 0))
+	(test (equal? (@ (tuple) k) 0))))))
