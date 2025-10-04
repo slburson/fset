@@ -176,7 +176,14 @@ argument subforms.  Each argument subform can be an expression, whose value
 will be a member of the result set; or a list of the form ($ `expression'), in
 which case the expression must evaluate to a set, all of whose members become
 members of the result set."
-  (expand-set-constructor-form 'set args))
+  (expand-set-constructor-form 'set 'empty-set args))
+(defmacro fset2:set (&rest args)
+  "Constructs a set of the default implementation according to the supplied
+argument subforms.  Each argument subform can be an expression, whose value
+will be a member of the result set; or a list of the form ($ `expression'), in
+which case the expression must evaluate to a set, all of whose members become
+members of the result set."
+  (expand-set-constructor-form 'fset2:set 'fset2:empty-set args))
 
 (defmacro wb-set (&rest args)
   "Constructs a wb-set according to the supplied argument subforms.  Each
@@ -184,7 +191,7 @@ argument subform can be an expression, whose value will be a member of the
 result set; or a list of the form ($ `expression'), in which case the
 expression must evaluate to a set, all of whose members become members of the
 result set."
-  (expand-set-constructor-form 'wb-set args))
+  (expand-set-constructor-form 'wb-set 'empty-wb-set args))
 
 (defmacro wb-custom-set (compare-fn-name &rest args)
   "Constructs a wb-set with a custom ordering, according to the supplied
@@ -193,7 +200,7 @@ comparison function.  Each of `args' can be an expression, whose value
 will be a member of the result set; or a list of the form ($ `expression'),
 in which case the expression must evaluate to a set, all of whose members
 become members of the result set."
-  (expand-set-constructor-form 'wb-set args compare-fn-name))
+  (expand-set-constructor-form 'wb-set 'empty-wb-set args compare-fn-name))
 
 (defmacro ch-set (&rest args)
   "Constructs a ch-set according to the supplied argument subforms.  Each
@@ -201,7 +208,7 @@ argument subform can be an expression, whose value will be a member of the
 result set; or a list of the form ($ `expression'), in which case the
 expression must evaluate to a set, all of whose members become members of the
 result set."
-  (expand-set-constructor-form 'ch-set args))
+  (expand-set-constructor-form 'ch-set 'empty-ch-set args))
 
 (defmacro ch-custom-set (compare-fn-name &rest args)
   "Constructs a ch-set of a custom type, according to the supplied argument
@@ -211,16 +218,16 @@ function; a hash function must have been defined for it using
 will be a member of the result set; or a list of the form ($ `expression'),
 in which case the expression must evaluate to a set, all of whose members become
 members of the result set."
-  (expand-set-constructor-form 'ch-set args compare-fn-name))
+  (expand-set-constructor-form 'ch-set 'empty-ch-set args compare-fn-name))
 
-(defun expand-set-constructor-form (type-name args &optional compare-fn-name)
+(defun expand-set-constructor-form (type-name empty-fn args &optional compare-fn-name)
   (let ((normal-args (remove-if #'(lambda (arg) (and (listp arg) (eq (car arg) '$)))
 				args))
 	(splice-args (remove-if-not #'(lambda (arg) (and (listp arg) (eq (car arg) '$)))
 				    args))
 	((start (if normal-args `(convert ',type-name (list . ,normal-args)
 					  ,@(and compare-fn-name `(:compare-fn-name ,compare-fn-name)))
-		  `(,(empty-instance-function type-name) . ,(and compare-fn-name `(,compare-fn-name)))))))
+		  `(,empty-fn . ,(and compare-fn-name `(,compare-fn-name)))))))
     (labels ((recur (splice-args result)
 	       (if (null splice-args) result
 		 (if (= (length (car splice-args)) 2)
@@ -235,7 +242,7 @@ supplied argument subforms.  Each argument subform can be an expression,
 whose value will be a member of the result set; or a list of the form
 \($ `expression'), in which case the expression must evaluate to a set,
 all of whose members become members of the result set."
-  (expand-replay-set-constructor-form 'replay-set args))
+  (expand-replay-set-constructor-form 'replay-set 'empty-replay-set args))
 
 (defmacro wb-replay-set (&rest args)
   "Constructs a wb-replay-set according to the supplied argument subforms.  Each
@@ -243,7 +250,7 @@ argument subform can be an expression, whose value will be a member of the
 result set; or a list of the form ($ `expression'), in which case the
 expression must evaluate to a set, all of whose members become members of the
 result set."
-  (expand-replay-set-constructor-form 'wb-replay-set args))
+  (expand-replay-set-constructor-form 'wb-replay-set 'empty-wb-replay-set args))
 
 (defmacro wb-custom-replay-set (compare-fn-name &rest args)
   "Constructs a wb-replay-set with a custom ordering, according to the supplied
@@ -252,7 +259,7 @@ comparison function.  Each of `args' can be an expression, whose value
 will be a member of the result set; or a list of the form ($ `expression'),
 in which case the expression must evaluate to a set, all of whose members
 become members of the result set."
-  (expand-replay-set-constructor-form 'wb-replay-set args compare-fn-name))
+  (expand-replay-set-constructor-form 'wb-replay-set 'empty-wb-replay-set args compare-fn-name))
 
 (defmacro ch-replay-set (&rest args)
   "Constructs a ch-replay-set according to the supplied argument subforms.  Each
@@ -260,7 +267,7 @@ argument subform can be an expression, whose value will be a member of the
 result set; or a list of the form ($ `expression'), in which case the
 expression must evaluate to a set, all of whose members become members of the
 result set."
-  (expand-replay-set-constructor-form 'ch-replay-set args))
+  (expand-replay-set-constructor-form 'ch-replay-set 'empty-ch-replay-set args))
 
 (defmacro ch-custom-replay-set (compare-fn-name &rest args)
   "Constructs a ch-replay-set with a custom ordering, according to the supplied
@@ -269,12 +276,12 @@ comparison function.  Each of `args' can be an expression, whose value
 will be a member of the result set; or a list of the form ($ `expression'),
 in which case the expression must evaluate to a set, all of whose members
 become members of the result set."
-  (expand-replay-set-constructor-form 'ch-replay-set args compare-fn-name))
+  (expand-replay-set-constructor-form 'ch-replay-set 'empty-ch-replay-set args compare-fn-name))
 
-(defun expand-replay-set-constructor-form (type-name args &optional compare-fn-name)
+(defun expand-replay-set-constructor-form (type-name empty-fn args &optional compare-fn-name)
+  (declare (ignore type-name))		; might need it for an error message?
   ;; We MUST maintain ORDER!!!  Yow!!!
-  (let ((result `(,(empty-instance-function type-name)
-		  . ,(and compare-fn-name `(,compare-fn-name)))))
+  (let ((result `(,empty-fn . ,(and compare-fn-name `(,compare-fn-name)))))
     (dolist (arg args result)
       (if (and (listp arg) (eq (car arg) '$))
 	  (let ((tmp (gensymx #:tmp-)))
@@ -296,7 +303,7 @@ the value of `expression1' is bag-summed into the result with multiplicity
 given by the value of `expression2'.  That is, the multiplicity of each member
 of the result bag is the sum of its multiplicities as supplied by each of the
 argument subforms."
-  (expand-bag-constructor-form 'bag args))
+  (expand-bag-constructor-form 'bag 'empty-bag args))
 
 (defmacro wb-bag (&rest args)
   "Constructs a wb-bag according to the supplied argument subforms.  Each
@@ -308,7 +315,7 @@ result; or a list of the form (% `expression1' `expression2') (called a
 into the result with multiplicity given by the value of `expression2'.  That
 is, the multiplicity of each member of the result bag is the sum of its
 multiplicities as supplied by each of the argument subforms."
-  (expand-bag-constructor-form 'wb-bag args))
+  (expand-bag-constructor-form 'wb-bag 'empty-wb-bag args))
 
 (defmacro wb-custom-bag (compare-fn-name &rest args)
   "Constructs a wb-bag with a custom ordering, according to the supplied
@@ -322,9 +329,9 @@ that the value of `expression1' is bag-summed into the result with multiplicity
 given by the value of `expression2'.  That is, the multiplicity of each member
 of the result bag is the sum of its multiplicities as supplied by each of the
 argument subforms."
-  (expand-set-constructor-form 'wb-bag args compare-fn-name))
+  (expand-set-constructor-form 'wb-bag 'empty-wb-bag args compare-fn-name))
 
-(defun expand-bag-constructor-form (type-name args &optional compare-fn-name)
+(defun expand-bag-constructor-form (type-name empty-fn args &optional compare-fn-name)
   (let ((normal-args (remove-if #'(lambda (arg) (and (listp arg)
 						     (member (car arg) '($ %))))
 				args))
@@ -334,7 +341,7 @@ argument subforms."
 				   args))
 	((start (if normal-args `(convert ',type-name (list . ,normal-args)
 					  ,@(and compare-fn-name `(:compare-fn-name ,compare-fn-name)))
-		  `(,(empty-instance-function type-name) . ,(and compare-fn-name `(,compare-fn-name)))))))
+		  `(,empty-fn . ,(and compare-fn-name `(,compare-fn-name)))))))
     (labels ((add-splice-args (splice-args result)
 	       (if (null splice-args) result
 		 (if (= (length (car splice-args)) 2)
@@ -368,7 +375,20 @@ and the expression evaluates to `nil', it will be treated as an empty map.
 The result is constructed from the denoted mappings in left-to-right order; so
 if a given key is supplied by more than one argument subform, its associated
 value will be given by the rightmost such subform."
-  (expand-map-constructor-form 'map args))
+  (expand-map-constructor-form 'map 'empty-map args))
+(defmacro fset2:map (&rest args)
+  "Constructs a map of the default implementation according to the supplied
+argument subforms.  Each argument subform can be a list of the form (`key-expr'
+`value-expr'), denoting a mapping from the value of `key-expr' to the value of
+`value-expr'; or a list of the form ($ `expression'), in which case the
+expression must evaluate to a map, denoting all its mappings; or the symbol
+`:default', in which case the next argument subform is a form whose value will
+become the map's default.  As a convenience, if a subform is ($ `expression')
+and the expression evaluates to `nil', it will be treated as an empty map.
+The result is constructed from the denoted mappings in left-to-right order; so
+if a given key is supplied by more than one argument subform, its associated
+value will be given by the rightmost such subform."
+  (expand-map-constructor-form 'fset2:map 'fset2:empty-map args))
 
 (defmacro wb-map (&rest args)
   "Constructs a wb-map according to the supplied argument subforms.  Each
@@ -382,7 +402,20 @@ a convenience, if a subform is ($ `expression') and the expression evaluates to
 denoted mappings in left-to-right order; so if a given key is supplied by more
 than one argument subform, its associated value will be given by the rightmost
 such subform."
-  (expand-map-constructor-form 'wb-map args))
+  (expand-map-constructor-form 'wb-map 'empty-wb-map args))
+(defmacro fset2:wb-map (&rest args)
+  "Constructs a wb-map according to the supplied argument subforms.  Each
+argument subform can be a list of the form (`key-expr' `value-expr'), denoting
+a mapping from the value of `key-expr' to the value of `value-expr'; or a list
+of the form ($ `expression'), in which case the expression must evaluate to a
+map, denoting all its mappings; or the symbol `:default', in which case the
+next argument subform is a form whose value will become the map's default.  As
+a convenience, if a subform is ($ `expression') and the expression evaluates to
+`nil', it will be treated as an empty map.  The result is constructed from the
+denoted mappings in left-to-right order; so if a given key is supplied by more
+than one argument subform, its associated value will be given by the rightmost
+such subform."
+  (expand-map-constructor-form 'fset2:wb-map 'fset2:empty-wb-map args))
 
 (defmacro wb-custom-map (key-compare-fn-name val-compare-fn-name &rest args)
   "Constructs a wb-map with a custom ordering, according to the supplied
@@ -400,7 +433,24 @@ a convenience, if a subform is ($ `expression') and the expression evaluates to
 denoted mappings in left-to-right order; so if a given key is supplied by more
 than one argument subform, its associated value will be given by the rightmost
 such subform."
-  (expand-map-constructor-form 'wb-map args key-compare-fn-name val-compare-fn-name))
+  (expand-map-constructor-form 'wb-map 'empty-wb-map args key-compare-fn-name val-compare-fn-name))
+(defmacro fset2:wb-custom-map (key-compare-fn-name val-compare-fn-name &rest args)
+  "Constructs a wb-map with a custom ordering, according to the supplied
+argument subforms.  `key-compare-fn-name' and `val-compare-fn-name' must be
+symbols naming the comparison functions to be used for keys and values
+respectively.  \(The value comparison is used for detecting redundant `with'
+operations, and a few other things, such as `range' and `map-difference-2'.\)
+Each of `args' can be a list of the form (`key-expr' `value-expr'), denoting
+a mapping from the value of `key-expr' to the value of `value-expr'; or a list
+of the form ($ `expression'), in which case the expression must evaluate to a
+map, denoting all its mappings; or the symbol `:default', in which case the
+next argument subform is a form whose value will become the map's default.  As
+a convenience, if a subform is ($ `expression') and the expression evaluates to
+`nil', it will be treated as an empty map.  The result is constructed from the
+denoted mappings in left-to-right order; so if a given key is supplied by more
+than one argument subform, its associated value will be given by the rightmost
+such subform."
+  (expand-map-constructor-form 'fset2:wb-map 'fset2:empty-wb-map args key-compare-fn-name val-compare-fn-name))
 
 (defmacro ch-map (&rest args)
   "Constructs a ch-map according to the supplied argument subforms.  Each
@@ -414,7 +464,20 @@ a convenience, if a subform is ($ `expression') and the expression evaluates to
 denoted mappings in left-to-right order; so if a given key is supplied by more
 than one argument subform, its associated value will be given by the rightmost
 such subform."
-  (expand-map-constructor-form 'ch-map args))
+  (expand-map-constructor-form 'ch-map 'empty-ch-map args))
+(defmacro fset2:ch-map (&rest args)
+  "Constructs a ch-map according to the supplied argument subforms.  Each
+argument subform can be a list of the form (`key-expr' `value-expr'), denoting
+a mapping from the value of `key-expr' to the value of `value-expr'; or a list
+of the form ($ `expression'), in which case the expression must evaluate to a
+map, denoting all its mappings; or the symbol `:default', in which case the
+next argument subform is a form whose value will become the map's default.  As
+a convenience, if a subform is ($ `expression') and the expression evaluates to
+`nil', it will be treated as an empty map.  The result is constructed from the
+denoted mappings in left-to-right order; so if a given key is supplied by more
+than one argument subform, its associated value will be given by the rightmost
+such subform."
+  (expand-map-constructor-form 'fset2:ch-map 'fset2:empty-ch-map args))
 
 (defmacro ch-custom-map (key-compare-fn-name val-compare-fn-name &rest args)
   "Constructs a ch-map with a custom ordering, according to the supplied
@@ -432,16 +495,45 @@ a convenience, if a subform is ($ `expression') and the expression evaluates to
 denoted mappings in left-to-right order; so if a given key is supplied by more
 than one argument subform, its associated value will be given by the rightmost
 such subform."
-  (expand-map-constructor-form 'ch-map args key-compare-fn-name val-compare-fn-name))
+  (expand-map-constructor-form 'ch-map 'empty-ch-map args key-compare-fn-name val-compare-fn-name))
+(defmacro fset2:ch-custom-map (key-compare-fn-name val-compare-fn-name &rest args)
+  "Constructs a ch-map with a custom ordering, according to the supplied
+argument subforms.  `key-compare-fn-name' and `val-compare-fn-name' must be
+symbols naming the comparison functions to be used for keys and values
+respectively.  \(The value comparison is used for detecting redundant `with'
+operations, and a few other things, such as `range' and `map-difference-2'.\)
+Each of `args' can be a list of the form (`key-expr' `value-expr'), denoting
+a mapping from the value of `key-expr' to the value of `value-expr'; or a list
+of the form ($ `expression'), in which case the expression must evaluate to a
+map, denoting all its mappings; or the symbol `:default', in which case the
+next argument subform is a form whose value will become the map's default.  As
+a convenience, if a subform is ($ `expression') and the expression evaluates to
+`nil', it will be treated as an empty map.  The result is constructed from the
+denoted mappings in left-to-right order; so if a given key is supplied by more
+than one argument subform, its associated value will be given by the rightmost
+such subform."
+  (expand-map-constructor-form 'fset2:ch-map 'fset2:empty-ch-map args key-compare-fn-name val-compare-fn-name))
 
-(defun expand-map-constructor-form (type-name args &optional key-compare-fn-name val-compare-fn-name)
-  (let ((default (cadr (member ':default args)))
-	((empty-form `(,(empty-instance-function type-name) ,default
-		       . ,(and key-compare-fn-name `(,key-compare-fn-name ,val-compare-fn-name))))))
+(defun expand-map-constructor-form (type-name empty-fn args
+				    &optional key-compare-fn-name val-compare-fn-name)
+  (let ((default? (member ':default args))
+	(no-default? (member ':no-default args))
+	(fset1? (eq (symbol-package empty-fn) (symbol-package 'map)))
+	((empty-form (if fset1?
+			 `(,empty-fn ,(cadr default?)
+				     . ,(and key-compare-fn-name `(,key-compare-fn-name ,val-compare-fn-name)))
+		       `(,empty-fn ,@(and default? `(:default ,(cadr default?)))
+				   ,@(and no-default? '(:no-default? t))
+				   ,@(and key-compare-fn-name `(:key-compare-fn-name ,key-compare-fn-name))
+				   ,@(and val-compare-fn-name `(:val-compare-fn-name ,val-compare-fn-name)))))))
+    (when (and default? no-default?)
+      (error "In map constructor, both `:default' and `:no-default' specified"))
     (labels ((recur (args result)
 	       (cond ((null args) result)
 		     ((eq (car args) ':default)
 		      (recur (cddr args) result))
+		     ((eq (car args) ':no-default)
+		      (recur (cdr args) result))
 		     ((not (and (listp (car args))
 				(= (length (car args)) 2)))
 		      (error "Arguments to ~S must all be pairs expressed as 2-element~@
@@ -468,7 +560,7 @@ expression must evaluate to a map, denoting all its mappings; or the symbol
 become the map's default.  The result is constructed from the denoted mappings
 in left-to-right order; so if a given key is supplied by more than one argument
 subform, its associated value will be given by the rightmost such subform."
-  (expand-replay-map-constructor-form 'replay-map args))
+  (expand-replay-map-constructor-form 'replay-map 'fset2:empty-replay-map args))
 
 (defmacro wb-replay-map (&rest args)
   "Constructs a wb-replay-map according to the supplied argument subforms.  Each
@@ -480,7 +572,7 @@ next argument subform is a form whose value will become the map's default.  The
 result is constructed from the denoted mappings in left-to-right order; so if a
 given key is supplied by more than one argument subform, its associated value
 will be given by the rightmost such subform."
-  (expand-replay-map-constructor-form 'wb-replay-map args))
+  (expand-replay-map-constructor-form 'wb-replay-map 'fset2:empty-wb-replay-map args))
 
 (defmacro wb-custom-replay-map (key-compare-fn-name val-compare-fn-name &rest args)
   "Constructs a wb-replay-map with a custom ordering, according to the supplied
@@ -492,7 +584,8 @@ expression must evaluate to a map, denoting all its mappings; or the symbol
 the map's default.  The result is constructed from the denoted mappings in
 left-to-right order; so if a given key is supplied by more than one argument
 subform, its associated value will be given by the rightmost such subform."
-  (expand-replay-map-constructor-form 'wb-replay-map args key-compare-fn-name val-compare-fn-name))
+  (expand-replay-map-constructor-form 'wb-replay-map 'fset2:empty-wb-replay-map args
+				      key-compare-fn-name val-compare-fn-name))
 
 (defmacro ch-replay-map (&rest args)
   "Constructs a ch-replay-map according to the supplied argument subforms.  Each
@@ -504,7 +597,7 @@ next argument subform is a form whose value will become the map's default.  The
 result is constructed from the denoted mappings in left-to-right order; so if a
 given key is supplied by more than one argument subform, its associated value
 will be given by the rightmost such subform."
-  (expand-replay-map-constructor-form 'ch-replay-map args))
+  (expand-replay-map-constructor-form 'ch-replay-map 'fset2::empty-ch-replay-map args))
 
 (defmacro ch-custom-replay-map (key-compare-fn-name val-compare-fn-name &rest args)
   "Constructs a ch-replay-map with a custom ordering, according to the supplied
@@ -516,17 +609,25 @@ expression must evaluate to a map, denoting all its mappings; or the symbol
 the map's default.  The result is constructed from the denoted mappings in
 left-to-right order; so if a given key is supplied by more than one argument
 subform, its associated value will be given by the rightmost such subform."
-  (expand-replay-map-constructor-form 'ch-replay-map args key-compare-fn-name val-compare-fn-name))
+  (expand-replay-map-constructor-form 'ch-replay-map 'fset2::empty-ch-replay-map args
+				      key-compare-fn-name val-compare-fn-name))
 
-(defun expand-replay-map-constructor-form (type-name args &optional key-compare-fn-name val-compare-fn-name)
+(defun expand-replay-map-constructor-form (type-name empty-fn args &optional key-compare-fn-name val-compare-fn-name)
+  (declare (ignore type-name))		; might need it for an error message?
   ;; We MUST maintain ORDER!!!  Yow!!!
-  (let ((default (cadr (member ':default args)))
-	((result `(,(empty-instance-function type-name) ,default
-		   . ,(and key-compare-fn-name `(,key-compare-fn-name ,val-compare-fn-name))))))
+  (let ((default? (member ':default args))
+	(no-default? (member ':no-default args))
+	((result `(,empty-fn ,@(and default? `(:default ,(cadr default?)))
+			     ,@(and no-default? '(:no-default? t))
+			     ,@(and key-compare-fn-name `(:key-compare-fn-name ,key-compare-fn-name))
+			     ,@(and val-compare-fn-name `(:val-compare-fn-name ,val-compare-fn-name))))))
+    (when (and default? no-default?)
+      (error "In replay-map constructor, both `:default' and `:no-default' specified"))
     (do ((args args (cdr args)))
 	((null args) result)
       (let ((arg (car args)))
 	(cond ((eq arg ':default) (pop args))
+	      ((eq arg ':no-default))
 	      ((and (listp arg) (eq (car arg) '$))
 	       (let ((tmp (gensymx #:tmp-)))
 		 (setq result `(let ((,tmp ,result))
@@ -544,7 +645,7 @@ to appear in the sequence; or a list of the form ($ `expression'), in which
 case the expression must evaluate to a sequence, all of whose values appear in
 the result sequence.  The order of the result sequence reflects the order of
 the argument subforms."
-  (expand-seq-constructor-form 'seq args))
+  (expand-seq-constructor-form 'seq 'empty-seq args))
 
 (defmacro wb-seq (&rest args)
   "Constructs a wb-seq according to the supplied argument subforms.  Each
@@ -552,14 +653,14 @@ argument subform can be an expression whose value is to appear in the sequence;
 or a list of the form ($ `expression'), in which case the expression must
 evaluate to a sequence, all of whose values appear in the result sequence.  The
 order of the result sequence reflects the order of the argument subforms."
-  (expand-seq-constructor-form 'wb-seq args))
+  (expand-seq-constructor-form 'wb-seq 'empty-wb-seq args))
 
-(defun expand-seq-constructor-form (type-name args)
+(defun expand-seq-constructor-form (type-name empty-fn args)
   (labels ((recur (args nonsplice-args)
 	     (cond ((null args)
 		    (if nonsplice-args
 			`(convert ',type-name (list . ,(cl:reverse nonsplice-args)))
-		      `(,(empty-instance-function type-name))))
+		      `(,empty-fn)))
 		   ((and (listp (car args))
 			 (eq (caar args) '$))
 		    (unless (= (length (car args)) 2)
@@ -635,7 +736,7 @@ result of
   (2-relation (($ (set 1 2)) ($ (set 'a 'b))))
 
 contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
-  (expand-2-relation-constructor-form '2-relation args))
+  (expand-2-relation-constructor-form '2-relation 'empty-2-relation args))
 
 (defmacro wb-2-relation (&rest args)
   "Constructs a wb-2-relation according to the supplied argument subforms.
@@ -651,7 +752,7 @@ result of
   (wb-2-relation (($ (set 1 2)) ($ (set 'a 'b))))
 
 contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
-  (expand-2-relation-constructor-form 'wb-2-relation args))
+  (expand-2-relation-constructor-form 'wb-2-relation 'empty-wb-2-relation args))
 
 (defmacro wb-custom-2-relation (key-compare-fn-name val-compare-fn-name &rest args)
   "Constructs a wb-2-relation with a custom ordering, according to the supplied
@@ -667,7 +768,8 @@ result of
   (wb-custom-2-relation 'key-cmp 'val-cmp (($ (set 1 2)) ($ (set 'a 'b))))
 
 contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
-  (expand-2-relation-constructor-form 'wb-2-relation args key-compare-fn-name val-compare-fn-name))
+  (expand-2-relation-constructor-form 'wb-2-relation 'empty-wb-2-relation args
+				      key-compare-fn-name val-compare-fn-name))
 
 (defmacro ch-2-relation (&rest args)
   "Constructs a ch-2-relation according to the supplied argument subforms.
@@ -683,7 +785,7 @@ result of
   (ch-2-relation (($ (set 1 2)) ($ (set 'a 'b))))
 
 contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
-  (expand-2-relation-constructor-form 'ch-2-relation args))
+  (expand-2-relation-constructor-form 'ch-2-relation 'empty-ch-2-relation args))
 
 (defmacro ch-custom-2-relation (key-compare-fn-name val-compare-fn-name &rest args)
   "Constructs a ch-2-relation with a custom ordering, according to the supplied
@@ -699,11 +801,12 @@ result of
   (ch-custom-2-relation 'key-cmp 'val-cmp (($ (set 1 2)) ($ (set 'a 'b))))
 
 contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
-  (expand-2-relation-constructor-form 'ch-2-relation args key-compare-fn-name val-compare-fn-name))
+  (expand-2-relation-constructor-form 'ch-2-relation 'empty-ch-2-relation args
+				      key-compare-fn-name val-compare-fn-name))
 
-(defun expand-2-relation-constructor-form (type-name subforms &optional key-compare-fn-name val-compare-fn-name)
-  (let ((empty-form `(,(empty-instance-function type-name)
-		       . ,(and key-compare-fn-name `(,key-compare-fn-name ,val-compare-fn-name)))))
+(defun expand-2-relation-constructor-form (type-name empty-fn subforms
+					   &optional key-compare-fn-name val-compare-fn-name)
+  (let ((empty-form `(,empty-fn . ,(and key-compare-fn-name `(,key-compare-fn-name ,val-compare-fn-name)))))
     (labels ((recur (subforms result)
 	       (if (null subforms) result
 		 (let ((subform (car subforms)))

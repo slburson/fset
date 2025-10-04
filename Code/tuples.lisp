@@ -641,7 +641,7 @@ When done, returns `value'."
   (check-three-arguments value? 'with 'tuple)
   (Tuple-With tuple key value))
 
-(defmethod lookup ((tuple tuple) (key tuple-key))
+(define-methods (lookup fset2:lookup) ((tuple tuple) (key tuple-key))
   (let ((val? val (Tuple-Lookup tuple key)))
     (if val? (values val t)
       (let ((default-fn (tuple-key-default-fn key)))
@@ -687,16 +687,18 @@ of calling `val-fn' on the value from `tuple1' and the value from `tuple2'.
 (defmethod convert ((to-type (eql 'dyn-tuple)) (tup dyn-tuple) &key)
   tup)
 
-;;; &&& These should be able to create custom maps.
 (defmethod convert ((to-type (eql 'map)) (tup tuple) &key)
   (wb-map-from-tuple tup))
-(defmethod convert ((to-type (eql 'wb-map)) (tup tuple) &key)
-  (wb-map-from-tuple tup))
-(defun wb-map-from-tuple (tup)
-  (let ((tree nil))
+
+(defmethod convert ((to-type (eql 'wb-map)) (tup tuple) &key key-compare-fn-name val-compare-fn-name)
+  (wb-map-from-tuple tup key-compare-fn-name val-compare-fn-name))
+
+(defun wb-map-from-tuple (tup &optional key-compare-fn-name val-compare-fn-name)
+  (let ((tree nil)
+	(tmorg (wb-map-org (empty-wb-map nil key-compare-fn-name val-compare-fn-name))))
     (do-tuple (k v tup)
-      (setq tree (WB-Map-Tree-With tree k v #'compare #'compare)))
-    (make-wb-map tree +fset-default-tree-map-org+ nil)))
+      (setq tree (WB-Map-Tree-With tree k v (tree-map-org-key-compare-fn tmorg) (tree-map-org-val-compare-fn tmorg))))
+    (make-wb-map tree tmorg nil)))
 
 (defmethod convert ((to-type (eql 'list)) (tup tuple) &key (pair-fn #'cons))
   (let ((result nil)
@@ -730,12 +732,14 @@ of calling `val-fn' on the value from `tuple1' and the value from `tuple2'.
 
 ;;; ================================================================================
 
-(define-wb-set-method image ((key tuple-key) (s wb-set) &key compare-fn-name)
+(define-wb-set-methods (image fset2:image) ((key tuple-key) (s wb-set) &key compare-fn-name)
   (wb-set-image #'(lambda (x) (lookup x key)) (contents s)
 		(or compare-fn-name (compare-fn-name s))))
 
 (defmethod image ((key tuple-key) (s seq) &key)
-  (seq-image #'(lambda (x) (lookup x key)) s))
+  (seq-image #'(lambda (x) (lookup x key)) s nil))
+(defmethod fset2:image ((key tuple-key) (s seq) &key)
+  (seq-image #'(lambda (x) (fset2:lookup x key)) s 'no-default))
 
 (defmethod restrict ((tup tuple) (s set))
   (let ((result (empty-tuple)))

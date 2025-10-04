@@ -61,9 +61,10 @@
 	   #:set-difference #:set-difference-2 #:bag-difference #:bag-pairs
 	   #:subset? #:proper-subset? #:disjoint? #:subbag? #:proper-subbag?
 	   #:filter #:filter-pairs #:partition
-	   #:image #:reduce #:domain #:range #:with-default #:update
+	   #:image #:reduce #:domain #:range #:update
+	   #:with-default #:default
 	   #:map-union #:map-intersection #:map-difference-2
-	   #:restrict #:restrict-not #:compose #:map-default
+	   #:restrict #:restrict-not #:compose
 	   #:first #:last
 	   #:lastcons #:head #:tail
 	   #:with-first #:less-first #:push-first #:pop-first
@@ -131,23 +132,33 @@
   (:import-from :gmap #:gmap #:alist #:constant #:index #:sum)
   (:shadowing-import-from :new-let #:let #:cond)
   (:shadowing-import-from :mt19937 #:make-random-state #:random #:*random-state*)
-  ;; For each of these shadowed symbols, using packages must either shadowing-
+  ;; For each of these shadowed CL symbols, using packages must either shadowing-
   ;; import it or shadowing-import the original Lisp symbol.
-  (:shadow ;; Shadowed type/constructor names
-	   #:set #:map
-	   ;; Shadowed set operations
-	   #:union #:intersection #:set-difference #:complement
-	   ;; Shadowed sequence operations
-	   #:first #:last #:subseq #:reverse #:sort #:stable-sort
-	   #:reduce
-	   #:find #:find-if #:find-if-not
-	   #:count #:count-if #:count-if-not
-	   #:position #:position-if #:position-if-not
-	   #:remove #:remove-if #:remove-if-not
-	   #:substitute #:substitute-if #:substitute-if-not
-	   #:some #:every #:notany #:notevery
-	   ;; Additional shadowed names from `fset:'
-	   #:map-intersection)
+  (:shadowing-import-from :fset
+			  ;; Shadowed set operations
+			  #:union #:intersection #:set-difference #:complement
+			  ;; Shadowed sequence operations
+			  #:first #:last #:subseq #:reverse #:sort #:stable-sort
+			  #:reduce
+			  #:find #:find-if #:find-if-not
+			  #:count #:count-if #:count-if-not
+			  #:position #:position-if #:position-if-not
+			  #:remove #:remove-if #:remove-if-not
+			  #:substitute #:substitute-if #:substitute-if-not
+			  #:some #:every #:notany #:notevery)
+  ;; These are shadowed `fset:' symbols, with different definitions in `fset2:'.
+  (:shadow ;; Names shadowed from `fset:' to implement FSet2 semantics
+	   #:set #:map #:wb-map #:wb-custom-map #:ch-map #:ch-custom-map
+	   #:empty-set #:empty-map #:empty-wb-map #:empty-ch-map #:empty-seq #:empty-wb-seq
+	   ;; These just changed from `&optional' to `&key'
+	   #:empty-wb-set #:empty-ch-set #:empty-wb-bag #:empty-wb-replay-set #:empty-ch-replay-set
+	   #:empty-replay-map #:empty-wb-replay-map #:empty-ch-replay-map
+	   #:empty-wb-2-relation #:empty-ch-2-relation
+	   #:empty-list-relation #:empty-wb-list-relation #:empty-ch-list-relation
+	   ;; Map and seq operations that handle defaults differently
+	   #:lookup #:map-union #:map-intersection #:map-difference-2 #:compose
+	   ;; Functions that call `lookup', transitively
+	   #:internal-lookup #:@ #:image #:filter #:partition)
   (:export #:collection #:set #:bag #:map #:seq #:tuple
 	   #:collection? #:set? #:bag? #:map? #:seq? #:tuple?
 	   #:wb-set #:wb-bag #:wb-map #:wb-seq #:dyn-tuple
@@ -178,9 +189,13 @@
 	   #:set-difference #:set-difference-2 #:bag-difference #:bag-pairs
 	   #:subset? #:proper-subset #:disjoint? #:subbag? #:proper-subbag?
 	   #:filter #:filter-pairs #:partition
-	   #:image #:reduce #:domain #:range #:with-default #:update
+	   #:image #:reduce #:domain #:range #:update
+	   #:with-default #:without-default #:default
+	   #:map-domain-error #:map-domain-error-map #:map-domain-error-key
+	   #:seq-bounds-error #:seq-bounds-error-seq #:seq-bounds-error-index
+	   #:empty-seq-error #:empty-seq-error-seq
 	   #:map-union #:map-intersection #:map-difference-2
-	   #:restrict #:restrict-not #:compose #:map-default
+	   #:restrict #:restrict-not #:compose
 	   #:first #:last
 	   #:lastcons #:head #:tail
 	   #:with-first #:less-first #:push-first #:pop-first
@@ -214,7 +229,7 @@
 	   #:full-set
 	   ;; Relations
 	   #:relation #:relation? #:2-relation #:2-relation? #:wb-2-relation #:wb-2-relation?
-	   #:empty-2-relation #:empty-wb-2-relation #:empty-chb-2-relation #:do-2-relation
+	   #:empty-2-relation #:empty-wb-2-relation #:empty-ch-2-relation #:do-2-relation
 	   #:lookup-inv #:inverse #:join #:conflicts #:map-to-sets
 	   #:list-relation #:list-relation? #:wb-list-relation #:wb-list-relation?
 	   #:empty-list-relation #:empty-wb-list-relation #:empty-ch-list-relation #:do-list-relation
@@ -256,8 +271,27 @@
 			  #:substitute #:substitute-if #:substitute-if-not
 			  #:some #:every #:notany #:notevery))
 
+(defpackage :fset2-user
+  (:use :cl :fset2 :gmap :new-let :lexical-contexts)
+  (:shadowing-import-from :new-let #:let #:cond)
+  (:shadowing-import-from :fset2
+			  ;; Shadowed type/constructor names
+			  #:set #:map
+			  ;; Shadowed set operations
+			  #:union #:intersection #:set-difference #:complement
+			  ;; Shadowed sequence operations
+			  #:first #:last #:subseq #:reverse #:sort #:stable-sort
+			  #:reduce
+			  #:find #:find-if #:find-if-not
+			  #:count #:count-if #:count-if-not
+			  #:position #:position-if #:position-if-not
+			  #:remove #:remove-if #:remove-if-not
+			  #:substitute #:substitute-if #:substitute-if-not
+			  #:some #:every #:notany #:notevery))
+
 
 (pushnew ':FSet *features*)
+(pushnew ':FSet2 *features*)
 
 ;;; The seq implementation tries to use strings for leaf vectors when possible.
 ;;; In some Lisp implementations, there are two kinds of strings; but in some

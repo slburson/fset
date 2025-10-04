@@ -328,6 +328,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 	 (svref tree ch-set-node-header-size))))
 
 (defun ch-set-tree-contains? (tree value hash-fn compare-fn &optional (depth 0))
+  "On success, returns the set element as the second value."
   (declare (optimize (speed 3) (safety 0))
 	   (type function hash-fn compare-fn)
 	   (type (integer 0 64) depth))

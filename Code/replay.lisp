@@ -14,14 +14,12 @@
 
 ;;; We have some implementation-generic methods.
 
+(declaim (inline empty-replay-set))
 (defun empty-replay-set ()
   "Returns an empty replay set of the default implementation."
   ;; Now CHAMP!
   (declare (special *empty-ch-replay-set*))
   *empty-ch-replay-set*)
-
-(defmethod empty-instance-function ((class-name (eql 'replay-set)))
-  'empty-replay-set)
 
 (defmethod convert ((to-type (eql 'replay-set)) (s replay-set) &key)
   s)
@@ -73,8 +71,12 @@ sets are printed as \"#{= ... }\"."
 
 (defparameter *empty-wb-replay-set* (make-wb-replay-set nil nil +fset-default-tree-set-org+))
 
-(declaim (inline empty-wb-replay-set))
+(declaim (inline empty-wb-replay-set fset2:empty-wb-replay-set))
 (defun empty-wb-replay-set (&optional compare-fn-name)
+  (if (null compare-fn-name)
+      *empty-wb-replay-set*
+    (empty-wb-custom-replay-set compare-fn-name)))
+(defun fset2:empty-wb-replay-set (&key compare-fn-name)
   (if (null compare-fn-name)
       *empty-wb-replay-set*
     (empty-wb-custom-replay-set compare-fn-name)))
@@ -92,9 +94,6 @@ sets are printed as \"#{= ... }\"."
 	  prev-instance
 	(setf (gethash compare-fn-name +empty-wb-custom-replay-set-cache+)
 	      (make-wb-replay-set nil nil (make-tree-set-org compare-fn-name compare-fn)))))))
-
-(defmethod empty-instance-function ((class-name (eql 'wb-replay-set)))
-  'empty-wb-replay-set)
 
 (defmethod compare-fn ((s wb-replay-set))
   (tree-set-org-compare-fn (wb-replay-set-org s)))
@@ -155,7 +154,7 @@ sets are printed as \"#{= ... }\"."
   (check-two-arguments y? 'contains? 'wb-replay-set)
   (wb-set-tree-contains? (wb-replay-set-contents s) x (tree-set-org-compare-fn (wb-replay-set-org s))))
 
-(defmethod lookup ((s wb-replay-set) value)
+(define-methods (lookup fset2:lookup) ((s wb-replay-set) value)
   (wb-set-tree-find-equal (wb-replay-set-contents s) value
 			  (tree-set-org-compare-fn (wb-replay-set-org s))))
 
@@ -316,8 +315,12 @@ sets are printed as \"#{= ... }\"."
 
 (defparameter *empty-ch-replay-set* (make-ch-replay-set nil nil (ch-set-org *empty-ch-set*)))
 
-(declaim (inline empty-ch-replay-set))
+(declaim (inline empty-ch-replay-set fset2:empty-ch-replay-set))
 (defun empty-ch-replay-set (&optional compare-fn-name)
+  (if (null compare-fn-name)
+      *empty-ch-replay-set*
+    (empty-ch-custom-replay-set compare-fn-name)))
+(defun fset2:empty-ch-replay-set (&key compare-fn-name)
   (if (null compare-fn-name)
       *empty-ch-replay-set*
     (empty-ch-custom-replay-set compare-fn-name)))
@@ -342,9 +345,6 @@ sets are printed as \"#{= ... }\"."
 	  prev-instance
 	(setf (gethash compare-fn-name +empty-ch-custom-replay-set-cache+)
 	      (make-ch-replay-set nil nil (make-hash-set-org compare-fn-name compare-fn hash-fn)))))))
-
-(defmethod empty-instance-function ((class-name (eql 'ch-replay-set)))
-  'empty-ch-replay-set)
 
 (defmethod compare-fn ((s ch-replay-set))
   (hash-set-org-compare-fn (ch-replay-set-org s)))
@@ -398,7 +398,7 @@ sets are printed as \"#{= ... }\"."
     (ch-set-tree-contains? (ch-replay-set-contents s) x
 			   (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg))))
 
-(defmethod lookup ((s ch-replay-set) value)
+(define-methods (lookup fset2:lookup) ((s ch-replay-set) value)
   (let ((hsorg (ch-replay-set-org s)))
     (ch-set-tree-contains? (ch-replay-set-contents s) value
 			   (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg))))
@@ -540,13 +540,19 @@ result is that of `s1', filtered by membership in `s2'."
 
 ;;; We have some implementation-generic methods.
 
+(declaim (inline empty-replay-map fset2:empty-replay-map))
 (defun empty-replay-map (&optional default)
   (declare (special *empty-ch-replay-map*))
   (if default (make-ch-replay-map nil nil (ch-map-org *empty-ch-map*) default)
     *empty-ch-replay-map*))
-
-(defmethod empty-instance-function ((class-name (eql 'replay-map)))
-  'empty-replay-map)
+(defun fset2:empty-replay-map (&key (default nil default?) no-default?)
+  (declare (special *empty-ch-replay-map*))
+  (if (and default? no-default?)
+      (error "Both a default and `no-default?' specified")
+    (let ((default (if default? default (and no-default? 'no-default))))
+      (if (null default)
+	  *empty-ch-replay-map*
+	(make-ch-replay-map nil nil (ch-map-org *empty-ch-map*) default)))))
 
 (defmethod convert ((to-type (eql 'replay-map)) (m replay-map) &key)
   m)
@@ -628,12 +634,25 @@ first.  Replay maps are printed as \"#{=| ... |}\"."
 
 (defparameter *empty-wb-replay-map* (make-wb-replay-map nil nil +fset-default-tree-map-org+))
 
+(declaim (inline empty-wb-replay-map fset2:empty-wb-replay-map))
 (defun empty-wb-replay-map (&optional default key-compare-fn-name val-compare-fn-name)
   (if (and (null key-compare-fn-name) (null val-compare-fn-name))
       (if (null default)
 	  *empty-wb-replay-map*
 	(make-wb-replay-map nil nil +fset-default-tree-map-org+ default))
     (empty-wb-custom-replay-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare))))
+(defun fset2:empty-wb-replay-map (&key (default nil default?) no-default? key-compare-fn-name val-compare-fn-name)
+  "Returns an empty wb-replay-map with the specified default and comparison
+functions.  The map's default is `nil' unless a different default is supplied,
+or `no-default?' is true."
+  (if (and default? no-default?)
+      (error "Both a default and `no-default?' specified")
+    (let ((default (if default? default (and no-default? 'no-default))))
+      (cond ((or key-compare-fn-name val-compare-fn-name)
+	     (empty-wb-custom-replay-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare)))
+	    ((null default)
+	     *empty-wb-replay-map*)
+	    (t (make-wb-replay-map nil nil +fset-default-tree-map-org+ default))))))
 
 (deflex +empty-wb-custom-replay-map-cache+ (make-hash-table :test 'equal))
 
@@ -661,9 +680,6 @@ first.  Replay maps are printed as \"#{=| ... |}\"."
 	      (make-wb-replay-map nil nil (make-tree-map-org key-compare-fn-name key-compare-fn
 							     val-compare-fn-name val-compare-fn)
 				  default))))))
-
-(defmethod empty-instance-function ((class-name (eql 'wb-replay-map)))
-  'empty-wb-replay-map)
 
 (defmethod with-default ((m wb-replay-map) new-default)
   (make-wb-replay-map (wb-replay-map-contents m) (replay-map-ordering m) (wb-replay-map-org m) new-default))
@@ -808,6 +824,15 @@ first.  Replay maps are printed as \"#{=| ... |}\"."
   (let ((val? val (wb-map-tree-lookup (wb-replay-map-contents m) key
 				      (tree-map-org-key-compare-fn (wb-replay-map-org m)))))
     (values (if val? val (map-default m)) val?)))
+(defmethod fset2:lookup ((m wb-replay-map) key)
+  (let ((val? val (wb-map-tree-lookup (wb-replay-map-contents m) key
+				      (tree-map-org-key-compare-fn (wb-replay-map-org m)))))
+    (values (if val? val
+	      (let ((dflt (map-default m)))
+		(if (eq dflt 'no-default)
+		    (error 'fset2:map-domain-error :map m :key key)
+		  dflt)))
+	    val?)))
 
 (defmethod domain-contains? ((m wb-replay-map) x)
   (wb-map-tree-lookup (wb-replay-map-contents m) x (tree-map-org-key-compare-fn (wb-replay-map-org m))))
@@ -886,11 +911,13 @@ first.  Replay maps are printed as \"#{=| ... |}\"."
 						  ((key-cf-name (tree-map-org-key-compare-fn-name tmorg))
 						   (val-cf-name (tree-map-org-val-compare-fn-name tmorg))
 						   ((key-default? (eq key-cf-name 'compare))
-						    (val-default? (eq val-cf-name 'compare)))))
-					      (format nil " |}~:[[~:[~S~;~*~]:~:[~S~;~*~]]~;~4*~]~@[/~S~]"
+						    (val-default? (eq val-cf-name 'compare))))
+						  (dflt (map-default map)))
+					      (format nil " |}~:[[~:[~S~;~*~]:~:[~S~;~*~]]~;~4*~]~@[/~A~]"
 						      (and key-default? val-default?)
 						      key-default? key-cf-name val-default? val-cf-name
-						      (map-default map))))
+						      (if (eq dflt 'no-default) "[no default]"
+							(format nil "~S" dflt)))))
     (do-map (x y map)
       (pprint-pop)
       (write-char #\Space stream)
@@ -914,18 +941,31 @@ were first added to it.  It does not support all map operations, but you can con
 to a map.  Note that in the current implementation, `less' on a replay map takes O(n) time.
 Also, two replay maps are equal only if they both contain the same pairs and have the same
 iteration order; if you just want to compare the contents, convert them to ordinary maps
-first.  Replay maps are printed as \"#{=| ... |}\"."
+first.  Replay maps are printed as \"##{=| ... |}\"."
   (contents nil :read-only t)
   (org nil :type hash-map-org :read-only t))
 
 (defparameter *empty-ch-replay-map* (make-ch-replay-map nil nil (ch-map-org *empty-ch-map*)))
 
+(declaim (inline empty-ch-replay-map fset2:empty-ch-replay-map))
 (defun empty-ch-replay-map (&optional default key-compare-fn-name val-compare-fn-name)
   (if (and (null key-compare-fn-name) (null val-compare-fn-name))
       (if (null default)
 	  *empty-ch-replay-map*
 	(make-ch-replay-map nil nil (ch-replay-map-org *empty-ch-replay-map*) default))
     (empty-ch-custom-replay-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare))))
+(defun fset2:empty-ch-replay-map (&key (default nil default?) no-default? key-compare-fn-name val-compare-fn-name)
+  "Returns an empty ch-replay-map with the specified default and comparison
+functions.  The map's default is `nil' unless a different default is supplied,
+or `no-default?' is true."
+  (if (and default? no-default?)
+      (error "Both a default and `no-default?' specified")
+    (let ((default (if default? default (and no-default? 'no-default))))
+      (cond ((or key-compare-fn-name val-compare-fn-name)
+	     (empty-ch-custom-replay-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare)))
+	    ((null default)
+	     *empty-ch-replay-map*)
+	    (t (make-ch-replay-map nil nil (ch-map-org *empty-ch-map*) default))))))
 
 (deflex +empty-ch-custom-replay-map-cache+ (make-hash-table :test 'equal))
 
@@ -963,9 +1003,6 @@ first.  Replay maps are printed as \"#{=| ... |}\"."
 	      (make-ch-replay-map nil nil (make-hash-map-org key-compare-fn-name key-compare-fn key-hash-fn
 							     val-compare-fn-name val-compare-fn val-hash-fn)
 				  default))))))
-
-(defmethod empty-instance-function ((class-name (eql 'ch-replay-map)))
-  'empty-ch-replay-map)
 
 (defmethod with-default ((m ch-replay-map) new-default)
   (make-ch-replay-map (ch-replay-map-contents m) (replay-map-ordering m) (ch-replay-map-org m) new-default))
@@ -1094,6 +1131,16 @@ first.  Replay maps are printed as \"#{=| ... |}\"."
 	((val? val (ch-map-tree-lookup (ch-replay-map-contents m) key
 				       (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)))))
     (values (if val? val (map-default m)) val?)))
+(defmethod fset2:lookup ((m ch-replay-map) key)
+  (let ((hmorg (ch-replay-map-org m))
+	((val? val (ch-map-tree-lookup (ch-replay-map-contents m) key
+				       (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)))))
+    (values (if val? val
+	      (let ((dflt (map-default m)))
+		(if (eq dflt 'no-default)
+		    (error 'fset2:map-domain-error :map m :key key)
+		  dflt)))
+	    val?)))
 
 (defmethod domain-contains? ((m ch-replay-map) x)
   (let ((hmorg (ch-replay-map-org m)))
@@ -1183,11 +1230,13 @@ first.  Replay maps are printed as \"#{=| ... |}\"."
 						  ((key-cf-name (hash-map-org-key-compare-fn-name hmorg))
 						   (val-cf-name (hash-map-org-val-compare-fn-name hmorg))
 						   ((key-default? (eq key-cf-name 'compare))
-						    (val-default? (eq val-cf-name 'compare)))))
-					      (format nil " |}~:[[~:[~S~;~*~]:~:[~S~;~*~]]~;~4*~]~@[/~S~]"
+						    (val-default? (eq val-cf-name 'compare))))
+						  (dflt (map-default map)))
+					      (format nil " |}~:[[~:[~S~;~*~]:~:[~S~;~*~]]~;~4*~]~@[/~A~]"
 						      (and key-default? val-default?)
 						      key-default? key-cf-name val-default? val-cf-name
-						      (map-default map))))
+						      (if (eq dflt 'no-default) "[no default]"
+							(format nil "~S" dflt)))))
     (do-map (x y map)
       (pprint-pop)
       (write-char #\Space stream)
