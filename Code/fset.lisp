@@ -4329,11 +4329,10 @@ to `compare'."
 						   ((key-default? (eq key-cf-name 'compare))
 						    (val-default? (eq val-cf-name 'compare))))
 						  (dflt (map-default map)))
-					      (format nil " |}~:[[~:[~S~;~*~];~:[~S~;~*~]]~;~4*~]~@[/~A~]"
+					      (format nil " |}~:[[~:[~S~;~*~];~:[~S~;~*~]]~;~4*~]~:[/~S~;~]"
 						      (and key-default? val-default?)
 						      key-default? key-cf-name val-default? val-cf-name
-						      (if (eq dflt 'no-default) "[no default]"
-							(format nil "~S" dflt)))))
+						      (eq dflt 'no-default) dflt)))
     (do-map (x y map)
       (pprint-pop)
       (write-char #\Space stream)
@@ -4877,11 +4876,10 @@ The map's default is `nil' unless a different default is supplied, or
 						   ((key-default? (eq key-cf-name 'compare))
 						    (val-default? (eq val-cf-name 'compare))))
 						  (dflt (map-default map)))
-					      (format nil " |}~:[[~:[~S~;~*~];~:[~S~;~*~]]~;~4*~]~@[/~A~]"
+					      (format nil " |}~:[[~:[~S~;~*~];~:[~S~;~*~]]~;~4*~]~:[/~S~;~]"
 						      (and key-default? val-default?)
 						      key-default? key-cf-name val-default? val-cf-name
-						      (if (eq dflt 'no-default) "[no default]"
-							(format nil "~S" dflt)))))
+						      (eq dflt 'no-default) dflt)))
     (do-map (x y map)
       (pprint-pop)
       (write-char #\Space stream)
@@ -5673,16 +5671,15 @@ not symbols."))
 
 (defun print-wb-seq (seq stream level)
   (declare (ignore level))
-  (pprint-logical-block (stream nil :prefix "#[")
+  (pprint-logical-block (stream nil :prefix "#["
+				    :suffix (let ((dflt (seq-default seq)))
+					      (format nil " ]~:[/~A~;~]"
+						      (eq dflt 'no-default) dflt)))
     (do-seq (x seq)
       (pprint-pop)
       (write-char #\Space stream)
       (pprint-newline :linear stream)
-      (write x :stream stream))
-    (format stream " ]~:[~;/~:*~A~]"
-	    (let ((dflt (seq-default seq)))
-	      (if (eq dflt 'no-default) "[no default]"
-		(format nil "~S" dflt))))))
+      (write x :stream stream))))
 
 (defmethod make-load-form ((s wb-seq) &optional environment)
   (declare (ignore environment))

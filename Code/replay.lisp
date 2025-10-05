@@ -913,11 +913,10 @@ or `no-default?' is true."
 						   ((key-default? (eq key-cf-name 'compare))
 						    (val-default? (eq val-cf-name 'compare))))
 						  (dflt (map-default map)))
-					      (format nil " |}~:[[~:[~S~;~*~]:~:[~S~;~*~]]~;~4*~]~@[/~A~]"
+					      (format nil " |}~:[[~:[~S~;~*~]:~:[~S~;~*~]]~;~4*~]~:[/~S~;~]"
 						      (and key-default? val-default?)
 						      key-default? key-cf-name val-default? val-cf-name
-						      (if (eq dflt 'no-default) "[no default]"
-							(format nil "~S" dflt)))))
+						      (eq dflt 'no-default) dflt)))
     (do-map (x y map)
       (pprint-pop)
       (write-char #\Space stream)
@@ -1232,11 +1231,10 @@ or `no-default?' is true."
 						   ((key-default? (eq key-cf-name 'compare))
 						    (val-default? (eq val-cf-name 'compare))))
 						  (dflt (map-default map)))
-					      (format nil " |}~:[[~:[~S~;~*~]:~:[~S~;~*~]]~;~4*~]~@[/~A~]"
+					      (format nil " |}~:[[~:[~S~;~*~]:~:[~S~;~*~]]~;~4*~]~:[/~S~;~]"
 						      (and key-default? val-default?)
 						      key-default? key-cf-name val-default? val-cf-name
-						      (if (eq dflt 'no-default) "[no default]"
-							(format nil "~S" dflt)))))
+						      (eq dflt 'no-default) dflt)))
     (do-map (x y map)
       (pprint-pop)
       (write-char #\Space stream)
