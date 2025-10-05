@@ -382,12 +382,16 @@ argument subforms.  Each argument subform can be a list of the form (`key-expr'
 `value-expr'), denoting a mapping from the value of `key-expr' to the value of
 `value-expr'; or a list of the form ($ `expression'), in which case the
 expression must evaluate to a map, denoting all its mappings; or the symbol
-`:default', in which case the next argument subform is a form whose value will
-become the map's default.  As a convenience, if a subform is ($ `expression')
-and the expression evaluates to `nil', it will be treated as an empty map.
-The result is constructed from the denoted mappings in left-to-right order; so
-if a given key is supplied by more than one argument subform, its associated
-value will be given by the rightmost such subform."
+`:default' followed by a form; or the symbol `:no-default'.  If `:default' is
+supplied, the map's default is the value of the subsequent form; if
+`:no-default' is supplied, the map has no default; if neither, the map's
+default is `nil'.
+
+As a convenience, if a subform is ($ `expression') and the expression evaluates
+to `nil', it will be treated as an empty map.  The result is constructed from
+the denoted mappings in left-to-right order; so if a given key is supplied by
+more than one argument subform, its associated value will be given by the
+rightmost such subform."
   (expand-map-constructor-form 'fset2:map 'fset2:empty-map args))
 
 (defmacro wb-map (&rest args)
@@ -408,13 +412,16 @@ such subform."
 argument subform can be a list of the form (`key-expr' `value-expr'), denoting
 a mapping from the value of `key-expr' to the value of `value-expr'; or a list
 of the form ($ `expression'), in which case the expression must evaluate to a
-map, denoting all its mappings; or the symbol `:default', in which case the
-next argument subform is a form whose value will become the map's default.  As
-a convenience, if a subform is ($ `expression') and the expression evaluates to
-`nil', it will be treated as an empty map.  The result is constructed from the
-denoted mappings in left-to-right order; so if a given key is supplied by more
-than one argument subform, its associated value will be given by the rightmost
-such subform."
+map, denoting all its mappings; or the symbol `:default' followed by a form;
+or the symbol `:no-default'.  If `:default' is supplied, the map's default is
+the value of the subsequent form; if `:no-default' is supplied, the map has no
+default; if neither, the map's default is `nil'.
+
+As a convenience, if a subform is ($ `expression') and the expression evaluates
+to `nil', it will be treated as an empty map.  The result is constructed from
+the denoted mappings in left-to-right order; so if a given key is supplied by
+more than one argument subform, its associated value will be given by the
+rightmost such subform."
   (expand-map-constructor-form 'fset2:wb-map 'fset2:empty-wb-map args))
 
 (defmacro wb-custom-map (key-compare-fn-name val-compare-fn-name &rest args)
@@ -443,13 +450,16 @@ operations, and a few other things, such as `range' and `map-difference-2'.\)
 Each of `args' can be a list of the form (`key-expr' `value-expr'), denoting
 a mapping from the value of `key-expr' to the value of `value-expr'; or a list
 of the form ($ `expression'), in which case the expression must evaluate to a
-map, denoting all its mappings; or the symbol `:default', in which case the
-next argument subform is a form whose value will become the map's default.  As
-a convenience, if a subform is ($ `expression') and the expression evaluates to
-`nil', it will be treated as an empty map.  The result is constructed from the
-denoted mappings in left-to-right order; so if a given key is supplied by more
-than one argument subform, its associated value will be given by the rightmost
-such subform."
+map, denoting all its mappings; or the symbol `:default' followed by a form;
+or the symbol `:no-default'.  If `:default' is supplied, the map's default is
+the value of the subsequent form; if `:no-default' is supplied, the map has no
+default; if neither, the map's default is `nil'.
+
+As a convenience, if a subform is ($ `expression') and the expression evaluates
+to `nil', it will be treated as an empty map.  The result is constructed from
+the denoted mappings in left-to-right order; so if a given key is supplied by
+more than one argument subform, its associated value will be given by the
+rightmost such subform."
   (expand-map-constructor-form 'fset2:wb-map 'fset2:empty-wb-map args key-compare-fn-name val-compare-fn-name))
 
 (defmacro ch-map (&rest args)
@@ -470,13 +480,16 @@ such subform."
 argument subform can be a list of the form (`key-expr' `value-expr'), denoting
 a mapping from the value of `key-expr' to the value of `value-expr'; or a list
 of the form ($ `expression'), in which case the expression must evaluate to a
-map, denoting all its mappings; or the symbol `:default', in which case the
-next argument subform is a form whose value will become the map's default.  As
-a convenience, if a subform is ($ `expression') and the expression evaluates to
-`nil', it will be treated as an empty map.  The result is constructed from the
-denoted mappings in left-to-right order; so if a given key is supplied by more
-than one argument subform, its associated value will be given by the rightmost
-such subform."
+map, denoting all its mappings; or the symbol `:default' followed by a form;
+or the symbol `:no-default'.  If `:default' is supplied, the map's default is
+the value of the subsequent form; if `:no-default' is supplied, the map has no
+default; if neither, the map's default is `nil'.
+
+As a convenience, if a subform is ($ `expression') and the expression evaluates
+to `nil', it will be treated as an empty map.  The result is constructed from
+the denoted mappings in left-to-right order; so if a given key is supplied by
+more than one argument subform, its associated value will be given by the
+rightmost such subform."
   (expand-map-constructor-form 'fset2:ch-map 'fset2:empty-ch-map args))
 
 (defmacro ch-custom-map (key-compare-fn-name val-compare-fn-name &rest args)
@@ -505,13 +518,16 @@ operations, and a few other things, such as `range' and `map-difference-2'.\)
 Each of `args' can be a list of the form (`key-expr' `value-expr'), denoting
 a mapping from the value of `key-expr' to the value of `value-expr'; or a list
 of the form ($ `expression'), in which case the expression must evaluate to a
-map, denoting all its mappings; or the symbol `:default', in which case the
-next argument subform is a form whose value will become the map's default.  As
-a convenience, if a subform is ($ `expression') and the expression evaluates to
-`nil', it will be treated as an empty map.  The result is constructed from the
-denoted mappings in left-to-right order; so if a given key is supplied by more
-than one argument subform, its associated value will be given by the rightmost
-such subform."
+map, denoting all its mappings; or the symbol `:default' followed by a form;
+or the symbol `:no-default'.  If `:default' is supplied, the map's default is
+the value of the subsequent form; if `:no-default' is supplied, the map has no
+default; if neither, the map's default is `nil'.
+
+As a convenience, if a subform is ($ `expression') and the expression evaluates
+to `nil', it will be treated as an empty map.  The result is constructed from
+the denoted mappings in left-to-right order; so if a given key is supplied by
+more than one argument subform, its associated value will be given by the
+rightmost such subform."
   (expand-map-constructor-form 'fset2:ch-map 'fset2:empty-ch-map args key-compare-fn-name val-compare-fn-name))
 
 (defun expand-map-constructor-form (type-name empty-fn args
@@ -556,10 +572,14 @@ argument subforms.  Each argument subform can be a list of the form (`key-expr'
 `value-expr'), denoting a mapping from the value of `key-expr' to the value of
 `value-expr'; or a list of the form ($ `expression'), in which case the
 expression must evaluate to a map, denoting all its mappings; or the symbol
-`:default', in which case the next argument subform is a form whose value will
-become the map's default.  The result is constructed from the denoted mappings
-in left-to-right order; so if a given key is supplied by more than one argument
-subform, its associated value will be given by the rightmost such subform."
+`:default' followed by a form; or the symbol `:no-default'.  If `:default' is
+supplied, the map's default is the value of the subsequent form; if
+`:no-default' is supplied, the map has no default; if neither, the map's
+default is `nil'.
+
+The result is constructed from the denoted mappings in left-to-right order;
+so if a given key is supplied by more than one argument subform, its associated
+value will be given by the rightmost such subform."
   (expand-replay-map-constructor-form 'replay-map 'fset2:empty-replay-map args))
 
 (defmacro wb-replay-map (&rest args)
@@ -567,11 +587,14 @@ subform, its associated value will be given by the rightmost such subform."
 argument subform can be a list of the form (`key-expr' `value-expr'), denoting
 a mapping from the value of `key-expr' to the value of `value-expr'; or a list
 of the form ($ `expression'), in which case the expression must evaluate to a
-map, denoting all its mappings; or the symbol `:default', in which case the
-next argument subform is a form whose value will become the map's default.  The
-result is constructed from the denoted mappings in left-to-right order; so if a
-given key is supplied by more than one argument subform, its associated value
-will be given by the rightmost such subform."
+map, denoting all its mappings; or the symbol `:default' followed by a form; or
+the symbol `:no-default'.  If `:default' is supplied, the map's default is the
+value of the subsequent form; if `:no-default' is supplied, the map has no
+default; if neither, the map's default is `nil'.
+
+The result is constructed from the denoted mappings in left-to-right order;
+so if a given key is supplied by more than one argument subform, its associated
+value will be given by the rightmost such subform."
   (expand-replay-map-constructor-form 'wb-replay-map 'fset2:empty-wb-replay-map args))
 
 (defmacro wb-custom-replay-map (key-compare-fn-name val-compare-fn-name &rest args)
@@ -580,10 +603,14 @@ argument subforms.  Each of `args' can be a list of the form \(`key-expr'
 `value-expr'\), denoting a mapping from the value of `key-expr' to the value of
 `value-expr'; or a list of the form \($ `expression'\), in which case the
 expression must evaluate to a map, denoting all its mappings; or the symbol
-`:default', in which case the value of the next argument subform will become
-the map's default.  The result is constructed from the denoted mappings in
-left-to-right order; so if a given key is supplied by more than one argument
-subform, its associated value will be given by the rightmost such subform."
+`:default' followed by a form; or the symbol `:no-default'.  If `:default' is
+supplied, the map's default is the value of the subsequent form; if
+`:no-default' is supplied, the map has no default; if neither, the map's
+default is `nil'.
+
+The result is constructed from the denoted mappings in left-to-right order;
+so if a given key is supplied by more than one argument subform, its associated
+value will be given by the rightmost such subform."
   (expand-replay-map-constructor-form 'wb-replay-map 'fset2:empty-wb-replay-map args
 				      key-compare-fn-name val-compare-fn-name))
 
@@ -592,11 +619,14 @@ subform, its associated value will be given by the rightmost such subform."
 argument subform can be a list of the form (`key-expr' `value-expr'), denoting
 a mapping from the value of `key-expr' to the value of `value-expr'; or a list
 of the form ($ `expression'), in which case the expression must evaluate to a
-map, denoting all its mappings; or the symbol `:default', in which case the
-next argument subform is a form whose value will become the map's default.  The
-result is constructed from the denoted mappings in left-to-right order; so if a
-given key is supplied by more than one argument subform, its associated value
-will be given by the rightmost such subform."
+map, denoting all its mappings; or the symbol `:default' followed by a form; or
+the symbol `:no-default'.  If `:default' is supplied, the map's default is the
+value of the subsequent form; if `:no-default' is supplied, the map has no
+default; if neither, the map's default is `nil'.
+
+The result is constructed from the denoted mappings in left-to-right order;
+so if a given key is supplied by more than one argument subform, its associated
+value will be given by the rightmost such subform."
   (expand-replay-map-constructor-form 'ch-replay-map 'fset2::empty-ch-replay-map args))
 
 (defmacro ch-custom-replay-map (key-compare-fn-name val-compare-fn-name &rest args)
@@ -605,10 +635,14 @@ argument subforms.  Each of `args' can be a list of the form \(`key-expr'
 `value-expr'\), denoting a mapping from the value of `key-expr' to the value of
 `value-expr'; or a list of the form \($ `expression'\), in which case the
 expression must evaluate to a map, denoting all its mappings; or the symbol
-`:default', in which case the value of the next argument subform will become
-the map's default.  The result is constructed from the denoted mappings in
-left-to-right order; so if a given key is supplied by more than one argument
-subform, its associated value will be given by the rightmost such subform."
+`:default' followed by a form; or the symbol `:no-default'.  If `:default' is
+supplied, the map's default is the value of the subsequent form; if
+`:no-default' is supplied, the map has no default; if neither, the map's
+default is `nil'.
+
+The result is constructed from the denoted mappings in left-to-right order;
+so if a given key is supplied by more than one argument subform, its associated
+value will be given by the rightmost such subform."
   (expand-replay-map-constructor-form 'ch-replay-map 'fset2::empty-ch-replay-map args
 				      key-compare-fn-name val-compare-fn-name))
 

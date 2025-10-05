@@ -684,6 +684,9 @@ or `no-default?' is true."
 (defmethod with-default ((m wb-replay-map) new-default)
   (make-wb-replay-map (wb-replay-map-contents m) (replay-map-ordering m) (wb-replay-map-org m) new-default))
 
+(defmethod fset2:without-default ((m wb-replay-map))
+  (make-wb-replay-map (wb-replay-map-contents m) (replay-map-ordering m) (wb-replay-map-org m) 'no-default))
+
 (defmethod key-compare-fn ((m wb-replay-map))
   (tree-map-org-key-compare-fn (wb-replay-map-org m)))
 
@@ -1005,6 +1008,9 @@ or `no-default?' is true."
 
 (defmethod with-default ((m ch-replay-map) new-default)
   (make-ch-replay-map (ch-replay-map-contents m) (replay-map-ordering m) (ch-replay-map-org m) new-default))
+
+(defmethod fset2:without-default ((m ch-replay-map))
+  (make-ch-replay-map (ch-replay-map-contents m) (replay-map-ordering m) (ch-replay-map-org m) 'no-default))
 
 (defmethod key-compare-fn ((m ch-replay-map))
   (hash-map-org-key-compare-fn (ch-replay-map-org m)))

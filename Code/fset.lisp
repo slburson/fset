@@ -406,6 +406,12 @@ default and a true second value; otherwise, the second value is false."))
     "Returns a new map or seq with the same contents as `collection' but whose
 default is now `new-default'."))
 
+(defgeneric fset2:without-default (collection)
+  (:documentation
+    "Returns a new map, replay map, or seq with the same contents as `collection'
+but with no default.  Subsequent `lookup' operations on a key not in the map,
+or a index outside the seq's bounds, will signal an error."))
+
 ;;; Prior to 1.4.0, this unconditionally called `val-fn' on the defaults of the
 ;;; two maps to produce the defaults of the result.  This was a PITA in the
 ;;; common case in which the defaults were null.  Now, it calls `val-fn' only
