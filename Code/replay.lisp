@@ -198,6 +198,9 @@ sets are printed as \"#{= ... }\"."
 
 (defmethod convert ((to-type (eql 'set)) (s wb-replay-set) &key)
   (make-wb-set (wb-replay-set-contents s) (wb-replay-set-org s)))
+(defmethod convert ((to-type (eql 'fset2:set)) (s wb-replay-set) &key)
+  (make-wb-set (wb-replay-set-contents s) (wb-replay-set-org s)))
+
 (defmethod convert ((to-type (eql 'wb-set)) (s wb-replay-set) &key compare-fn-name)
   (convert 'wb-set (make-wb-set (wb-replay-set-contents s)) :compare-fn-name compare-fn-name))
 
@@ -438,6 +441,9 @@ sets are printed as \"#{= ... }\"."
 
 (defmethod convert ((to-type (eql 'set)) (s ch-replay-set) &key)
   (make-ch-set (ch-replay-set-contents s) (ch-replay-set-org s)))
+(defmethod convert ((to-type (eql 'fset2:set)) (s ch-replay-set) &key)
+  (make-ch-set (ch-replay-set-contents s) (ch-replay-set-org s)))
+
 (defmethod convert ((to-type (eql 'ch-set)) (s ch-replay-set) &key compare-fn-name)
   (convert 'ch-set (make-ch-set (ch-replay-set-contents s) (ch-replay-set-org s))
 	   :compare-fn-name compare-fn-name))
@@ -789,7 +795,15 @@ or `no-default?' is true."
 
 (defmethod convert ((to-type (eql 'map)) (m wb-replay-map) &key (default nil default?))
   (make-wb-map (wb-replay-map-contents m) (wb-replay-map-org m) (if default? default (map-default m))))
+(defmethod convert ((to-type (eql 'fset2:map)) (m wb-replay-map) &key (default nil default?))
+  (make-wb-map (wb-replay-map-contents m) (wb-replay-map-org m) (if default? default (map-default m))))
+
 (defmethod convert ((to-type (eql 'wb-map)) (m wb-replay-map)
+		    &key (default nil default?) key-compare-fn-name val-compare-fn-name)
+  (convert 'wb-map (make-wb-map (wb-replay-map-contents m) (wb-replay-map-org m)
+				(if default? default (map-default m)))
+	   :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name))
+(defmethod convert ((to-type (eql 'fset2:wb-map)) (m wb-replay-map)
 		    &key (default nil default?) key-compare-fn-name val-compare-fn-name)
   (convert 'wb-map (make-wb-map (wb-replay-map-contents m) (wb-replay-map-org m)
 				(if default? default (map-default m)))
@@ -1090,7 +1104,15 @@ or `no-default?' is true."
 
 (defmethod convert ((to-type (eql 'map)) (m ch-replay-map) &key (default nil default?))
   (make-ch-map (ch-replay-map-contents m) (ch-replay-map-org m) (if default? default (map-default m))))
+(defmethod convert ((to-type (eql 'fset2:map)) (m ch-replay-map) &key (default nil default?))
+  (make-ch-map (ch-replay-map-contents m) (ch-replay-map-org m) (if default? default (map-default m))))
+
 (defmethod convert ((to-type (eql 'ch-map)) (m ch-replay-map)
+		    &key (default nil default?) key-compare-fn-name val-compare-fn-name)
+  (convert 'ch-map (make-ch-map (ch-replay-map-contents m) (ch-replay-map-org m)
+				(if default? default (map-default m)))
+	   :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name))
+(defmethod convert ((to-type (eql 'fset2:ch-map)) (m ch-replay-map)
 		    &key (default nil default?) key-compare-fn-name val-compare-fn-name)
   (convert 'ch-map (make-ch-map (ch-replay-map-contents m) (ch-replay-map-org m)
 				(if default? default (map-default m)))

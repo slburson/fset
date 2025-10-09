@@ -58,7 +58,7 @@
 	   #:least #:greatest #:lookup #:rank #:at-rank #:index #:at-index #:@
 	   #:with #:less #:split-from #:split-above #:split-through #:split-below
 	   #:union #:bag-sum #:intersection #:bag-product #:complement
-	   #:set-difference #:set-difference-2 #:bag-difference #:bag-pairs
+	   #:set-difference #:set-difference-2 #:bag-difference #:bag-pairs #:wb-bag-pairs
 	   #:subset? #:proper-subset? #:disjoint? #:subbag? #:proper-subbag?
 	   #:filter #:filter-pairs #:partition
 	   #:image #:reduce #:domain #:range #:update
@@ -114,6 +114,9 @@
 ;;; Since we've shadowed `cl:count', we need to do this.
 (gmap:def-result-type-synonym fset:count cl:count)
 
+;;; We want to import this below, so make sure it exists.
+(defvar fset::erapmoc)
+
 
 ;;; The need has arisen to define a second FSet package.  There are two motivations:
 ;;; () the planned introduction of the CHAMP data structure for sets, maps, and bags,
@@ -145,10 +148,14 @@
 			  #:position #:position-if #:position-if-not
 			  #:remove #:remove-if #:remove-if-not
 			  #:substitute #:substitute-if #:substitute-if-not
-			  #:some #:every #:notany #:notevery)
+			  #:some #:every #:notany #:notevery
+			  ;; Other exported symbols
+			  #:wb-bag-pairs #:$ #:% #:?
+			  ;; Internal, for testing
+			  #:erapmoc)
   ;; These are shadowed `fset:' symbols, with different definitions in `fset2:'.
   (:shadow ;; Names shadowed from `fset:' to implement FSet2 semantics
-	   #:set #:map #:wb-map #:wb-custom-map #:ch-map #:ch-custom-map
+	   #:set #:map #:wb-map #:wb-custom-map #:ch-map #:ch-custom-map #:map-to-sets
 	   #:empty-set #:empty-map #:empty-wb-map #:empty-ch-map #:empty-seq #:empty-wb-seq
 	   #:rank #:define-tuple-key #:get-tuple-key
 	   ;; These just changed from `&optional' to `&key'
@@ -187,7 +194,7 @@
 	   #:least #:greatest #:lookup #:rank #:at-rank #:index #:at-index #:@
 	   #:with #:less #:split-from #:split-above #:split-through #:split-below
 	   #:union #:bag-sum #:intersection #:bag-product #:complement
-	   #:set-difference #:set-difference-2 #:bag-difference #:bag-pairs
+	   #:set-difference #:set-difference-2 #:bag-difference #:bag-pairs #:wb-bag-pairs
 	   #:subset? #:proper-subset #:disjoint? #:subbag? #:proper-subbag?
 	   #:filter #:filter-pairs #:partition
 	   #:image #:reduce #:domain #:range #:update

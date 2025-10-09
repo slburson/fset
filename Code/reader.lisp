@@ -329,7 +329,7 @@ that the value of `expression1' is bag-summed into the result with multiplicity
 given by the value of `expression2'.  That is, the multiplicity of each member
 of the result bag is the sum of its multiplicities as supplied by each of the
 argument subforms."
-  (expand-set-constructor-form 'wb-bag 'empty-wb-bag args compare-fn-name))
+  (expand-bag-constructor-form 'wb-bag 'empty-wb-bag args compare-fn-name))
 
 (defun expand-bag-constructor-form (type-name empty-fn args &optional compare-fn-name)
   (let ((normal-args (remove-if #'(lambda (arg) (and (listp arg)

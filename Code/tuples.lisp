@@ -740,8 +740,12 @@ of calling `val-fn' on the value from `tuple1' and the value from `tuple2'.
 
 (defmethod convert ((to-type (eql 'map)) (tup tuple) &key)
   (wb-map-from-tuple tup))
+(defmethod convert ((to-type (eql 'fset2:map)) (tup tuple) &key)
+  (wb-map-from-tuple tup))
 
 (defmethod convert ((to-type (eql 'wb-map)) (tup tuple) &key key-compare-fn-name val-compare-fn-name)
+  (wb-map-from-tuple tup key-compare-fn-name val-compare-fn-name))
+(defmethod convert ((to-type (eql 'fset2:wb-map)) (tup tuple) &key key-compare-fn-name val-compare-fn-name)
   (wb-map-from-tuple tup key-compare-fn-name val-compare-fn-name))
 
 (defun wb-map-from-tuple (tup &optional key-compare-fn-name val-compare-fn-name)

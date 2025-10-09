@@ -797,27 +797,38 @@ If `:from-end?' is true, iterates in reverse order."
 ;;; ----------------
 ;;; Sets
 
-(gmap:def-gmap-arg-type set (set)
+(gmap:def-arg-type set (set)
   "Yields the elements of `set'."
   `((the function (iterator ,set))
     #'(lambda (it) (funcall it ':done?))
-    #'(lambda (it) (funcall it ':get))))
+    #'(lambda (it) (funcall it ':get))
+    nil nil nil
+    (do-set ,set)))
 
 (gmap:def-arg-type-synonym fset2:set set)
 
-(gmap:def-gmap-res-type set (&key filterp)
+(gmap:def-arg-type-synonym fun-set fun-sequence)
+
+;;; The only reason to use the functional iterators in `gmap' forms is that you want
+;;; to iterate in reverse order for some reason.  But I do want to test them
+(gmap:def-gmap-arg-type fun-set (set &key from-end?)
+  `((fun-iterator ,set :from-end? ,from-end?)
+    #'(lambda (it) (funcall it ':empty?))
+    #'(lambda (it) (funcall it ':first))
+    #'(lambda (it) (funcall it ':rest))))
+
+(gmap:def-result-type set (&key filterp)
   "Returns a set of the values, optionally filtered by `filterp'."
   `(nil #'(lambda (s x) (WB-Set-Tree-With s x #'compare)) #'make-wb-set ,filterp))
 
-(gmap:def-result-type-synonym fset2:set set)
-
-
-;;; A bit faster than `set', if you know it's a `wb-set'.
+;;; Faster than `set', if you know it's a `wb-set'.
 (gmap:def-gmap-arg-type wb-set (set)
   "Yields the elements of `set'."
   `((Make-WB-Set-Tree-Iterator-Internal (wb-set-contents ,set))
     #'WB-Set-Tree-Iterator-Done?
-    #'WB-Set-Tree-Iterator-Get))
+    #'WB-Set-Tree-Iterator-Get
+    nil nil nil
+    (Do-WB-Set-Tree-Members (wb-set-contents ,set))))
 
 (gmap:def-gmap-res-type wb-set (&key filterp compare-fn-name)
   "Returns a set of the values, optionally filtered by `filterp'.  If
@@ -833,6 +844,33 @@ If `:from-end?' is true, iterates in reverse order."
 	  ((,org-var (wb-set-org (empty-wb-set ,compare-fn-name)))
 	   ((,cf-var (tree-set-org-compare-fn ,org-var)))))))
 
+;;; Faster than `set', if you know it's a `ch-set'.
+(gmap:def-gmap-arg-type ch-set (set)
+  `((make-ch-set-tree-iterator-internal (ch-set-contents ,set))
+    #'ch-set-tree-iterator-done?
+    #'ch-set-tree-iterator-get
+    nil nil nil
+    (do-ch-set-tree-members (ch-set-contents ,set))))
+
+(gmap:def-result-type fset2:set (&key filterp)
+  "Returns a set of the values, optionally filtered by `filterp'.  If
+`compare-fn-name' is nonnull, it specifies a custom ordering."
+  `(nil #'(lambda (s x) (ch-set-tree-with s x #'hash-value #'compare))
+	#'(lambda (s) (make-ch-set s (ch-set-org *empty-ch-set*)))
+	,filterp))
+
+(gmap:def-gmap-res-type ch-set (&key filterp compare-fn-name)
+  "Returns a set of the values, optionally filtered by `filterp'.  If
+`compare-fn-name' is nonnull, it specifies a custom ordering."
+  (let ((org-var (gensymx #:org-))
+	(hf-var (gensymx #:hash-))
+	(cf-var (gensymx #:cmp-)))
+    `(nil #'(lambda (s x) (ch-set-tree-with s x ,hf-var ,cf-var))
+	  #'(lambda (s) (make-ch-set s ,org-var))
+	  ,filterp
+	  ((,org-var (ch-set-org (empty-ch-set ,compare-fn-name)))
+	   ((,hf-var (hash-set-org-hash-fn ,org-var))
+	    (,cf-var (hash-set-org-compare-fn ,org-var)))))))
 
 (gmap:def-gmap-res-type union (&key filterp)
   "Returns the union of the sets, optionally filtered by `filterp'."
@@ -849,25 +887,6 @@ If `:from-end?' is true, iterates in reverse order."
 	#'(lambda (s) (or s (full-set)))
 	,filterp))
 
-;;; A bit faster than `set', if you know it's a `ch-set'.
-(gmap:def-gmap-arg-type ch-set (set)
-  `((make-ch-set-tree-iterator-internal (ch-set-contents ,set))
-    #'ch-set-tree-iterator-done?
-    #'ch-set-tree-iterator-get))
-
-(gmap:def-gmap-res-type ch-set (&key filterp compare-fn-name)
-  "Returns a set of the values, optionally filtered by `filterp'.  If
-`compare-fn-name' is nonnull, it specifies a custom ordering."
-  (let ((org-var (gensymx #:org-))
-	(hf-var (gensymx #:hash-))
-	(cf-var (gensymx #:cmp-)))
-    `(nil #'(lambda (s x) (ch-set-tree-with s x ,hf-var ,cf-var))
-	  #'(lambda (s) (make-ch-set s ,org-var))
-	  ,filterp
-	  ((,org-var (ch-set-org (empty-ch-set ,compare-fn-name)))
-	   ((,hf-var (hash-set-org-hash-fn ,org-var))
-	    (,cf-var (hash-set-org-compare-fn ,org-var)))))))
-
 ;;; ----------------
 ;;; Bags
 
@@ -875,25 +894,33 @@ If `:from-end?' is true, iterates in reverse order."
   "Yields each element of `bag', as many times as its multiplicity."
   `((the function (iterator ,bag))
     #'(lambda (it) (funcall it ':done?))
-    #'(lambda (it) (funcall it ':get))))
+    #'(lambda (it) (funcall it ':get))
+    nil nil nil
+    (do-bag ,bag)))
 
 (gmap:def-gmap-arg-type bag-pairs (bag)
   "Yields each element of `bag' and its multiplicity as two values."
   `((the function (iterator ,bag :pairs? t))
     #'(lambda (it) (funcall it ':done?))
-    (:values 2 #'(lambda (it) (funcall it ':get)))))
+    (:values 2 #'(lambda (it) (funcall it ':get)))
+    nil nil nil
+    (do-bag-pairs ,bag)))
 
 (gmap:def-gmap-arg-type wb-bag (bag)
   "Yields each element of `bag', as many times as its multiplicity."
   `((Make-WB-Bag-Tree-Iterator-Internal (wb-bag-contents ,bag))
     #'WB-Bag-Tree-Iterator-Done?
-    #'WB-Bag-Tree-Iterator-Get))
+    #'WB-Bag-Tree-Iterator-Get))  ; no `Do-WB-Bag-Tree-Elements'
 
 (gmap:def-gmap-arg-type wb-bag-pairs (bag)
   "Yields each element of `bag' and its multiplicity as two values."
   `((Make-WB-Bag-Tree-Pair-Iterator-Internal (wb-bag-contents ,bag))
     #'WB-Bag-Tree-Pair-Iterator-Done?
-    (:values 2 #'WB-Bag-Tree-Pair-Iterator-Get)))
+    (:values 2 #'WB-Bag-Tree-Pair-Iterator-Get)
+    nil nil nil
+    (Do-WB-Bag-Tree-Pairs (wb-bag-contents ,bag))))
+
+(gmap:def-arg-type-synonym fun-bag fun-sequence)
 
 (gmap:def-arg-type fun-bag-pairs (bag &key from-end?)
   `((fun-iterator ,bag :pairs? t :from-end? ,from-end?)
@@ -954,7 +981,9 @@ comparison function in the result, supply `compare-fn-name`."
   "Yields each pair of `map', as two values."
   `((the function (iterator ,map))
     #'(lambda (it) (funcall it ':done?))
-    (:values 2 #'(lambda (it) (funcall it ':get)))))
+    (:values 2 #'(lambda (it) (funcall it ':get)))
+    nil nil nil
+    (do-map ,map)))
 
 (gmap:def-arg-type-synonym fset2:map map)
 
@@ -962,7 +991,9 @@ comparison function in the result, supply `compare-fn-name`."
   "Yields each pair of `map', as two values."
   `((Make-WB-Map-Tree-Iterator-Internal (wb-map-contents ,map))
     #'WB-Map-Tree-Iterator-Done?
-    (:values 2 #'WB-Map-Tree-Iterator-Get)))
+    (:values 2 #'WB-Map-Tree-Iterator-Get)
+    nil nil nil
+    (Do-WB-Map-Tree-Pairs (wb-map-contents ,map))))
 
 (gmap:def-arg-type-synonym fset2:wb-map wb-map)
 
@@ -996,53 +1027,13 @@ Note that `filterp', if supplied, must take two arguments."
 
 (gmap:def-result-type-synonym fset2:wb-map wb-map)
 
-(gmap:def-gmap-res-type map-union (&key (val-fn nil val-fn?)
-				    (default nil default?) filterp)
-  "Returns the map-union of the values, optionally filtered by `filterp'.  If `val-fn'
-is supplied, it is passed to `map-union' (q.v.).  If `default' is supplied, it is used
-as the map default."
-  (let ((val-fn-var (gensymx #:val-fn-)))
-    `(nil
-       #'(lambda (prev-m m)
-	   (if (null prev-m) m
-	     ,(if val-fn? `(map-union prev-m m ,val-fn-var) '#'map-union)))
-       ,(and default? `#'(lambda (m) (with-default (or m (empty-wb-map)) ,default)))
-       ,filterp
-       ((,val-fn-var ,val-fn)))))
-
-(gmap:def-result-type-synonym fset2:map-union map-union)
-
-(gmap:def-gmap-res-type map-intersection (&key (val-fn nil val-fn?)
-					   (default nil default?) filterp)
-  "Returns the map-intersection of the values, optionally filtered by `filterp'.
-If `val-fn' is supplied, it is passed to `map-intersection' (q.v.).  If
-`default' is supplied, it is used as the map default.  If zero maps are
-intersected, returns nil."
-  (let ((val-fn-var (gensymx #:val-fn-)))
-    `(nil
-      #'(lambda (prev-m m)
-	  (if (null prev-m) m
-	    ,(if val-fn? `(map-intersection prev-m m ,val-fn-var) '#'map-intersection)))
-      ,(and default? `#'(lambda (m) (and m (with-default m ,default))))
-      ,filterp
-      ((,val-fn-var ,val-fn)))))
-
-(gmap:def-result-type-synonym fset2:map-intersection map-intersection)
-
-(gmap:def-gmap-res-type map-to-sets (&key filterp key-compare-fn-name val-compare-fn-name)
-  "Consumes two values from the mapped function.  Returns a map from the first
-values, with each one mapped to a set of the corresponding second values.
-Note that `filterp', if supplied, must take two arguments."
-  `((empty-wb-map (set) ,key-compare-fn-name ,val-compare-fn-name)
-    ;; &&& Could use `WB-Map-Tree-Update-Value' here.
-    (:consume 2 #'(lambda (m x y) (with m x (with (lookup m x) y))))
-    nil ,filterp))
-
 (gmap:def-gmap-arg-type ch-map (map)
   "Yields each pair of `map', as two values."
   `((make-ch-map-tree-iterator-internal (ch-map-contents ,map))
     #'ch-map-tree-iterator-done?
-    (:values 2 #'ch-map-tree-iterator-get)))
+    (:values 2 #'ch-map-tree-iterator-get)
+    nil nil nil
+    (do-ch-map-tree-pairs (ch-map-contents ,map))))
 
 (gmap:def-arg-type-synonym fset2:ch-map ch-map)
 
@@ -1065,6 +1056,61 @@ Note that `filterp', if supplied, must take two arguments."
 
 (gmap:def-result-type-synonym fset2:ch-map ch-map)
 
+(gmap:def-gmap-res-type map-union (&key (val-fn nil val-fn?)
+				    (default nil default?) filterp)
+  "Returns the map-union of the values, optionally filtered by `filterp'.  If `val-fn'
+is supplied, it is passed to `map-union' (q.v.).  If `default' is supplied, it is used
+as the map default."
+  (let ((val-fn-var (gensymx #:val-fn-)))
+    `(nil
+       #'(lambda (prev-m m)
+	   (if (null prev-m) m
+	     ,(if val-fn? `(map-union prev-m m ,val-fn-var) '(map-union prev-m m))))
+       ,(and default? `#'(lambda (m) (with-default (or m (empty-wb-map)) ,default)))
+       ,filterp
+       (,@(and val-fn? `((,val-fn-var ,val-fn)))))))
+
+(gmap:def-result-type-synonym fset2:map-union map-union)
+
+(gmap:def-gmap-res-type map-intersection (&key (val-fn nil val-fn?)
+					   (default nil default?) filterp)
+  "Returns the map-intersection of the values, optionally filtered by `filterp'.
+If `val-fn' is supplied, it is passed to `map-intersection' (q.v.).  If
+`default' is supplied, it is used as the map default.  If zero maps are
+intersected, returns nil."
+  (let ((val-fn-var (gensymx #:val-fn-)))
+    `(nil
+      #'(lambda (prev-m m)
+	  (if (null prev-m) m
+	    ,(if val-fn? `(map-intersection prev-m m ,val-fn-var) '(map-intersection prev-m m))))
+      ,(and default? `#'(lambda (m) (and m (with-default m ,default))))
+      ,filterp
+      (,@(and val-fn? `((,val-fn-var ,val-fn)))))))
+
+(gmap:def-result-type-synonym fset2:map-intersection map-intersection)
+
+(gmap:def-result-type map-to-sets (&key filterp key-compare-fn-name val-compare-fn-name)
+  "Consumes two values from the mapped function.  Returns a map from the first
+values, with each one mapped to a set of the corresponding second values.
+Note that `filterp', if supplied, must take two arguments."
+  (let ((vcfn-var (gensymx #:vcfn-)))
+    `((empty-wb-map (empty-wb-set ,vcfn-var)
+		    ,key-compare-fn-name (make-wb-set-compare-fn (or ,vcfn-var 'compare)))
+      (:consume 2 #'(lambda (m x y) (with m x (with (lookup m x) y))))
+      nil ,filterp
+      ((,vcfn-var ,val-compare-fn-name)))))
+(gmap:def-result-type fset2:map-to-sets (&key filterp key-compare-fn-name val-compare-fn-name)
+  "Consumes two values from the mapped function.  Returns a map from the first
+values, with each one mapped to a set of the corresponding second values.
+Note that `filterp', if supplied, must take two arguments."
+  (let ((vcfn-var (gensymx #:vcfn-)))
+    `((empty-ch-map (empty-ch-set ,vcfn-var)
+		    ,key-compare-fn-name (make-ch-set-compare-fn (or ,vcfn-var 'compare)))
+      (:consume 2 #'(lambda (m x y) (with m x (with (lookup m x) y))))
+      nil ,filterp
+      ((,vcfn-var ,val-compare-fn-name)))))
+
+
 ;;; ----------------
 ;;; Seqs
 
@@ -1082,24 +1128,28 @@ seq.  If `from-end?' is true, the elements will be yielded in reverse order."
 can be supplied to restrict the range of the iteration; `start' is inclusive
 and defaults to 0, while `end' is exclusive and defaults to the size of the
 seq.  If `from-end?' is true, the elements will be yielded in reverse order."
-  (flet ((fwd ()
-	   `((Make-WB-Seq-Tree-Iterator-Internal (wb-seq-contents ,seq) ,start ,end)
-	     #'WB-Seq-Tree-Iterator-Done?
-	     #'WB-Seq-Tree-Iterator-Get))
-	 (rev ()
-	   `((Make-WB-Seq-Tree-Rev-Iterator-Internal (wb-seq-contents ,seq) ,start ,end)
-	     #'WB-Seq-Tree-Rev-Iterator-Done?
-	     #'WB-Seq-Tree-Rev-Iterator-Get)))
-    (cond ((null from-end?) (fwd))
-	  ((atom from-end?) (rev))
-	  (t `(if ,from-end? ,(rev) ,(fwd))))))
+  (let ((seq-var (gensymx #:seq-)))
+    (cond ((null from-end?)
+	   `((Make-WB-Seq-Tree-Iterator-Internal (wb-seq-contents ,seq-var) ,start ,end)
+	      #'WB-Seq-Tree-Iterator-Done?
+	      #'WB-Seq-Tree-Iterator-Get
+	      nil ((,seq-var ,seq)) nil
+	      (Do-WB-Seq-Tree-Members-Gen (wb-seq-contents ,seq-var)
+		(or ,start 0) (or ,end (size ,seq-var)) nil)))
+	  ((eq from-end? 't)
+	   `((Make-WB-Seq-Tree-Rev-Iterator-Internal (wb-seq-contents ,seq-var) ,start ,end)
+	      #'WB-Seq-Tree-Rev-Iterator-Done?
+	      #'WB-Seq-Tree-Rev-Iterator-Get
+	      nil ((,seq-var ,seq)) nil
+	      (Do-WB-Seq-Tree-Members-Gen (wb-seq-contents ,seq-var)
+		(or ,start 0) (or ,end (size ,seq-var)) t)))
+	  (t
+	   ;; Can't do much better than this if we don't statically know the direction.
+	   `((the function (iterator ,seq :start ,start :end ,end :from-end? ,from-end?))
+	     #'(lambda (it) (funcall it ':done?))
+	     #'(lambda (it) (funcall it ':get)))))))
 
-(gmap:def-gmap-res-type seq (&key filterp)
-  "Returns a seq of the values, optionally filtered by `filterp'."
-  `(nil
-    #'(lambda (a b) (cons b a))
-    #'(lambda (s) (convert 'seq (nreverse s)))
-    ,filterp))
+(gmap:def-result-type-synonym seq wb-seq)
 
 (gmap:def-gmap-res-type wb-seq (&key filterp)
   "Returns a seq of the values, optionally filtered by `filterp'."
@@ -1128,22 +1178,23 @@ seq.  If `from-end?' is true, the elements will be yielded in reverse order."
 ;;; ----------------
 ;;; Relations
 
-(gmap:def-arg-type-synonym 2-relation wb-2-relation)
-
-(gmap:def-gmap-arg-type wb-2-relation (rel)
+(gmap:def-arg-type 2-relation (rel)
   "Yields each pair of `rel', as two values."
   `((the function (iterator ,rel))
     #'(lambda (it) (funcall it ':done?))
-    (:values 2 #'(lambda (it) (funcall it ':get)))))
+    (:values 2 #'(lambda (it) (funcall it ':get)))
+    nil nil nil
+    (do-2-relation ,rel)))
 
-(gmap:def-arg-type-synonym ch-2-relation wb-2-relation)
+(gmap:def-arg-type-synonym wb-2-relation 2-relation)
+(gmap:def-arg-type-synonym ch-2-relation 2-relation)
 
 ;;; People might expect it under this name.
 (gmap:def-arg-type-synonym fun-2-relation fun-map)
 
 (gmap:def-result-type-synonym 2-relation ch-2-relation)
 
-(gmap:def-gmap-res-type wb-2-relation (&key filterp key-compare-fn-name val-compare-fn-name)
+(gmap:def-result-type wb-2-relation (&key filterp key-compare-fn-name val-compare-fn-name)
   "Consumes two values from the mapped function; returns a wb-2-relation of the pairs.
 Note that `filterp', if supplied, must take two arguments."
   (let ((org-var (gensymx #:org-))
@@ -1165,7 +1216,7 @@ Note that `filterp', if supplied, must take two arguments."
 	     (,vcf-var (tree-map-org-val-compare-fn ,org-var)))
 	   (,size-var 0)))))
 
-(gmap:def-gmap-res-type ch-2-relation (&key filterp key-compare-fn-name val-compare-fn-name)
+(gmap:def-result-type ch-2-relation (&key filterp key-compare-fn-name val-compare-fn-name)
   "Consumes two values from the mapped function; returns a ch-2-relation of the pairs.
 Note that `filterp', if supplied, must take two arguments."
   (let ((org-var (gensymx #:org-))
@@ -1192,28 +1243,37 @@ Note that `filterp', if supplied, must take two arguments."
 	    (,vhf-var (hash-map-org-val-hash-fn ,org-var)))
 	   (,size-var 0)))))
 
-(gmap:def-gmap-arg-type list-relation (rel)
-  `((Make-WB-Set-Tree-Iterator-Internal (wb-set-contents (wb-list-relation-tuples ,rel)))
+(gmap:def-arg-type list-relation (rel)
+  `((the function (iterator (convert 'set ,rel)))
+    #'(lambda (it) (funcall it ':done?))
+    (:values 2 #'(lambda (it) (funcall it ':get)))))
+
+(gmap:def-arg-type wb-list-relation (rel)
+  `((Make-WB-Set-Tree-Iterator-Internal (wb-list-relation-tuples ,rel))
     #'WB-Set-Tree-Iterator-Done?
-    #'WB-Set-Tree-Iterator-Get))
+    #'WB-Set-Tree-Iterator-Get
+    nil nil nil
+    (Do-WB-Set-Tree-Members (wb-list-relation-tuples ,rel))))
+
+(gmap:def-arg-type ch-list-relation (rel)
+  `((make-ch-set-tree-iterator-internal (ch-list-relation-tuples ,rel))
+    #'ch-set-tree-iterator-done?
+    #'ch-set-tree-iterator-get
+    nil nil nil
+    (do-ch-set-tree-members (ch-list-relation-tuples ,rel))))
 
 
 ;;; ----------------
 ;;; Replay sets
 
-;;; A bit faster than `set', if you know it's a `replay-set'.
+;;; Faster than `set', if you know it's a `replay-set'.
 (gmap:def-arg-type replay-set (set)
   "Yields the elements of `set'."
   `((make-wb-seq-tree-iterator-internal (replay-set-ordering ,set))
     #'wb-seq-tree-iterator-done?
-    #'wb-seq-tree-iterator-get))
-
-;;; Deprecated in favor of arg type `replay-set', above.
-(gmap:def-gmap-arg-type wb-replay-set (set)
-  "Yields the elements of `set'."
-  `((make-wb-seq-tree-iterator-internal (replay-set-ordering ,set))
-    #'wb-seq-tree-iterator-done?
-    #'wb-seq-tree-iterator-get))
+    #'wb-seq-tree-iterator-get
+    nil nil nil
+    (Do-WB-Seq-Tree-Members (replay-set-ordering ,set))))
 
 ;;; CHAMP is the default now.
 (gmap:def-result-type replay-set (&key filterp)
@@ -1233,20 +1293,11 @@ Note that `filterp', if supplied, must take two arguments."
   "Returns a wb-replay-set of the values, optionally filtered by `filterp'.  If
 `compare-fn-name' is nonnull, it specifies a custom ordering for the internal
 set, though, of course, this doesn't affect the iteration order."
+  ;; I don't care enough about this now to rewrite it to use internal trees.
   `((empty-wb-replay-set ,compare-fn-name)
     #'with
     nil
     ,filterp))
-
-(gmap:def-gmap-res-type append-unique ()
-  "Returns a list of the unique elements of the lists returned by the
-mapped function, in the order in which they were first encountered."
-  `((empty-ch-replay-set)
-    #'(lambda (rs new-elts)
-	(dolist (x new-elts)
-	  (includef rs x))
-	rs)
-    #'(lambda (rs) (convert 'list rs))))
 
 (gmap:def-result-type ch-replay-set (&key filterp compare-fn-name)
   "Returns a ch-replay-set of the values, optionally filtered by `filterp'.  If
@@ -1268,6 +1319,16 @@ set, though, of course, this doesn't affect the iteration order."
 	   ((,hf-var (hash-set-org-hash-fn ,org-var))
 	    (,cf-var (hash-set-org-compare-fn ,org-var)))
 	   (,ordering-var nil)))))
+
+(gmap:def-gmap-res-type append-unique ()
+  "Returns a list of the unique elements of the lists returned by the
+mapped function, in the order in which they were first encountered."
+  `((empty-ch-replay-set)
+    #'(lambda (rs new-elts)
+	(dolist (x new-elts)
+	  (includef rs x))
+	rs)
+    #'(lambda (rs) (convert 'list rs))))
 
 ;;; ----------------
 ;;; Replay maps
@@ -1292,7 +1353,7 @@ pairs.  Note that `filterp', if supplied, must take two arguments."
   (let ((ordering-var (gensymx #:ordering-)))
     `(nil (:consume 2 #'(lambda (s k v)
 			  (let ((ts (ch-map-tree-with s k v #'hash-value #'compare #'hash-value #'compare)))
-			    (unless (eq ts s)
+			    (unless (= (ch-map-tree-size ts) (ch-map-tree-size s))
 			      (push k ,ordering-var))
 			    ts)))
 	  #'(lambda (s) (make-ch-replay-map s (wb-seq-tree-from-list (nreverse ,ordering-var))
@@ -1312,7 +1373,7 @@ the iteration order."
 	(ordering-var (gensymx #:ordering-)))
     `(nil (:consume 2 #'(lambda (s k v)
 			  (let ((ts (wb-map-tree-with s k v ,kcf-var ,vcf-var)))
-			    (unless (eq ts s)
+			    (unless (= (wb-map-tree-size ts) (wb-map-tree-size s))
 			      (push k ,ordering-var))
 			    ts)))
 	  #'(lambda (s) (make-wb-replay-map s (wb-seq-tree-from-list (nreverse ,ordering-var))
@@ -1337,7 +1398,7 @@ the iteration order."
 	(ordering-var (gensymx #:ordering-)))
     `(nil (:consume 2 #'(lambda (s k v)
 			  (let ((ts (ch-map-tree-with s k v ,khf-var ,kcf-var ,vhf-var ,vcf-var)))
-			    (unless (eq ts s)
+			    (unless (= (ch-map-tree-size ts) (ch-map-tree-size s))
 			      (push k ,ordering-var))
 			    ts)))
 	  #'(lambda (s) (make-ch-replay-map s (wb-seq-tree-from-list (nreverse ,ordering-var))
