@@ -2073,7 +2073,7 @@
 	(test (equal? rs (convert 'wb-replay-set (convert 'vector rs))))
 	(test (equal? rs (convert 'wb-replay-set (convert 'ch-replay-set rs))))
 	(test (equal? rs (gmap (:result wb-replay-set) nil (:arg replay-set rs))))
-	(test (equal? rs (gmap (:result wb-replay-set) nil (:set rs))))
+	(test (equal? rs (gmap (:result wb-replay-set) nil (:arg set rs))))
 	(test (equal? rs (gmap (:result wb-replay-set) (fn (i) (at-index rs i)) (:arg index 0 (size rs)))))
 	(test (equal? rs (wb-replay-set 27 14 3 92)))
 	(test (not (equal? rs (wb-replay-set 27 3 14 92)))))
@@ -2098,7 +2098,7 @@
 	(test (equal? rs (convert 'replay-set (convert 'vector rs))))
 	(test (equal? rs (convert 'ch-replay-set (convert 'wb-replay-set rs))))
 	(test (equal? rs (gmap (:result ch-replay-set) nil (:arg replay-set rs))))
-	(test (equal? rs (gmap (:result ch-replay-set) nil (:set rs))))
+	(test (equal? rs (gmap (:result ch-replay-set) nil (:arg set rs))))
 	(test (equal? rs (gmap (:result ch-replay-set) (fn (i) (at-index rs i)) (:arg index 0 (size rs)))))
 	(test (equal? rs (ch-replay-set 27 14 3 92)))
 	(test (not (equal? rs (ch-replay-set 27 3 14 92)))))
@@ -4774,6 +4774,7 @@
 	(test-error (@ (tuple) k))
 	(setq k (get-tuple-key 'fubar :default 0))
 	(test (equal? (@ (tuple) k) 0))))))
+
 (defun test-fset2-gmap ()
   (macrolet ((test (form)
 	       `(unless ,form
