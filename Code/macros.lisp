@@ -804,7 +804,7 @@ If `:from-end?' is true, iterates in reverse order."
 ;;; ----------------
 ;;; Sets
 
-(gmap:def-arg-type set (set)
+(gmap:def-gmap-arg-type set (set)
   "Yields the elements of `set'."
   `((the function (iterator ,set))
     #'(lambda (it) (funcall it ':done?))

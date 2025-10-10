@@ -1627,7 +1627,7 @@ the first tuple added."
 the first tuple added."
   (unless (or (null arity) (and (integerp arity) (>= arity 1)))
     (error "Invalid arity"))
-  (empty-wb-list-relation arity))
+  (empty-ch-list-relation arity))
 
 (defun empty-wb-list-relation (&optional arity compare-fn-name)
   "We allow the arity to be temporarily unspecified; it will be taken from
