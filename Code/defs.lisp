@@ -200,7 +200,7 @@
 	   #:filter #:filter-pairs #:partition
 	   #:image #:reduce #:domain #:range #:update
 	   #:with-default #:without-default #:default
-	   #:map-domain-error #:map-domain-error-map #:map-domain-error-key
+	   #:lookup-error #:map-domain-error #:map-domain-error-map #:map-domain-error-key
 	   #:seq-bounds-error #:seq-bounds-error-seq #:seq-bounds-error-index
 	   #:tuple-key-unbound-error #:tuple-key-unbound-error-tuple #:tuple-key-unbound-error-key
 	   #:empty-seq-error #:empty-seq-error-seq

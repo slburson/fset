@@ -3605,7 +3605,10 @@ The map's default is `nil' unless a different default is supplied, or
 	((val? val (WB-Map-Tree-Lookup (wb-map-contents m) x (tree-map-org-key-compare-fn comp)))))
     (and val? (equal?-cmp val y (tree-map-org-val-compare-fn comp)))))
 
-(define-condition fset2:map-domain-error (error)
+(define-condition fset2:lookup-error (error)
+    ())
+
+(define-condition fset2:map-domain-error (fset2:lookup-error)
     ((map :initarg :map :reader fset2:map-domain-error-map)
      (key :initarg :key :reader fset2:map-domain-error-key))
   (:report (lambda (mde stream)
@@ -4948,7 +4951,7 @@ This is the default implementation of seqs in FSet."
 (defmethod size ((s wb-seq))
   (WB-Seq-Tree-Size (wb-seq-contents s)))
 
-(define-condition fset2:seq-bounds-error (error)
+(define-condition fset2:seq-bounds-error (fset2:lookup-error)
     ((fset2:seq :initarg :seq :reader fset2:seq-bounds-error-seq)
      (fset2:index :initarg :index :reader fset2:seq-bounds-error-index))
   (:report (lambda (sbe stream)
@@ -4971,7 +4974,7 @@ This is the default implementation of seqs in FSet."
 		  dflt)))
 	    val?)))
 
-(define-condition fset2:empty-seq-error (error)
+(define-condition fset2:empty-seq-error (fset2:lookup-error)
     ((fset2:seq :initarg :seq :reader fset2:empty-seq-error-seq))
   (:report (lambda (sbe stream)
 	     (let ((*print-length* 8)
