@@ -155,9 +155,10 @@
 			  #:erapmoc)
   ;; These are shadowed `fset:' symbols, with different definitions in `fset2:'.
   (:shadow ;; Names shadowed from `fset:' to implement FSet2 semantics
-	   #:set #:map #:wb-map #:wb-custom-map #:ch-map #:ch-custom-map #:map-to-sets
+	   #:set #:map #:wb-map #:wb-custom-map #:ch-map #:ch-custom-map #:seq #:wb-seq
+	   #:replay-map #:wb-replay-map #:wb-custom-replay-map #:ch-replay-map #:ch-custom-replay-map
 	   #:empty-set #:empty-map #:empty-wb-map #:empty-ch-map #:empty-seq #:empty-wb-seq
-	   #:rank #:define-tuple-key #:get-tuple-key
+	   #:rank #:define-tuple-key #:get-tuple-key #:map-to-sets #:concat
 	   ;; These just changed from `&optional' to `&key'
 	   #:empty-wb-set #:empty-ch-set #:empty-wb-bag #:empty-wb-replay-set #:empty-ch-replay-set
 	   #:empty-replay-map #:empty-wb-replay-map #:empty-ch-replay-map

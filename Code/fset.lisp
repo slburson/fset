@@ -604,7 +604,9 @@ previously uninitialized indices are filled with the seq's default)."))
 (defgeneric concat (seq1 &rest seqs)
   (:documentation
     "Returns the concatenation of `seq1' with each of `seqs'."))
-
+(defgeneric fset2:concat (seq1 &rest seqs)
+  (:documentation
+    "Returns the concatenation of `seq1' with each of `seqs'."))
 
 ;;; This is the opposite order from `cl:coerce', but I like it better, because I
 ;;; think the calls are easier to read with the type first.  It's also consistent
@@ -1383,7 +1385,7 @@ Also works on an FSet seq."))
   (check-two-arguments y? 'contains 'list)
   (member x ls :test #'equal?))
 
-(defmethod concat ((a list) &rest seqs)
+(define-methods (concat fset2:concat) ((a list) &rest seqs)
   (append a (reduce #'append seqs :key (fn (x) (convert 'list x)) :from-end t)))
 
 (defmethod convert ((to-type (eql 'list)) (ls list) &key)
@@ -2081,9 +2083,7 @@ for the possibility of different set implementations; it is not for public use.
 (defmethod stable-sort ((s set) pred &key key)
   (convert 'seq (cl:stable-sort (convert 'vector s) pred :key key)))
 
-(defmethod convert ((to-type (eql 'set)) (s set) &key)
-  s)
-(defmethod convert ((to-type (eql 'fset2:set)) (s set) &key)
+(define-convert-methods (set fset2:set) ((s set) &key)
   s)
 
 (defmethod convert ((to-type (eql 'wb-set)) (s set) &key compare-fn-name)
@@ -3255,9 +3255,7 @@ different bag implementations; it is not for public use.  `elt-fn' and
       (do-wb-bag-tree-pairs (x n (wb-bag-contents b) tree)
 	(setq tree (WB-Bag-Tree-With tree x compare-fn n))))))
 
-(defmethod convert ((to-type (eql 'set)) (b wb-bag) &key)
-  (make-wb-set (WB-Bag-Tree-To-Set-Tree (wb-bag-contents b)) (wb-bag-org b)))
-(defmethod convert ((to-type (eql 'fset2:set)) (b wb-bag) &key)
+(define-convert-methods (set fset2:set) ((b wb-bag) &key)
   (make-wb-set (WB-Bag-Tree-To-Set-Tree (wb-bag-contents b)) (wb-bag-org b)))
 
 (defmethod convert ((to-type (eql 'wb-set)) (b wb-bag) &key compare-fn-name)
@@ -3464,13 +3462,21 @@ the default implementation of maps in FSet."
   (contents nil :read-only t)
   (org nil :type tree-map-org :read-only t))
 
-(defparameter *empty-wb-map* (make-wb-map nil +fset-default-tree-map-org+ nil))
+(defparameter *empty-wb-map* (make-wb-map nil +fset-default-tree-map-org+ 'no-default))
+
+(defparameter *empty-wb-map/nil* (make-wb-map nil +fset-default-tree-map-org+ nil))
+
+;;; I've parameterized this on the thought that some people might want to set it to `nil',
+;;; for backward compatibility with FSet 1.  The longer I think about it, though, the less
+;;; likely it seems, considering they can still use the FSet 1 API if they want.
+(defparameter *fset2-default-default* 'no-default
+  "The value used for map and seq defaults if no other value is specified.")
 
 (declaim (inline empty-map))
 (defun empty-map (&optional default)
   "Returns an empty map of the default implementation."
   (if default (make-wb-map nil +fset-default-tree-map-org+ default)
-    *empty-wb-map*))
+    *empty-wb-map/nil*))
 ;;; `fset2:empty-map' is below
 
 (declaim (inline empty-wb-map fset2:empty-wb-map))
@@ -3478,20 +3484,32 @@ the default implementation of maps in FSet."
   "Returns an empty wb-map with the specified default and comparison functions."
   (if (and (null key-compare-fn-name) (null val-compare-fn-name))
       (if (null default)
-	  *empty-wb-map*
+	  *empty-wb-map/nil*
 	(make-wb-map nil +fset-default-tree-map-org+ default))
     (empty-wb-custom-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare))))
 (defun fset2:empty-wb-map (&key (default nil default?) no-default? key-compare-fn-name val-compare-fn-name)
   "Returns an empty wb-map with the specified default and comparison functions.
 The map's default is `nil' unless a different default is supplied, or
 `no-default?' is true."
+  (empty-wb-map-internal default? default no-default? key-compare-fn-name val-compare-fn-name))
+
+(declaim (inline fset2-default))
+(defun fset2-default (default? default no-default?)
+  (cond (default? default)
+	(no-default? 'no-default)
+	(t *fset2-default-default*)))
+
+(defun empty-wb-map-internal (default? default no-default? key-compare-fn-name val-compare-fn-name)
+  ;; This has gotten too big to inline.
   (if (and default? no-default?)
       (error "Both a default and `no-default?' specified")
-    (let ((default (if default? default (and no-default? 'no-default))))
+    (let ((default (fset2-default default? default no-default?)))
       (cond ((or key-compare-fn-name val-compare-fn-name)
 	     (empty-wb-custom-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare)))
-	    ((null default)
+	    ((eq default 'no-default)
 	     *empty-wb-map*)
+	    ((null default)
+	     *empty-wb-map/nil*)
 	    (t (make-wb-map nil +fset-default-tree-map-org+ default))))))
 
 (deflex +empty-wb-custom-map-cache+ (make-hash-table :test 'equal))
@@ -3504,7 +3522,7 @@ The map's default is `nil' unless a different default is supplied, or
 	       (symbol-package val-compare-fn-name))
 	  () "val-compare-fn-name must be a nonnull interned symbol")
   (if (and (eq key-compare-fn-name 'compare) (eq val-compare-fn-name 'compare))
-      (if (null default) *empty-wb-map*
+      (if (null default) *empty-wb-map/nil*
 	(make-wb-map nil +fset-default-tree-map-org+ default))
     ;; &&& This caches one default per type.  We could use a two-level map to cache multiple defaults,
     ;; but the inner maps would have to be custom wb-maps, whose creation couldn't call this function (!).
@@ -3859,7 +3877,8 @@ symbols."))
 	    (setf (lookup result k) v2)
 	  (unless (equal?-cmp v1 v2 vcf1)
 	    (let ((new-v second-val (funcall val-fn v1 v2)))
-	      (unless (eq second-val ':no-value)
+	      (if (eq second-val ':no-value)
+		  (excludef result k)
 		(setf (lookup result k) new-v)))))))
     (with-default result default)))
 
@@ -4087,9 +4106,7 @@ to `compare'."
 		 (if (eq dflt1 'no-default) 'no-default
 		   (funcall fn dflt1)))))
 
-(defmethod convert ((to-type (eql 'map)) (m map) &key)
-  m)
-(defmethod convert ((to-type (eql 'fset2:map)) (m map) &key)
+(define-convert-methods (map fset2:map) ((m map) &key)
   m)
 
 (defmethod convert ((to-type (eql 'wb-map)) (m wb-map)
@@ -4154,13 +4171,9 @@ to `compare'."
 (defmethod convert ((to-type (eql 'fset2:map)) (l list) &key (key-fn #'car) (value-fn #'cdr))
   (convert 'ch-map l :key-fn key-fn :value-fn value-fn))
 
-(defmethod convert ((to-type (eql 'wb-map)) (l list)
-		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?
-		      key-compare-fn-name val-compare-fn-name)
-  (wb-map-from-sequence l key-fn value-fn input-sorted? key-compare-fn-name val-compare-fn-name))
-(defmethod convert ((to-type (eql 'fset2:wb-map)) (l list)
-		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?
-		      key-compare-fn-name val-compare-fn-name)
+(define-convert-methods (wb-map fset2:wb-map) ((l list)
+			    &key (key-fn #'car) (value-fn #'cdr) input-sorted?
+			    key-compare-fn-name val-compare-fn-name)
   (wb-map-from-sequence l key-fn value-fn input-sorted? key-compare-fn-name val-compare-fn-name))
 
 (defmethod convert ((to-type (eql 'map)) (s seq)
@@ -4170,16 +4183,11 @@ to `compare'."
 (defmethod convert ((to-type (eql 'fset2:map)) (s seq) &key (key-fn #'car) (value-fn #'cdr))
   (convert 'ch-map s :key-fn key-fn :value-fn value-fn))
 
-(defmethod convert ((to-type (eql 'wb-map)) (s seq)
-		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?
-		      key-compare-fn-name val-compare-fn-name)
+(define-convert-methods (wb-map fset2:wb-map)
+			((s seq) &key (key-fn #'car) (value-fn #'cdr) input-sorted?
+			 key-compare-fn-name val-compare-fn-name)
   (with-default (wb-map-from-sequence s key-fn value-fn input-sorted? key-compare-fn-name val-compare-fn-name)
     (seq-default s)))
-(defmethod convert ((to-type (eql 'fset2:wb-map)) (s seq)
-		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?
-		      key-compare-fn-name val-compare-fn-name)
-  (with-default (wb-map-from-sequence s key-fn value-fn input-sorted? key-compare-fn-name val-compare-fn-name)
-		(seq-default s)))
 
 (defmethod convert ((to-type (eql 'map)) (s sequence)
 		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?)
@@ -4187,13 +4195,9 @@ to `compare'."
 (defmethod convert ((to-type (eql 'fset2:map)) (s sequence) &key (key-fn #'car) (value-fn #'cdr))
   (convert 'ch-map s :key-fn key-fn :value-fn value-fn))
 
-(defmethod convert ((to-type (eql 'wb-map)) (s sequence)
-		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?
-		      key-compare-fn-name val-compare-fn-name)
-  (wb-map-from-sequence s key-fn value-fn input-sorted? key-compare-fn-name val-compare-fn-name))
-(defmethod convert ((to-type (eql 'fset2:wb-map)) (s sequence)
-		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?
-		      key-compare-fn-name val-compare-fn-name)
+(define-convert-methods (wb-map fset2:wb-map)
+			((s sequence) &key (key-fn #'car) (value-fn #'cdr) input-sorted?
+			 key-compare-fn-name val-compare-fn-name)
   (wb-map-from-sequence s key-fn value-fn input-sorted? key-compare-fn-name val-compare-fn-name))
 
 (defun wb-map-from-sequence (s key-fn value-fn input-sorted? &optional key-compare-fn-name val-compare-fn-name)
@@ -4209,37 +4213,21 @@ to `compare'."
 	     (WB-Map-Tree-From-Iterable (iterator s) key-fn value-fn
 					key-compare-fn val-compare-fn))))))
 
-(defmethod convert ((to-type (eql 'map)) (b bag) &key)
+(define-convert-methods (map fset2:map) ((b bag) &key)
   (convert 'wb-map b))
-(defmethod convert ((to-type (eql 'fset2:map)) (b bag) &key)
-  (convert 'ch-map b))
 
-(defmethod convert ((to-type (eql 'wb-map)) (b bag) &key key-compare-fn-name val-compare-fn-name)
+(define-convert-methods (wb-map fset2:wb-map) ((b bag) &key key-compare-fn-name val-compare-fn-name)
   ;; &&& If desired, we can easily make a very fast version of this -- all it has to do is
   ;; build new interior nodes, reusing the leaf vectors.  (But only if the compare-fns match.)
   (convert-to-wb-map b nil nil
     (let ((tree nil))
       (do-bag-pairs (x n b tree)
 	(setq tree (WB-Map-Tree-With tree x n key-compare-fn val-compare-fn))))))
-(defmethod convert ((to-type (eql 'fset2:wb-map)) (b bag) &key key-compare-fn-name val-compare-fn-name)
-  (convert-to-wb-map b nil nil
-    (let ((tree nil))
-      (do-bag-pairs (x n b tree)
-	(setq tree (WB-Map-Tree-With tree x n key-compare-fn val-compare-fn))))))
 
-(defmethod convert ((to-type (eql 'map)) (ht hash-table) &key)
+(define-convert-methods (map fset2:map) ((ht hash-table) &key)
   (convert 'wb-map ht))
-(defmethod convert ((to-type (eql 'fset2:map)) (ht hash-table) &key)
-  (convert 'ch-map ht))
 
-(defmethod convert ((to-type (eql 'wb-map)) (ht hash-table) &key key-compare-fn-name val-compare-fn-name)
-  (convert-to-wb-map ht nil nil
-    (let ((tree nil))
-      (maphash (lambda (k v)
-		 (setq tree (WB-Map-Tree-With tree k v key-compare-fn val-compare-fn)))
-	       ht)
-      tree)))
-(defmethod convert ((to-type (eql 'fset2:wb-map)) (ht hash-table) &key key-compare-fn-name val-compare-fn-name)
+(define-convert-methods (wb-map fset2:wb-map) ((ht hash-table) &key key-compare-fn-name val-compare-fn-name)
   (convert-to-wb-map ht nil nil
     (let ((tree nil))
       (maphash (lambda (k v)
@@ -4385,37 +4373,41 @@ to `compare'."
 
 (defparameter *empty-ch-map*
   (make-ch-map nil (make-hash-map-org 'compare #'compare #'hash-value 'compare #'compare #'hash-value)
+	       'no-default))
+
+(defparameter *empty-ch-map/nil*
+  (make-ch-map nil (make-hash-map-org 'compare #'compare #'hash-value 'compare #'compare #'hash-value)
 	       nil))
 
 (declaim (inline fset2:empty-map))
 (defun fset2:empty-map (&key (default nil default?) no-default?)
   "Returns an empty map of the default implementation, with the specified
 default or lack of default."
-  (if (and default? no-default?)
-      (error "Both a default and `no-default?' specified")
-    (let ((default (if default? default (and no-default? 'no-default))))
-      (if (null default)
-	  *empty-ch-map*
-	(make-ch-map nil (ch-map-org *empty-ch-map*) default)))))
+  (empty-ch-map-internal default? default no-default? nil nil))
 
 (declaim (inline empty-ch-map fset2:empty-ch-map))
 (defun empty-ch-map (&optional default key-compare-fn-name val-compare-fn-name)
   (if (and (null key-compare-fn-name) (null val-compare-fn-name))
       (if (null default)
-	  *empty-ch-map*
+	  *empty-ch-map/nil*
 	(make-ch-map nil (ch-map-org *empty-ch-map*) default))
     (empty-ch-custom-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare))))
 (defun fset2:empty-ch-map (&key (default nil default?) no-default? key-compare-fn-name val-compare-fn-name)
   "Returns an empty ch-map with the specified default and comparison functions.
 The map's default is `nil' unless a different default is supplied, or
 `no-default?' is true."
+  (empty-ch-map-internal default? default no-default? key-compare-fn-name val-compare-fn-name))
+
+(defun empty-ch-map-internal (default? default no-default? key-compare-fn-name val-compare-fn-name)
   (if (and default? no-default?)
       (error "Both a default and `no-default?' specified")
-    (let ((default (if default? default (and no-default? 'no-default))))
+    (let ((default (fset2-default default? default no-default?)))
       (cond ((or key-compare-fn-name val-compare-fn-name)
 	     (empty-ch-custom-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare)))
-	    ((null default)
+	    ((eq default 'no-default)
 	     *empty-ch-map*)
+	    ((null default)
+	     *empty-ch-map/nil*)
 	    (t (make-ch-map nil (ch-map-org *empty-ch-map*) default))))))
 
 (deflex +empty-ch-custom-map-cache+ (make-hash-table :test 'equal))
@@ -4428,7 +4420,7 @@ The map's default is `nil' unless a different default is supplied, or
 	       (symbol-package val-compare-fn-name))
 	  () "val-compare-fn-name must be a nonnull interned symbol")
   (if (and (eq key-compare-fn-name 'compare) (eq val-compare-fn-name 'compare))
-      (if (null default) *empty-ch-map*
+      (if (null default) *empty-ch-map/nil*
 	(make-ch-map nil (ch-map-org *empty-ch-map*) default))
     (let ((cache-key (list key-compare-fn-name val-compare-fn-name))
 	  ((prev-instance (gethash cache-key +empty-ch-custom-map-cache+)))
@@ -4789,46 +4781,21 @@ The map's default is `nil' unless a different default is supplied, or
       (ch-map-tree-rev-fun-iter (ch-map-contents s))
     (ch-map-tree-fun-iter (ch-map-contents s))))
 
-(defmethod convert ((to-type (eql 'wb-map)) (m ch-map) &key key-compare-fn-name val-compare-fn-name)
-  (convert-to-wb-map m nil nil
-    (let ((tree nil))
-      (do-ch-map-tree-pairs (k v (ch-map-contents m) tree)
-	(setq tree (WB-Map-Tree-With tree k v key-compare-fn val-compare-fn))))))
-(defmethod convert ((to-type (eql 'fset2:wb-map)) (m ch-map) &key key-compare-fn-name val-compare-fn-name)
+(define-convert-methods (wb-map fset2:wb-map) ((m ch-map) &key key-compare-fn-name val-compare-fn-name)
   (convert-to-wb-map m nil nil
     (let ((tree nil))
       (do-ch-map-tree-pairs (k v (ch-map-contents m) tree)
 	(setq tree (WB-Map-Tree-With tree k v key-compare-fn val-compare-fn))))))
 
-(defmethod convert ((to-type (eql 'ch-map)) (m map) &key key-compare-fn-name val-compare-fn-name)
-  (convert-to-ch-map m (map-default m) nil
-    (let ((tree nil))
-      (do-map (k v m)
-	(setq tree (ch-map-tree-with tree k v key-hash-fn key-compare-fn val-hash-fn val-compare-fn)))
-      tree)))
-(defmethod convert ((to-type (eql 'fset2:ch-map)) (m map) &key key-compare-fn-name val-compare-fn-name)
+(define-convert-methods (ch-map fset2:ch-map) ((m map) &key key-compare-fn-name val-compare-fn-name)
   (convert-to-ch-map m (map-default m) nil
     (let ((tree nil))
       (do-map (k v m)
 	(setq tree (ch-map-tree-with tree k v key-hash-fn key-compare-fn val-hash-fn val-compare-fn)))
       tree)))
 
-(defmethod convert ((to-type (eql 'ch-map)) (m ch-map)
-		    &key (default nil default?) key-compare-fn-name val-compare-fn-name)
-  "The result uses `default' if supplied, otherwise has the same default as `m'."
-  (convert-to-ch-map m (if default? default (map-default m))
-      (let ((m-hmorg (ch-map-org m)))
-	(or (eq m-hmorg hmorg)
-	    (and (eq key-hash-fn (hash-map-org-key-hash-fn m-hmorg))
-		 (eq key-compare-fn (hash-map-org-key-compare-fn m-hmorg))
-		 (eq val-hash-fn (hash-map-org-val-hash-fn m-hmorg))
-		 (eq val-compare-fn (hash-map-org-val-compare-fn m-hmorg)))))
-    (let ((tree nil))
-      (do-ch-map-tree-pairs (k v (ch-map-contents m))
-	(setq tree (ch-map-tree-with tree k v key-hash-fn key-compare-fn val-hash-fn val-compare-fn)))
-      tree)))
-(defmethod convert ((to-type (eql 'fset2:ch-map)) (m ch-map)
-		    &key (default nil default?) key-compare-fn-name val-compare-fn-name)
+(define-convert-methods (ch-map fset2:ch-map)
+			((m ch-map) &key (default nil default?) key-compare-fn-name val-compare-fn-name)
   "The result uses `default' if supplied, otherwise has the same default as `m'."
   (convert-to-ch-map m (if default? default (map-default m))
       (let ((m-hmorg (ch-map-org m)))
@@ -4842,19 +4809,8 @@ The map's default is `nil' unless a different default is supplied, or
 	(setq tree (ch-map-tree-with tree k v key-hash-fn key-compare-fn val-hash-fn val-compare-fn)))
       tree)))
 
-(defmethod convert ((to-type (eql 'ch-map)) (l list)
-		    &key (key-fn #'car) (value-fn #'cdr)
-		      key-compare-fn-name val-compare-fn-name)
-  (declare (type function key-fn value-fn))
-  (convert-to-ch-map l nil nil
-    (let ((tree nil))
-      (dolist (x l)
-	(setq tree (ch-map-tree-with tree (funcall key-fn x) (funcall value-fn x)
-				     key-hash-fn key-compare-fn val-hash-fn val-compare-fn)))
-      tree)))
-(defmethod convert ((to-type (eql 'fset2:ch-map)) (l list)
-		    &key (key-fn #'car) (value-fn #'cdr)
-		      key-compare-fn-name val-compare-fn-name)
+(define-convert-methods (ch-map fset2:ch-map)
+			((l list) &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name)
   (declare (type function key-fn value-fn))
   (convert-to-ch-map l nil nil
     (let ((tree nil))
@@ -4863,19 +4819,8 @@ The map's default is `nil' unless a different default is supplied, or
 				     key-hash-fn key-compare-fn val-hash-fn val-compare-fn)))
       tree)))
 
-(defmethod convert ((to-type (eql 'ch-map)) (s seq)
-		    &key (key-fn #'car) (value-fn #'cdr)
-		      key-compare-fn-name val-compare-fn-name)
-  (declare (type function key-fn value-fn))
-  (convert-to-ch-map l nil nil
-    (let ((tree nil))
-      (do-seq (x s)
-	(setq tree (ch-map-tree-with tree (funcall key-fn x) (funcall value-fn x)
-				     key-hash-fn key-compare-fn val-hash-fn val-compare-fn)))
-      tree)))
-(defmethod convert ((to-type (eql 'fset2:ch-map)) (s seq)
-		    &key (key-fn #'car) (value-fn #'cdr)
-		      key-compare-fn-name val-compare-fn-name)
+(define-convert-methods (ch-map fset2:ch-map)
+			((s seq) &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name)
   (declare (type function key-fn value-fn))
   (convert-to-ch-map l nil nil
     (let ((tree nil))
@@ -4884,20 +4829,8 @@ The map's default is `nil' unless a different default is supplied, or
 				     key-hash-fn key-compare-fn val-hash-fn val-compare-fn)))
       tree)))
 
-(defmethod convert ((to-type (eql 'ch-map)) (s sequence)
-		    &key (key-fn #'car) (value-fn #'cdr)
-		      key-compare-fn-name val-compare-fn-name)
-  (declare (type function key-fn value-fn))
-  (convert-to-ch-map l nil nil
-    (let ((tree nil))
-      (dotimes (i (length s))
-	(let ((x (elt s i)))
-	  (setq tree (ch-map-tree-with tree (funcall key-fn x) (funcall value-fn x)
-				       key-hash-fn key-compare-fn val-hash-fn val-compare-fn))))
-      tree)))
-(defmethod convert ((to-type (eql 'fset2:ch-map)) (s sequence)
-		    &key (key-fn #'car) (value-fn #'cdr)
-		      key-compare-fn-name val-compare-fn-name)
+(define-convert-methods (ch-map fset2:ch-map)
+			((s sequence) &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name)
   (declare (type function key-fn value-fn))
   (convert-to-ch-map l nil nil
     (let ((tree nil))
@@ -4907,25 +4840,13 @@ The map's default is `nil' unless a different default is supplied, or
 				       key-hash-fn key-compare-fn val-hash-fn val-compare-fn))))
       tree)))
 
-(defmethod convert ((to-type (eql 'ch-map)) (b bag) &key key-compare-fn-name val-compare-fn-name)
-  (convert-to-ch-map b nil nil
-    (let ((tree nil))
-      (do-bag-pairs (x n b tree)
-	(setq tree (ch-map-tree-with tree x n key-hash-fn key-compare-fn val-hash-fn val-compare-fn))))))
-(defmethod convert ((to-type (eql 'fset2:ch-map)) (b bag) &key key-compare-fn-name val-compare-fn-name)
+(define-convert-methods (ch-map fset2:ch-map) ((b bag) &key key-compare-fn-name val-compare-fn-name)
   (convert-to-ch-map b nil nil
     (let ((tree nil))
       (do-bag-pairs (x n b tree)
 	(setq tree (ch-map-tree-with tree x n key-hash-fn key-compare-fn val-hash-fn val-compare-fn))))))
 
-(defmethod convert ((to-type (eql 'ch-map)) (ht hash-table) &key key-compare-fn-name val-compare-fn-name)
-  (convert-to-ch-map ht nil nil
-    (let ((tree nil))
-      (maphash (lambda (k v)
-		 (setq tree (ch-map-tree-with tree k v key-hash-fn key-compare-fn val-hash-fn val-compare-fn)))
-	       ht)
-      tree)))
-(defmethod convert ((to-type (eql 'fset2:ch-map)) (ht hash-table) &key key-compare-fn-name val-compare-fn-name)
+(define-convert-methods (ch-map fset2:ch-map) ((ht hash-table) &key key-compare-fn-name val-compare-fn-name)
   (convert-to-ch-map ht nil nil
     (let ((tree nil))
       (maphash (lambda (k v)
@@ -4967,7 +4888,7 @@ The map's default is `nil' unless a different default is supplied, or
 
 (defstruct (wb-seq
 	     (:include seq)
-	     (:constructor make-wb-seq (contents &optional default))
+	     (:constructor make-wb-seq (contents default))
 	     (:predicate wb-seq?)
 	     (:print-function print-wb-seq)
 	     (:copier nil))
@@ -4977,21 +4898,19 @@ This is the default implementation of seqs in FSet."
   (contents nil :read-only t))
 
 
-(defparameter *empty-wb-seq* (make-wb-seq nil))
+(defparameter *empty-wb-seq* (make-wb-seq nil 'no-default))
+
+(defparameter *empty-wb-seq/nil* (make-wb-seq nil nil))
 
 (declaim (inline empty-seq fset2:empty-seq))
 (defun empty-seq (&optional default)
   "Returns an empty seq of the default implementation."
   (if default (make-wb-seq nil default)
-    *empty-wb-seq*))
+    *empty-wb-seq/nil*))
 (defun fset2:empty-seq (&key (default nil default?) no-default?)
   "Returns an empty seq of the default implementation.  The seq's default is
 `nil' unless a different default is supplied, or `no-default?' is true."
-  (if (and default? no-default?)
-      (error "Both a default and `no-default?' specified")
-    (cond (default? (make-wb-seq nil default))
-	  (no-default? (make-wb-seq nil 'no-default))
-	  (t *empty-wb-seq*))))
+  (empty-wb-seq-internal default? default no-default?))
 
 (declaim (inline empty-wb-seq fset2:empty-wb-seq))
 (defun empty-wb-seq (&optional default)
@@ -5000,11 +4919,17 @@ This is the default implementation of seqs in FSet."
     *empty-wb-seq*))
 (defun fset2:empty-wb-seq (&key (default nil default?) no-default?)
   "Returns an empty wb-seq."
+  (empty-wb-seq-internal default? default no-default?))
+
+(defun empty-wb-seq-internal (default? default no-default?)
   (if (and default? no-default?)
       (error "Both a default and `no-default?' specified")
-    (cond (default? (make-wb-seq nil default))
-	  (no-default? (make-wb-seq nil 'no-default))
-	  (t *empty-wb-seq*))))
+    (let ((default (fset2-default default? default no-default?)))
+      (cond ((eq default 'no-default)
+	     *empty-wb-seq*)
+	    ((null default)
+	     *empty-wb-seq/nil*)
+	    (t (make-wb-seq nil default))))))
 
 (defmethod empty? ((s wb-seq))
   (null (wb-seq-contents s)))
@@ -5171,7 +5096,7 @@ This is the default implementation of seqs in FSet."
 	(make-wb-seq (WB-Seq-Tree-Remove tree idx) (seq-default s))
       s)))
 
-(defmethod concat ((s1 seq) &rest seqs)
+(define-methods (concat fset2:concat) ((s1 seq) &rest seqs)
   (let ((tree (wb-seq-contents s1)))
     (dolist (seq seqs)
       (setq tree (WB-Seq-Tree-Concat tree (wb-seq-contents (convert 'seq seq)))))
@@ -5208,17 +5133,8 @@ This is the default implementation of seqs in FSet."
 (defmethod range ((s wb-seq))
   (convert 'set s))
 
-(defmethod convert ((to-type (eql 'seq)) (s seq) &key)
-  s)
-
-(defmethod convert ((to-type (eql 'wb-seq)) (s wb-seq) &key)
-  s)
-
-(defmethod convert ((to-type (eql 'seq)) (vec vector) &key)
-  (make-wb-seq (WB-Seq-Tree-From-Vector vec)))
-
-(defmethod convert ((to-type (eql 'wb-seq)) (vec vector) &key)
-  (make-wb-seq (WB-Seq-Tree-From-Vector vec)))
+(defmethod convert ((to-type (eql 'list)) (s wb-seq) &key)
+  (WB-Seq-Tree-To-List (wb-seq-contents s)))
 
 (defmethod convert ((to-type (eql 'vector)) (s wb-seq) &key)
   (WB-Seq-Tree-To-Vector (wb-seq-contents s)))
@@ -5226,25 +5142,38 @@ This is the default implementation of seqs in FSet."
 (defmethod convert ((to-type (eql 'string)) (s wb-seq) &key)
   (WB-Seq-Tree-To-String (wb-seq-contents s)))
 
-(defmethod convert ((to-type (eql 'seq)) (l list) &key)
-  (make-wb-seq (WB-Seq-Tree-From-List l)))
+(define-convert-methods (seq fset2:seq) ((s seq) &key)
+  s)
 
-(defmethod convert ((to-type (eql 'wb-seq)) (l list) &key)
-  (make-wb-seq (WB-Seq-Tree-From-List l)))
+(define-convert-methods (wb-seq fset2:wb-seq) ((s wb-seq) &key)
+  s)
 
-(defmethod convert ((to-type (eql 'list)) (s wb-seq) &key)
-  (WB-Seq-Tree-To-List (wb-seq-contents s)))
+(define-convert-methods (seq wb-seq) ((vec vector) &key)
+  (make-wb-seq (WB-Seq-Tree-From-Vector vec) nil))
 
-(defmethod convert ((to-type (eql 'seq)) (s set) &key)
-  (make-wb-seq (wb-seq-tree-from-iterable (iterator s) (size s))))
+(define-convert-methods (fset2:seq fset2:wb-seq) ((vec vector) &key (default nil default?) no-default?)
+  (make-wb-seq (WB-Seq-Tree-From-Vector vec) (fset2-default default? default no-default?)))
 
-(defmethod convert ((to-type (eql 'wb-seq)) (s set) &key)
-  (make-wb-seq (wb-seq-tree-from-iterable (iterator s) (size s))))
+(define-convert-methods (seq wb-seq) ((l list) &key)
+  (make-wb-seq (WB-Seq-Tree-From-List l) nil))
 
-(defmethod convert ((to-type (eql 'seq)) (b bag) &key pairs? (pair-fn #'cons))
-  (convert 'wb-seq b :pairs? pairs? :pair-fn pair-fn))
+(define-convert-methods (fset2:seq fset2:wb-seq) ((l list) &key (default nil default?) no-default?)
+  (make-wb-seq (WB-Seq-Tree-From-List l) (fset2-default default? default no-default?)))
 
-(defmethod convert ((to-type (eql 'wb-seq)) (b bag) &key pairs? (pair-fn #'cons))
+(define-convert-methods (seq wb-seq) ((s set) &key)
+  (make-wb-seq (wb-seq-tree-from-iterable (iterator s) (size s)) nil))
+
+(define-convert-methods (fset2:seq fset2:wb-seq) ((s set) &key (default nil default?) no-default?)
+  (make-wb-seq (wb-seq-tree-from-iterable (iterator s) (size s)) (fset2-default default? default no-default?)))
+
+(define-convert-methods (seq wb-seq) ((b bag) &key pairs? (pair-fn #'cons))
+  (bag-to-seq b pairs? pair-fn nil))
+
+(define-convert-methods (fset2:seq fset2:wb-seq)
+			((b bag) &key pairs? (pair-fn #'cons) (default nil default?) no-default?)
+  (bag-to-seq b pairs? pair-fn (fset2-default default? default no-default?)))
+
+(defun bag-to-seq (b pairs? pair-fn default)
   (make-wb-seq (wb-seq-tree-from-iterable (if pairs?
 					      (let ((it (iterator b :pairs? t)))
 						(lambda (op)
@@ -5253,19 +5182,24 @@ This is the default implementation of seqs in FSet."
 							(funcall pair-fn v n))
 						    (funcall it op))))
 					    (iterator b))
-					  (if pairs? (set-size b) (size b)))))
+					  (if pairs? (set-size b) (size b)))
+	       default))
 
-(defmethod convert ((to-type (eql 'seq)) (m map) &key (pair-fn #'cons))
-  (convert 'wb-seq m :pair-fn pair-fn))
+(define-convert-methods (seq wb-seq) ( (m map) &key (pair-fn #'cons))
+  (map-to-seq m pair-fn nil))
 
-(defmethod convert ((to-type (eql 'wb-seq)) (m map) &key (pair-fn #'cons))
+(define-convert-methods (fset2:seq fset2:wb-seq)
+			((m map) &key (pair-fn #'cons) (default nil default?) no-default?)
+  (map-to-seq m pair-fn (fset2-default default? default no-default?)))
+
+(defun map-to-seq (m pair-fn default)
   (make-wb-seq (wb-seq-tree-from-iterable (let ((m-it (iterator m)))
 					    (lambda (op)
 					      (ecase op
 						(:get (let ((k v (funcall m-it ':get)))
 							(funcall pair-fn k v))))))
 					  (size m))
-	       (map-default m)))
+	       default))
 
 ;;; Prior to FSet 1.4.0, this method ignored the defaults, so two seqs with the same
 ;;; elements but different defaults compared `:equal'.  While that was clearly a bug,
@@ -5442,28 +5376,28 @@ not symbols."))
 
 (defmethod image ((fn function) (s seq) &key)
   (seq-image fn s (seq-default s)))
-(defmethod fset2:image ((fn function) (s seq) &key)
-  (seq-image fn s 'no-default))
+(defmethod fset2:image ((fn function) (s seq) &key (default nil default?) no-default?)
+  (seq-image fn s (fset2-default default? default no-default?)))
 
 (defmethod image ((fn symbol) (s seq) &key)
   (seq-image (coerce-to-function fn) s (seq-default s)))
-(defmethod fset2:image ((fn symbol) (s seq) &key)
-  (seq-image (coerce-to-function fn) s 'no-default))
+(defmethod fset2:image ((fn symbol) (s seq) &key (default nil default?) no-default?)
+  (seq-image (coerce-to-function fn) s (fset2-default default? default no-default?)))
 
 (defmethod image ((fn map) (s seq) &key)
   (seq-image #'(lambda (x) (lookup fn x)) s (seq-default s)))
-(defmethod fset2:image ((fn map) (s seq) &key)
-  (seq-image #'(lambda (x) (fset2:lookup fn x)) s 'no-default))
+(defmethod fset2:image ((fn map) (s seq) &key (default nil default?) no-default?)
+  (seq-image #'(lambda (x) (fset2:lookup fn x)) s (fset2-default default? default no-default?)))
 
 (defmethod image ((fn set) (s seq) &key)
   (seq-image #'(lambda (x) (lookup fn x)) s (seq-default s)))
-(defmethod fset2:image ((fn set) (s seq) &key)
-  (seq-image #'(lambda (x) (fset2:lookup fn x)) s 'no-default))
+(defmethod fset2:image ((fn set) (s seq) &key (default nil default?) no-default?)
+  (seq-image #'(lambda (x) (fset2:lookup fn x)) s (fset2-default default? default no-default?)))
 
 (defmethod image ((fn bag) (s seq) &key)
   (seq-image #'(lambda (x) (lookup fn x)) s (seq-default s)))
-(defmethod fset2:image ((fn bag) (s seq) &key)
-  (seq-image #'(lambda (x) (fset2:lookup fn x)) s 'no-default))
+(defmethod fset2:image ((fn bag) (s seq) &key (default nil default?) no-default?)
+  (seq-image #'(lambda (x) (fset2:lookup fn x)) s (fset2-default default? default no-default?)))
 
 (defun seq-image (fn s default)
   (declare (optimize (speed 3) (safety 0))
