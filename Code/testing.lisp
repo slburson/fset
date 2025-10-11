@@ -4604,10 +4604,9 @@
 	       `(unless ,form
 		  (error "Test failed: ~S" ',form)))
 	     (test-error (form)
-	       `(handler-case (progn
-				,form
-				(error "Test failed to signal an error: ~S" ',form))
-		  (error ()))))
+	       `(unless (handler-case (progn ,form nil)
+			  (error () t))
+		  (error "Test-error failed: ~S" ',form))))
     #+sbcl
     ;; Check that each shadowed GF has the same methods in `fset:' and `fset2:'.
     (flet ((methods (gf)
@@ -4769,7 +4768,10 @@
 		    (ch-map ('a 12) :default 3)))
       (test (equal? (compose (ch-map ('a 7) :no-default) (map (7 12) :default 3))
 		    (ch-map ('a 12) :no-default)))
-      (test-error (compose (ch-map ('a 7)) (map (7 12) :no-default)))
+      (test-error (compose (ch-map ('a 6)) (map (7 12) :no-default)))
+      (test-error (fset:compose (ch-map ('a 6)) (map (7 12) :no-default)))
+      (test-error (compose (wb-map ('a 6)) (map (7 12) :no-default)))
+      (test-error (fset:compose (wb-map ('a 6)) (map (7 12) :no-default)))
       (test (equal? (compose (ch-map ('a 7) :no-default) (map (7 12) :no-default))
 		    (ch-map ('a 12) :no-default)))
 

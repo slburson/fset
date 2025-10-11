@@ -3617,19 +3617,17 @@ The map's default is `nil' unless a different default is supplied, or
 	       (format stream "Key ~S not found in map ~A, which has no default"
 		       (fset2:map-domain-error-key mde) (fset2:map-domain-error-map mde))))))
 
-(defmethod lookup ((m wb-map) key)
+;;; Even though FSet 1 code will never generate a map with no default, we could have a mixed
+;;; FSet 1/2 codebase, so we should still check for that in `fset:lookup'.
+(define-methods (lookup fset2:lookup) ((m wb-map) key)
   (let ((val? val (WB-Map-Tree-Lookup (wb-map-contents m) key
 				      (tree-map-org-key-compare-fn (wb-map-org m)))))
     ;; Our internal convention is the reverse of the external one.
-    (values (if val? val (map-default m)) val?)))
-(defmethod fset2:lookup ((m wb-map) key)
-  (let ((val? val (WB-Map-Tree-Lookup (wb-map-contents m) key
-				      (tree-map-org-key-compare-fn (wb-map-org m)))))
     (values (if val? val
-	      (let ((default (map-default m)))
-		(if (eq default 'no-default)
+	      (let ((dflt (map-default m)))
+		(if (eq dflt 'no-default)
 		    (error 'fset2:map-domain-error :map m :key key)
-		  default)))
+		  dflt)))
 	    val?)))
 
 (defmethod rank ((m wb-map) x)
@@ -3873,9 +3871,10 @@ symbols."))
 
 (defun generic-map-union (m1 m2 val-fn default)
   (let ((result m1)
-	(vcf1 (val-compare-fn m1)))
+	(vcf1 (val-compare-fn m1))
+	(m1d (with-default m1 nil))) ; so `lookup' doesn't error
     (do-map (k v2 m2)
-      (let ((v1 v1? (lookup m1 k)))	; no error
+      (let ((v1 v1? (lookup m1d k)))
 	(if (not v1?)
 	    (setf (lookup result k) v2)
 	  (unless (equal?-cmp v1 v2 vcf1)
@@ -3922,9 +3921,10 @@ symbols."))
 
 (defun generic-map-intersection (m1 m2 val-fn default)
   (let ((result (empty-map-like m1))
-	(vcf1 (val-compare-fn m1)))
+	(vcf1 (val-compare-fn m1))
+	(m2d (with-default m2 nil))) ; prevent `lookup' errors
     (do-map (k v1 m1)
-      (let ((v2 v2? (lookup m2 k)))
+      (let ((v2 v2? (lookup m2d k)))
 	(when (and v2? (not (equal?-cmp v1 v2 vcf1)))
 	  (let ((new-v second-val (funcall val-fn v1 v2)))
 	    (unless (eq second-val ':no-value)
@@ -3973,13 +3973,15 @@ symbols."))
   (let ((result1 (empty-map-like m1))
 	(result2 (empty-map-like m2))
 	(vcf1 (val-compare-fn m1))
-	(vcf2 (val-compare-fn m2)))
+	(vcf2 (val-compare-fn m2))
+	(m1d (with-default m1 nil))
+	(m2d (with-default m2 nil)))
     (do-map (k v1 m1)
-      (let ((v2 v2? (lookup m2 k)))
+      (let ((v2 v2? (lookup m2d k)))
 	(unless (and v2? (equal?-cmp v1 v2 vcf1))
 	  (setf (lookup result1 k) v1))))
     (do-map (k v2 m2)
-      (let ((v1 v1? (lookup m1 k)))
+      (let ((v1 v1? (lookup m1d k)))
 	(unless (and v1? (equal?-cmp v1 v2 vcf2))
 	  (setf (lookup result2 k) v2))))
     (values result1 result2)))
@@ -4073,19 +4075,15 @@ symbols."))
   "The returned map's `val-compare-fn-name' can be specified; it defaults
 to `compare'."
   (make-wb-map (WB-Map-Tree-Compose (wb-map-contents map1)
-				    (fn (x)
-				      (let ((val2 val2? (lookup map2 x)))
-					(if val2? val2 (map-default map2)))))
+				    ;; This can fail if `map2' is an FSet 2 map with no default.
+				    (fn (x) (lookup map2 x)))
 	       (wb-map-org (empty-wb-map nil (key-compare-fn-name map1) val-compare-fn-name))
 	       (let ((new-default new-default? (lookup map2 (map-default map1))))
 		 (if new-default? new-default (map-default map2)))))
 (defmethod fset2:compose ((map1 wb-map) (map2 map) &key val-compare-fn-name)
   "The returned map's `val-compare-fn-name' can be specified; it defaults
 to `compare'."
-  (make-wb-map (WB-Map-Tree-Compose (wb-map-contents map1)
-				    (fn (x)
-				      (let ((val2 val2? (fset2:lookup map2 x)))
-					(if val2? val2 (map-default map2)))))
+  (make-wb-map (WB-Map-Tree-Compose (wb-map-contents map1) (fn (x) (fset2:lookup map2 x)))
 	       (wb-map-org (empty-wb-map nil (key-compare-fn-name map1) val-compare-fn-name))
 	       (let ((dflt1 (map-default map1)))
 		 (if (eq dflt1 'no-default) 'no-default
@@ -4524,16 +4522,11 @@ The map's default is `nil' unless a different default is supplied, or
 	m
       (values (make-ch-map new-contents hmorg (map-default m)) range-val))))
 
-(defmethod lookup ((m ch-map) key)
+(define-methods (lookup fset2:lookup) ((m ch-map) key)
   (let ((hmorg (ch-map-org m))
 	((val? val (ch-map-tree-lookup (ch-map-contents m) key
 				       (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)))))
     ;; Our internal convention is the reverse of the external one.
-    (values (if val? val (map-default m)) val?)))
-(defmethod fset2:lookup ((m ch-map) key)
-  (let ((hmorg (ch-map-org m))
-	((val? val (ch-map-tree-lookup (ch-map-contents m) key
-				       (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)))))
     (values (if val? val
 	      (let ((dflt (map-default m)))
 		(if (eq dflt 'no-default)
@@ -4688,19 +4681,15 @@ The map's default is `nil' unless a different default is supplied, or
 (defmethod compose ((map1 ch-map) (map2 map) &key val-compare-fn-name)
   (let ((prototype (empty-ch-map nil (key-compare-fn-name map1) val-compare-fn-name)))
     (make-ch-map (ch-map-tree-compose (ch-map-contents map1)
-				      (fn (x)
-					(let ((val2 val2? (lookup map2 x)))
-					  (if val2? val2 (map-default map2)))))
+				      ;; This can fail if `map2' is an FSet 2 map with no default.
+				      (fn (x) (lookup map2 x)))
 		 (ch-map-org prototype)
 		 (let ((new-default? new-default
 			 (lookup map2 (map-default map1))))
 		   (if new-default? new-default (map-default map2))))))
 (defmethod fset2:compose ((map1 ch-map) (map2 map) &key val-compare-fn-name)
   (let ((prototype (empty-ch-map nil (key-compare-fn-name map1) val-compare-fn-name)))
-    (make-ch-map (ch-map-tree-compose (ch-map-contents map1)
-				      (fn (x)
-					(let ((val2 val2? (lookup map2 x))) ; no error
-					  (if val2? val2 (map-default map2)))))
+    (make-ch-map (ch-map-tree-compose (ch-map-contents map1) (fn (x) (lookup map2 x)))
 		 (ch-map-org prototype)
 		 (let ((dflt1 (map-default map1)))
 		   (if (eq dflt1 'no-default) 'no-default
@@ -4960,11 +4949,7 @@ This is the default implementation of seqs in FSet."
 	       (format stream "Index ~D out of bounds for seq ~A, which has no default"
 		       (fset2:seq-bounds-error-index sbe) (fset2:seq-bounds-error-seq sbe))))))
 
-(defmethod lookup ((s wb-seq) key)
-  (let ((val? val (if (typep key 'fixnum) (WB-Seq-Tree-Subscript (wb-seq-contents s) key)
-		    (values nil nil))))
-    (values (if val? val (seq-default s)) val?)))
-(defmethod fset2:lookup ((s wb-seq) index)
+(define-methods (lookup fset2:lookup) ((s wb-seq) index)
   (let ((val? val (if (typep index 'fixnum) (WB-Seq-Tree-Subscript (wb-seq-contents s) index)
 		    (values nil nil))))
     (values (if val? val

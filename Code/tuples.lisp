@@ -687,7 +687,10 @@ When done, returns `value'."
   (let ((val? val (Tuple-Lookup tuple key)))
     (if val? (values val t)
       (let ((default-fn (tuple-key-default key)))
-	(values (and default-fn (funcall default-fn tuple)) nil)))))
+	;; The key might have been declared in FSet 2 code, even though we're accesing it in FSet 1 code.
+	(if (eq default-fn 'no-default)
+	    (error 'fset2:tuple-key-unbound-error :tuple tuple :key key)
+	  (values (and default-fn (funcall default-fn tuple)) nil))))))
 (defmethod fset2:lookup ((tuple tuple) (key tuple-key))
   (let ((val? val (Tuple-Lookup tuple key)))
     (if val? (values val t)
