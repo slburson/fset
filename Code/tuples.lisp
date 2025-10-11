@@ -195,19 +195,17 @@ So, if you want the default value to be a function, you have to wrap it in
 an extra lambda.  To supply a doc string without a default, supply `nil'
 for `default'."
   (assert (symbolp name))
-  (when doc-string
-    (setf (get name 'tuple-key-doc-string) doc-string))
-  `(deflex ,name (get-tuple-key ',name ,default)))
+  `(deflex ,name (get-tuple-key ',name ,default)
+     . ,(and doc-string `(,doc-string))))
 (defmacro fset2:define-tuple-key (name &key (default nil default?) documentation)
   "Defines a tuple key named `name' as a global lexical variable (see
 `deflex').  If `default' is supplied, it will be returned from `lookup' when
 the tuple has no explicit pair with this key; otherwise, `lookup` will signal
 an error in that case."
   (assert (symbolp name))
-  (when documentation
-    (setf (get name 'tuple-key-documentation) documentation))
   `(deflex-reinit ,name (fset2:get-tuple-key ',name ,@(if default? `(:default ,default)
-							'(:no-default? t)))))
+							'(:no-default? t)))
+     . ,(and documentation `(,documentation))))
 
 (defun print-tuple-key (key stream level)
   (declare (ignore level))
