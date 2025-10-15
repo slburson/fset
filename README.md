@@ -17,3 +17,5 @@ FSet is installable via Quicklisp:
 ```
 > (ql:quickload "fset")
 ```
+
+I occasionally post FSet news to [my blog](https://scottlburson2.blogspot.com/).
