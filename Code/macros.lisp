@@ -351,7 +351,9 @@ If you're using `define-class' from Misc-Extensions, you can just say:
   (defmacro internal-concat (&rest args)
     `(concat . ,args))
   (defmacro internal-insert (&rest args)
-    `(insert . ,args)))
+    `(insert . ,args))
+  (defmacro internal-splice (&rest args)
+    `(splice . ,args)))
 
 #-FSet-Use-Package-Locks
 (progn
@@ -408,7 +410,10 @@ If you're using `define-class' from Misc-Extensions, you can just say:
     (apply #'concat seq1 seqs))
   (declaim (inline internal-insert))
   (defun internal-insert (seq idx val)
-    (insert seq idx val)))
+    (insert seq idx val))
+  (declaim (inline internal-splice))
+  (defun internal-splice (seq idx val)
+    (splice seq idx val)))
 
 ;;; --------------------------------
 ;;; Modify macros
@@ -511,6 +516,9 @@ If you're using `define-class' from Misc-Extensions, you can just say:
 
 (define-modify-macro insertf (idx value)
   internal-insert)
+
+(define-modify-macro splicef (idx subseq)
+  internal-splice)
 
 (declaim (inline xconcat))
 (defun xconcat (seq1 seq2)

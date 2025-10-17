@@ -6126,6 +6126,32 @@ returned as the third value."
 			(list nil sub)))))
     (format stream "#seq-node<...>")))
 
+(declaim (inline character-type))
+(defun character-type (ch)
+  ;; &&& Why `base-char' and not `character' in the first case?
+  #-FSet-Ext-Strings 'base-char
+  #+FSet-Ext-Strings (if (typep ch 'base-char) 'base-char 'character))
+
+(declaim (inline string-char-type))
+(defun string-char-type (str)
+  "The element-type of a string."
+  #-FSet-Ext-Strings 'base-char
+  #+FSet-Ext-Strings (if (typep str 'base-string) 'base-char 'character))
+
+(declaim (inline string-plus-char-type))
+(defun string-plus-char-type (str ch)
+  "The element-type of a new string with `ch' being added to the contents of `str'."
+  #-FSet-Ext-Strings 'base-char
+  #+FSet-Ext-Strings (if (and (typep str 'base-string) (typep ch 'base-char))
+			 'base-char
+		       'character))
+
+(declaim (inline string-plus-string-type))
+(defun string-plus-string-type (str1 str2)
+  #-FSet-Ext-Strings 'base-string
+  #+FSet-Ext-Strings (if (and (typep str1 'base-string) (typep str2 'base-string))
+			 'base-string
+		       'string))
 
 
 (defun WB-Seq-Tree-Subscript (tree idx)
@@ -6133,6 +6159,7 @@ returned as the third value."
 	   (type WB-Seq-Tree tree)
 	   (type fixnum idx))
   (cond ((null tree) nil)
+	;; &&& Might be faster to check for a node first.
 	((stringp tree)
 	 (and (>= idx 0) (< idx (length tree))
 	      (values t (schar tree idx))))
@@ -6156,7 +6183,10 @@ returned as the third value."
 	   (type WB-Seq-Tree tree)
 	   (type fixnum idx))
   (cond ((null tree)
-	 (if (characterp value) (string value)
+	 (if (characterp value)
+	     (let ((str (make-string 1 :element-type (character-type value))))
+	       (setf (schar str 0) value)
+	       str)
 	   (vector value)))
 	((stringp tree)
 	 (if (characterp value)
@@ -6208,12 +6238,7 @@ does no bounds checking on `str', which it assumes is simple."
 	   (type simple-string str)
 	   (type fixnum idx))
   (let ((len (length str))
-	((new-str (make-string (1+ len)
-			       :element-type #-FSet-Ext-Strings 'base-char
-			       #+FSet-Ext-Strings (if (and (typep str 'base-string)
-							   (typep ch 'base-char))
-						      'base-char
-						    'character)))))
+	((new-str (make-string (1+ len) :element-type (string-plus-char-type str ch)))))
     (dotimes (i idx)
       (setf (schar new-str i) (schar str i)))
     (setf (schar new-str idx) ch)
@@ -6247,11 +6272,7 @@ no bounds checking on `str', which it assumes is simple."
 	   (type simple-string str)
 	   (type fixnum start end))
   (let ((len (- end start))
-	((new-str (make-string len
-			       :element-type #-FSet-Ext-Strings 'base-char
-			       #+FSet-Ext-Strings (if (typep str 'base-string)
-						      'base-char
-						    'character)))))
+	((new-str (make-string len :element-type (string-char-type str)))))
     (declare (fixnum len))
     (dotimes (i len)
       (setf (schar new-str i) (schar str (+ i start))))
@@ -6264,12 +6285,7 @@ the result, inserts `ch', returning the new string."
 	   (type simple-string str)
 	   (type fixnum start end idx))
   (let ((len (- end start))
-	((new-str (make-string (1+ len)
-			       :element-type #-FSet-Ext-Strings 'base-char
-			       #+FSet-Ext-Strings (if (and (typep str 'base-string)
-							   (typep ch 'base-char))
-						      'base-char
-						    'character)))))
+	((new-str (make-string (1+ len) :element-type (string-plus-char-type str ch)))))
     (declare (type fixnum len))
     (dotimes (i idx)
       (setf (schar new-str i) (schar str (+ i start))))
@@ -6322,11 +6338,7 @@ the result, inserts `val', returning the new vector."
 	   (type (unsigned-byte 24) idx))
   (let ((len (length str)))
     (and (> len 1)
-	 (let ((new-str (make-string (1- len)
-				     :element-type #-FSet-Ext-Strings 'base-char
-				     #+FSet-Ext-Strings (if (typep str 'base-string)
-							    'base-char
-							  'character))))
+	 (let ((new-str (make-string (1- len) :element-type (string-char-type str))))
 	   (declare (fixnum len))
 	   (dotimes (i idx)
 	     (setf (schar new-str i) (schar str i)))
@@ -6373,12 +6385,7 @@ the result, inserts `val', returning the new vector."
 	   (type simple-string str)
 	   (type fixnum idx))
   (let ((len (length str))
-	((new-str (make-string len
-			       :element-type #-FSet-Ext-Strings 'base-char
-			       #+FSet-Ext-Strings (if (and (typep str 'base-string)
-							   (typep ch 'base-char))
-						      'base-char
-						    'character)))))
+	((new-str (make-string len :element-type (string-plus-char-type str ch)))))
     (declare (fixnum len))
     (dotimes (i len)
       (setf (schar new-str i) (schar str i)))
@@ -6795,12 +6802,7 @@ the result, inserts `val', returning the new vector."
 	((null right) left)
 	((and (stringp left) (stringp right)
 	      (<= (+ (length-nv left) (length-nv right)) *WB-Tree-Max-String-Length*))
-	 (concatenate #-FSet-Ext-Strings 'base-string
-		      #+FSet-Ext-Strings (if (and (typep left 'base-string)
-						  (typep right 'base-string))
-					     'base-string
-					   'string)
-		      (the string left) (the string right)))
+	 (concatenate (string-plus-string-type left right) left right))
 	((and (or (stringp left) (simple-vector-p left))
 	      (or (stringp right) (simple-vector-p right)))
 	 (if (<= (+ (length-nv left) (length-nv right)) *WB-Tree-Max-Vector-Length*)

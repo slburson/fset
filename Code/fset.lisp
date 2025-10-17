@@ -4074,21 +4074,25 @@ symbols."))
 (defmethod compose ((map1 wb-map) (map2 map) &key val-compare-fn-name)
   "The returned map's `val-compare-fn-name' can be specified; it defaults
 to `compare'."
-  (make-wb-map (WB-Map-Tree-Compose (wb-map-contents map1)
-				    ;; This can fail if `map2' is an FSet 2 map with no default.
-				    (fn (x) (lookup map2 x)))
-	       (wb-map-org (empty-wb-map nil (key-compare-fn-name map1) val-compare-fn-name))
-	       (let ((new-default new-default? (lookup map2 (map-default map1))))
-		 (if new-default? new-default (map-default map2)))))
+  (if (and (empty? map1) (eq (map-default map1) 'no-default))
+      map1
+    (make-wb-map (WB-Map-Tree-Compose (wb-map-contents map1)
+				      ;; This can fail if `map2' is an FSet 2 map with no default.
+				      (fn (x) (lookup map2 x)))
+		 (wb-map-org (empty-wb-map nil (key-compare-fn-name map1) val-compare-fn-name))
+		 (let ((new-default new-default? (lookup map2 (map-default map1))))
+		   (if new-default? new-default (map-default map2))))))
 (defmethod fset2:compose ((map1 wb-map) (map2 map) &key val-compare-fn-name)
   "The returned map's `val-compare-fn-name' can be specified; it defaults
 to `compare'."
-  (make-wb-map (WB-Map-Tree-Compose (wb-map-contents map1) (fn (x) (fset2:lookup map2 x)))
-	       (wb-map-org (empty-wb-map nil (key-compare-fn-name map1) val-compare-fn-name))
-	       (let ((dflt1 (map-default map1)))
-		 (if (eq dflt1 'no-default) 'no-default
-		   (let ((new-default new-default? (fset2:lookup map2 dflt1)))
-		     (if new-default? new-default (map-default map2)))))))
+  (if (and (empty? map1) (eq (map-default map1) 'no-default))
+      map1
+    (make-wb-map (WB-Map-Tree-Compose (wb-map-contents map1) (fn (x) (fset2:lookup map2 x)))
+		 (wb-map-org (empty-wb-map nil (key-compare-fn-name map1) val-compare-fn-name))
+		 (let ((dflt1 (map-default map1)))
+		   (if (eq dflt1 'no-default) 'no-default
+		     (let ((new-default new-default? (fset2:lookup map2 dflt1)))
+		       (if new-default? new-default (map-default map2))))))))
 
 (define-methods (compose fset2:compose) ((m wb-map) (fn function) &key val-compare-fn-name)
   (wb-map-fn-compose m fn val-compare-fn-name))
@@ -4679,22 +4683,26 @@ The map's default is `nil' unless a different default is supplied, or
       (call-next-method))))
 
 (defmethod compose ((map1 ch-map) (map2 map) &key val-compare-fn-name)
-  (let ((prototype (empty-ch-map nil (key-compare-fn-name map1) val-compare-fn-name)))
-    (make-ch-map (ch-map-tree-compose (ch-map-contents map1)
-				      ;; This can fail if `map2' is an FSet 2 map with no default.
-				      (fn (x) (lookup map2 x)))
-		 (ch-map-org prototype)
-		 (let ((new-default? new-default
-			 (lookup map2 (map-default map1))))
-		   (if new-default? new-default (map-default map2))))))
+  (if (and (empty? map1) (eq (map-default map1) 'no-default))
+      map1
+    (let ((prototype (empty-ch-map nil (key-compare-fn-name map1) val-compare-fn-name)))
+      (make-ch-map (ch-map-tree-compose (ch-map-contents map1)
+					;; This can fail if `map2' is an FSet 2 map with no default.
+					(fn (x) (lookup map2 x)))
+		   (ch-map-org prototype)
+		   (let ((new-default? new-default
+			   (lookup map2 (map-default map1))))
+		     (if new-default? new-default (map-default map2)))))))
 (defmethod fset2:compose ((map1 ch-map) (map2 map) &key val-compare-fn-name)
-  (let ((prototype (empty-ch-map nil (key-compare-fn-name map1) val-compare-fn-name)))
-    (make-ch-map (ch-map-tree-compose (ch-map-contents map1) (fn (x) (lookup map2 x)))
-		 (ch-map-org prototype)
-		 (let ((dflt1 (map-default map1)))
-		   (if (eq dflt1 'no-default) 'no-default
-		     (let ((new-default new-default? (fset2:lookup map2 dflt1)))
-		       (if new-default? new-default (map-default map2))))))))
+  (if (and (empty? map1) (eq (map-default map1) 'no-default))
+      map1
+    (let ((prototype (empty-ch-map nil (key-compare-fn-name map1) val-compare-fn-name)))
+      (make-ch-map (ch-map-tree-compose (ch-map-contents map1) (fn (x) (lookup map2 x)))
+		   (ch-map-org prototype)
+		   (let ((dflt1 (map-default map1)))
+		     (if (eq dflt1 'no-default) 'no-default
+		       (let ((new-default new-default? (fset2:lookup map2 dflt1)))
+			 (if new-default? new-default (map-default map2)))))))))
 
 (define-methods (compose fset2:compose) ((m ch-map) (fn function) &key val-compare-fn-name)
   (ch-map-fn-compose m fn val-compare-fn-name))
