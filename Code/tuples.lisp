@@ -159,8 +159,8 @@ you have to wrap it in an extra lambda."
 the key's default to it; this value will be returned from `lookup' when the
 tuple has no explicit pair with this key.  If `no-default?' is true, clears the
 key's default, so that `lookup' will signal an error in this case.  If neither
-is specified, then if the key is being freshly created, it will have no default;
-if it already existed, its default will be unchanged."
+is specified, then if the key is being freshly created, it will have a default
+of `nil'; if it already existed, its default will be unchanged."
   (when (and default? no-default?)
     (error "Both a default and `no-default?' specified"))
   (with-lock (+Tuple-Key-Lock+)
@@ -173,7 +173,8 @@ if it already existed, its default will be unchanged."
 		    (setf (tuple-key-default key) 'no-default)))
 	     key)
 	    ((<= key-idx Tuple-Key-Number-Mask)
-	     (let ((key (make-tuple-key name (if default? default 'no-default) key-idx)))
+	     (let ((key (make-tuple-key name (if default? default (and no-default? 'no-default))
+					key-idx)))
 	       (setf (lookup +Tuple-Key-Name-Map+ name) key)
 	       (push-last +Tuple-Key-Seq+ key)
 	       key))
@@ -197,14 +198,17 @@ for `default'."
   (assert (symbolp name))
   `(deflex ,name (get-tuple-key ',name ,default)
      . ,(and doc-string `(,doc-string))))
-(defmacro fset2:define-tuple-key (name &key (default nil default?) documentation)
+(defmacro fset2:define-tuple-key (name &key (default nil default?) no-default? documentation)
   "Defines a tuple key named `name' as a global lexical variable (see
-`deflex').  If `default' is supplied, it will be returned from `lookup' when
-the tuple has no explicit pair with this key; otherwise, `lookup` will signal
-an error in that case."
+`deflex').  If `default' is supplied, it will be returned from `lookup',
+instead of `nil', when the tuple has no explicit pair with this key.
+Alternatively, if `no-default?' is true, `lookup` will signal an error
+in that case."
   (assert (symbolp name))
+  (when (and default? no-default?)
+    (error "Both a default and `no-default?' specified"))
   `(deflex-reinit ,name (fset2:get-tuple-key ',name ,@(if default? `(:default ,default)
-							'(:no-default? t)))
+							(and no-default? '(:no-default? t))))
      . ,(and documentation `(,documentation))))
 
 (defun print-tuple-key (key stream level)

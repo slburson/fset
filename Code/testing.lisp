@@ -4596,6 +4596,7 @@
 (in-package :fset2)
 
 (define-tuple-key +k5+ :default 'plugh)
+(define-tuple-key +k6+)
 
 (defun fset::test-fset2 ()
   (declare (optimize (debug 3)))
@@ -4778,12 +4779,11 @@
 
       (test (= (rank (wb-set 1 3 5) 2) 1))
       (test (equal? (@ (tuple) +k5+) 'plugh))
-      (let ((k (get-tuple-key 'fubar :default 11)))
-	(test (equal? (@ (tuple) k) 11))
-	(setq k (get-tuple-key 'fubar :no-default? t))
-	(test-error (@ (tuple) k))
-	(setq k (get-tuple-key 'fubar :default 0))
-	(test (equal? (@ (tuple) k) 0))))))
+      (test (equal? (@ (tuple) +k6+) nil))
+      (test (equal? (@ (tuple) (get-tuple-key 'fubar :default 11)) 11))
+      (test-error (@ (tuple) (get-tuple-key 'fubar :no-default? t)))
+      (test (equal? (@ (tuple) (get-tuple-key 'fubar :default 0)) 0))
+      (test (equal? (@ (tuple) (get-tuple-key 'zot)) nil)))))
 
 (defun test-fset2-gmap ()
   (macrolet ((test (form)
