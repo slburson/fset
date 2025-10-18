@@ -816,7 +816,7 @@ constructed."
   (map1 nil) ; a cache, so we leave it mutable
   (org nil :type hash-map-org :read-only t))
 
-(defparameter *empty-ch-2-relation* (make-ch-2-relation 0 nil nil (ch-map-org *empty-ch-map*)))
+(defparameter *empty-ch-2-relation* (make-ch-2-relation 0 nil nil +fset-default-hash-map-org+))
 
 (declaim (inline empty-ch-2-relation fset2:empty-ch-2-relation))
 (defun empty-ch-2-relation (&optional key-compare-fn-name val-compare-fn-name)
@@ -2092,7 +2092,7 @@ be able to compare both tuples \(lists\) and their elements."
 (defun ch-list-relation-result-org (rel)
   (let ((org (ch-list-relation-org rel)))
     (if (eq (hlrorg-compare-fn-name org) 'compare)
-	(ch-set-org *empty-ch-set*)
+	+fset-default-hash-set-org+
       (make-hash-set-org '?? (hlrorg-tuple-compare-fn org) (hlrorg-tuple-hash-fn org)))))
 
 (defmethod contains? ((rel ch-list-relation) tuple &optional (arg2 nil arg2?))

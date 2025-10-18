@@ -589,24 +589,24 @@ element."))
 
 (defgeneric insert (seq idx val)
   (:documentation
-    "Returns a new sequence like `seq' but with `val' inserted at `idx' (the seq
+    "Returns a new sequence like `seq' but with `val' inserted at `idx' \(the seq
 is extended in either direction if needed prior to the insertion; previously
-uninitialized indices are filled with the seq's default)."))
+uninitialized indices are filled with the seq's default\)."))
 
 (defgeneric splice (seq idx subseq)
   (:documentation
     "Returns a new sequence like `seq' but with the elements of `subseq' inserted
-at `idx' (the seq is extended in either direction if needed prior to the insertion;
-previously uninitialized indices are filled with the seq's default)."))
+at `idx' \(the seq is extended in either direction if needed prior to the insertion;
+previously uninitialized indices are filled with the seq's default\)."))
 
-;;; &&& Maybe we should shadow `concatenate' instead, so you can specify a
-;;; result type.
 (defgeneric concat (seq1 &rest seqs)
   (:documentation
-    "Returns the concatenation of `seq1' with each of `seqs'."))
+    "Returns the concatenation of `seq1' with each of `seqs'.  The result has the
+same default as `seq1'."))
 (defgeneric fset2:concat (seq1 &rest seqs)
   (:documentation
-    "Returns the concatenation of `seq1' with each of `seqs'."))
+    "Returns the concatenation of `seq1' with each of `seqs'.  The result has the
+same default as `seq1'."))
 
 ;;; This is the opposite order from `cl:coerce', but I like it better, because I
 ;;; think the calls are easier to read with the type first.  It's also consistent
@@ -617,7 +617,7 @@ previously uninitialized indices are filled with the seq's default)."))
 have additional keyword parameters to further specify the kind of conversion.
 \(`sequence' here refers to a CL sequence -- either a list or a vector, unless
 the implementation has more sequence subtypes.  FSet's `seq' is not a subtype of
-`sequence'.)
+`sequence'.\)
 
 When `to-type' is one of the abstract types -- `set', `bag', `map' etc. -- the
 only guarantee is that `convert' will return an instance of the requested type.
@@ -2262,6 +2262,8 @@ for the possibility of different set implementations; it is not for public use.
   (compare-fn nil :type function :read-only t)
   (hash-fn nil :type function :read-only t))
 
+(deflex +fset-default-hash-set-org+ (make-hash-set-org 'compare #'compare #'hash-value))
+
 (declaim (inline make-ch-set))
 
 (defstruct (ch-set
@@ -2273,7 +2275,7 @@ for the possibility of different set implementations; it is not for public use.
   (contents nil :read-only t)
   (org nil :type hash-set-org :read-only t))
 
-(defparameter *empty-ch-set* (make-ch-set nil (make-hash-set-org 'compare #'compare #'hash-value)))
+(defparameter *empty-ch-set* (make-ch-set nil +fset-default-hash-set-org+))
 
 (declaim (inline fset2:empty-set))
 (defun fset2:empty-set ()
@@ -3462,21 +3464,23 @@ the default implementation of maps in FSet."
   (contents nil :read-only t)
   (org nil :type tree-map-org :read-only t))
 
-(defparameter *empty-wb-map* (make-wb-map nil +fset-default-tree-map-org+ 'no-default))
+(defparameter *empty-wb-map* (make-wb-map nil +fset-default-tree-map-org+ nil))
 
-(defparameter *empty-wb-map/nil* (make-wb-map nil +fset-default-tree-map-org+ nil))
+(defparameter *empty-wb-map/no-default* (make-wb-map nil +fset-default-tree-map-org+ 'no-default))
 
-;;; I've parameterized this on the thought that some people might want to set it to `nil',
-;;; for backward compatibility with FSet 1.  The longer I think about it, though, the less
-;;; likely it seems, considering they can still use the FSet 1 API if they want.
-(defparameter *fset2-default-default* 'no-default
-  "The value used for map and seq defaults if no other value is specified.")
+(declaim (inline fset2-default))
+(defun fset2-default (default? default no-default?)
+  (if (and default? no-default?)
+      (error "Both a default and `no-default?' specified")
+    (cond (default? default)
+	  (no-default? 'no-default)
+	  (t nil))))
 
 (declaim (inline empty-map))
 (defun empty-map (&optional default)
   "Returns an empty map of the default implementation."
   (if default (make-wb-map nil +fset-default-tree-map-org+ default)
-    *empty-wb-map/nil*))
+    *empty-wb-map*))
 ;;; `fset2:empty-map' is below
 
 (declaim (inline empty-wb-map fset2:empty-wb-map))
@@ -3484,33 +3488,26 @@ the default implementation of maps in FSet."
   "Returns an empty wb-map with the specified default and comparison functions."
   (if (and (null key-compare-fn-name) (null val-compare-fn-name))
       (if (null default)
-	  *empty-wb-map/nil*
+	  *empty-wb-map*
 	(make-wb-map nil +fset-default-tree-map-org+ default))
     (empty-wb-custom-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare))))
 (defun fset2:empty-wb-map (&key (default nil default?) no-default? key-compare-fn-name val-compare-fn-name)
   "Returns an empty wb-map with the specified default and comparison functions.
 The map's default is `nil' unless a different default is supplied, or
 `no-default?' is true."
-  (empty-wb-map-internal default? default no-default? key-compare-fn-name val-compare-fn-name))
+  ;; The idea here is to inline the keyword argument processing and the default selection, hopefully
+  ;; all of which will constant-fold down to just the default in almost all cases.
+  (empty-wb-map-internal (fset2-default default? default no-default?) key-compare-fn-name val-compare-fn-name))
 
-(declaim (inline fset2-default))
-(defun fset2-default (default? default no-default?)
-  (cond (default? default)
-	(no-default? 'no-default)
-	(t *fset2-default-default*)))
-
-(defun empty-wb-map-internal (default? default no-default? key-compare-fn-name val-compare-fn-name)
+(defun empty-wb-map-internal (default key-compare-fn-name val-compare-fn-name)
   ;; This has gotten too big to inline.
-  (if (and default? no-default?)
-      (error "Both a default and `no-default?' specified")
-    (let ((default (fset2-default default? default no-default?)))
-      (cond ((or key-compare-fn-name val-compare-fn-name)
-	     (empty-wb-custom-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare)))
-	    ((eq default 'no-default)
-	     *empty-wb-map*)
-	    ((null default)
-	     *empty-wb-map/nil*)
-	    (t (make-wb-map nil +fset-default-tree-map-org+ default))))))
+  (cond ((or key-compare-fn-name val-compare-fn-name)
+	 (empty-wb-custom-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare)))
+	((null default)
+	 *empty-wb-map*)
+	((eq default 'no-default)
+	 *empty-wb-map/no-default*)
+	(t (make-wb-map nil +fset-default-tree-map-org+ default))))
 
 (deflex +empty-wb-custom-map-cache+ (make-hash-table :test 'equal))
 
@@ -3522,7 +3519,7 @@ The map's default is `nil' unless a different default is supplied, or
 	       (symbol-package val-compare-fn-name))
 	  () "val-compare-fn-name must be a nonnull interned symbol")
   (if (and (eq key-compare-fn-name 'compare) (eq val-compare-fn-name 'compare))
-      (if (null default) *empty-wb-map/nil*
+      (if (null default) *empty-wb-map*
 	(make-wb-map nil +fset-default-tree-map-org+ default))
     ;; &&& This caches one default per type.  We could use a two-level map to cache multiple defaults,
     ;; but the inner maps would have to be custom wb-maps, whose creation couldn't call this function (!).
@@ -4365,6 +4362,9 @@ to `compare'."
   (val-compare-fn nil :type function :read-only t)
   (val-hash-fn nil :type function :read-only t))
 
+(deflex +fset-default-hash-map-org+
+    (make-hash-map-org 'compare #'compare #'hash-value 'compare #'compare #'hash-value))
+
 (declaim (inline make-ch-map))
 
 (defstruct (ch-map
@@ -4376,44 +4376,37 @@ to `compare'."
   (contents nil :read-only t)
   (org nil :type hash-map-org :read-only t))
 
-(defparameter *empty-ch-map*
-  (make-ch-map nil (make-hash-map-org 'compare #'compare #'hash-value 'compare #'compare #'hash-value)
-	       'no-default))
+(defparameter *empty-ch-map* (make-ch-map nil +fset-default-hash-map-org+ nil))
 
-(defparameter *empty-ch-map/nil*
-  (make-ch-map nil (make-hash-map-org 'compare #'compare #'hash-value 'compare #'compare #'hash-value)
-	       nil))
+(defparameter *empty-ch-map/no-default* (make-ch-map nil +fset-default-hash-map-org+ 'no-default))
 
 (declaim (inline fset2:empty-map))
 (defun fset2:empty-map (&key (default nil default?) no-default?)
   "Returns an empty map of the default implementation, with the specified
 default or lack of default."
-  (empty-ch-map-internal default? default no-default? nil nil))
+  (empty-ch-map-internal (fset2-default default? default no-default?) nil nil))
 
 (declaim (inline empty-ch-map fset2:empty-ch-map))
 (defun empty-ch-map (&optional default key-compare-fn-name val-compare-fn-name)
   (if (and (null key-compare-fn-name) (null val-compare-fn-name))
       (if (null default)
-	  *empty-ch-map/nil*
-	(make-ch-map nil (ch-map-org *empty-ch-map*) default))
+	  *empty-ch-map*
+	(make-ch-map nil +fset-default-hash-map-org+ default))
     (empty-ch-custom-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare))))
 (defun fset2:empty-ch-map (&key (default nil default?) no-default? key-compare-fn-name val-compare-fn-name)
   "Returns an empty ch-map with the specified default and comparison functions.
 The map's default is `nil' unless a different default is supplied, or
 `no-default?' is true."
-  (empty-ch-map-internal default? default no-default? key-compare-fn-name val-compare-fn-name))
+  (empty-ch-map-internal (fset2-default default? default no-default?) key-compare-fn-name val-compare-fn-name))
 
-(defun empty-ch-map-internal (default? default no-default? key-compare-fn-name val-compare-fn-name)
-  (if (and default? no-default?)
-      (error "Both a default and `no-default?' specified")
-    (let ((default (fset2-default default? default no-default?)))
-      (cond ((or key-compare-fn-name val-compare-fn-name)
-	     (empty-ch-custom-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare)))
-	    ((eq default 'no-default)
-	     *empty-ch-map*)
-	    ((null default)
-	     *empty-ch-map/nil*)
-	    (t (make-ch-map nil (ch-map-org *empty-ch-map*) default))))))
+(defun empty-ch-map-internal (default key-compare-fn-name val-compare-fn-name)
+  (cond ((or key-compare-fn-name val-compare-fn-name)
+	 (empty-ch-custom-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare)))
+	((null default)
+	 *empty-ch-map*)
+	((eq default 'no-default)
+	 *empty-ch-map/no-default*)
+	(t (make-ch-map nil +fset-default-hash-map-org+ default))))
 
 (deflex +empty-ch-custom-map-cache+ (make-hash-table :test 'equal))
 
@@ -4425,8 +4418,8 @@ The map's default is `nil' unless a different default is supplied, or
 	       (symbol-package val-compare-fn-name))
 	  () "val-compare-fn-name must be a nonnull interned symbol")
   (if (and (eq key-compare-fn-name 'compare) (eq val-compare-fn-name 'compare))
-      (if (null default) *empty-ch-map/nil*
-	(make-ch-map nil (ch-map-org *empty-ch-map*) default))
+      (if (null default) *empty-ch-map*
+	(make-ch-map nil +fset-default-hash-map-org+ default))
     (let ((cache-key (list key-compare-fn-name val-compare-fn-name))
 	  ((prev-instance (gethash cache-key +empty-ch-custom-map-cache+)))
 	  (key-hash-fn-name (or (get key-compare-fn-name 'hash-function)
@@ -4898,19 +4891,19 @@ This is the default implementation of seqs in FSet."
   (contents nil :read-only t))
 
 
-(defparameter *empty-wb-seq* (make-wb-seq nil 'no-default))
+(defparameter *empty-wb-seq* (make-wb-seq nil nil))
 
-(defparameter *empty-wb-seq/nil* (make-wb-seq nil nil))
+(defparameter *empty-wb-seq/no-default* (make-wb-seq nil 'no-default))
 
 (declaim (inline empty-seq fset2:empty-seq))
 (defun empty-seq (&optional default)
   "Returns an empty seq of the default implementation."
   (if default (make-wb-seq nil default)
-    *empty-wb-seq/nil*))
+    *empty-wb-seq*))
 (defun fset2:empty-seq (&key (default nil default?) no-default?)
   "Returns an empty seq of the default implementation.  The seq's default is
 `nil' unless a different default is supplied, or `no-default?' is true."
-  (empty-wb-seq-internal default? default no-default?))
+  (empty-wb-seq-internal (fset2-default default? default no-default?)))
 
 (declaim (inline empty-wb-seq fset2:empty-wb-seq))
 (defun empty-wb-seq (&optional default)
@@ -4919,17 +4912,14 @@ This is the default implementation of seqs in FSet."
     *empty-wb-seq*))
 (defun fset2:empty-wb-seq (&key (default nil default?) no-default?)
   "Returns an empty wb-seq."
-  (empty-wb-seq-internal default? default no-default?))
+  (empty-wb-seq-internal (fset2-default default? default no-default?)))
 
-(defun empty-wb-seq-internal (default? default no-default?)
-  (if (and default? no-default?)
-      (error "Both a default and `no-default?' specified")
-    (let ((default (fset2-default default? default no-default?)))
-      (cond ((eq default 'no-default)
-	     *empty-wb-seq*)
-	    ((null default)
-	     *empty-wb-seq/nil*)
-	    (t (make-wb-seq nil default))))))
+(defun empty-wb-seq-internal (default)
+  (cond ((null default)
+	 *empty-wb-seq*)
+	((eq default 'no-default)
+	 *empty-wb-seq/no-default*)
+	(t (make-wb-seq nil default))))
 
 (defmethod empty? ((s wb-seq))
   (null (wb-seq-contents s)))
@@ -5748,3 +5738,4 @@ not symbols."))
 (define-condition simple-program-error (simple-condition program-error)
   ())
 
+eri

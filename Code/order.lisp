@@ -71,7 +71,7 @@ class.")
 	    (:predicate map?)
 	    (:copier nil))
   "The abstract class for FSet functional maps.  It is a structure class."
-  (default 'no-default :read-only t))
+  (default nil :read-only t))
 
 (defstruct (replay-map
             (:constructor nil)

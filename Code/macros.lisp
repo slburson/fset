@@ -1025,13 +1025,12 @@ Note that `filterp', if supplied, must take two arguments."
 	#'(lambda (tree) (make-wb-map tree (wb-map-org *empty-wb-map*) ,default))
 	,filterp))
 
-(gmap:def-result-type fset2:map (&key filterp (default nil default?))
+(gmap:def-result-type fset2:map (&key filterp (default nil default?) no-default?)
   "Consumes two values from the mapped function; returns a map of the pairs.
 Note that `filterp', if supplied, must take two arguments."
-  `(nil (:consume 2 #'(lambda (m x y) (WB-Map-Tree-With m x y #'compare #'compare)))
-	#'(lambda (tree) (make-wb-map tree (wb-map-org *empty-wb-map*)
-				      ,(if default? default
-					 '*fset2-default-default*)))
+  `(nil (:consume 2 #'(lambda (m x y) (ch-map-tree-with m x y #'hash-value #'compare #'hash-value #'compare)))
+	#'(lambda (tree) (make-ch-map tree +fset-default-hash-map-org+
+				      (fset2-default ,default? ,default ,no-default?)))
 	,filterp))
 
 (gmap:def-result-type wb-map (&key filterp default key-compare-fn-name val-compare-fn-name)
@@ -1047,7 +1046,8 @@ Note that `filterp', if supplied, must take two arguments."
 	   ((,kcf-var (tree-map-org-key-compare-fn (wb-map-org ,proto-var)))
 	    (,vcf-var (tree-map-org-val-compare-fn (wb-map-org ,proto-var))))))))
 
-(gmap:def-result-type fset2:wb-map (&key filterp (default nil default?) key-compare-fn-name val-compare-fn-name)
+(gmap:def-result-type fset2:wb-map (&key filterp (default nil default?) no-default?
+					 key-compare-fn-name val-compare-fn-name)
   "Consumes two values from the mapped function; returns a wb-map of the pairs.
 Note that `filterp', if supplied, must take two arguments."
   (let ((proto-var (gensymx #:prototype-))
@@ -1055,8 +1055,7 @@ Note that `filterp', if supplied, must take two arguments."
 	(vcf-var (gensymx #:val-cmp-)))
     `(nil (:consume 2 #'(lambda (tree k v) (WB-Map-Tree-With tree k v ,kcf-var ,vcf-var)))
 	  #'(lambda (tree) (make-wb-map tree (wb-map-org ,proto-var)
-					,(if default? default
-					   '*fset2-default-default*)))
+					(fset2-default ,default? ,default ,no-default?)))
 	  ,filterp
 	  ((,proto-var (empty-wb-map nil ,key-compare-fn-name ,val-compare-fn-name))
 	   ((,kcf-var (tree-map-org-key-compare-fn (wb-map-org ,proto-var)))
@@ -1089,7 +1088,8 @@ Note that `filterp', if supplied, must take two arguments."
 	    (,vhf-var (hash-map-org-val-hash-fn ,org-var))
 	    (,vcf-var (hash-map-org-val-compare-fn ,org-var)))))))
 
-(gmap:def-result-type fset2:ch-map (&key filterp (default nil default?) key-compare-fn-name val-compare-fn-name)
+(gmap:def-result-type fset2:ch-map (&key filterp (default nil default?) no-default?
+					 key-compare-fn-name val-compare-fn-name)
   "Consumes two values from the mapped function; returns a wb-map of the pairs.
 Note that `filterp', if supplied, must take two arguments."
   (let ((org-var (gensymx #:org-))
@@ -1098,8 +1098,7 @@ Note that `filterp', if supplied, must take two arguments."
 	(vhf-var (gensymx #:val-hash-))
 	(vcf-var (gensymx #:val-cmp-)))
     `(nil (:consume 2 #'(lambda (tree k v) (ch-map-tree-with tree k v ,khf-var ,kcf-var ,vhf-var ,vcf-var)))
-	  #'(lambda (tree) (make-ch-map tree ,org-var ,(if default? default
-							 '*fset2-default-default*)))
+	  #'(lambda (tree) (make-ch-map tree ,org-var (fset2-default ,default? ,default ,no-default?)))
 	  ,filterp
 	  ((,org-var (ch-map-org (empty-ch-map nil ,key-compare-fn-name ,val-compare-fn-name)))
 	   ((,khf-var (hash-map-org-key-hash-fn ,org-var))
@@ -1427,7 +1426,7 @@ pairs.  Note that `filterp', if supplied, must take two arguments."
 			      (push k ,ordering-var))
 			    ts)))
 	  #'(lambda (s) (make-ch-replay-map s (wb-seq-tree-from-list (nreverse ,ordering-var))
-					    (ch-map-org *empty-ch-map*) ,default))
+					    +fset-default-hash-map-org+ ,default))
 	  ,filterp
 	  ((,ordering-var nil)))))
 

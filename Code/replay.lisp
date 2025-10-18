@@ -32,11 +32,11 @@
 (defmethod convert ((to-type (eql 'seq)) (s replay-set) &key)
   (make-wb-seq (replay-set-ordering s) nil))
 (defmethod convert ((to-type (eql 'fset2:seq)) (s replay-set) &key)
-  (make-wb-seq (replay-set-ordering s) *fset2-default-default*))
+  (make-wb-seq (replay-set-ordering s) nil))
 (defmethod convert ((to-type (eql 'wb-seq)) (s replay-set) &key)
   (make-wb-seq (replay-set-ordering s) nil))
 (defmethod convert ((to-type (eql 'fset2:wb-seq)) (s replay-set) &key)
-  (make-wb-seq (replay-set-ordering s) *fset2-default-default*))
+  (make-wb-seq (replay-set-ordering s) nil))
 
 (defmethod convert ((to-type (eql 'replay-set)) (l list) &key)
   (gmap (:result replay-set) nil (:arg list l)))
@@ -553,10 +553,10 @@ result is that of `s1', filtered by membership in `s2'."
 (declaim (inline empty-replay-map fset2:empty-replay-map))
 (defun empty-replay-map (&optional default)
   (declare (special *empty-ch-replay-map*))
-  (if default (make-ch-replay-map nil nil (ch-map-org *empty-ch-map*) default)
+  (if default (make-ch-replay-map nil nil +fset-default-hash-map-org+ default)
     *empty-ch-replay-map*))
 (defun fset2:empty-replay-map (&key (default nil default?) no-default?)
-  (empty-ch-replay-map-internal default? default no-default? nil nil))
+  (empty-ch-replay-map-internal (fset2-default default? default no-default?) nil nil))
 
 (defmethod convert ((to-type (eql 'replay-map)) (m replay-map) &key)
   m)
@@ -641,9 +641,9 @@ first.  Replay maps are printed as \"#{=| ... |}\"."
   (contents nil :read-only t)
   (org nil :type tree-map-org :read-only t))
 
-(defparameter *empty-wb-replay-map* (make-wb-replay-map nil nil +fset-default-tree-map-org+ 'no-default))
+(defparameter *empty-wb-replay-map* (make-wb-replay-map nil nil +fset-default-tree-map-org+ nil))
 
-(defparameter *empty-wb-replay-map/nil* (make-wb-replay-map nil nil +fset-default-tree-map-org+ nil))
+(defparameter *empty-wb-replay-map/no-default* (make-wb-replay-map nil nil +fset-default-tree-map-org+ 'no-default))
 
 (declaim (inline empty-wb-replay-map fset2:empty-wb-replay-map))
 (defun empty-wb-replay-map (&optional default key-compare-fn-name val-compare-fn-name)
@@ -656,21 +656,16 @@ first.  Replay maps are printed as \"#{=| ... |}\"."
   "Returns an empty wb-replay-map with the specified default and comparison
 functions.  The map's default is `nil' unless a different default is supplied,
 or `no-default?' is true."
-  (empty-wb-replay-map-internal default? default no-default? key-compare-fn-name val-compare-fn-name))
+  (empty-wb-replay-map-internal (fset2-default default? default no-default?) key-compare-fn-name val-compare-fn-name))
 
-(defun empty-wb-replay-map-internal (default? default no-default? key-compare-fn-name val-compare-fn-name)
-  (if (and default? no-default?)
-      (error "Both a default and `no-default?' specified")
-    (let ((default (cond (default? default)
-			 (no-default? 'no-default)
-			 (t *fset2-default-default*))))
-      (cond ((or key-compare-fn-name val-compare-fn-name)
-	     (empty-wb-custom-replay-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare)))
-	    ((eq default 'no-default)
-	     *empty-wb-replay-map*)
-	    ((null default)
-	     *empty-wb-replay-map/nil*)
-	    (t (make-wb-replay-map nil nil +fset-default-tree-map-org+ default))))))
+(defun empty-wb-replay-map-internal (default key-compare-fn-name val-compare-fn-name)
+  (cond ((or key-compare-fn-name val-compare-fn-name)
+	 (empty-wb-custom-replay-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare)))
+	((null default)
+	 *empty-wb-replay-map*)
+	((eq default 'no-default)
+	 *empty-wb-replay-map/no-default*)
+	(t (make-wb-replay-map nil nil +fset-default-tree-map-org+ default))))
 
 (deflex +empty-wb-custom-replay-map-cache+ (make-hash-table :test 'equal))
 
@@ -965,36 +960,31 @@ first.  Replay maps are printed as \"##{=| ... |}\"."
   (contents nil :read-only t)
   (org nil :type hash-map-org :read-only t))
 
-(defparameter *empty-ch-replay-map* (make-ch-replay-map nil nil (ch-map-org *empty-ch-map*) 'no-default))
+(defparameter *empty-ch-replay-map* (make-ch-replay-map nil nil +fset-default-hash-map-org+ nil))
 
-(defparameter *empty-ch-replay-map/nil* (make-ch-replay-map nil nil (ch-map-org *empty-ch-map*) nil))
+(defparameter *empty-ch-replay-map/no-default* (make-ch-replay-map nil nil +fset-default-hash-map-org+ 'no-default))
 
 (declaim (inline empty-ch-replay-map fset2:empty-ch-replay-map))
 (defun empty-ch-replay-map (&optional default key-compare-fn-name val-compare-fn-name)
   (if (and (null key-compare-fn-name) (null val-compare-fn-name))
       (if (null default)
-	  *empty-ch-replay-map/nil*
-	(make-ch-replay-map nil nil (ch-replay-map-org *empty-ch-replay-map*) default))
+	  *empty-ch-replay-map*
+	(make-ch-replay-map nil nil +fset-default-hash-map-org+ default))
     (empty-ch-custom-replay-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare))))
 (defun fset2:empty-ch-replay-map (&key (default nil default?) no-default? key-compare-fn-name val-compare-fn-name)
   "Returns an empty ch-replay-map with the specified default and comparison
 functions.  The map's default is `nil' unless a different default is supplied,
 or `no-default?' is true."
-  (empty-ch-replay-map-internal default? default no-default? key-compare-fn-name val-compare-fn-name))
+  (empty-ch-replay-map-internal (fset2-default default? default no-default?) key-compare-fn-name val-compare-fn-name))
 
-(defun empty-ch-replay-map-internal (default? default no-default? key-compare-fn-name val-compare-fn-name)
-  (if (and default? no-default?)
-      (error "Both a default and `no-default?' specified")
-    (let ((default (cond (default? default)
-			 (no-default? 'no-default)
-			 (t *fset2-default-default*))))
-      (cond ((or key-compare-fn-name val-compare-fn-name)
-	     (empty-ch-custom-replay-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare)))
-	    ((eq default 'no-default)
-	     *empty-ch-replay-map*)
-	    ((null default)
-	     *empty-ch-replay-map/nil*)
-	    (t (make-ch-replay-map nil nil (ch-map-org *empty-ch-map*) default))))))
+(defun empty-ch-replay-map-internal (default key-compare-fn-name val-compare-fn-name)
+  (cond ((or key-compare-fn-name val-compare-fn-name)
+	 (empty-ch-custom-replay-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare)))
+	((null default)
+	 *empty-ch-replay-map*)
+	((eq default 'no-default)
+	 *empty-ch-replay-map/no-default*)
+	(t (make-ch-replay-map nil nil +fset-default-hash-map-org+ default))))
 
 (deflex +empty-ch-custom-replay-map-cache+ (make-hash-table :test 'equal))
 
