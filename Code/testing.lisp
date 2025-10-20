@@ -4364,6 +4364,12 @@
 (defmethod verify ((s ch-set))
   (ch-set-tree-verify (ch-set-contents s) (hash-set-org-hash-fn (ch-set-org s))))
 
+(defparameter *seq-of-symbols*
+  (let ((syms (seq)))
+    (do-external-symbols (sym :cl)
+      (push-last syms sym))
+    syms))
+
 (defun test-champ-sets (n)
   (declare (optimize (speed 0) (debug 3)))
   (macrolet ((test (form)
@@ -4377,7 +4383,9 @@
 	(let ((wbs (wb-set))
 	      (chs (ch-set)))
 	  (dotimes (j 256)
-	    (let ((mi (make-my-integer (random 1024)))
+	    (let ((mi (if (logbitp 0 i)
+			  (@ *seq-of-symbols* (random (size *seq-of-symbols*)))
+			(make-my-integer (random 1024))))
 		  (prev-wbs wbs)
 		  (prev-chs chs))
 	      (test (eqv (contains? chs mi) (contains? wbs mi)))
@@ -4404,23 +4412,24 @@
 		    (includef elts (at-index chs k)))
 		  (unless (equal? elts wbs)
 		    (error "ch-set at-index failed")))
-		(let ((idx (random (size chs)))
-		      ((elt (at-index chs idx))
-		       ((tmp-chs (with (less chs elt)
-				       ;; Adding 4096 doesn't change the hash value.
-				       (make-my-integer (+ (my-integer-value elt) 4096)))))))
-		  ;; `ch-set-tree-compare' is tough to test thoroughly.  This at least checks the case that is
-		  ;; least obviously correct by inspection, where all the hash values are the same but two elements
-		  ;; nonetheless differ.
-		  (test (and (eq (compare chs tmp-chs) ':less)
-			     (eq (compare tmp-chs chs) ':greater))))
+		(unless (logbitp 0 i)
+		  (let ((idx (random (size chs)))
+			((elt (at-index chs idx))
+			 ((tmp-chs (with (less chs elt)
+					 ;; Adding 4096 doesn't change the hash value.
+					 (make-my-integer (+ (my-integer-value elt) 4096)))))))
+		    ;; `ch-set-tree-compare' is tough to test thoroughly.  This at least checks the case that is
+		    ;; least obviously correct by inspection, where all the hash values are the same but two elements
+		    ;; nonetheless differ.
+		    (test (and (eq (compare chs tmp-chs) ':less)
+			       (eq (compare tmp-chs chs) ':greater))))
+		  (let ((chs-p0 chs-p1 (partition (fn (x) (evenp (my-integer-value x))) chs))
+			(wbs-p0 wbs-p1 (partition (fn (x) (evenp (my-integer-value x))) wbs)))
+		    (test (equal? (convert 'wb-set chs-p0) wbs-p0))
+		    (test (equal? chs-p1 (convert 'ch-set wbs-p1)))))
 		(test (equal? chs (convert 'ch-set wbs)))
 		(test (equal? chs (convert 'ch-set (convert 'seq wbs))))
 		(test (equal? chs (convert 'ch-set (convert 'vector wbs))))
-		(let ((chs-p0 chs-p1 (partition (fn (x) (evenp (my-integer-value x))) chs))
-		      (wbs-p0 wbs-p1 (partition (fn (x) (evenp (my-integer-value x))) wbs)))
-		  (test (equal? (convert 'wb-set chs-p0) wbs-p0))
-		  (test (equal? chs-p1 (convert 'ch-set wbs-p1))))
 		(let ((k 0)
 		      (it (iterator chs))
 		      (f-it (fun-iterator chs)))
@@ -4486,7 +4495,9 @@
 	      ((chm (ch-custom-map cfn nil))))
 	  (setq *champ-map-test-pairs* (seq))
 	  (dotimes (j 256)
-	    (let ((mi (make-my-integer (random 1024)))
+	    (let ((mi (if (logbitp 0 i)
+			  (@ *seq-of-symbols* (random (size *seq-of-symbols*)))
+			(make-my-integer (random 1024))))
 		  (val (random 65536))
 		  (prev-wbm wbm)
 		  (prev-chm chm))
@@ -4514,22 +4525,23 @@
 		(let ((ch-dom (domain chm)))
 		  (test (verify ch-dom))
 		  (test (equal? (convert 'wb-set ch-dom) (domain wbm))))
-		(let ((idx (random (size chm)))
-		      ((elt (at-index chm idx))
-		       ((chm-less-elt tval (less chm elt))
-			((tmp-chm (with chm-less-elt
-					;; Adding 4096 doesn't change the hash value.
-					(make-my-integer (+ (my-integer-value elt) 4096))
-					(@ chm elt)))))))
-		  (test (verify chm-less-elt))
-		  (test (equal? tval (@ chm elt)))
-		  (test (verify tmp-chm))
-		  ;; `ch-map-tree-compare' is tough to test thoroughly.  This at least checks the case that is
-		  ;; least obviously correct by inspection, where all the hash values are the same but two elements
-		  ;; nonetheless differ.
-		  (when (eq (key-compare-fn-name chm) 'compare)
-		    (test (eq (compare chm tmp-chm) ':less))
-		    (test (eq (compare tmp-chm chm) ':greater))))
+		(unless (logbitp 0 i)
+		  (let ((idx (random (size chm)))
+			((elt (at-index chm idx))
+			 ((chm-less-elt tval (less chm elt))
+			  ((tmp-chm (with chm-less-elt
+					  ;; Adding 4096 doesn't change the hash value.
+					  (make-my-integer (+ (my-integer-value elt) 4096))
+					  (@ chm elt)))))))
+		    (test (verify chm-less-elt))
+		    (test (equal? tval (@ chm elt)))
+		    (test (verify tmp-chm))
+		    ;; `ch-map-tree-compare' is tough to test thoroughly.  This at least checks the case that is
+		    ;; least obviously correct by inspection, where all the hash values are the same but two elements
+		    ;; nonetheless differ.
+		    (when (eq (key-compare-fn-name chm) 'compare)
+		      (test (eq (compare chm tmp-chm) ':less))
+		      (test (eq (compare tmp-chm chm) ':greater)))))
 		(let ((k 0)
 		      (it (iterator chm))
 		      (f-it (fun-iterator chm)))
