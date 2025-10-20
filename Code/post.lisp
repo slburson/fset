@@ -16,5 +16,7 @@
 (declaim (ftype (function (t &key (:from-end? t) &allow-other-keys) function) fun-iterator))
 
 
+;;; Must be last!
 #+FSet-Use-Package-Locks
-(lock-fset-package)
+(lock-fset-packages)
+
