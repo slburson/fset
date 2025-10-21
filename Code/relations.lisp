@@ -2067,10 +2067,6 @@ be able to compare both tuples \(lists\) and their elements."
   (make-ch-list-relation arity nil nil (make-hash-list-relation-org (or compare-fn-name 'compare))))
 
 
-(defmethod arity ((rel list-relation))
-  "Will return `nil' if the arity is not yet specified; see `empty-list-relation'."
-  (list-relation-arity rel))
-
 (defmethod empty? ((rel ch-list-relation))
   (null (ch-list-relation-tuples rel)))
 

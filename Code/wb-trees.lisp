@@ -6128,19 +6128,23 @@ returned as the third value."
 
 (declaim (inline character-type))
 (defun character-type (ch)
-  ;; &&& Why `base-char' and not `character' in the first case?
+  (declare (ignorable ch))
+  ;; In some 32-bit implementations with two character types, we only want to use `base-char',
+  ;; because `character' takes 32 bits — might as well use simple-vectors for those.
   #-FSet-Ext-Strings 'base-char
   #+FSet-Ext-Strings (if (typep ch 'base-char) 'base-char 'character))
 
 (declaim (inline string-char-type))
 (defun string-char-type (str)
   "The element-type of a string."
+  (declare (ignorable str))
   #-FSet-Ext-Strings 'base-char
   #+FSet-Ext-Strings (if (typep str 'base-string) 'base-char 'character))
 
 (declaim (inline string-plus-char-type))
 (defun string-plus-char-type (str ch)
   "The element-type of a new string with `ch' being added to the contents of `str'."
+  (declare (ignorable str ch))
   #-FSet-Ext-Strings 'base-char
   #+FSet-Ext-Strings (if (and (typep str 'base-string) (typep ch 'base-char))
 			 'base-char
@@ -6148,6 +6152,7 @@ returned as the third value."
 
 (declaim (inline string-plus-string-type))
 (defun string-plus-string-type (str1 str2)
+  (declare (ignorable str1 str2))
   #-FSet-Ext-Strings 'base-string
   #+FSet-Ext-Strings (if (and (typep str1 'base-string) (typep str2 'base-string))
 			 'base-string
