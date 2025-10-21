@@ -19,7 +19,10 @@
 ;;; Copy class definitions from `fset:' symbols to `fset2:' symbols that shadow them,
 ;;; so `defmethod', `typep', etc. will work without package prefixes.
 (dolist (sym '(set map wb-map ch-map seq wb-seq replay-map wb-replay-map ch-replay-map))
-  (setf (find-class (intern (string sym) :fset2)) (find-class sym)))
+  (let ((fset2-sym (intern (string sym) :fset2)))
+    (setf (find-class fset2-sym) (find-class sym))
+    ;; Needed in CCL for `typep' to work.
+    #+ccl (setf (ccl::info-type-kind fset2-sym) ':instance)))
 
 
 ;;; Must be last!
