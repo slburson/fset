@@ -40,7 +40,7 @@
 	   #:wb-custom-set #:wb-custom-bag #:wb-custom-map
 	   #:ch-custom-set #:ch-custom-map
 	   #:wb-custom-replay-set #:wb-custom-replay-map #:ch-custom-replay-set #:ch-custom-replay-map
-	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal #:eql-compare
+	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal #:hash-slots #:eql-compare
 	   #:define-equality-slots #:define-comparison-slots #:define-hash-function
 	   #:unwrap-equivalent-node ; custom comparison functions may have to call this
 	   #:hash-value #:hash-value-fixnum #:zero #:hash-mix #:hash-mixf #:hash-multiply
@@ -177,7 +177,7 @@
 	   #:wb-custom-set #:wb-custom-bag #:wb-custom-map
 	   #:ch-custom-set #:ch-custom-map
 	   #:wb-custom-replay-set #:wb-custom-replay-map #:ch-custom-replay-set #:ch-custom-replay-map
-	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal #:eql-compare
+	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal #:hash-slots #:eql-compare
 	   #:define-equality-slots #:define-comparison-slots #:define-hash-function
 	   #:unwrap-equivalent-node ; custom comparison functions may have to call this
 	   #:hash-value #:hash-value-fixnum #:zero #:hash-mix #:hash-mixf #:hash-multiply

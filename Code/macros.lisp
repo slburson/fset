@@ -85,6 +85,8 @@ not eql, this returns `:unequal'."
 		     ((and (listp fn)
 			   (eq (car fn) 'lambda))
 		      `(,fn ,arg))
+		     ((and (listp fn) (eq (car fn) 'fn))
+		      (call (macroexpand fn) arg))
 		     ((and (listp fn)
 			   (eq (car fn) 'quote)
 			   (symbolp (cadr fn)))
@@ -280,6 +282,23 @@ If you're using `define-class' from Misc-Extensions, you can just say:
 
 ;;; &&& Add `(:cache slot/acc)' syntax for auto-caching
 (defmacro hash-slots (obj &rest slots/accessors)
+  "A handy macro for writing the bodies of `hash-value' methods for user classes.
+Computes a hash value by combining the hash values of the specified slots
+and/or accessors applied to the object.  For standard classes, best performance
+is gotten by supplying the slot names as \(quoted\) symbols; for structure
+classes, it is best to supply accessor functions.  \(Actually, any function on
+the object can be used.\)  For example:
+
+  (defstruct point x y)
+  (defmethod hash-value ((p point))
+    (hash-slots p #'x #'y))
+
+  (defclass part () ((part-number ...) ...))
+  (defmethod hash-value ((p part))
+    (hash-slots part 'part-number))
+
+In most cases, it is better to use `define-equality-slots' instead of calling
+this macro directly, to keep the `hash-value' and `compare' methods consistent."
   (unless slots/accessors
     (error "At least one slot/accessor must be supplied"))
   (let ((x-var (gensymx #:x-)))
@@ -298,6 +317,8 @@ If you're using `define-class' from Misc-Extensions, you can just say:
 	      ((and (listp fn)
 		    (eq (car fn) 'lambda))
 	       `(,fn ,arg))
+	      ((and (listp fn) (eq (car fn) 'fn))
+	       (call (macroexpand fn) arg))
 	      ((and (listp fn)
 		    (eq (car fn) 'quote)
 		    (symbolp (cadr fn)))
