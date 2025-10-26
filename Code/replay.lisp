@@ -14,11 +14,13 @@
 
 ;;; We have some implementation-generic methods.
 
+;;; Had to move this up because of https://bugs.launchpad.net/sbcl/+bug/2129827 .
+(defparameter *empty-ch-replay-set* (make-ch-replay-set nil nil (ch-set-org *empty-ch-set*)))
+
 (declaim (inline empty-replay-set))
 (defun empty-replay-set ()
   "Returns an empty replay set of the default implementation."
   ;; Now CHAMP!
-  (declare (special *empty-ch-replay-set*))
   *empty-ch-replay-set*)
 
 (defmethod convert ((to-type (eql 'replay-set)) (s replay-set) &key)
@@ -320,7 +322,7 @@ sets are printed as \"#{= ... }\"."
   (contents nil :read-only t)
   (org nil :type hash-set-org :read-only t))
 
-(defparameter *empty-ch-replay-set* (make-ch-replay-set nil nil (ch-set-org *empty-ch-set*)))
+;;; See above for `*empty-ch-replay-set*'.
 
 (declaim (inline empty-ch-replay-set fset2:empty-ch-replay-set))
 (defun empty-ch-replay-set (&optional compare-fn-name)
@@ -550,9 +552,11 @@ result is that of `s1', filtered by membership in `s2'."
 
 ;;; We have some implementation-generic methods.
 
+;;; Had to move this up because of https://bugs.launchpad.net/sbcl/+bug/2129827 .
+(defparameter *empty-ch-replay-map* (make-ch-replay-map nil nil +fset-default-hash-map-org+ nil))
+
 (declaim (inline empty-replay-map fset2:empty-replay-map))
 (defun empty-replay-map (&optional default)
-  (declare (special *empty-ch-replay-map*))
   (if default (make-ch-replay-map nil nil +fset-default-hash-map-org+ default)
     *empty-ch-replay-map*))
 (defun fset2:empty-replay-map (&key (default nil default?) no-default?)
@@ -960,7 +964,7 @@ first.  Replay maps are printed as \"##{=| ... |}\"."
   (contents nil :read-only t)
   (org nil :type hash-map-org :read-only t))
 
-(defparameter *empty-ch-replay-map* (make-ch-replay-map nil nil +fset-default-hash-map-org+ nil))
+;;; See above for `*empty-ch-replay-map*'.
 
 (defparameter *empty-ch-replay-map/no-default* (make-ch-replay-map nil nil +fset-default-hash-map-org+ 'no-default))
 
