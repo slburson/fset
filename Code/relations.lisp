@@ -38,8 +38,8 @@
 (defmethod arity ((rel 2-relation))
   2)
 
-;;; Had to move this up because of https://bugs.launchpad.net/sbcl/+bug/2129827 .
-(defparameter *empty-ch-2-relation* (make-ch-2-relation 0 nil nil +fset-default-hash-map-org+))
+;;; Had to pre-declare this because of https://bugs.launchpad.net/sbcl/+bug/2129827 .
+(defparameter *empty-ch-2-relation* nil)
 
 (declaim (inline empty-2-relation))
 (defun empty-2-relation ()
@@ -818,7 +818,7 @@ constructed."
   (map1 nil) ; a cache, so we leave it mutable
   (org nil :type hash-map-org :read-only t))
 
-;;; See above for `*empty-ch-2-relation*'.
+(defparameter *empty-ch-2-relation* (make-ch-2-relation 0 nil nil +fset-default-hash-map-org+))
 
 (declaim (inline empty-ch-2-relation fset2:empty-ch-2-relation))
 (defun empty-ch-2-relation (&optional key-compare-fn-name val-compare-fn-name)

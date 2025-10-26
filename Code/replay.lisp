@@ -14,8 +14,8 @@
 
 ;;; We have some implementation-generic methods.
 
-;;; Had to move this up because of https://bugs.launchpad.net/sbcl/+bug/2129827 .
-(defparameter *empty-ch-replay-set* (make-ch-replay-set nil nil (ch-set-org *empty-ch-set*)))
+;;; Had to pre-declare this because of https://bugs.launchpad.net/sbcl/+bug/2129827 .
+(defparameter *empty-ch-replay-set* nil)
 
 (declaim (inline empty-replay-set))
 (defun empty-replay-set ()
@@ -322,7 +322,7 @@ sets are printed as \"#{= ... }\"."
   (contents nil :read-only t)
   (org nil :type hash-set-org :read-only t))
 
-;;; See above for `*empty-ch-replay-set*'.
+(defparameter *empty-ch-replay-set* (make-ch-replay-set nil nil (ch-set-org *empty-ch-set*)))
 
 (declaim (inline empty-ch-replay-set fset2:empty-ch-replay-set))
 (defun empty-ch-replay-set (&optional compare-fn-name)
@@ -552,8 +552,8 @@ result is that of `s1', filtered by membership in `s2'."
 
 ;;; We have some implementation-generic methods.
 
-;;; Had to move this up because of https://bugs.launchpad.net/sbcl/+bug/2129827 .
-(defparameter *empty-ch-replay-map* (make-ch-replay-map nil nil +fset-default-hash-map-org+ nil))
+;;; Had to pre-declare this because of https://bugs.launchpad.net/sbcl/+bug/2129827 .
+(defparameter *empty-ch-replay-map* nil)
 
 (declaim (inline empty-replay-map fset2:empty-replay-map))
 (defun empty-replay-map (&optional default)
@@ -964,7 +964,7 @@ first.  Replay maps are printed as \"##{=| ... |}\"."
   (contents nil :read-only t)
   (org nil :type hash-map-org :read-only t))
 
-;;; See above for `*empty-ch-replay-map*'.
+(defparameter *empty-ch-replay-map* (make-ch-replay-map nil nil +fset-default-hash-map-org+ nil))
 
 (defparameter *empty-ch-replay-map/no-default* (make-ch-replay-map nil nil +fset-default-hash-map-org+ 'no-default))
 
