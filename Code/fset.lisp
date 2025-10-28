@@ -1590,7 +1590,9 @@ when printing instances."
   (compare-fn-name nil :type symbol :read-only t)
   (compare-fn nil :type function :read-only t))
 
-(deflex +fset-default-tree-set-org+ (make-tree-set-org 'compare #'compare))
+;;; I wanted to use `defconstant' for these, but the compiler tries to evaluate them at
+;;; compile time, and `make-tree-set-org' doesn't yet exist.
+(defparameter +fset-default-tree-set-org+ (make-tree-set-org 'compare #'compare))
 
 (declaim (inline make-wb-set make-wb-custom-set))
 
@@ -1655,12 +1657,12 @@ custom comparison function."
       (make-wb-default-set contents)
     (make-wb-custom-set contents org)))
 
-(defparameter *empty-wb-set* (make-wb-set nil))
+(defparameter +empty-wb-set+ (make-wb-set nil))
 
 (declaim (inline empty-set))
 (defun empty-set ()
   "Returns an empty set of the default implementation."
-  *empty-wb-set*)
+  +empty-wb-set+)
 ;;; `fset2:empty-set' is below
 
 (declaim (inline empty-wb-set fset2:empty-wb-set))
@@ -1669,14 +1671,14 @@ custom comparison function."
 to use a custom ordering, supply the comparison function name (a symbol) as
 `compare-fn-name'."
   (if (null compare-fn-name)
-      *empty-wb-set*
+      +empty-wb-set+
     (empty-wb-custom-set compare-fn-name)))
 (defun fset2:empty-wb-set (&key compare-fn-name)
   "Returns an empty wb-set.  By default, it will be ordered by `fset:compare';
 to use a custom ordering, supply the comparison function name (a symbol) as
 `compare-fn-name'."
   (if (null compare-fn-name)
-      *empty-wb-set*
+      +empty-wb-set+
     (empty-wb-custom-set compare-fn-name)))
 
 ;;; We cache the last empty `wb-custom-set' instance with a given org, so as to reuse them
@@ -1692,7 +1694,7 @@ must be a symbol."
   (assert (and compare-fn-name (symbolp compare-fn-name) (symbol-package compare-fn-name)) ()
 	  "compare-fn-name must be a nonnull interned symbol")
   (if (eq compare-fn-name 'compare)
-      *empty-wb-set*
+      +empty-wb-set+
     (let ((prev-instance (gethash compare-fn-name +empty-wb-custom-set-cache+))
 	  (compare-fn (symbol-function compare-fn-name)))
       (if (and prev-instance
@@ -2257,7 +2259,7 @@ for the possibility of different set implementations; it is not for public use.
   (compare-fn nil :type function :read-only t)
   (hash-fn nil :type function :read-only t))
 
-(deflex +fset-default-hash-set-org+ (make-hash-set-org 'compare #'compare #'hash-value))
+(defparameter +fset-default-hash-set-org+ (make-hash-set-org 'compare #'compare #'hash-value))
 
 (declaim (inline make-ch-set))
 
@@ -2270,12 +2272,12 @@ for the possibility of different set implementations; it is not for public use.
   (contents nil :read-only t)
   (org nil :type hash-set-org :read-only t))
 
-(defparameter *empty-ch-set* (make-ch-set nil +fset-default-hash-set-org+))
+(defparameter +empty-ch-set+ (make-ch-set nil +fset-default-hash-set-org+))
 
 (declaim (inline fset2:empty-set))
 (defun fset2:empty-set ()
   "Returns an empty set of the default implementation."
-  *empty-ch-set*)
+  +empty-ch-set+)
 
 (declaim (inline empty-ch-set fset2:empty-ch-set))
 (defun empty-ch-set (&optional compare-fn-name)
@@ -2284,7 +2286,7 @@ values, and `fset:hash-value' to hash them; to use a custom comparison and hash,
 use `define-hash-function' to associate them, and then supply the name of the
 comparison function as `compare-fn-name'."
   (if (null compare-fn-name)
-      *empty-ch-set*
+      +empty-ch-set+
     (empty-ch-custom-set compare-fn-name)))
 (defun fset2:empty-ch-set (&key compare-fn-name)
   "Returns an empty ch-set.  By default, it will use `fset:compare' to compare
@@ -2292,7 +2294,7 @@ values, and `fset:hash-value' to hash them; to use a custom comparison and hash,
 use `define-hash-function' to associate them, and then supply the name of the
 comparison function as `compare-fn-name'."
   (if (null compare-fn-name)
-      *empty-ch-set*
+      +empty-ch-set+
     (empty-ch-custom-set compare-fn-name)))
 
 (deflex +empty-ch-custom-set-cache+ (make-hash-table :test 'eq))
@@ -2301,7 +2303,7 @@ comparison function as `compare-fn-name'."
   (assert (and compare-fn-name (symbolp compare-fn-name) (symbol-package compare-fn-name)) ()
 	  "compare-fn-name must be a nonnull interned symbol")
   (if (eq compare-fn-name 'compare)
-      *empty-ch-set*
+      +empty-ch-set+
     (let ((prev-instance (gethash compare-fn-name +empty-ch-custom-set-cache+))
 	  (compare-fn (symbol-function compare-fn-name))
 	  (hash-fn-name (or (get compare-fn-name 'hash-function)
@@ -2622,25 +2624,25 @@ trees.  This is the default implementation of bags in FSet."
   (contents nil :read-only t)
   (org nil :type tree-set-org :read-only t))
 
-(defparameter *empty-wb-bag* (make-wb-bag nil +fset-default-tree-set-org+))
+(defparameter +empty-wb-bag+ (make-wb-bag nil +fset-default-tree-set-org+))
 
 (declaim (inline empty-bag))
 (defun empty-bag ()
   "Returns an empty bag of the default implementation and type."
-  *empty-wb-bag*)
+  +empty-wb-bag+)
 
 (declaim (inline empty-wb-bag fset2:empty-wb-bag))
 (defun empty-wb-bag (&optional compare-fn-name)
   "Returns an empty `wb-bag' ordered according to `compare-fn-name', which
 must be a symbol."
   (if (null compare-fn-name)
-      *empty-wb-bag*
+      +empty-wb-bag+
     (empty-wb-custom-bag compare-fn-name)))
 (defun fset2:empty-wb-bag (&key compare-fn-name)
   "Returns an empty `wb-bag' ordered according to `compare-fn-name', which
 must be a symbol."
   (if (null compare-fn-name)
-      *empty-wb-bag*
+      +empty-wb-bag+
     (empty-wb-custom-bag compare-fn-name)))
 
 (deflex +empty-wb-custom-bag-cache+ (make-hash-table :test 'eq))
@@ -2649,7 +2651,7 @@ must be a symbol."
   (assert (and compare-fn-name (symbolp compare-fn-name) (symbol-package compare-fn-name)) ()
 	  "compare-fn-name must be a nonnull interned symbol")
   (if (eq compare-fn-name 'compare)
-      *empty-wb-bag*
+      +empty-wb-bag+
     (let ((prev-instance (gethash compare-fn-name +empty-wb-custom-bag-cache+))
 	  (compare-fn (symbol-function compare-fn-name)))
       (if (and prev-instance
@@ -3444,7 +3446,7 @@ different bag implementations; it is not for public use.  `elt-fn' and
   (val-compare-fn-name nil :type symbol :read-only t)
   (val-compare-fn nil :type function :read-only t))
 
-(deflex +fset-default-tree-map-org+ (make-tree-map-org 'compare #'compare 'compare #'compare))
+(defparameter +fset-default-tree-map-org+ (make-tree-map-org 'compare #'compare 'compare #'compare))
 
 (declaim (inline make-wb-map))
 
@@ -3459,9 +3461,9 @@ the default implementation of maps in FSet."
   (contents nil :read-only t)
   (org nil :type tree-map-org :read-only t))
 
-(defparameter *empty-wb-map* (make-wb-map nil +fset-default-tree-map-org+ nil))
+(defparameter +empty-wb-map+ (make-wb-map nil +fset-default-tree-map-org+ nil))
 
-(defparameter *empty-wb-map/no-default* (make-wb-map nil +fset-default-tree-map-org+ 'no-default))
+(defparameter +empty-wb-map/no-default+ (make-wb-map nil +fset-default-tree-map-org+ 'no-default))
 
 (declaim (inline fset2-default))
 (defun fset2-default (default? default no-default?)
@@ -3475,7 +3477,7 @@ the default implementation of maps in FSet."
 (defun empty-map (&optional default)
   "Returns an empty map of the default implementation."
   (if default (make-wb-map nil +fset-default-tree-map-org+ default)
-    *empty-wb-map*))
+    +empty-wb-map+))
 ;;; `fset2:empty-map' is below
 
 (declaim (inline empty-wb-map fset2:empty-wb-map))
@@ -3483,7 +3485,7 @@ the default implementation of maps in FSet."
   "Returns an empty wb-map with the specified default and comparison functions."
   (if (and (null key-compare-fn-name) (null val-compare-fn-name))
       (if (null default)
-	  *empty-wb-map*
+	  +empty-wb-map+
 	(make-wb-map nil +fset-default-tree-map-org+ default))
     (empty-wb-custom-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare))))
 (defun fset2:empty-wb-map (&key (default nil default?) no-default? key-compare-fn-name val-compare-fn-name)
@@ -3499,9 +3501,9 @@ The map's default is `nil' unless a different default is supplied, or
   (cond ((or key-compare-fn-name val-compare-fn-name)
 	 (empty-wb-custom-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare)))
 	((null default)
-	 *empty-wb-map*)
+	 +empty-wb-map+)
 	((eq default 'no-default)
-	 *empty-wb-map/no-default*)
+	 +empty-wb-map/no-default+)
 	(t (make-wb-map nil +fset-default-tree-map-org+ default))))
 
 (deflex +empty-wb-custom-map-cache+ (make-hash-table :test 'equal))
@@ -3514,7 +3516,7 @@ The map's default is `nil' unless a different default is supplied, or
 	       (symbol-package val-compare-fn-name))
 	  () "val-compare-fn-name must be a nonnull interned symbol")
   (if (and (eq key-compare-fn-name 'compare) (eq val-compare-fn-name 'compare))
-      (if (null default) *empty-wb-map*
+      (if (null default) +empty-wb-map+
 	(make-wb-map nil +fset-default-tree-map-org+ default))
     ;; &&& This caches one default per type.  We could use a two-level map to cache multiple defaults,
     ;; but the inner maps would have to be custom wb-maps, whose creation couldn't call this function (!).
@@ -4357,7 +4359,7 @@ to `compare'."
   (val-compare-fn nil :type function :read-only t)
   (val-hash-fn nil :type function :read-only t))
 
-(deflex +fset-default-hash-map-org+
+(defparameter +fset-default-hash-map-org+
     (make-hash-map-org 'compare #'compare #'hash-value 'compare #'compare #'hash-value))
 
 (declaim (inline make-ch-map))
@@ -4371,9 +4373,9 @@ to `compare'."
   (contents nil :read-only t)
   (org nil :type hash-map-org :read-only t))
 
-(defparameter *empty-ch-map* (make-ch-map nil +fset-default-hash-map-org+ nil))
+(defparameter +empty-ch-map+ (make-ch-map nil +fset-default-hash-map-org+ nil))
 
-(defparameter *empty-ch-map/no-default* (make-ch-map nil +fset-default-hash-map-org+ 'no-default))
+(defparameter +empty-ch-map/no-default+ (make-ch-map nil +fset-default-hash-map-org+ 'no-default))
 
 (declaim (inline fset2:empty-map))
 (defun fset2:empty-map (&key (default nil default?) no-default?)
@@ -4385,7 +4387,7 @@ default or lack of default."
 (defun empty-ch-map (&optional default key-compare-fn-name val-compare-fn-name)
   (if (and (null key-compare-fn-name) (null val-compare-fn-name))
       (if (null default)
-	  *empty-ch-map*
+	  +empty-ch-map+
 	(make-ch-map nil +fset-default-hash-map-org+ default))
     (empty-ch-custom-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare))))
 (defun fset2:empty-ch-map (&key (default nil default?) no-default? key-compare-fn-name val-compare-fn-name)
@@ -4398,9 +4400,9 @@ The map's default is `nil' unless a different default is supplied, or
   (cond ((or key-compare-fn-name val-compare-fn-name)
 	 (empty-ch-custom-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare)))
 	((null default)
-	 *empty-ch-map*)
+	 +empty-ch-map+)
 	((eq default 'no-default)
-	 *empty-ch-map/no-default*)
+	 +empty-ch-map/no-default+)
 	(t (make-ch-map nil +fset-default-hash-map-org+ default))))
 
 (deflex +empty-ch-custom-map-cache+ (make-hash-table :test 'equal))
@@ -4413,7 +4415,7 @@ The map's default is `nil' unless a different default is supplied, or
 	       (symbol-package val-compare-fn-name))
 	  () "val-compare-fn-name must be a nonnull interned symbol")
   (if (and (eq key-compare-fn-name 'compare) (eq val-compare-fn-name 'compare))
-      (if (null default) *empty-ch-map*
+      (if (null default) +empty-ch-map+
 	(make-ch-map nil +fset-default-hash-map-org+ default))
     (let ((cache-key (list key-compare-fn-name val-compare-fn-name))
 	  ((prev-instance (gethash cache-key +empty-ch-custom-map-cache+)))
@@ -4886,15 +4888,15 @@ This is the default implementation of seqs in FSet."
   (contents nil :read-only t))
 
 
-(defparameter *empty-wb-seq* (make-wb-seq nil nil))
+(defparameter +empty-wb-seq+ (make-wb-seq nil nil))
 
-(defparameter *empty-wb-seq/no-default* (make-wb-seq nil 'no-default))
+(defparameter +empty-wb-seq/no-default+ (make-wb-seq nil 'no-default))
 
 (declaim (inline empty-seq fset2:empty-seq))
 (defun empty-seq (&optional default)
   "Returns an empty seq of the default implementation."
   (if default (make-wb-seq nil default)
-    *empty-wb-seq*))
+    +empty-wb-seq+))
 (defun fset2:empty-seq (&key (default nil default?) no-default?)
   "Returns an empty seq of the default implementation.  The seq's default is
 `nil' unless a different default is supplied, or `no-default?' is true."
@@ -4904,16 +4906,16 @@ This is the default implementation of seqs in FSet."
 (defun empty-wb-seq (&optional default)
   "Returns an empty wb-seq."
   (if default (make-wb-seq nil default)
-    *empty-wb-seq*))
+    +empty-wb-seq+))
 (defun fset2:empty-wb-seq (&key (default nil default?) no-default?)
   "Returns an empty wb-seq."
   (empty-wb-seq-internal (fset2-default default? default no-default?)))
 
 (defun empty-wb-seq-internal (default)
   (cond ((null default)
-	 *empty-wb-seq*)
+	 +empty-wb-seq+)
 	((eq default 'no-default)
-	 *empty-wb-seq/no-default*)
+	 +empty-wb-seq/no-default+)
 	(t (make-wb-seq nil default))))
 
 (defmethod empty? ((s wb-seq))

@@ -38,13 +38,7 @@
 (defmethod arity ((rel 2-relation))
   2)
 
-;;; Had to pre-declare this because of https://bugs.launchpad.net/sbcl/+bug/2129827 .
-(defparameter *empty-ch-2-relation* nil)
-
-(declaim (inline empty-2-relation))
-(defun empty-2-relation ()
-  ;; Now CHAMP!
-  *empty-ch-2-relation*)
+;;; `empty-2-relation' is below.
 
 (defgeneric lookup-inv (2-relation y)
   (:documentation "Does an inverse lookup on a binary relation."))
@@ -119,20 +113,20 @@ constructed."
   (map1 nil) ; a cache, so we leave it mutable
   (org nil :type tree-map-org :read-only t))
 
-(defparameter *empty-wb-2-relation* (make-wb-2-relation 0 nil nil (wb-map-org *empty-wb-map*)))
+(defparameter +empty-wb-2-relation+ (make-wb-2-relation 0 nil nil +fset-default-tree-map-org+))
 
 (declaim (inline empty-wb-2-relation fset2:empty-wb-2-relation))
 (defun empty-wb-2-relation (&optional key-compare-fn-name val-compare-fn-name)
   "In this case, \"keys\" are the left values, and \"values\" are the right
 values."
   (if (and (null key-compare-fn-name) (null val-compare-fn-name))
-      *empty-wb-2-relation*
+      +empty-wb-2-relation+
     (empty-wb-custom-2-relation (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare))))
 (defun fset2:empty-wb-2-relation (&key key-compare-fn-name val-compare-fn-name)
   "In this case, \"keys\" are the left values, and \"values\" are the right
 values."
   (if (and (null key-compare-fn-name) (null val-compare-fn-name))
-      *empty-wb-2-relation*
+      +empty-wb-2-relation+
     (empty-wb-custom-2-relation (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare))))
 
 (deflex +empty-wb-custom-2-relation-cache+ (make-hash-table :test 'equal))
@@ -145,7 +139,7 @@ values."
 	       (symbol-package val-compare-fn-name))
 	  () "val-compare-fn-name must be a nonnull interned symbol")
   (if (and (eq key-compare-fn-name 'compare) (eq val-compare-fn-name 'compare))
-      *empty-wb-2-relation*
+      +empty-wb-2-relation+
     (let ((cache-key (list key-compare-fn-name val-compare-fn-name))
 	  ((prev-instance (gethash cache-key +empty-wb-custom-2-relation-cache+)))
 	  (key-compare-fn (symbol-function key-compare-fn-name))
@@ -190,15 +184,13 @@ values."
     ;; We don't go through `empty-wb-set' here, because that would retrieve the current
     ;; `symbol-function' of the `key-compare-fn-name', which might have been changed since
     ;; the relation was created.
-    (if found? (make-wb-set set-tree (wb-2-relation-range-set-org rel))
-      *empty-wb-set*)))
+    (make-wb-set (and found? set-tree) (wb-2-relation-range-set-org rel))))
 
 (defmethod lookup-inv ((rel wb-2-relation) y)
   (wb-2-relation-get-inverse rel)
   (let ((org (wb-2-relation-org rel))
 	((found? set-tree (WB-Map-Tree-Lookup (wb-2-relation-map1 rel) y (tree-map-org-val-compare-fn org)))))
-    (if found? (make-wb-set set-tree (wb-2-relation-domain-set-org rel))
-      *empty-wb-set*)))
+    (make-wb-set (and found? set-tree) (wb-2-relation-domain-set-org rel))))
 
 (defmethod domain ((rel wb-2-relation))
   (make-wb-set (WB-Map-Tree-Domain (wb-2-relation-map0 rel))
@@ -818,20 +810,27 @@ constructed."
   (map1 nil) ; a cache, so we leave it mutable
   (org nil :type hash-map-org :read-only t))
 
-(defparameter *empty-ch-2-relation* (make-ch-2-relation 0 nil nil +fset-default-hash-map-org+))
+(defparameter +empty-ch-2-relation+ (make-ch-2-relation 0 nil nil +fset-default-hash-map-org+))
+
+;;; Moved here from above because forward-referencing `+empty-ch-2-relation+' ran afoul of
+;;; https://bugs.launchpad.net/sbcl/+bug/2129827 .
+(declaim (inline empty-2-relation))
+(defun empty-2-relation ()
+  ;; Now CHAMP!
+  +empty-ch-2-relation+)
 
 (declaim (inline empty-ch-2-relation fset2:empty-ch-2-relation))
 (defun empty-ch-2-relation (&optional key-compare-fn-name val-compare-fn-name)
   "In this case, \"keys\" are the left values, and \"values\" are the right
 values."
   (if (and (null key-compare-fn-name) (null val-compare-fn-name))
-      *empty-ch-2-relation*
+      +empty-ch-2-relation+
     (empty-ch-custom-2-relation (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare))))
 (defun fset2:empty-ch-2-relation (&key key-compare-fn-name val-compare-fn-name)
   "In this case, \"keys\" are the left values, and \"values\" are the right
 values."
   (if (and (null key-compare-fn-name) (null val-compare-fn-name))
-      *empty-ch-2-relation*
+      +empty-ch-2-relation+
     (empty-ch-custom-2-relation (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare))))
 
 (deflex +empty-ch-custom-2-relation-cache+ (make-hash-table :test 'equal))
@@ -844,7 +843,7 @@ values."
 	       (symbol-package val-compare-fn-name))
 	  () "val-compare-fn-name must be a nonnull interned symbol")
   (if (and (eq key-compare-fn-name 'compare) (eq val-compare-fn-name 'compare))
-      *empty-ch-2-relation*
+      +empty-ch-2-relation+
     (let ((cache-key (list key-compare-fn-name val-compare-fn-name))
 	  ((prev-instance (gethash cache-key +empty-ch-custom-2-relation-cache+)))
 	  (key-hash-fn-name (or (get key-compare-fn-name 'hash-function)
@@ -900,16 +899,14 @@ values."
     ;; We don't go through `empty-ch-set' here, because that would retrieve the current
     ;; `symbol-function' of the `key-compare-fn-name', which might have been changed since
     ;; the relation was created.
-    (if found? (make-ch-set set-tree (ch-2-relation-range-set-org rel))
-      *empty-ch-set*)))
+    (make-ch-set (and found? set-tree) (ch-2-relation-range-set-org rel))))
 
 (defmethod lookup-inv ((rel ch-2-relation) y)
   (ch-2-relation-get-inverse rel)
   (let ((org (ch-2-relation-org rel))
 	((found? set-tree (ch-map-tree-lookup (ch-2-relation-map1 rel) y (hash-map-org-val-hash-fn org)
 					      (hash-map-org-val-compare-fn org)))))
-    (if found? (make-ch-set set-tree (ch-2-relation-domain-set-org rel))
-      *empty-ch-set*)))
+    (make-ch-set (and found? set-tree) (ch-2-relation-domain-set-org rel))))
 
 (defmethod domain ((rel ch-2-relation))
   (let ((org (ch-2-relation-org rel)))
@@ -1682,7 +1679,7 @@ be able to compare both tuples \(lists\) and their elements."
 (defun wb-list-relation-result-org (rel)
   (let ((org (wb-list-relation-org rel)))
     (if (eq (tlrorg-compare-fn-name org) 'compare)
-	(wb-set-org *empty-wb-set*)
+	(wb-set-org +empty-wb-set+)
       (make-tree-set-org '?? (tlrorg-tuple-compare-fn org)))))
 
 (defmethod contains? ((rel wb-list-relation) tuple &optional (arg2 nil arg2?))

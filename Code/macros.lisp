@@ -892,7 +892,7 @@ If `:from-end?' is true, iterates in reverse order."
   "Returns a set of the values, optionally filtered by `filterp'.  If
 `compare-fn-name' is nonnull, it specifies a custom ordering."
   `(nil #'(lambda (s x) (ch-set-tree-with s x #'hash-value #'compare))
-	#'(lambda (s) (make-ch-set s (ch-set-org *empty-ch-set*)))
+	#'(lambda (s) (make-ch-set s +fset-default-hash-set-org+))
 	,filterp))
 
 (gmap:def-gmap-res-type ch-set (&key filterp compare-fn-name)
@@ -1043,7 +1043,7 @@ comparison function in the result, supply `compare-fn-name`."
   "Consumes two values from the mapped function; returns a map of the pairs.
 Note that `filterp', if supplied, must take two arguments."
   `(nil (:consume 2 #'(lambda (m x y) (WB-Map-Tree-With m x y #'compare #'compare)))
-	#'(lambda (tree) (make-wb-map tree (wb-map-org *empty-wb-map*) ,default))
+	#'(lambda (tree) (make-wb-map tree +fset-default-tree-map-org+ ,default))
 	,filterp))
 
 (gmap:def-result-type fset2:map (&key filterp (default nil default?) no-default?)
@@ -1375,7 +1375,7 @@ Note that `filterp', if supplied, must take two arguments."
 		  (push x ,ordering-var))
 		ts))
 	  #'(lambda (s) (make-ch-replay-set s (wb-seq-tree-from-list (nreverse ,ordering-var))
-					    (ch-set-org *empty-ch-set*)))
+					    +fset-default-hash-set-org+))
 	  ,filterp
 	  ((,ordering-var nil)))))
 

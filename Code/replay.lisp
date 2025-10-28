@@ -13,15 +13,7 @@
 ;;; Replay sets
 
 ;;; We have some implementation-generic methods.
-
-;;; Had to pre-declare this because of https://bugs.launchpad.net/sbcl/+bug/2129827 .
-(defparameter *empty-ch-replay-set* nil)
-
-(declaim (inline empty-replay-set))
-(defun empty-replay-set ()
-  "Returns an empty replay set of the default implementation."
-  ;; Now CHAMP!
-  *empty-ch-replay-set*)
+;;; `empty-replay-set' is below.
 
 (defmethod convert ((to-type (eql 'replay-set)) (s replay-set) &key)
   s)
@@ -75,16 +67,16 @@ sets are printed as \"#{= ... }\"."
   (contents nil :read-only t)
   (org nil :type tree-set-org :read-only t))
 
-(defparameter *empty-wb-replay-set* (make-wb-replay-set nil nil +fset-default-tree-set-org+))
+(defparameter +empty-wb-replay-set+ (make-wb-replay-set nil nil +fset-default-tree-set-org+))
 
 (declaim (inline empty-wb-replay-set fset2:empty-wb-replay-set))
 (defun empty-wb-replay-set (&optional compare-fn-name)
   (if (null compare-fn-name)
-      *empty-wb-replay-set*
+      +empty-wb-replay-set+
     (empty-wb-custom-replay-set compare-fn-name)))
 (defun fset2:empty-wb-replay-set (&key compare-fn-name)
   (if (null compare-fn-name)
-      *empty-wb-replay-set*
+      +empty-wb-replay-set+
     (empty-wb-custom-replay-set compare-fn-name)))
 
 (deflex +empty-wb-custom-replay-set-cache+ (make-hash-table :test 'eq))
@@ -92,7 +84,7 @@ sets are printed as \"#{= ... }\"."
 (defun empty-wb-custom-replay-set (compare-fn-name)
   (assert (and (symbolp compare-fn-name) (not (null compare-fn-name))))
   (if (eq compare-fn-name 'compare)
-      *empty-wb-replay-set*
+      +empty-wb-replay-set+
     (let ((prev-instance (gethash compare-fn-name +empty-wb-custom-replay-set-cache+))
 	  (compare-fn (symbol-function compare-fn-name)))
       (if (and prev-instance
@@ -322,16 +314,24 @@ sets are printed as \"#{= ... }\"."
   (contents nil :read-only t)
   (org nil :type hash-set-org :read-only t))
 
-(defparameter *empty-ch-replay-set* (make-ch-replay-set nil nil (ch-set-org *empty-ch-set*)))
+(defparameter +empty-ch-replay-set+ (make-ch-replay-set nil nil +fset-default-hash-set-org+))
+
+;;; Moved here from above because forward-referencing `+empty-ch-replay-set+' ran afoul of
+;;; https://bugs.launchpad.net/sbcl/+bug/2129827 .
+(declaim (inline empty-replay-set))
+(defun empty-replay-set ()
+  "Returns an empty replay set of the default implementation."
+  ;; Now CHAMP!
+  +empty-ch-replay-set+)
 
 (declaim (inline empty-ch-replay-set fset2:empty-ch-replay-set))
 (defun empty-ch-replay-set (&optional compare-fn-name)
   (if (null compare-fn-name)
-      *empty-ch-replay-set*
+      +empty-ch-replay-set+
     (empty-ch-custom-replay-set compare-fn-name)))
 (defun fset2:empty-ch-replay-set (&key compare-fn-name)
   (if (null compare-fn-name)
-      *empty-ch-replay-set*
+      +empty-ch-replay-set+
     (empty-ch-custom-replay-set compare-fn-name)))
 
 (deflex +empty-ch-custom-replay-set-cache+ (make-hash-table :test 'eq))
@@ -340,7 +340,7 @@ sets are printed as \"#{= ... }\"."
   (assert (and compare-fn-name (symbolp compare-fn-name) (symbol-package compare-fn-name)) ()
 	  "compare-fn-name must be a nonnull interned symbol")
   (if (eq compare-fn-name 'compare)
-      *empty-ch-replay-set*
+      +empty-ch-replay-set+
     (let ((prev-instance (gethash compare-fn-name +empty-ch-custom-replay-set-cache+))
 	  (compare-fn (symbol-function compare-fn-name))
 	  (hash-fn-name (or (get compare-fn-name 'hash-function)
@@ -551,16 +551,7 @@ result is that of `s1', filtered by membership in `s2'."
 ;;; Replay maps
 
 ;;; We have some implementation-generic methods.
-
-;;; Had to pre-declare this because of https://bugs.launchpad.net/sbcl/+bug/2129827 .
-(defparameter *empty-ch-replay-map* nil)
-
-(declaim (inline empty-replay-map fset2:empty-replay-map))
-(defun empty-replay-map (&optional default)
-  (if default (make-ch-replay-map nil nil +fset-default-hash-map-org+ default)
-    *empty-ch-replay-map*))
-(defun fset2:empty-replay-map (&key (default nil default?) no-default?)
-  (empty-ch-replay-map-internal (fset2-default default? default no-default?) nil nil))
+;;; `empty-replay-map' is below.
 
 (defmethod convert ((to-type (eql 'replay-map)) (m replay-map) &key)
   m)
@@ -645,15 +636,15 @@ first.  Replay maps are printed as \"#{=| ... |}\"."
   (contents nil :read-only t)
   (org nil :type tree-map-org :read-only t))
 
-(defparameter *empty-wb-replay-map* (make-wb-replay-map nil nil +fset-default-tree-map-org+ nil))
+(defparameter +empty-wb-replay-map+ (make-wb-replay-map nil nil +fset-default-tree-map-org+ nil))
 
-(defparameter *empty-wb-replay-map/no-default* (make-wb-replay-map nil nil +fset-default-tree-map-org+ 'no-default))
+(defparameter +empty-wb-replay-map/no-default+ (make-wb-replay-map nil nil +fset-default-tree-map-org+ 'no-default))
 
 (declaim (inline empty-wb-replay-map fset2:empty-wb-replay-map))
 (defun empty-wb-replay-map (&optional default key-compare-fn-name val-compare-fn-name)
   (if (and (null key-compare-fn-name) (null val-compare-fn-name))
       (if (null default)
-	  *empty-wb-replay-map*
+	  +empty-wb-replay-map+
 	(make-wb-replay-map nil nil +fset-default-tree-map-org+ default))
     (empty-wb-custom-replay-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare))))
 (defun fset2:empty-wb-replay-map (&key (default nil default?) no-default? key-compare-fn-name val-compare-fn-name)
@@ -666,9 +657,9 @@ or `no-default?' is true."
   (cond ((or key-compare-fn-name val-compare-fn-name)
 	 (empty-wb-custom-replay-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare)))
 	((null default)
-	 *empty-wb-replay-map*)
+	 +empty-wb-replay-map+)
 	((eq default 'no-default)
-	 *empty-wb-replay-map/no-default*)
+	 +empty-wb-replay-map/no-default+)
 	(t (make-wb-replay-map nil nil +fset-default-tree-map-org+ default))))
 
 (deflex +empty-wb-custom-replay-map-cache+ (make-hash-table :test 'equal))
@@ -681,7 +672,7 @@ or `no-default?' is true."
 	       (symbol-package val-compare-fn-name))
 	  () "val-compare-fn-name must be a nonnull interned symbol")
   (if (and (eq key-compare-fn-name 'compare) (eq val-compare-fn-name 'compare))
-      (if (null default) *empty-wb-replay-map*
+      (if (null default) +empty-wb-replay-map+
 	(make-wb-replay-map nil nil +fset-default-tree-map-org+ default))
     (let ((cache-key (list key-compare-fn-name val-compare-fn-name))
 	  ((prev-instance (gethash cache-key +empty-wb-custom-replay-map-cache+)))
@@ -964,15 +955,24 @@ first.  Replay maps are printed as \"##{=| ... |}\"."
   (contents nil :read-only t)
   (org nil :type hash-map-org :read-only t))
 
-(defparameter *empty-ch-replay-map* (make-ch-replay-map nil nil +fset-default-hash-map-org+ nil))
+(defparameter +empty-ch-replay-map+ (make-ch-replay-map nil nil +fset-default-hash-map-org+ nil))
 
-(defparameter *empty-ch-replay-map/no-default* (make-ch-replay-map nil nil +fset-default-hash-map-org+ 'no-default))
+(defparameter +empty-ch-replay-map/no-default+ (make-ch-replay-map nil nil +fset-default-hash-map-org+ 'no-default))
+
+;;; Moved here from above because forward-referencing `+empty-ch-replay-map+' ran afoul of
+;;; https://bugs.launchpad.net/sbcl/+bug/2129827 .
+(declaim (inline empty-replay-map fset2:empty-replay-map))
+(defun empty-replay-map (&optional default)
+  (if default (make-ch-replay-map nil nil +fset-default-hash-map-org+ default)
+    +empty-ch-replay-map+))
+(defun fset2:empty-replay-map (&key (default nil default?) no-default?)
+  (empty-ch-replay-map-internal (fset2-default default? default no-default?) nil nil))
 
 (declaim (inline empty-ch-replay-map fset2:empty-ch-replay-map))
 (defun empty-ch-replay-map (&optional default key-compare-fn-name val-compare-fn-name)
   (if (and (null key-compare-fn-name) (null val-compare-fn-name))
       (if (null default)
-	  *empty-ch-replay-map*
+	  +empty-ch-replay-map+
 	(make-ch-replay-map nil nil +fset-default-hash-map-org+ default))
     (empty-ch-custom-replay-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare))))
 (defun fset2:empty-ch-replay-map (&key (default nil default?) no-default? key-compare-fn-name val-compare-fn-name)
@@ -985,9 +985,9 @@ or `no-default?' is true."
   (cond ((or key-compare-fn-name val-compare-fn-name)
 	 (empty-ch-custom-replay-map default (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare)))
 	((null default)
-	 *empty-ch-replay-map*)
+	 +empty-ch-replay-map+)
 	((eq default 'no-default)
-	 *empty-ch-replay-map/no-default*)
+	 +empty-ch-replay-map/no-default+)
 	(t (make-ch-replay-map nil nil +fset-default-hash-map-org+ default))))
 
 (deflex +empty-ch-custom-replay-map-cache+ (make-hash-table :test 'equal))
@@ -1000,7 +1000,7 @@ or `no-default?' is true."
 	       (symbol-package val-compare-fn-name))
 	  () "val-compare-fn-name must be a nonnull interned symbol")
   (if (and (eq key-compare-fn-name 'compare) (eq val-compare-fn-name 'compare))
-      (if (null default) *empty-ch-replay-map*
+      (if (null default) +empty-ch-replay-map+
 	(make-ch-replay-map nil nil +fset-default-tree-map-org+ default))
     (let ((cache-key (list key-compare-fn-name val-compare-fn-name))
 	  ((prev-instance (gethash cache-key +empty-ch-custom-replay-map-cache+)))
