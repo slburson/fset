@@ -392,11 +392,6 @@ are mapped by the map."))
 
 (defgeneric default (collection)
   (:documentation
-    "Returns the default for the map or seq, i.e., the value returned by `lookup'
-when the supplied key or index is not in the domain."))
-
-(defgeneric fset2:default (collection)
-  (:documentation
     "Returns two values.  If the map or seq has a default \(the value returned
 by `lookup' when the supplied key or index is not in the domain\), returns the
 default and a true second value; otherwise, the second value is false."))

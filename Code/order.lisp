@@ -471,3 +471,14 @@ can be strings, vectors, lists, or seqs."))
 	      (return res))
 	    (when (eq res ':unequal)
 	      (setq default ':unequal))))))))
+
+
+;;; ================================================================================
+;;; Miscellany
+
+(defun instance-class-name (x)
+  "In a `define-equality-slots' form for a class with subclasses, or for one
+of its subclasses, supply `#'instance-class-name' as the first accessor to
+discriminate instances by class."
+  (class-name (class-of x)))
+

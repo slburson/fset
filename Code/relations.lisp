@@ -1213,9 +1213,6 @@ values."
 	    (incf size)))
 	(make-ch-2-relation size map0 nil org)))))
 
-(defmethod convert ((to-type (eql 'list)) (rel 2-relation) &key (pair-fn #'cons))
-  (gmap (:result list) pair-fn (:arg 2-relation rel)))
-
 (defmethod convert ((to-type (eql 'set)) (rel ch-2-relation) &key (pair-fn #'cons))
   (convert 'ch-set rel :pair-fn pair-fn))
 (defmethod convert ((to-type (eql 'fset2:set)) (rel ch-2-relation) &key (pair-fn #'cons))

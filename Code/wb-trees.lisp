@@ -6622,18 +6622,23 @@ the result, inserts `val', returning the new vector."
 		 (push (Make-WB-Seq-Tree-Node left right) stack))))))))
 
 (defun WB-Seq-Tree-To-List (tree)
-  (declare (optimize (speed 3) (safety 0)))
-  (if (or (null tree) (vectorp tree))
-      (coerce tree 'list)
-    ;; We carefully build the list from the right so this runs in linear time.
-    (labels ((build (tree result)
-	       (cond ((null tree) result)
-		     ((vectorp tree)
-		      (nconc (coerce tree 'list) result))
-		     (t
-		      (build (WB-Seq-Tree-Node-Left tree)
-			     (build (WB-Seq-Tree-Node-Right tree) result))))))
-      (build tree nil))))
+  (declare (optimize (speed 3) (safety 0))
+	   #+sbcl (sb-ext:muffle-conditions sb-ext:compiler-note))
+  (rlabels (build tree nil)
+    (build (tree result)
+      (cond ((null tree) result)
+	    ;; SBCL wants the type breakdown to optimize the `coerce'.
+	    ((simple-vector-p tree)
+	     (nconc (coerce tree 'list) result))
+	    #+FSet-Ext-Strings
+	    ((typep tree 'base-string)
+	     (nconc (coerce tree 'list) result))
+	    ((typep tree 'string)
+	     (nconc (coerce tree 'list) result))
+	    (t
+	     ;; We build the list from the right so we don't need an `nreverse'.
+	     (build (WB-Seq-Tree-Node-Left tree)
+		    (build (WB-Seq-Tree-Node-Right tree) result)))))))
 
 (defun WB-Seq-Tree-From-Iterable (it len)
   ;; (declare (optimize (speed 3) (safety 0)))

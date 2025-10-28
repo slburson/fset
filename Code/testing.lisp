@@ -4716,6 +4716,12 @@
 		      (decf (@ tmp 'b))
 		      tmp)
 		    (map ('a 3) ('b 41) :default 42)))
+      (test (equal? (multiple-value-list (default chm)) '(nil t)))
+      (test (equal? (multiple-value-list (default chm-d)) '(42 t)))
+      (test (equal? (multiple-value-list (default chm-no-d)) '(nil nil)))
+      (test (equal? (multiple-value-list (default (seq))) '(nil t)))
+      (test (equal? (multiple-value-list (default (empty-seq :default 42))) '(42 t)))
+      (test (equal? (multiple-value-list (default (empty-seq :no-default? t))) '(nil nil)))
 
       (test (equal? (map-union chm (map ('b 4)))
 		    (ch-map ('a 3) ('b 4))))

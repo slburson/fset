@@ -771,7 +771,7 @@ or `no-default?' is true."
 (defmethod size ((m wb-replay-map))
   (WB-Map-Tree-Size (wb-replay-map-contents m)))
 
-(define-convert-methods (replay-map fset2:replay-map) ((m replay-map) &key)
+(defmethod convert ((to-type (eql 'fset2:replay-map)) (m replay-map) &key)
   m)
 
 (define-convert-methods (wb-replay-map fset2:wb-replay-map)

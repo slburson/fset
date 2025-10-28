@@ -16,6 +16,7 @@
   (:import-from :gmap #:gmap #:alist #:constant #:index #:index-inc #:sum)
   (:shadowing-import-from :new-let #:let #:cond)
   (:shadowing-import-from :mt19937 #:make-random-state #:random #:*random-state*)
+  #+allegro (:implementation-packages "FSET" "FSET2")
   ;; For each of these shadowed symbols, using packages must either shadowing-
   ;; import it or shadowing-import the original Lisp symbol.
   (:shadow ;; Shadowed type/constructor names
@@ -41,7 +42,7 @@
 	   #:ch-custom-set #:ch-custom-map
 	   #:wb-custom-replay-set #:wb-custom-replay-map #:ch-custom-replay-set #:ch-custom-replay-map
 	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal #:hash-slots #:eql-compare
-	   #:define-equality-slots #:define-comparison-slots #:define-hash-function
+	   #:define-equality-slots #:define-comparison-slots #:define-hash-function #:instance-class-name
 	   #:unwrap-equivalent-node ; custom comparison functions may have to call this
 	   #:hash-value #:hash-value-fixnum #:zero #:hash-mix #:hash-mixf #:hash-multiply
 	   #:identity-equality-mixin #:identity-ordering-mixin
@@ -135,6 +136,7 @@
   (:import-from :gmap #:gmap #:alist #:constant #:index #:sum)
   (:shadowing-import-from :new-let #:let #:cond)
   (:shadowing-import-from :mt19937 #:make-random-state #:random #:*random-state*)
+  #+allegro (:implementation-packages "FSET" "FSET2")
   ;; For each of these shadowed CL symbols, using packages must either shadowing-
   ;; import it or shadowing-import the original Lisp symbol.
   (:shadowing-import-from :fset
@@ -178,7 +180,7 @@
 	   #:ch-custom-set #:ch-custom-map
 	   #:wb-custom-replay-set #:wb-custom-replay-map #:ch-custom-replay-set #:ch-custom-replay-map
 	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal #:hash-slots #:eql-compare
-	   #:define-equality-slots #:define-comparison-slots #:define-hash-function
+	   #:define-equality-slots #:define-comparison-slots #:define-hash-function #:instance-class-name
 	   #:unwrap-equivalent-node ; custom comparison functions may have to call this
 	   #:hash-value #:hash-value-fixnum #:zero #:hash-mix #:hash-mixf #:hash-multiply
 	   #:identity-equality-mixin
@@ -254,6 +256,11 @@
 
 ;;; Since we've shadowed `cl:count', we need to do this.
 (gmap:def-result-type-synonym fset2:count cl:count)
+
+#+sbcl
+(progn
+  (sb-ext:add-implementation-package ':fset2 ':fset)
+  (sb-ext:add-implementation-package ':fset ':fset2))
 
 
 ;;; A convenient package for experimenting with FSet.  Also serves as an example
