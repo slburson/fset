@@ -5137,11 +5137,15 @@ This is the default implementation of seqs in FSet."
 (define-convert-methods (fset2:seq fset2:wb-seq) ((vec vector) &key (default nil default?) no-default?)
   (make-wb-seq (WB-Seq-Tree-From-Vector vec) (fset2-default default? default no-default?)))
 
-(define-convert-methods (seq wb-seq) ((l list) &key)
-  (make-wb-seq (WB-Seq-Tree-From-List l) nil))
+(define-convert-methods (seq wb-seq) ((l list) &key reverse?)
+  (make-wb-seq (if reverse? (WB-Seq-Tree-From-List-Reverse l)
+		 (WB-Seq-Tree-From-List l))
+	       nil))
 
-(define-convert-methods (fset2:seq fset2:wb-seq) ((l list) &key (default nil default?) no-default?)
-  (make-wb-seq (WB-Seq-Tree-From-List l) (fset2-default default? default no-default?)))
+(define-convert-methods (fset2:seq fset2:wb-seq) ((l list) &key reverse? (default nil default?) no-default?)
+  (make-wb-seq (if reverse? (WB-Seq-Tree-From-List-Reverse l)
+		 (WB-Seq-Tree-From-List l))
+	       (fset2-default default? default no-default?)))
 
 (define-convert-methods (seq wb-seq) ((s set) &key)
   (make-wb-seq (wb-seq-tree-from-iterable (iterator s) (size s)) nil))

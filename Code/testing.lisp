@@ -3351,6 +3351,8 @@
       (error "Seq equality failed (fs0, A), on iteration ~D" i))
     (unless (equal? fs0 (convert 'seq s0))
       (error "Seq equality failed (fs0, B), on iteration ~D" i))
+    (unless (equal? fs0 (convert 'seq (reverse s0) :reverse? t))
+      (error "Seq reverse convert from list failed on iteration ~D" i))
     (unless (gmap (:result and) #'equal? (:arg seq fs0) (:arg list s0))
       (error "Seq iterator failed on iteration ~D" i))
     (unless (equal? (gmap (:result list) nil (:arg fun-sequence fs0))
