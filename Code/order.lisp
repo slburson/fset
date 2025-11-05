@@ -168,6 +168,7 @@ This is the right choice for the vast majority of mutable classes."
 (define-cross-type-compare-methods package)
 (define-cross-type-compare-methods pathname)
 (define-cross-type-compare-methods array)
+(define-cross-type-compare-methods class)
 
 ;;; FSet types
 (define-cross-type-compare-methods set)
@@ -403,6 +404,13 @@ and thus of types named by those symbols.")
 			 (setq unequal? t)))))))))))
 
 
+;;; Classes
+
+;;; Might as well do this the easy way.
+(define-equality-slots class
+  #'class-name)
+
+
 ;;; ================================================================================
 ;;; Lexicographic comparison of sequences
 
@@ -471,14 +479,4 @@ can be strings, vectors, lists, or seqs."))
 	      (return res))
 	    (when (eq res ':unequal)
 	      (setq default ':unequal))))))))
-
-
-;;; ================================================================================
-;;; Miscellany
-
-(defun instance-class-name (x)
-  "In a `define-equality-slots' form for a class with subclasses, or for one
-of its subclasses, supply `#'instance-class-name' as the first accessor to
-discriminate instances by class."
-  (class-name (class-of x)))
 

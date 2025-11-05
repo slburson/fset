@@ -805,13 +805,6 @@ Notes:
 17. The default of the result is the same as that of the argument.
 18. Constructs the ch (CHAMP tree) implementation of its type (`ch-set' etc.)."))
 
-;;; The `&allow-other-keys' is to persuade SBCL not to issue warnings about keywords
-;;; that are accepted by some methods of `convert'.  This differs from the behavior
-;;; we would get by specifying `&allow-other-keys' in the `defgeneric' parameter list;
-;;; this way, we still get runtime errors on unexpected keywords (which I guess is an
-;;; SBCL extension, since CLHS 7.6.4 says we shouldn't).
-(declaim (ftype (function (t t &key &allow-other-keys) t) convert))
-
 
 ;;; ================================================================================
 ;;; Iterators

@@ -42,7 +42,7 @@
 	   #:ch-custom-set #:ch-custom-map
 	   #:wb-custom-replay-set #:wb-custom-replay-map #:ch-custom-replay-set #:ch-custom-replay-map
 	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal #:hash-slots #:eql-compare
-	   #:define-equality-slots #:define-comparison-slots #:define-hash-function #:instance-class-name
+	   #:define-equality-slots #:define-comparison-slots #:define-hash-function
 	   #:unwrap-equivalent-node ; custom comparison functions may have to call this
 	   #:hash-value #:hash-value-fixnum #:zero #:hash-mix #:hash-mixf #:hash-multiply
 	   #:identity-equality-mixin #:identity-ordering-mixin
@@ -119,17 +119,8 @@
 (defvar fset::erapmoc)
 
 
-;;; The need has arisen to define a second FSet package.  There are two motivations:
-;;; () the planned introduction of the CHAMP data structure for sets, maps, and bags,
-;;; which will become the default, incompatibly altering the behavior of the corresponding
-;;; constructor macros, and requiring methods on `hash-value' as well as `compare' for
-;;; user types;
-;;; () miscellaneous infelicities in the API which cannot be fixed compatibly.
-;;;
-;;; The plan is for both packages to continue to exist indefinitely.  New client code is
-;;; encouraged to use package `fset2' instead of `fset'; existing clients may update
-;;; their code at their leisure.
-;;; NOTE: This package is not ready for use yet.  I will announce when it is.
+;;; For a discussion of how the `fset2' package differs from `fset', see:
+;;; https://gitlab.common-lisp.net/fset/fset/-/merge_requests/2
 (defpackage :fset2
   (:nicknames :com.ergy.fset2 :com.sympoiesis.fset2)
   (:use :cl :fset :new-let :lexical-contexts :rev-fun-bind :misc-extensions.define-class)
@@ -180,7 +171,7 @@
 	   #:ch-custom-set #:ch-custom-map
 	   #:wb-custom-replay-set #:wb-custom-replay-map #:ch-custom-replay-set #:ch-custom-replay-map
 	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal #:hash-slots #:eql-compare
-	   #:define-equality-slots #:define-comparison-slots #:define-hash-function #:instance-class-name
+	   #:define-equality-slots #:define-comparison-slots #:define-hash-function
 	   #:unwrap-equivalent-node ; custom comparison functions may have to call this
 	   #:hash-value #:hash-value-fixnum #:zero #:hash-mix #:hash-mixf #:hash-multiply
 	   #:identity-equality-mixin

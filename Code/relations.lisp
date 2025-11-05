@@ -499,6 +499,14 @@ values."
 	    (incf size)))
 	(make-wb-2-relation size map0 nil org)))))
 
+(defmethod convert ((to-type (eql 'wb-2-relation)) (pairs set)
+		    &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name)
+  (let ((key-fn (coerce key-fn 'function))
+	(value-fn (coerce value-fn 'function)))
+    (gmap (:result wb-2-relation :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name)
+	  (fn (pr) (values (funcall key-fn pr) (funcall value-fn pr)))
+	  (:arg set pairs))))
+
 (defmethod convert ((to-type (eql 'list)) (rel 2-relation) &key (pair-fn #'cons))
   (gmap (:result list) pair-fn (:arg 2-relation rel)))
 
@@ -1209,6 +1217,19 @@ values."
 					   key-hash-fn key-compare-fn #'ch-set-tree-hash-value #'eql-compare)))
 	    (incf size)))
 	(make-ch-2-relation size map0 nil org)))))
+
+(defmethod convert ((to-type (eql '2-relation)) (pairs set)
+		    &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name)
+  (convert 'ch-2-relation pairs :key-fn key-fn :value-fn value-fn
+				:key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name))
+
+(defmethod convert ((to-type (eql 'ch-2-relation)) (pairs set)
+		    &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name)
+  (let ((key-fn (coerce key-fn 'function))
+	(value-fn (coerce value-fn 'function)))
+    (gmap (:result ch-2-relation :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name)
+	  (fn (pr) (values (funcall key-fn pr) (funcall value-fn pr)))
+	  (:arg set pairs))))
 
 (defmethod convert ((to-type (eql 'set)) (rel ch-2-relation) &key (pair-fn #'cons))
   (convert 'ch-set rel :pair-fn pair-fn))
