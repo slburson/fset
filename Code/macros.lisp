@@ -273,7 +273,7 @@ If you're using `define-class' from Misc-Extensions, you can just say:
      (defmethod compare ((a ,class) (b ,class))
        (compare-slots a b . ,slots/accessors))
      (defmethod hash-value ((x ,class))
-       (hash-slots x . ,(if (eq (last slots/accessors) ':eql) (butlast slots/accessors)
+       (hash-slots x . ,(if (eq (car (cl:last slots/accessors)) ':eql) (butlast slots/accessors)
 			  slots/accessors)))))
 
 (defmacro define-comparison-slots (class &rest slots/accessors)
