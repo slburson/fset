@@ -4585,7 +4585,7 @@
 	    (let ((mi (if use-seq-of-symbols?
 			  (@ *seq-of-symbols* (random (size *seq-of-symbols*)))
 			(make-my-integer (random 1024))))
-		  (val (random 128))
+		  (val (make-my-integer (random 128)))
 		  (prev-wbm wbm)
 		  (prev-chm chm))
 	      (test (eql (lookup chm mi) (lookup wbm mi)))
@@ -4650,7 +4650,7 @@
 			      (gmap (:result seq) #'cons (:arg fun-map chm :from-end? t)))))))
 	  (flet ((filter-mod-8 (x y)
 		   (declare (ignore x))
-		   (if (zerop (mod y 8))
+		   (if (zerop (mod (my-integer-value y) 8))
 		       (values nil ':no-value)
 		     y))
 		 (check-pref (result source label &optional right?)
