@@ -351,13 +351,16 @@ values."
 						    (- (+ (WB-Set-Tree-Size s1) (WB-Set-Tree-Size s2))
 						       (WB-Set-Tree-Size s)))
 					      s))
-					  map0-cmp-fn))
+					  ;; Passing `(constantly ':unequal)' forces the previous lambda
+					  ;; to be called whenever keys match.
+					  map0-cmp-fn (constantly ':unequal)))
 	     (new-map1 (and (or (wb-2-relation-map1 rel1) (wb-2-relation-map1 rel2))
 			    (progn
 			      (wb-2-relation-get-inverse rel1)
 			      (wb-2-relation-get-inverse rel2)
 			      (WB-Map-Tree-Union (wb-2-relation-map1 rel1) (wb-2-relation-map1 rel2)
-						 (fn (a b) (WB-Set-Tree-Union a b map0-cmp-fn)) map1-cmp-fn))))))
+						 (fn (a b) (WB-Set-Tree-Union a b map0-cmp-fn))
+						 map1-cmp-fn (constantly ':unequal)))))))
 	(make-wb-2-relation new-size new-map0 new-map1 org))
     (call-next-method)))
 
@@ -372,7 +375,7 @@ values."
 						(let ((s (WB-Set-Tree-Intersect s1 s2 map1-cmp-fn)))
 						  (incf new-size (WB-Set-Tree-Size s))
 						  (values s (and (null s) ':no-value))))
-					      map0-cmp-fn))
+					      map0-cmp-fn (constantly ':unequal)))
 	     (new-map1 (and (or (wb-2-relation-map1 rel1) (wb-2-relation-map1 rel2))
 			    (progn
 			      (wb-2-relation-get-inverse rel1)
@@ -381,7 +384,7 @@ values."
 						     (lambda (s1 s2)
 						       (let ((s (WB-Set-Tree-Intersect s1 s2 map0-cmp-fn)))
 							 (values s (and (null s) ':no-value))))
-						     map1-cmp-fn))))))
+						     map1-cmp-fn (constantly ':unequal)))))))
 	(make-wb-2-relation new-size new-map0 new-map1 org))
     (call-next-method)))
 
@@ -1057,14 +1060,17 @@ values."
 						    (- (+ (ch-set-tree-size s1) (ch-set-tree-size s2))
 						       (ch-set-tree-size s)))
 					      s))
-					  map0-hash-fn map0-cmp-fn map1-hash-fn map1-cmp-fn))
+					  ;; Passing `(constantly ':unequal)' forces the previous lambda
+					  ;; to be called whenever keys match.
+					  map0-hash-fn map0-cmp-fn #'ch-set-tree-hash-value (constantly ':unequal)))
 	     (new-map1 (and (or (ch-2-relation-map1 rel1) (ch-2-relation-map1 rel2))
 			    (progn
 			      (ch-2-relation-get-inverse rel1)
 			      (ch-2-relation-get-inverse rel2)
 			      (ch-map-tree-union (ch-2-relation-map1 rel1) (ch-2-relation-map1 rel2)
 						 (fn (a b) (ch-set-tree-union a b map0-hash-fn map0-cmp-fn))
-						 map1-hash-fn map1-cmp-fn map0-hash-fn map0-cmp-fn))))))
+						 map1-hash-fn map1-cmp-fn #'ch-set-tree-hash-value
+						 (constantly ':unequal)))))))
 	(make-ch-2-relation new-size new-map0 new-map1 org))
     (call-next-method)))
 
@@ -1081,7 +1087,7 @@ values."
 						   (let ((s (ch-set-tree-intersection s1 s2 map1-hash-fn map1-cmp-fn)))
 						     (incf new-size (ch-set-tree-size s))
 						     (values s (and (null s) ':no-value))))
-						 map0-hash-fn map0-cmp-fn map1-hash-fn map1-cmp-fn))
+						 map0-hash-fn map0-cmp-fn map1-hash-fn (constantly ':unequal)))
 	     (new-map1 (and (or (ch-2-relation-map1 rel1) (ch-2-relation-map1 rel2))
 			    (progn
 			      (ch-2-relation-get-inverse rel1)
@@ -1091,7 +1097,8 @@ values."
 							  (let ((s (ch-set-tree-intersection s1 s2 map0-hash-fn
 											     map0-cmp-fn)))
 							    (values s (and (null s) ':no-value))))
-							map1-hash-fn map1-cmp-fn map0-hash-fn map0-cmp-fn))))))
+							map1-hash-fn map1-cmp-fn
+							map0-hash-fn (constantly ':unequal)))))))
 	(make-ch-2-relation new-size new-map0 new-map1 org))
     (call-next-method)))
 

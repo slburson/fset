@@ -1826,8 +1826,8 @@ or hash function, as `s'."))
 (defmethod intersection ((s1 set) (s2 set) &key)
   "Fallback method for mixed implementations."
   (let ((result (empty-set-like s1)))
-    (do-set (x s2)
-      (when (contains? s1 x)
+    (do-set (x s1)
+      (when (contains? s2 x)
 	(includef result x)))
     result))
 
@@ -2791,10 +2791,12 @@ must be a symbol."
 (defmethod union ((b1 bag) (b2 bag) &key)
   "Fallback method for mixed implementations."
   (let ((result b1))
-    (do-bag-pairs (x n2 b2)
-      (let ((n1 (multiplicity result x)))
-	(when (< n1 n2)
-	  (includef result x (- n2 n1)))))
+    (do-bag-pairs (x2 n2 b2)
+      (let ((n1 x1 (multiplicity result x2)))
+	(cond ((zerop n1)
+	       (includef result x2 n2))
+	      ((< n1 n2)
+	       (includef result x1 (- n2 n1))))))
     result))
 
 (defmethod union ((b1 wb-bag) (b2 wb-bag) &key)
@@ -2815,16 +2817,20 @@ must be a symbol."
   (let ((scmp (wb-set-compare-fn s))
 	(bcmp (tree-set-org-compare-fn (wb-bag-org b))))
     (if (eq scmp bcmp)
-	(make-wb-bag (WB-Bag-Tree-Union (WB-Set-Tree-To-Bag-Tree (wb-set-contents s))
-					(wb-bag-contents b) bcmp)
+	(make-wb-bag (WB-Bag-Tree-Union (wb-bag-contents b) (WB-Set-Tree-To-Bag-Tree (wb-set-contents s))
+					bcmp)
 		     (wb-bag-org b))
       (call-next-method))))
 
 (defmethod union ((s set) (b bag) &key)
   "Fallback method for mixed implementations."
   (let ((result (convert 'bag s)))
-    (do-bag-pairs (x n b)
-      (setq result (with result x (- n (if (contains? s x) 1 0)))))
+    (do-bag-pairs (xb n b)
+      (let ((xs? xs (lookup s xb)))
+	(cond ((not xs?)
+	       (includef result xb n))
+	      ((> n 1)
+	       (includef result xs (1- n))))))
     result))
 
 (defmethod union ((s wb-set) (b wb-bag) &key)
@@ -2839,8 +2845,11 @@ must be a symbol."
 (defmethod bag-sum ((b1 bag) (b2 bag))
   "Fallback method for mixed implementations."
   (let ((result b1))
-    (do-bag-pairs (x n b2)
-      (includef result x n))
+    (do-bag-pairs (x2 n2 b2)
+      (let ((n1 x1 (multiplicity b1 x2)))
+	(if (zerop n1)
+	    (includef result x2 n2)
+	  (includef result x1 n2))))
     result))
 
 (defmethod bag-sum ((b1 wb-bag) (b2 wb-bag))
@@ -2853,15 +2862,16 @@ must be a symbol."
   "Fallback method for mixed implementations."
   (let ((result b))
     (do-set (x s)
-      (setq result (with result x)))
+      (let ((nb xb (multiplicity b x)))
+	(includef result (if (zerop nb) x xb))))
     result))
 
 (defmethod bag-sum ((b wb-bag) (s wb-set))
   (let ((scmp (wb-set-compare-fn s))
 	(bcmp (tree-set-org-compare-fn (wb-bag-org b))))
     (if (eq scmp bcmp)
-	(make-wb-bag (WB-Bag-Tree-Sum (WB-Set-Tree-To-Bag-Tree (wb-set-contents s))
-				      (wb-bag-contents b) bcmp)
+	(make-wb-bag (WB-Bag-Tree-Sum (wb-bag-contents b)
+				      (WB-Set-Tree-To-Bag-Tree (wb-set-contents s)) bcmp)
 		     (wb-bag-org b))
       (call-next-method))))
 
@@ -2869,7 +2879,9 @@ must be a symbol."
   "Fallback method for mixed implementations."
   (let ((result (convert 'bag s)))
     (do-bag-pairs (x n b)
-      (setq result (with result x n)))
+      (let ((xs? xs (lookup s x)))
+	(if xs? (includef result xs n)
+	  (includef result x n))))
     result))
 
 (defmethod bag-sum ((s wb-set) (b wb-bag))
@@ -2884,8 +2896,8 @@ must be a symbol."
 (defmethod intersection ((b1 bag) (b2 bag) &key)
   "Fallback method for mixed implementations."
   (let ((result (empty-bag-like b1)))
-    (do-bag-pairs (x n2 b2)
-      (includef result x (min (multiplicity b1 x) n2)))
+    (do-bag-pairs (x1 n1 b1)
+      (includef result x1 (min (multiplicity b2 x1) n1)))
     result))
 
 (defmethod intersection ((b1 wb-bag) (b2 wb-bag) &key)
@@ -2916,9 +2928,8 @@ must be a symbol."
 (defmethod intersection ((s set) (b bag) &key)
   "Fallback method for mixed implementations."
   (let ((result (empty-set-like s)))
-    (do-bag-pairs (x n b)
-      (declare (ignore n))
-      (when (contains? s x)
+    (do-set (x s)
+      (when (contains? b x)
 	(includef result x)))
     result))
 
@@ -2926,16 +2937,18 @@ must be a symbol."
   (let ((scmp (wb-set-compare-fn s))
 	(bcmp (tree-set-org-compare-fn (wb-bag-org b))))
     (if (eq scmp bcmp)
-	(make-wb-set (WB-Set-Tree-Intersect (WB-Bag-Tree-To-Set-Tree (wb-bag-contents b))
-					    (wb-set-contents s) bcmp)
+	(make-wb-set (WB-Set-Tree-Intersect (wb-set-contents s) (WB-Bag-Tree-To-Set-Tree (wb-bag-contents b))
+					    bcmp)
 		     (wb-set-org s))
       (call-next-method))))
 
 (defmethod bag-product ((b1 bag) (b2 bag))
   "Fallback method for mixed implementations."
   (let ((result (empty-bag-like b1)))
-    (do-bag-pairs (x n2 b2)
-      (includef result x (* (multiplicity b1 x) n2)))
+    (do-bag-pairs (x2 n2 b2)
+      (let ((n1 x1 (multiplicity b1 x2)))
+	(unless (zerop n1)
+	  (includef result x1 (* n1 n2)))))
     result))
 
 (defmethod bag-product ((b1 wb-bag) (b2 wb-bag))
@@ -2957,17 +2970,18 @@ must be a symbol."
   (let ((scmp (wb-set-compare-fn s))
 	(bcmp (tree-set-org-compare-fn (wb-bag-org b))))
     (if (eq scmp bcmp)
-	(make-wb-bag (WB-Bag-Tree-Product (WB-Set-Tree-To-Bag-Tree (wb-set-contents s))
-					  (wb-bag-contents b) bcmp)
+	(make-wb-bag (WB-Bag-Tree-Product (wb-bag-contents b) (WB-Set-Tree-To-Bag-Tree (wb-set-contents s))
+					  bcmp)
 		     (wb-bag-org b))
       (call-next-method))))
 
 (defmethod bag-product ((s set) (b bag))
   "Fallback method for mixed implementations."
-  (let ((result (empty-bag-like s)))
-    (do-bag-pairs (x n b)
-      (when (contains? s x)
-	(includef result x n)))
+  (let ((result (convert 'bag (empty-set-like s))))
+    (do-bag-pairs (xb n b)
+      (let ((xs? xs (lookup s xb)))
+	(when xs?
+	  (includef result xs n))))
     result))
 
 (defmethod bag-product ((s wb-set) (b wb-bag))
@@ -3607,15 +3621,15 @@ The map's default is `nil' unless a different default is supplied, or
 ;;; Even though FSet 1 code will never generate a map with no default, we could have a mixed
 ;;; FSet 1/2 codebase, so we should still check for that in `fset:lookup'.
 (define-methods (lookup fset2:lookup) ((m wb-map) key)
-  (let ((val? val (WB-Map-Tree-Lookup (wb-map-contents m) key
-				      (tree-map-org-key-compare-fn (wb-map-org m)))))
+  (let ((val? val mkey (WB-Map-Tree-Lookup (wb-map-contents m) key
+					   (tree-map-org-key-compare-fn (wb-map-org m)))))
     ;; Our internal convention is the reverse of the external one.
     (values (if val? val
 	      (let ((dflt (map-default m)))
 		(if (eq dflt 'no-default)
 		    (error 'fset2:map-domain-error :map m :key key)
 		  dflt)))
-	    val?)))
+	    val? mkey)))
 
 (defmethod rank ((m wb-map) x)
   (let ((found? rank (WB-Map-Tree-Rank (wb-map-contents m) x
@@ -3860,15 +3874,15 @@ symbols."))
   (let ((result m1)
 	(vcf1 (val-compare-fn m1))
 	(m1d (with-default m1 nil))) ; so `lookup' doesn't error
-    (do-map (k v2 m2)
-      (let ((v1 v1? (lookup m1d k)))
+    (do-map (k2 v2 m2)
+      (let ((v1 v1? k1 (lookup m1d k2)))
 	(if (not v1?)
-	    (setf (lookup result k) v2)
+	    (setf (lookup result k2) v2)
 	  (unless (equal?-cmp v1 v2 vcf1)
 	    (let ((new-v second-val (funcall val-fn v1 v2)))
 	      (if (eq second-val ':no-value)
-		  (excludef result k)
-		(setf (lookup result k) new-v)))))))
+		  (excludef result k1)
+		(setf (lookup result k1) new-v)))))))
     (with-default result default)))
 
 (defun map-union-default (m1 m2 val-fn)
@@ -3884,7 +3898,8 @@ symbols."))
 		      &optional (val-fn (fn (_v1 v2) v2)))
   (if-same-wb-map-orgs (m1 m2 tmorg)
       (make-wb-map (WB-Map-Tree-Union (wb-map-contents m1) (wb-map-contents m2)
-				      (coerce val-fn 'function) (tree-map-org-key-compare-fn tmorg))
+				      (coerce val-fn 'function) (tree-map-org-key-compare-fn tmorg)
+				      (tree-map-org-val-compare-fn tmorg))
 		   tmorg (let ((dflt1 (map-default m1))
 			       (dflt2 (map-default m2)))
 			   (and (or dflt1 dflt2) (funcall val-fn dflt1 dflt2))))
@@ -3893,7 +3908,8 @@ symbols."))
 			    &optional (val-fn (fn (_v1 v2) v2)))
   (if-same-wb-map-orgs (m1 m2 tmorg)
       (make-wb-map (WB-Map-Tree-Union (wb-map-contents m1) (wb-map-contents m2)
-				      (coerce val-fn 'function) (tree-map-org-key-compare-fn tmorg))
+				      (coerce val-fn 'function) (tree-map-org-key-compare-fn tmorg)
+				      (tree-map-org-val-compare-fn tmorg))
 		   tmorg (map-union-default m1 m2 val-fn))
     (call-next-method)))
 
@@ -3912,10 +3928,12 @@ symbols."))
 	(m2d (with-default m2 nil))) ; prevent `lookup' errors
     (do-map (k v1 m1)
       (let ((v2 v2? (lookup m2d k)))
-	(when (and v2? (not (equal?-cmp v1 v2 vcf1)))
-	  (let ((new-v second-val (funcall val-fn v1 v2)))
-	    (unless (eq second-val ':no-value)
-	      (setf (lookup result k) new-v))))))
+	(when v2?
+	  (if (equal?-cmp v1 v2 vcf1)
+	      (setf (lookup result k) v1)
+	    (let ((new-v second-val (funcall val-fn v1 v2)))
+	      (unless (eq second-val ':no-value)
+		(setf (lookup result k) new-v)))))))
     (with-default result default)))
 
 (defun map-intersection-default (m1 m2 val-fn)
@@ -3931,7 +3949,8 @@ symbols."))
 			     &optional (val-fn (fn (_v1 v2) v2)))
   (if-same-wb-map-orgs (m1 m2 tmorg)
       (make-wb-map (WB-Map-Tree-Intersect (wb-map-contents m1) (wb-map-contents m2)
-					  (coerce val-fn 'function) (tree-map-org-key-compare-fn tmorg))
+					  (coerce val-fn 'function) (tree-map-org-key-compare-fn tmorg)
+					  (tree-map-org-val-compare-fn tmorg))
 		   tmorg (let ((dflt1 (map-default m1))
 			       (dflt2 (map-default m2)))
 			   (and (or dflt1 dflt2) (funcall val-fn dflt1 dflt2))))
@@ -3940,7 +3959,8 @@ symbols."))
 				   &optional (val-fn (fn (_v1 v2) v2)))
   (if-same-wb-map-orgs (m1 m2 tmorg)
       (make-wb-map (WB-Map-Tree-Intersect (wb-map-contents m1) (wb-map-contents m2)
-					  (coerce val-fn 'function) (tree-map-org-key-compare-fn tmorg))
+					  (coerce val-fn 'function) (tree-map-org-key-compare-fn tmorg)
+					  (tree-map-org-val-compare-fn tmorg))
 		   tmorg (map-intersection-default m1 m2 val-fn))
     (call-next-method)))
 
@@ -4511,15 +4531,15 @@ The map's default is `nil' unless a different default is supplied, or
 
 (define-methods (lookup fset2:lookup) ((m ch-map) key)
   (let ((hmorg (ch-map-org m))
-	((val? val (ch-map-tree-lookup (ch-map-contents m) key
-				       (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)))))
+	((val? val mkey (ch-map-tree-lookup (ch-map-contents m) key
+					    (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)))))
     ;; Our internal convention is the reverse of the external one.
     (values (if val? val
 	      (let ((dflt (map-default m)))
 		(if (eq dflt 'no-default)
 		    (error 'fset2:map-domain-error :map m :key key)
 		  dflt)))
-	    val?)))
+	    val? mkey)))
 
 (defmethod index ((m ch-map) key)
   (declare (optimize (debug 3)))

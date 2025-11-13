@@ -495,6 +495,7 @@ all nonnull.  (Not the even-parity function.)"
   (and (or (eq a b) (and a b))
        (gmap (:result and) (fn (x) (or (eq x a) (and x a))) (:arg list more))))
 
+(declaim (inline swap-if))
 (defun swap-if (pred x y)
   (if pred (values y x)
     (values x y)))

@@ -24,6 +24,15 @@
   ;; seems to give better code, at least on SBCL on AMD64.
   `(1- (incf ,place ,delta)))
 
+(defmacro n-values (n expr)
+  "Forces the return of exactly `n' values from `expr'.  `n' must be a compile-time
+constant."
+  (assert (typep n 'fixnum))
+  (let ((vars (gmap (:result list) (fn (_i) (gensym))
+		    (:index 0 n))))
+    `(multiple-value-bind ,vars ,expr
+       (values . ,vars))))
+
 
 ;;; ================================================================================
 ;;; Macros related to order.lisp
