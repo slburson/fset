@@ -4027,6 +4027,10 @@
                   (convert 'wb-2-relation '((1 . 2) (3 . 4)))))
     (test (equal? (with (wb-2-relation (1 2) (5 3)) 4 3)
                   (convert 'wb-2-relation '((1 . 2) (5 . 3) (4 . 3)))))
+    (let ((rela (wb-2-relation (1 3) (1 7) (1 19) (1 32) (1 33) (1 47) (1 53)
+			       (1 59) (1 61)))
+	  ((relb (with rela 1 67))))
+      (test (= (size (union rela relb)) (size relb))))
 
     (test (equal? (less (empty-wb-2-relation) 1 2) (empty-wb-2-relation)))
     (test (equal? (less (wb-2-relation (1 2)) '(1 . 2)) (empty-wb-2-relation)))
@@ -4168,6 +4172,10 @@
                   (convert 'ch-2-relation '((1 . 2) (3 . 4)))))
     (test (equal? (with (ch-2-relation (1 2) (5 3)) 4 3)
                   (convert 'ch-2-relation '((1 . 2) (5 . 3) (4 . 3)))))
+    (let ((rela (ch-2-relation (1 3) (1 7) (1 19) (1 32) (1 33) (1 47) (1 53)
+			       (1 59) (1 61)))
+	  ((relb (with rela 1 67))))
+      (test (= (size (union rela relb)) (size relb))))
 
     (test (equal? (less (empty-ch-2-relation) 1 2) (empty-ch-2-relation)))
     (test (equal? (less (ch-2-relation (1 2)) '(1 . 2)) (empty-ch-2-relation)))
