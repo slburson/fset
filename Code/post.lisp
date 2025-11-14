@@ -25,6 +25,11 @@
     #+ccl (setf (ccl::info-type-kind fset2-sym) ':instance)))
 
 
+;;; Moved here from `order.lisp' because its expansion depends on stuff after that file.
+(define-equality-slots class
+  #'class-name)
+
+
 ;;; Must be last!
 #+FSet-Use-Package-Locks
 (lock-fset-packages)

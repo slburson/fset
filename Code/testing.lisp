@@ -4464,7 +4464,9 @@
 	(let ((wbs (wb-set))
 	      (chs (ch-set))
 	      (use-seq-of-symbols? (= 7 (ldb (byte 3 1) i))))
-	  (dotimes (j 256)
+	  ;; I had this at 256, but that was too high: it forced almost all the maps to have four
+	  ;; full or nearly-full levels, making certain scenarios improbable -- and bugs lurked there.
+	  (dotimes (j (+ 64 (random 128)))
 	    (let ((mi (if use-seq-of-symbols?
 			  (@ *seq-of-symbols* (random (size *seq-of-symbols*)))
 			(make-my-integer (random 1024))))
@@ -4589,7 +4591,7 @@
 	      ((chm (ch-custom-map cfn nil)))
 	      (use-seq-of-symbols? (= 7 (ldb (byte 3 1) i))))
 	  (setq *champ-map-test-pairs* (seq))
-	  (dotimes (j 256)
+	  (dotimes (j (+ 64 (random 128)))
 	    (let ((mi (if use-seq-of-symbols?
 			  (@ *seq-of-symbols* (random (size *seq-of-symbols*)))
 			(make-my-integer (random 1024))))
@@ -4690,7 +4692,9 @@
 		(test (verify chm-diff-2a))
 		(test (verify chm-diff-2b))
 		(test (equal? (convert 'wb-map chm-diff-2a) wbm-diff-2a))
-		(test (equal? (convert 'wb-map chm-diff-2b) wbm-diff-2b)))
+		(test (equal? (convert 'wb-map chm-diff-2b) wbm-diff-2b))
+		(check-pref chm-diff-2a chm "Map difference-2")
+		(check-pref chm-diff-2b saved-chm "Map difference-2" t))
 	      ;; &&& `restrict' and `restrict-not'
 	      (let ((saved-chm-dom (domain saved-chm))
 		    (saved-wbm-dom (domain saved-wbm))

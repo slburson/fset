@@ -744,7 +744,8 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 			    (isubnode (1-bits-below hash-bits subnode-mask))
 			    ((value (ch-set-node-entry norm-node ientry))
 			     ((new-subnode
-				(ch-set-tree-with coll-node value hash-fn compare-fn depth (not tree1-collision?))))))
+				(ch-set-tree-with coll-node value hash-fn compare-fn (1+ depth)
+						  (not tree1-collision?))))))
 			(ch-set-node-change-entry-to-subnode norm-node ientry isubnode hash-bits new-subnode hash-fn)))
 		     ((logbitp hash-bits subnode-mask)
 		      (let ((isubnode (1-bits-below hash-bits subnode-mask))
@@ -2078,12 +2079,12 @@ before `isubnode'."
 					       (compute-new-val norm-val coll-val))))
 				       (if (eq second-val ':no-value)
 					   (ch-map-tree-less coll-node norm-key key-hash-fn key-cmp-fn val-hash-fn
-							     depth)
+							     (1+ depth))
 					 (ch-map-tree-with coll-node (if tree1-collision? coll-key norm-key)
 							   new-val key-hash-fn key-cmp-fn val-hash-fn
-							   val-cmp-fn depth (not tree1-collision?))))
+							   val-cmp-fn (1+ depth) (not tree1-collision?))))
 				   (ch-map-tree-with coll-node norm-key norm-val key-hash-fn key-cmp-fn val-hash-fn
-						     val-cmp-fn depth (not tree1-collision?))))))))
+						     val-cmp-fn (1+ depth) (not tree1-collision?))))))))
 			(ch-map-node-change-entry-to-subnode norm-node hash-bits new-subnode key-hash-fn val-hash-fn)))
 		     ((logbitp hash-bits subnode-mask)
 		      (let ((isubnode (1-bits-below hash-bits subnode-mask))

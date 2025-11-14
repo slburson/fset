@@ -405,10 +405,7 @@ and thus of types named by those symbols.")
 
 
 ;;; Classes
-
-;;; Might as well do this the easy way.
-(define-equality-slots class
-  #'class-name)
+;;; [Moved to `post.lisp']
 
 
 ;;; ================================================================================
