@@ -119,9 +119,9 @@ collection is empty."))
 
 (defgeneric lookup (collection key)
   (:documentation
-    "If `collection' is a map, returns two values: if it contains a mapping
-for `key', the corresponding value and true; otherwise, the map's default and
-false.
+    "If `collection' is a map, returns three values: if it contains a key equal
+to `key', the corresponding value, true, and the key found; otherwise, the map's
+default, false, and `nil'.
 
 If `collection' is a seq, takes `key' as an index and returns two values: if
 the index is in bounds, the corresponding element and true; otherwise, the
@@ -132,10 +132,10 @@ true and the member as two values, else false and `nil'; this is useful for
 canonicalization."))
 (defgeneric fset2:lookup (collection key)
   (:documentation
-    "If `collection' is a map, returns two values: if it contains a mapping
-for `key', the corresponding value and true; otherwise, the map's default and
-false.  If there's no mapping for `key' and the map has no default, signals an
-error of type `map-domain-error'.
+    "If `collection' is a map, returns three values: if it contains a key equal
+to `key', the corresponding value, true, and the key found; otherwise, the map's
+default, false, and `nil'.  If there's no mapping for `key' and the map has no
+default, signals an error of type `map-domain-error'.
 
 If `collection' is a seq, takes `key' as an index and returns two values: if
 the index is in bounds, the corresponding element and true; otherwise, the
