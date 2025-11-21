@@ -29,7 +29,7 @@
   (append (emacs-inspect-partial s 0 (size s))
 	  (emacs-inspect-footer s)
 	  (and *emacs-inspect-internals*
-	       (cons '(:newline) (call-next-method)))))
+	       (list* '(:newline) '(:newline) (call-next-method)))))
 
 (defmethod emacs-inspect-partial ((s set) lo hi)
   (append (if (<= hi (+ lo 32))

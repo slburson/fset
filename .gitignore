@@ -6,3 +6,4 @@ _darcs
 Java-Code
 *.64xfasl
 .DS_Store
+Coverage-Reports

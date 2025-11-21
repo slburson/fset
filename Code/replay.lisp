@@ -132,9 +132,10 @@ sets are printed as \"#{= ... }\"."
 (defmethod index ((s wb-replay-set) x)
   (let ((idx 0)
 	(compare-fn (tree-set-org-compare-fn (wb-replay-set-org s))))
-    (do-wb-set-tree-members (e (wb-replay-set-contents s))
+    (do-wb-seq-tree-members (e (replay-set-ordering s))
       (when (equal?-cmp e x compare-fn)
-	(return idx)))))
+	(return idx))
+      (incf idx))))
 
 (defmethod at-index ((m wb-replay-set) index)
   (let ((ordering (replay-set-ordering m))
@@ -200,7 +201,8 @@ sets are printed as \"#{= ... }\"."
   (make-wb-set (wb-replay-set-contents s) (wb-replay-set-org s)))
 
 (defmethod convert ((to-type (eql 'wb-set)) (s wb-replay-set) &key compare-fn-name)
-  (convert 'wb-set (make-wb-set (wb-replay-set-contents s)) :compare-fn-name compare-fn-name))
+  (convert 'wb-set (make-wb-set (wb-replay-set-contents s) (wb-replay-set-org s))
+	   :compare-fn-name compare-fn-name))
 
 (defmethod convert ((to-type (eql 'wb-replay-set)) (s replay-set) &key compare-fn-name)
   ;; If this method is called, `s' is not a `wb-replay-set'.
@@ -385,9 +387,10 @@ sets are printed as \"#{= ... }\"."
   "WARNING: linear-time operation!"
   (let ((idx 0)
 	(compare-fn (hash-set-org-compare-fn (ch-replay-set-org s))))
-    (do-ch-set-tree-members (e (ch-replay-set-contents s))
+    (do-wb-seq-tree-members (e (replay-set-ordering s))
       (when (equal?-cmp e x compare-fn)
-	(return idx)))))
+	(return idx))
+      (incf idx))))
 
 (defmethod at-index ((m ch-replay-set) index)
   (let ((ordering (replay-set-ordering m))
@@ -741,10 +744,10 @@ or `no-default?' is true."
   "WARNING: linear-time operation!"
   (let ((idx 0)
 	(key-compare-fn (tree-map-org-key-compare-fn (wb-replay-map-org m))))
-    (do-wb-map-tree-pairs (k v (wb-replay-map-contents m))
-      (declare (ignore v))
+    (do-wb-seq-tree-members (k (replay-map-ordering m))
       (when (equal?-cmp k key key-compare-fn)
-	(return idx)))))
+	(return idx))
+      (incf idx))))
 
 (defmethod at-index ((m wb-replay-map) index)
   (let ((ordering (replay-map-ordering m))
@@ -893,8 +896,8 @@ or `no-default?' is true."
 	(make-wb-replay-map new-contents (wb-seq-tree-append (replay-map-ordering m) key)
 			    tmorg (map-default m))))))
 
-;;; WARNING: linear-time operation!
 (defmethod less ((m wb-replay-map) key &optional (arg2 nil arg2?))
+  "WARNING: linear-time operation!"
   (declare (ignore arg2))
   (check-two-arguments arg2? 'less 'wb-replay-map)
   (let ((contents (wb-replay-map-contents m))
@@ -1015,7 +1018,7 @@ or `no-default?' is true."
 	   (val-compare-fn (symbol-function val-compare-fn-name))
 	   (val-hash-fn (symbol-function val-hash-fn-name))))
       (if (and prev-instance
-	       (let ((prev-org (ch-map-org prev-instance)))
+	       (let ((prev-org (ch-replay-map-org prev-instance)))
 		 (and (eq key-compare-fn (hash-map-org-key-compare-fn prev-org))
 		      (eq key-hash-fn (hash-map-org-key-hash-fn prev-org))
 		      (eq val-compare-fn (hash-map-org-val-compare-fn prev-org))
@@ -1065,10 +1068,10 @@ or `no-default?' is true."
   "WARNING: linear-time operation!"
   (let ((idx 0)
 	(key-compare-fn (hash-map-org-key-compare-fn (ch-replay-map-org m))))
-    (do-ch-map-tree-pairs (k v (ch-replay-map-contents m))
-      (declare (ignore v))
+    (do-wb-seq-tree-members (k (replay-map-ordering m))
       (when (equal?-cmp k key key-compare-fn)
-	(return idx)))))
+	(return idx))
+      (incf idx))))
 
 (defmethod at-index ((m ch-replay-map) index)
   (let ((ordering (replay-map-ordering m))
@@ -1228,8 +1231,8 @@ or `no-default?' is true."
 	(make-ch-replay-map new-contents (wb-seq-tree-append (replay-map-ordering m) key)
 			    hmorg (map-default m))))))
 
-;;; WARNING: linear-time operation!
 (defmethod less ((m ch-replay-map) key &optional (arg2 nil arg2?))
+  "WARNING: linear-time operation!"
   (declare (ignore arg2))
   (check-two-arguments arg2? 'less 'ch-replay-map)
   (let ((contents (ch-replay-map-contents m))

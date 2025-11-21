@@ -503,7 +503,8 @@ rightmost such subform."
 	(fset1? (eq (symbol-package empty-fn) (symbol-package 'map)))
 	((empty-form (if fset1?
 			 `(,empty-fn ,(cadr default?)
-				     . ,(and key-compare-fn-name `(,key-compare-fn-name ,val-compare-fn-name)))
+				     . ,(and (or key-compare-fn-name val-compare-fn-name)
+					     `(,key-compare-fn-name ,val-compare-fn-name)))
 		       `(,empty-fn ,@(and default? `(:default ,(cadr default?)))
 				   ,@(and no-default? '(:no-default? t))
 				   ,@(and key-compare-fn-name `(:key-compare-fn-name ,key-compare-fn-name))
@@ -695,7 +696,7 @@ value will be given by the rightmost such subform."
 	(fset1? (eq (symbol-package empty-fn) (symbol-package 'map)))
 	((result (if fset1?
 		     `(,empty-fn ,(cadr default?)
-				 . ,(and key-compare-fn-name `(,key-compare-fn-name val-compare-fn-name)))
+				 . ,(and key-compare-fn-name `(,key-compare-fn-name ,val-compare-fn-name)))
 		   `(,empty-fn ,@(and default? `(:default ,(cadr default?)))
 			       ,@(and no-default? '(:no-default? t))
 			       ,@(and key-compare-fn-name `(:key-compare-fn-name ,key-compare-fn-name))
@@ -900,7 +901,8 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
 
 (defun expand-2-relation-constructor-form (type-name empty-fn subforms
 					   &optional key-compare-fn-name val-compare-fn-name)
-  (let ((empty-form `(,empty-fn . ,(and key-compare-fn-name `(,key-compare-fn-name ,val-compare-fn-name)))))
+  (let ((empty-form `(,empty-fn . ,(and (or key-compare-fn-name val-compare-fn-name)
+					`(,key-compare-fn-name ,val-compare-fn-name)))))
     (labels ((recur (subforms result)
 	       (if (null subforms) result
 		 (let ((subform (car subforms)))

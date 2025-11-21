@@ -1172,20 +1172,22 @@ intersected, returns nil."
 (gmap:def-result-type map-to-sets (&key filterp key-compare-fn-name val-compare-fn-name)
   "Consumes two values from the mapped function.  Returns a map from the first
 values, with each one mapped to a set of the corresponding second values.
-Note that `filterp', if supplied, must take two arguments."
+Note, if you supply `val-compare-fn-name', to customize the ordering of the
+range sets, the returned map will use `eql-compare' as its `val-compare-fn'.
+Also note that `filterp', if supplied, must take two arguments."
   (let ((vcfn-var (gensymx #:vcfn-)))
-    `((empty-wb-map (empty-wb-set ,vcfn-var)
-		    ,key-compare-fn-name (make-wb-set-compare-fn (or ,vcfn-var 'compare)))
+    `((empty-wb-map (empty-wb-set ,vcfn-var) ,key-compare-fn-name (and ,vcfn-var 'eql-compare))
       (:consume 2 #'(lambda (m x y) (with m x (with (lookup m x) y))))
       nil ,filterp
       ((,vcfn-var ,val-compare-fn-name)))))
 (gmap:def-result-type fset2:map-to-sets (&key filterp key-compare-fn-name val-compare-fn-name)
   "Consumes two values from the mapped function.  Returns a map from the first
 values, with each one mapped to a set of the corresponding second values.
-Note that `filterp', if supplied, must take two arguments."
+Note, if you supply `val-compare-fn-name', to customize the ordering of the
+range sets, the returned map will use `eql-compare' as its `val-compare-fn'.
+Also note that `filterp', if supplied, must take two arguments."
   (let ((vcfn-var (gensymx #:vcfn-)))
-    `((empty-ch-map (empty-ch-set ,vcfn-var)
-		    ,key-compare-fn-name (make-ch-set-compare-fn (or ,vcfn-var 'compare)))
+    `((empty-ch-map (empty-ch-set ,vcfn-var) ,key-compare-fn-name (and ,vcfn-var 'eql-compare))
       (:consume 2 #'(lambda (m x y) (with m x (with (lookup m x) y))))
       nil ,filterp
       ((,vcfn-var ,val-compare-fn-name)))))
@@ -1586,7 +1588,7 @@ the iteration order."
 			;; the O(n) algorithms.  The downside, of course, would have been that if you did
 			;; actually change the function, things would have broken badly.  This way, changing
 			;; the function could cause reduced performance, but correctness is maintained
-			;; (unless you're depending on how `compare` orders two sets).
+			;; (unless you're depending on how `compare' orders two sets).
 			`(if (eq (wb-set-compare-fn ,coll1)
 				 (wb-set-compare-fn ,coll2))
 			     ,then

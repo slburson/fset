@@ -51,7 +51,8 @@
 	   #:compare-vectors-lexicographically #:compare-seqs-lexicographically
 	   #:empty? #:nonempty? #:size #:set-size #:arb
 	   #:contains? #:domain-contains? #:range-contains? #:member? #:multiplicity
-	   #:empty-set #:empty-bag #:empty-map #:empty-seq #:empty-tuple
+	   #:empty-set #:empty-set-like #:empty-bag #:empty-bag-like #:empty-map #:empty-map-like
+	   #:empty-seq #:empty-tuple
 	   #:empty-wb-set #:empty-wb-bag #:empty-wb-map #:empty-wb-seq
 	   #:empty-dyn-tuple #:empty-ch-set #:empty-ch-map
 	   #:empty-replay-set #:empty-wb-replay-set #:empty-replay-map #:empty-wb-replay-map
@@ -99,6 +100,7 @@
 	   #:full-set
 	   ;; Relations
 	   #:relation #:relation? #:2-relation #:2-relation? #:wb-2-relation #:wb-2-relation?
+	   #:wb-custom-2-relation #:ch-2-relation #:ch-2-relation? #:ch-custom-2-relation
 	   #:empty-2-relation #:empty-wb-2-relation #:empty-ch-2-relation #:do-2-relation
 	   #:lookup-inv #:inverse #:join #:conflicts #:map-to-sets
 	   #:list-relation #:list-relation? #:wb-list-relation #:wb-list-relation?
@@ -180,7 +182,8 @@
 	   #:compare-vectors-lexicographically #:compare-seqs-lexicographically
 	   #:empty? #:nonempty? #:size #:set-size #:arb
 	   #:contains? #:domain-contains? #:range-contains? #:member? #:multiplicity
-	   #:empty-set #:empty-bag #:empty-map #:empty-seq #:empty-tuple
+	   #:empty-set #:empty-set-like #:empty-bag #:empty-bag-like #:empty-map #:empty-map-like
+	   #:empty-seq #:empty-tuple
 	   #:empty-wb-set #:empty-wb-bag #:empty-wb-map #:empty-wb-seq
 	   #:empty-dyn-tuple #:empty-ch-set #:empty-ch-map
 	   #:empty-replay-set #:empty-wb-replay-set #:empty-replay-map #:empty-wb-replay-map
@@ -232,6 +235,7 @@
 	   #:full-set
 	   ;; Relations
 	   #:relation #:relation? #:2-relation #:2-relation? #:wb-2-relation #:wb-2-relation?
+	   #:wb-custom-2-relation #:ch-2-relation #:ch-2-relation? #:ch-custom-2-relation
 	   #:empty-2-relation #:empty-wb-2-relation #:empty-ch-2-relation #:do-2-relation
 	   #:lookup-inv #:inverse #:join #:conflicts #:map-to-sets
 	   #:list-relation #:list-relation? #:wb-list-relation #:wb-list-relation?
