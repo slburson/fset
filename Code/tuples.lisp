@@ -117,17 +117,16 @@ reordered key vectors.  This is the default implementation of tuples in FSet."
 
 
 (defstruct (tuple-key
-	    (:constructor make-tuple-key (name default-fn number))
+	    (:constructor make-tuple-key (name default number))
 	    (:predicate tuple-key?)
 	    (:print-function print-tuple-key))
   (name nil :read-only t)	; a symbol (normally, but actually can be any type known to FSet)
-  (default-fn nil :type (or null function)
-		  :read-only t)	; default function for tuples with no explicit entry for this key
-				;   (called with one argument, the tuple), or nil
+  (default 'no-default)		; default, if any, for tuples with no explicit entry for this key
+				;   (in FSet1, this was a function called on the tuple)
   (number nil :type fixnum
 	      :read-only t))	; used for lookup and sorting
 
-(deflex +Tuple-Key-Name-Map+ (empty-map))
+(deflex +Tuple-Key-Name-Map+ (empty-ch-map))
 
 (deflex +Tuple-Key-Seq+ (empty-seq))
 
@@ -155,6 +154,32 @@ you have to wrap it in an extra lambda."
 		  (push-last +Tuple-Key-Seq+ key)
 		  key)
 	      (error "Tuple key space exhausted")))))))
+(defun fset2:get-tuple-key (name &key (default nil default?) no-default?)
+  "Finds or creates a tuple key named `name'.  If `default' is supplied, sets
+the key's default to it; this value will be returned from `lookup' when the
+tuple has no explicit pair with this key.  If `no-default?' is true, clears the
+key's default, so that `lookup' will signal an error in this case.  If neither
+is specified, then if the key is being freshly created, it will have a default
+of `nil'; if it already existed, its default will be unchanged."
+  (when (and default? no-default?)
+    (error "Both a default and `no-default?' specified"))
+  (with-lock (+Tuple-Key-Lock+)
+    (let ((key (lookup +Tuple-Key-Name-Map+ name))
+	  (key-idx (size +Tuple-Key-Seq+)))
+      (cond (key
+	     (cond (default?
+		    (setf (tuple-key-default key) default))
+		   (no-default?
+		    (setf (tuple-key-default key) 'no-default)))
+	     key)
+	    ((<= key-idx Tuple-Key-Number-Mask)
+	     (let ((key (make-tuple-key name (if default? default (and no-default? 'no-default))
+					key-idx)))
+	       (setf (lookup +Tuple-Key-Name-Map+ name) key)
+	       (push-last +Tuple-Key-Seq+ key)
+	       key))
+	    (t
+	     (error "Tuple key space exhausted"))))))
 
 (defmacro def-tuple-key (name &optional default)
   "Deprecated; use `define-tuple-key'."
@@ -171,9 +196,20 @@ So, if you want the default value to be a function, you have to wrap it in
 an extra lambda.  To supply a doc string without a default, supply `nil'
 for `default'."
   (assert (symbolp name))
-  (when doc-string
-    (setf (get name 'tuple-key-doc-string) doc-string))
-  `(deflex ,name (get-tuple-key ',name ,default)))
+  `(deflex ,name (get-tuple-key ',name ,default)
+     . ,(and doc-string `(,doc-string))))
+(defmacro fset2:define-tuple-key (name &key (default nil default?) no-default? documentation)
+  "Defines a tuple key named `name' as a global lexical variable (see
+`deflex').  If `default' is supplied, it will be returned from `lookup',
+instead of `nil', when the tuple has no explicit pair with this key.
+Alternatively, if `no-default?' is true, `lookup` will signal an error
+in that case."
+  (assert (symbolp name))
+  (when (and default? no-default?)
+    (error "Both a default and `no-default?' specified"))
+  `(deflex-reinit ,name (fset2:get-tuple-key ',name ,@(if default? `(:default ,default)
+							(and no-default? '(:no-default? t))))
+     . ,(and documentation `(,documentation))))
 
 (defun print-tuple-key (key stream level)
   (declare (ignore level))
@@ -641,11 +677,29 @@ When done, returns `value'."
   (check-three-arguments value? 'with 'tuple)
   (Tuple-With tuple key value))
 
+(define-condition fset2:tuple-key-unbound-error (fset2:lookup-error)
+    ((tuple :initarg :tuple :reader fset2:tuple-key-unbound-error-tuple)
+     (key :initarg :key :reader fset2:tuple-key-unbound-error-key))
+  (:report (lambda (tkue stream)
+	     (format stream "Key ~S, which has no default, unbound in tuple ~A"
+		     (tuple-key-name (fset2:tuple-key-unbound-error-key tkue))
+		     (fset2:tuple-key-unbound-error-tuple tkue)))))
+
 (defmethod lookup ((tuple tuple) (key tuple-key))
   (let ((val? val (Tuple-Lookup tuple key)))
     (if val? (values val t)
-      (let ((default-fn (tuple-key-default-fn key)))
-	(values (and default-fn (funcall default-fn tuple)) nil)))))
+      (let ((default-fn (tuple-key-default key)))
+	;; The key might have been declared in FSet 2 code, even though we're accesing it in FSet 1 code.
+	(if (eq default-fn 'no-default)
+	    (error 'fset2:tuple-key-unbound-error :tuple tuple :key key)
+	  (values (and default-fn (funcall default-fn tuple)) nil))))))
+(defmethod fset2:lookup ((tuple tuple) (key tuple-key))
+  (let ((val? val (Tuple-Lookup tuple key)))
+    (if val? (values val t)
+      (let ((dflt (tuple-key-default key)))
+	(if (eq dflt 'no-default)
+	    (error 'fset2:tuple-key-unbound-error :tuple tuple :key key)
+	  (values dflt nil))))))
 
 (defmethod size ((tuple tuple))
   (size (Tuple-Desc-Key-Set (dyn-tuple-descriptor tuple))))
@@ -687,16 +741,22 @@ of calling `val-fn' on the value from `tuple1' and the value from `tuple2'.
 (defmethod convert ((to-type (eql 'dyn-tuple)) (tup dyn-tuple) &key)
   tup)
 
-;;; &&& These should be able to create custom maps.
 (defmethod convert ((to-type (eql 'map)) (tup tuple) &key)
   (wb-map-from-tuple tup))
-(defmethod convert ((to-type (eql 'wb-map)) (tup tuple) &key)
+(defmethod convert ((to-type (eql 'fset2:map)) (tup tuple) &key)
   (wb-map-from-tuple tup))
-(defun wb-map-from-tuple (tup)
-  (let ((tree nil))
+
+(defmethod convert ((to-type (eql 'wb-map)) (tup tuple) &key key-compare-fn-name val-compare-fn-name)
+  (wb-map-from-tuple tup key-compare-fn-name val-compare-fn-name))
+(defmethod convert ((to-type (eql 'fset2:wb-map)) (tup tuple) &key key-compare-fn-name val-compare-fn-name)
+  (wb-map-from-tuple tup key-compare-fn-name val-compare-fn-name))
+
+(defun wb-map-from-tuple (tup &optional key-compare-fn-name val-compare-fn-name)
+  (let ((tree nil)
+	(tmorg (wb-map-org (empty-wb-map nil key-compare-fn-name val-compare-fn-name))))
     (do-tuple (k v tup)
-      (setq tree (WB-Map-Tree-With tree k v #'compare #'compare)))
-    (make-wb-map tree +fset-default-tree-map-org+ nil)))
+      (setq tree (WB-Map-Tree-With tree k v (tree-map-org-key-compare-fn tmorg) (tree-map-org-val-compare-fn tmorg))))
+    (make-wb-map tree tmorg nil)))
 
 (defmethod convert ((to-type (eql 'list)) (tup tuple) &key (pair-fn #'cons))
   (let ((result nil)
@@ -725,17 +785,19 @@ of calling `val-fn' on the value from `tuple1' and the value from `tuple2'.
 
 (defmethod make-load-form ((key tuple-key) &optional environment)
   (declare (ignore environment))
-  `(get-tuple-key ',(tuple-key-name key) ',(tuple-key-default-fn key)))
+  `(get-tuple-key ',(tuple-key-name key) ',(tuple-key-default key)))
 
 
 ;;; ================================================================================
 
-(define-wb-set-method image ((key tuple-key) (s wb-set) &key compare-fn-name)
+(define-wb-set-methods (image fset2:image) ((key tuple-key) (s wb-set) &key compare-fn-name)
   (wb-set-image #'(lambda (x) (lookup x key)) (contents s)
 		(or compare-fn-name (compare-fn-name s))))
 
 (defmethod image ((key tuple-key) (s seq) &key)
-  (seq-image #'(lambda (x) (lookup x key)) s))
+  (seq-image #'(lambda (x) (lookup x key)) s nil))
+(defmethod fset2:image ((key tuple-key) (s seq) &key)
+  (seq-image #'(lambda (x) (fset2:lookup x key)) s 'no-default))
 
 (defmethod restrict ((tup tuple) (s set))
   (let ((result (empty-tuple)))

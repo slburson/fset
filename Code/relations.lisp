@@ -38,13 +38,7 @@
 (defmethod arity ((rel 2-relation))
   2)
 
-(declaim (inline empty-2-relation))
-(defun empty-2-relation ()
-  (declare (special *empty-wb-2-relation*))
-  *empty-wb-2-relation*)
-
-(defmethod empty-instance-function ((class-name (eql '2-relation)))
-  'empty-2-relation)
+;;; `empty-2-relation' is below.
 
 (defgeneric lookup-inv (2-relation y)
   (:documentation "Does an inverse lookup on a binary relation."))
@@ -119,14 +113,20 @@ constructed."
   (map1 nil) ; a cache, so we leave it mutable
   (org nil :type tree-map-org :read-only t))
 
-(defparameter *empty-wb-2-relation* (make-wb-2-relation 0 nil nil (wb-map-org *empty-wb-map*)))
+(defparameter +empty-wb-2-relation+ (make-wb-2-relation 0 nil nil +fset-default-tree-map-org+))
 
-(declaim (inline empty-wb-2-relation))
+(declaim (inline empty-wb-2-relation fset2:empty-wb-2-relation))
 (defun empty-wb-2-relation (&optional key-compare-fn-name val-compare-fn-name)
   "In this case, \"keys\" are the left values, and \"values\" are the right
 values."
   (if (and (null key-compare-fn-name) (null val-compare-fn-name))
-      *empty-wb-2-relation*
+      +empty-wb-2-relation+
+    (empty-wb-custom-2-relation (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare))))
+(defun fset2:empty-wb-2-relation (&key key-compare-fn-name val-compare-fn-name)
+  "In this case, \"keys\" are the left values, and \"values\" are the right
+values."
+  (if (and (null key-compare-fn-name) (null val-compare-fn-name))
+      +empty-wb-2-relation+
     (empty-wb-custom-2-relation (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare))))
 
 (deflex +empty-wb-custom-2-relation-cache+ (make-hash-table :test 'equal))
@@ -139,7 +139,7 @@ values."
 	       (symbol-package val-compare-fn-name))
 	  () "val-compare-fn-name must be a nonnull interned symbol")
   (if (and (eq key-compare-fn-name 'compare) (eq val-compare-fn-name 'compare))
-      *empty-wb-2-relation*
+      +empty-wb-2-relation+
     (let ((cache-key (list key-compare-fn-name val-compare-fn-name))
 	  ((prev-instance (gethash cache-key +empty-wb-custom-2-relation-cache+)))
 	  (key-compare-fn (symbol-function key-compare-fn-name))
@@ -152,9 +152,6 @@ values."
 	(setf (gethash cache-key +empty-wb-custom-2-relation-cache+)
 	      (make-wb-2-relation 0 nil nil (make-tree-map-org key-compare-fn-name key-compare-fn
 							       val-compare-fn-name val-compare-fn)))))))
-
-(defmethod empty-instance-function ((class-name (eql 'wb-2-relation)))
-  'empty-wb-2-relation)
 
 (defmethod empty-relation-like ((rel wb-2-relation))
   (let ((org (wb-2-relation-org rel)))
@@ -179,28 +176,21 @@ values."
 	((found? set-tree (WB-Map-Tree-Lookup (wb-2-relation-map0 rel) x (tree-map-org-key-compare-fn org)))))
     (and found? (WB-Set-Tree-Contains? set-tree y (tree-map-org-val-compare-fn org)))))
 
-;;; &&& Aaagh -- not sure this makes sense -- (setf (lookup rel x) ...) doesn't do
-;;; the right thing at all, relative to this.  Maybe the setf expander for `lookup'/`@'
-;;; should call an internal form of `with' that does something different on a
-;;; relation...
-;;; [Later] No, I don't think this is a problem.  (setf (lookup ...) ...) just doesn't
-;;; make sense on a relation, any more than it does on a set.
-(defmethod lookup ((rel wb-2-relation) x)
+;;; Note that `(setf (lookup rel x) y)' is the same as `(includef rel x y)'.
+(define-methods (lookup fset2:lookup) ((rel wb-2-relation) x)
   "Returns the set of values that the relation pairs `x' with."
   (let ((org (wb-2-relation-org rel))
 	((found? set-tree (WB-Map-Tree-Lookup (wb-2-relation-map0 rel) x (tree-map-org-key-compare-fn org)))))
     ;; We don't go through `empty-wb-set' here, because that would retrieve the current
     ;; `symbol-function' of the `key-compare-fn-name', which might have been changed since
     ;; the relation was created.
-    (if found? (make-wb-set set-tree (wb-2-relation-range-set-org rel))
-      *empty-wb-set*)))
+    (make-wb-set (and found? set-tree) (wb-2-relation-range-set-org rel))))
 
 (defmethod lookup-inv ((rel wb-2-relation) y)
   (wb-2-relation-get-inverse rel)
   (let ((org (wb-2-relation-org rel))
 	((found? set-tree (WB-Map-Tree-Lookup (wb-2-relation-map1 rel) y (tree-map-org-val-compare-fn org)))))
-    (if found? (make-wb-set set-tree (wb-2-relation-domain-set-org rel))
-      *empty-wb-set*)))
+    (make-wb-set (and found? set-tree) (wb-2-relation-domain-set-org rel))))
 
 (defmethod domain ((rel wb-2-relation))
   (make-wb-set (WB-Map-Tree-Domain (wb-2-relation-map0 rel))
@@ -361,13 +351,16 @@ values."
 						    (- (+ (WB-Set-Tree-Size s1) (WB-Set-Tree-Size s2))
 						       (WB-Set-Tree-Size s)))
 					      s))
-					  map0-cmp-fn))
+					  ;; Passing `(constantly ':unequal)' forces the previous lambda
+					  ;; to be called whenever keys match.
+					  map0-cmp-fn (constantly ':unequal)))
 	     (new-map1 (and (or (wb-2-relation-map1 rel1) (wb-2-relation-map1 rel2))
 			    (progn
 			      (wb-2-relation-get-inverse rel1)
 			      (wb-2-relation-get-inverse rel2)
 			      (WB-Map-Tree-Union (wb-2-relation-map1 rel1) (wb-2-relation-map1 rel2)
-						 (fn (a b) (WB-Set-Tree-Union a b map0-cmp-fn)) map1-cmp-fn))))))
+						 (fn (a b) (WB-Set-Tree-Union a b map0-cmp-fn))
+						 map1-cmp-fn (constantly ':unequal)))))))
 	(make-wb-2-relation new-size new-map0 new-map1 org))
     (call-next-method)))
 
@@ -382,7 +375,7 @@ values."
 						(let ((s (WB-Set-Tree-Intersect s1 s2 map1-cmp-fn)))
 						  (incf new-size (WB-Set-Tree-Size s))
 						  (values s (and (null s) ':no-value))))
-					      map0-cmp-fn))
+					      map0-cmp-fn (constantly ':unequal)))
 	     (new-map1 (and (or (wb-2-relation-map1 rel1) (wb-2-relation-map1 rel2))
 			    (progn
 			      (wb-2-relation-get-inverse rel1)
@@ -391,7 +384,7 @@ values."
 						     (lambda (s1 s2)
 						       (let ((s (WB-Set-Tree-Intersect s1 s2 map0-cmp-fn)))
 							 (values s (and (null s) ':no-value))))
-						     map1-cmp-fn))))))
+						     map1-cmp-fn (constantly ':unequal)))))))
 	(make-wb-2-relation new-size new-map0 new-map1 org))
     (call-next-method)))
 
@@ -448,38 +441,39 @@ values."
 			(make-tree-map-org cmp-fn-0a-name cmp-fn-0a cmp-fn-1b-name cmp-fn-1b))))
 
 
-(defmethod compose ((rel wb-2-relation) (fn function) &key val-compare-fn-name)
+(define-methods (compose fset2:compose) ((rel wb-2-relation) (fn function) &key val-compare-fn-name)
  (wb-2-relation-fn-compose rel fn val-compare-fn-name))
 
-(defmethod compose ((rel wb-2-relation) (fn symbol) &key val-compare-fn-name)
+(define-methods (compose fset2:compose) ((rel wb-2-relation) (fn symbol) &key val-compare-fn-name)
   (wb-2-relation-fn-compose rel (coerce fn 'function) val-compare-fn-name))
 
-(defmethod compose ((rel wb-2-relation) (fn map) &key val-compare-fn-name)
+(define-methods (compose fset2:compose) ((rel wb-2-relation) (fn map) &key val-compare-fn-name)
   (wb-2-relation-fn-compose rel fn (or val-compare-fn-name
 				       (tree-map-org-val-compare-fn-name (wb-2-relation-org rel)))))
 
-(defmethod compose ((rel wb-2-relation) (fn seq) &key val-compare-fn-name)
+(define-methods (compose fset2:compose) ((rel wb-2-relation) (fn seq) &key val-compare-fn-name)
   (wb-2-relation-fn-compose rel fn val-compare-fn-name))
 
-(defmethod compose ((rel1 wb-2-relation) (rel2 wb-2-relation) &key)
+(define-methods (compose fset2:compose) ((rel1 wb-2-relation) (rel2 wb-2-relation) &key)
   (join rel1 1 rel2 0))
 
 (defun wb-2-relation-fn-compose (rel fn val-compare-fn-name)
   (let ((new-size 0)
-	(org (wb-2-relation-org (empty-wb-custom-2-relation (tree-map-org-key-compare-fn-name (wb-2-relation-org rel))
-							    (or val-compare-fn-name 'compare))))
-	((new-map0 (gmap (:result wb-map)
-			 (fn (x ys)
-			   (let ((result nil))
-			     (Do-WB-Set-Tree-Members (y ys)
-			       (setq result (WB-Set-Tree-With result (@ fn y) (tree-map-org-val-compare-fn org))))
-			     (incf new-size (WB-Set-Tree-Size result))
-			     (values x result)))
-			(:arg wb-map (make-wb-map (wb-2-relation-map0 rel) +fset-default-tree-map-org+ nil))))))
+	(rel-org (wb-2-relation-org rel))
+	((org (wb-2-relation-org (empty-wb-custom-2-relation (tree-map-org-key-compare-fn-name rel-org)
+							     (or val-compare-fn-name 'compare))))
+	 ((new-map0 (gmap (:result wb-map)
+			  (fn (x ys)
+			    (let ((result nil))
+			      (Do-WB-Set-Tree-Members (y ys)
+				(setq result (WB-Set-Tree-With result (@ fn y) (tree-map-org-val-compare-fn org))))
+			      (incf new-size (WB-Set-Tree-Size result))
+			      (values x result)))
+			  (:arg wb-map (make-wb-map (wb-2-relation-map0 rel) rel-org nil)))))))
     (make-wb-2-relation new-size (wb-map-contents new-map0) nil org)))
 
-(define-wb-set-method image ((fn 2-relation) (s wb-set) &key compare-fn-name)
-  (wb-set-image fn (contents s) (or compare-fn-name (compare-fn-name s))))
+(define-wb-set-methods (image fset2:image) ((fn 2-relation) (s wb-set) &key compare-fn-name)
+  (wb-set-image (fn (x) (lookup fn x)) (contents s) (or compare-fn-name (compare-fn-name s))))
 
 
 (defmethod internal-do-2-relation ((rel wb-2-relation) elt-fn value-fn)
@@ -508,10 +502,20 @@ values."
 	    (incf size)))
 	(make-wb-2-relation size map0 nil org)))))
 
+(defmethod convert ((to-type (eql 'wb-2-relation)) (pairs set)
+		    &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name)
+  (let ((key-fn (coerce key-fn 'function))
+	(value-fn (coerce value-fn 'function)))
+    (gmap (:result wb-2-relation :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name)
+	  (fn (pr) (values (funcall key-fn pr) (funcall value-fn pr)))
+	  (:arg set pairs))))
+
 (defmethod convert ((to-type (eql 'list)) (rel 2-relation) &key (pair-fn #'cons))
   (gmap (:result list) pair-fn (:arg 2-relation rel)))
 
 (defmethod convert ((to-type (eql 'set)) (rel wb-2-relation) &key (pair-fn #'cons))
+  (convert 'wb-set rel :pair-fn pair-fn))
+(defmethod convert ((to-type (eql 'fset2:set)) (rel wb-2-relation) &key (pair-fn #'cons))
   (convert 'wb-set rel :pair-fn pair-fn))
 
 (defmethod convert ((to-type (eql 'wb-set)) (rel 2-relation) &key (pair-fn #'cons) compare-fn-name)
@@ -534,7 +538,7 @@ values."
 sets, and the result pairs each domain element with each member of the
 corresponding range set.  Otherwise, the result pairs each domain element
 with the corresponding range element directly."
-  (if (eq from-type 'map-to-sets)
+  (if (member from-type '(map-to-sets fset2:map-to-sets))
       (wb-map-to-sets-to-wb-2-relation m nil nil)
     (wb-map-to-wb-2-relation m nil nil)))
 
@@ -546,7 +550,7 @@ pairs each domain element with the corresponding range element directly.
 
 The key and value compare-fns of the result are taken from `m' unless
 explicitly overridden in the call."
-  (if (eq from-type 'map-to-sets)
+  (if (member from-type '(map-to-sets fset2:map-to-sets))
       (wb-map-to-sets-to-wb-2-relation m key-compare-fn-name val-compare-fn-name)
     (wb-map-to-wb-2-relation m key-compare-fn-name val-compare-fn-name)))
 
@@ -568,7 +572,6 @@ explicitly overridden in the call."
 	     :val-compare-fn-name vcfn-name)))
 
 (defun wb-map-to-wb-2-relation (m key-compare-fn-name val-compare-fn-name)
-  (declare (optimize (debug 3)))
   (let ((map-org (wb-map-org m))
 	((new-tree (WB-Map-Tree-Compose (wb-map-contents m)
 					(fn (x) (WB-Set-Tree-With nil x (tree-map-org-val-compare-fn map-org)))))))
@@ -576,34 +579,19 @@ explicitly overridden in the call."
 	     :key-compare-fn-name (or key-compare-fn-name (tree-map-org-key-compare-fn-name map-org))
 	     :val-compare-fn-name (or val-compare-fn-name (tree-map-org-val-compare-fn-name map-org)))))
 
-(defmethod convert ((to-type (eql '2-relation)) (lst list)
-		    &key (key-fn #'car) (value-fn #'cdr))
-  (declare (optimize (debug 3)))
-  (let ((key-fn (coerce key-fn 'function))
-	(value-fn (coerce value-fn 'function)))
-    (gmap (:result 2-relation) (fn (pr) (values (funcall key-fn pr) (funcall value-fn pr)))
-	  (:list lst))))
-
 (defmethod convert ((to-type (eql 'wb-2-relation)) (lst list)
 		    &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name)
   (let ((key-fn (coerce key-fn 'function))
 	(value-fn (coerce value-fn 'function)))
-    (gmap (:result 2-relation :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name)
+    (gmap (:result wb-2-relation :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name)
 	  (fn (pr) (values (funcall key-fn pr) (funcall value-fn pr)))
 	  (:list lst))))
-
-(defmethod convert ((to-type (eql '2-relation)) (s seq)
-		    &key (key-fn #'car) (value-fn #'cdr))
-  (let ((key-fn (coerce key-fn 'function))
-	(value-fn (coerce value-fn 'function)))
-    (gmap (:result 2-relation) (fn (pr) (values (funcall key-fn pr) (funcall value-fn pr)))
-	  (:seq s))))
 
 (defmethod convert ((to-type (eql 'wb-2-relation)) (s seq)
 		    &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name)
   (let ((key-fn (coerce key-fn 'function))
 	(value-fn (coerce value-fn 'function)))
-    (gmap (:result 2-relation :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name)
+    (gmap (:result wb-2-relation :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name)
 	  (fn (pr) (values (funcall key-fn pr) (funcall value-fn pr)))
 	  (:seq s))))
 
@@ -612,16 +600,29 @@ explicitly overridden in the call."
 a map representing the function; that is, the relation must map each
 domain value to a single range value, and the returned map maps that
 domain value to that range value."
-  (wb-2-relation-to-wb-map rel nil nil))
+  (wb-2-relation-to-wb-map rel nil nil nil))
+(defmethod convert ((to-type (eql 'fset2:map)) (rel wb-2-relation) &key)
+  "This conversion requires the relation to be functional, and returns
+a map representing the function; that is, the relation must map each
+domain value to a single range value, and the returned map maps that
+domain value to that range value."
+  (wb-2-relation-to-wb-map rel nil nil nil))
 
 (defmethod convert ((to-type (eql 'wb-map)) (rel wb-2-relation) &key key-compare-fn-name val-compare-fn-name)
   "This conversion requires the relation to be functional, and returns
 a map representing the function; that is, the relation must map each
 domain value to a single range value, and the returned map maps that
 domain value to that range value."
-  (wb-2-relation-to-wb-map rel key-compare-fn-name val-compare-fn-name))
+  (wb-2-relation-to-wb-map rel key-compare-fn-name val-compare-fn-name nil))
+(defmethod convert ((to-type (eql 'fset2:wb-map)) (rel wb-2-relation) &key key-compare-fn-name val-compare-fn-name)
+  "This conversion requires the relation to be functional, and returns
+a map representing the function; that is, the relation must map each
+domain value to a single range value, and the returned map maps that
+domain value to that range value."
+  (wb-2-relation-to-wb-map rel key-compare-fn-name val-compare-fn-name nil))
 
-(defun wb-2-relation-to-wb-map (rel key-compare-fn-name val-compare-fn-name)
+;;; `default' is always `nil' now, but for a while, it wasn't.
+(defun wb-2-relation-to-wb-map (rel key-compare-fn-name val-compare-fn-name default)
   (let ((m nil)
 	(rel-org (wb-2-relation-org rel))
 	((org (wb-2-relation-org (empty-wb-2-relation
@@ -634,14 +635,37 @@ domain value to that range value."
 	(unless (= 1 sz)
 	  (error "2-relation maps ~A to ~D values" x sz))
 	(setq m (WB-Map-Tree-With m x (WB-Set-Tree-Arb s) key-compare-fn val-compare-fn))))
-    (make-wb-map m org nil)))
+    (make-wb-map m org default)))
 
 (defmethod convert ((to-type (eql 'map-to-sets)) (rel wb-2-relation) &key)
   "This conversion returns a map mapping each domain value to the set of
-corresponding range values."
-  (let ((set-org (wb-2-relation-range-set-org rel)))
-    (make-wb-map (WB-Map-Tree-Compose (wb-2-relation-map0 rel) (fn (tree) (make-wb-set tree set-org)))
-		 (wb-2-relation-org rel) nil)))
+corresponding range values.  If the val-compare-fn of the relation is not
+`compare', the returned map will use `eql-compare' as its `val-compare-fn'."
+  (wb-2-relation-to-map-to-sets rel nil))
+
+(defmethod convert ((to-type (eql 'fset2:map-to-sets)) (rel wb-2-relation)
+		    &key (default nil default?) no-default?)
+  "This conversion returns a map mapping each domain value to the set of
+corresponding range values.  If the val-compare-fn of the relation is not
+`compare', the returned map will use `eql-compare' as its `val-compare-fn'."
+  (wb-2-relation-to-map-to-sets rel (fset2-default default? default no-default?)))
+
+(defun wb-2-relation-to-map-to-sets (rel default)
+  (let ((rel-org (wb-2-relation-org rel))
+	(set-org (wb-2-relation-range-set-org rel))
+	((vcfn-nm (tree-map-org-val-compare-fn-name rel-org))
+	 ((map-val-cfn-nm (if (eq vcfn-nm 'compare) 'compare 'eql-compare))
+	  ((new-contents
+	     ;; The `convert' is because the val-compare-fn may have been redefined (or at least
+	     ;; recompiled; we can't tell the difference).  We may have to rebuild the set trees.
+	     (WB-Map-Tree-Compose (wb-2-relation-map0 rel)
+				  (fn (tree)
+				    (convert 'wb-set (make-wb-set tree set-org) :compare-fn-name vcfn-nm))))))))
+    (make-wb-map new-contents
+		 (make-tree-map-org (tree-map-org-key-compare-fn-name rel-org)
+				    (tree-map-org-key-compare-fn rel-org)
+				    map-val-cfn-nm (symbol-function map-val-cfn-nm))
+		 default)))
 
 (defmethod conflicts ((rel wb-2-relation))
   (let ((m0 nil)
@@ -775,14 +799,27 @@ constructed."
   (map1 nil) ; a cache, so we leave it mutable
   (org nil :type hash-map-org :read-only t))
 
-(defparameter *empty-ch-2-relation* (make-ch-2-relation 0 nil nil (ch-map-org *empty-ch-map*)))
+(defparameter +empty-ch-2-relation+ (make-ch-2-relation 0 nil nil +fset-default-hash-map-org+))
 
-(declaim (inline empty-ch-2-relation))
+;;; Moved here from above because forward-referencing `+empty-ch-2-relation+' ran afoul of
+;;; https://bugs.launchpad.net/sbcl/+bug/2129827 .
+(declaim (inline empty-2-relation))
+(defun empty-2-relation ()
+  ;; Now CHAMP!
+  +empty-ch-2-relation+)
+
+(declaim (inline empty-ch-2-relation fset2:empty-ch-2-relation))
 (defun empty-ch-2-relation (&optional key-compare-fn-name val-compare-fn-name)
   "In this case, \"keys\" are the left values, and \"values\" are the right
 values."
   (if (and (null key-compare-fn-name) (null val-compare-fn-name))
-      *empty-ch-2-relation*
+      +empty-ch-2-relation+
+    (empty-ch-custom-2-relation (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare))))
+(defun fset2:empty-ch-2-relation (&key key-compare-fn-name val-compare-fn-name)
+  "In this case, \"keys\" are the left values, and \"values\" are the right
+values."
+  (if (and (null key-compare-fn-name) (null val-compare-fn-name))
+      +empty-ch-2-relation+
     (empty-ch-custom-2-relation (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare))))
 
 (deflex +empty-ch-custom-2-relation-cache+ (make-hash-table :test 'equal))
@@ -795,7 +832,7 @@ values."
 	       (symbol-package val-compare-fn-name))
 	  () "val-compare-fn-name must be a nonnull interned symbol")
   (if (and (eq key-compare-fn-name 'compare) (eq val-compare-fn-name 'compare))
-      *empty-ch-2-relation*
+      +empty-ch-2-relation+
     (let ((cache-key (list key-compare-fn-name val-compare-fn-name))
 	  ((prev-instance (gethash cache-key +empty-ch-custom-2-relation-cache+)))
 	  (key-hash-fn-name (or (get key-compare-fn-name 'hash-function)
@@ -818,9 +855,6 @@ values."
 	(setf (gethash cache-key +empty-ch-custom-2-relation-cache+)
 	      (make-ch-2-relation 0 nil nil (make-hash-map-org key-compare-fn-name key-compare-fn key-hash-fn
 							       val-compare-fn-name val-compare-fn val-hash-fn)))))))
-
-(defmethod empty-instance-function ((class-name (eql 'ch-2-relation)))
-  'empty-ch-2-relation)
 
 (defmethod empty-relation-like ((rel ch-2-relation))
   (let ((org (ch-2-relation-org rel)))
@@ -846,13 +880,7 @@ values."
 					      (hash-map-org-key-hash-fn org) (hash-map-org-key-compare-fn org)))))
     (and found? (ch-set-tree-contains? set-tree y (hash-map-org-val-hash-fn org) (hash-map-org-val-compare-fn org)))))
 
-;;; &&& Aaagh -- not sure this makes sense -- (setf (lookup rel x) ...) doesn't do
-;;; the right thing at all, relative to this.  Maybe the setf expander for `lookup'/`@'
-;;; should call an internal form of `with' that does something different on a
-;;; relation...
-;;; [Later] No, I don't think this is a problem.  (setf (lookup ...) ...) just doesn't
-;;; make sense on a relation, any more than it does on a set.
-(defmethod lookup ((rel ch-2-relation) x)
+(define-methods (lookup fset2:lookup) ((rel ch-2-relation) x)
   "Returns the set of values that the relation pairs `x' with."
   (let ((org (ch-2-relation-org rel))
 	((found? set-tree (ch-map-tree-lookup (ch-2-relation-map0 rel) x
@@ -860,16 +888,14 @@ values."
     ;; We don't go through `empty-ch-set' here, because that would retrieve the current
     ;; `symbol-function' of the `key-compare-fn-name', which might have been changed since
     ;; the relation was created.
-    (if found? (make-ch-set set-tree (ch-2-relation-range-set-org rel))
-      *empty-ch-set*)))
+    (make-ch-set (and found? set-tree) (ch-2-relation-range-set-org rel))))
 
 (defmethod lookup-inv ((rel ch-2-relation) y)
   (ch-2-relation-get-inverse rel)
   (let ((org (ch-2-relation-org rel))
 	((found? set-tree (ch-map-tree-lookup (ch-2-relation-map1 rel) y (hash-map-org-val-hash-fn org)
 					      (hash-map-org-val-compare-fn org)))))
-    (if found? (make-ch-set set-tree (ch-2-relation-domain-set-org rel))
-      *empty-ch-set*)))
+    (make-ch-set (and found? set-tree) (ch-2-relation-domain-set-org rel))))
 
 (defmethod domain ((rel ch-2-relation))
   (let ((org (ch-2-relation-org rel)))
@@ -1012,14 +1038,17 @@ values."
 						    (- (+ (ch-set-tree-size s1) (ch-set-tree-size s2))
 						       (ch-set-tree-size s)))
 					      s))
-					  map0-hash-fn map0-cmp-fn map1-hash-fn map1-cmp-fn))
+					  ;; Passing `(constantly ':unequal)' forces the previous lambda
+					  ;; to be called whenever keys match.
+					  map0-hash-fn map0-cmp-fn #'ch-set-tree-hash-value (constantly ':unequal)))
 	     (new-map1 (and (or (ch-2-relation-map1 rel1) (ch-2-relation-map1 rel2))
 			    (progn
 			      (ch-2-relation-get-inverse rel1)
 			      (ch-2-relation-get-inverse rel2)
 			      (ch-map-tree-union (ch-2-relation-map1 rel1) (ch-2-relation-map1 rel2)
 						 (fn (a b) (ch-set-tree-union a b map0-hash-fn map0-cmp-fn))
-						 map1-hash-fn map1-cmp-fn map0-hash-fn map0-cmp-fn))))))
+						 map1-hash-fn map1-cmp-fn #'ch-set-tree-hash-value
+						 (constantly ':unequal)))))))
 	(make-ch-2-relation new-size new-map0 new-map1 org))
     (call-next-method)))
 
@@ -1036,7 +1065,7 @@ values."
 						   (let ((s (ch-set-tree-intersection s1 s2 map1-hash-fn map1-cmp-fn)))
 						     (incf new-size (ch-set-tree-size s))
 						     (values s (and (null s) ':no-value))))
-						 map0-hash-fn map0-cmp-fn map1-hash-fn map1-cmp-fn))
+						 map0-hash-fn map0-cmp-fn map1-hash-fn (constantly ':unequal)))
 	     (new-map1 (and (or (ch-2-relation-map1 rel1) (ch-2-relation-map1 rel2))
 			    (progn
 			      (ch-2-relation-get-inverse rel1)
@@ -1046,7 +1075,8 @@ values."
 							  (let ((s (ch-set-tree-intersection s1 s2 map0-hash-fn
 											     map0-cmp-fn)))
 							    (values s (and (null s) ':no-value))))
-							map1-hash-fn map1-cmp-fn map0-hash-fn map0-cmp-fn))))))
+							map1-hash-fn map1-cmp-fn
+							map0-hash-fn (constantly ':unequal)))))))
 	(make-ch-2-relation new-size new-map0 new-map1 org))
     (call-next-method)))
 
@@ -1108,39 +1138,40 @@ values."
 					   cmp-fn-1b-name cmp-fn-1b hash-fn-1b))))
 
 
-(defmethod compose ((rel ch-2-relation) (fn function) &key val-compare-fn-name)
+(define-methods (compose fset2:compose) ((rel ch-2-relation) (fn function) &key val-compare-fn-name)
   (ch-2-relation-fn-compose rel fn val-compare-fn-name))
 
-(defmethod compose ((rel ch-2-relation) (fn symbol) &key val-compare-fn-name)
+(define-methods (compose fset2:compose) ((rel ch-2-relation) (fn symbol) &key val-compare-fn-name)
   (ch-2-relation-fn-compose rel (coerce fn 'function) val-compare-fn-name))
 
-(defmethod compose ((rel ch-2-relation) (fn map) &key val-compare-fn-name)
+(define-methods (compose fset2:compose) ((rel ch-2-relation) (fn map) &key val-compare-fn-name)
   (ch-2-relation-fn-compose rel fn (or val-compare-fn-name
 				       (hash-map-org-val-compare-fn-name (ch-2-relation-org rel)))))
 
-(defmethod compose ((rel ch-2-relation) (fn seq) &key val-compare-fn-name)
+(define-methods (compose fset2:compose) ((rel ch-2-relation) (fn seq) &key val-compare-fn-name)
   (ch-2-relation-fn-compose rel fn val-compare-fn-name))
 
-(defmethod compose ((rel1 ch-2-relation) (rel2 ch-2-relation) &key)
+(define-methods (compose fset2:compose) ((rel1 ch-2-relation) (rel2 ch-2-relation) &key)
   (join rel1 1 rel2 0))
 
 (defun ch-2-relation-fn-compose (rel fn val-compare-fn-name)
   (let ((new-size 0)
-	(org (ch-2-relation-org (empty-ch-custom-2-relation (hash-map-org-key-compare-fn-name (ch-2-relation-org rel))
-							    (or val-compare-fn-name 'compare))))
-	((new-map0 (gmap (:result ch-map)
-			 (fn (x ys)
-			   (let ((result nil))
-			     (do-ch-set-tree-members (y ys)
-			       (setq result (ch-set-tree-with result (@ fn y) (hash-map-org-val-hash-fn org)
-							      (hash-map-org-val-compare-fn org))))
-			     (incf new-size (ch-set-tree-size result))
-			     (values x result)))
-			(:arg ch-map (make-ch-map (ch-2-relation-map0 rel) (ch-map-org *empty-ch-map*) nil))))))
+	(rel-org (ch-2-relation-org rel))
+	((org (ch-2-relation-org (empty-ch-custom-2-relation (hash-map-org-key-compare-fn-name rel-org)
+							     (or val-compare-fn-name 'compare))))
+	 ((new-map0 (gmap (:result ch-map)
+			  (fn (x ys)
+			    (let ((result nil))
+			      (do-ch-set-tree-members (y ys)
+				(setq result (ch-set-tree-with result (@ fn y) (hash-map-org-val-hash-fn org)
+							       (hash-map-org-val-compare-fn org))))
+			      (incf new-size (ch-set-tree-size result))
+			      (values x result)))
+			  (:arg ch-map (make-ch-map (ch-2-relation-map0 rel) rel-org nil)))))))
     (make-ch-2-relation new-size (ch-map-contents new-map0) nil org)))
 
-(defmethod image ((fn 2-relation) (s ch-set) &key compare-fn-name)
-  (ch-set-image fn s compare-fn-name))
+(define-methods (image fset2:image) ((fn 2-relation) (s ch-set) &key compare-fn-name)
+  (ch-set-image (fn (x) (lookup fn x)) s compare-fn-name))
 
 
 (defmethod internal-do-2-relation ((rel ch-2-relation) elt-fn value-fn)
@@ -1172,10 +1203,22 @@ values."
 	    (incf size)))
 	(make-ch-2-relation size map0 nil org)))))
 
-(defmethod convert ((to-type (eql 'list)) (rel 2-relation) &key (pair-fn #'cons))
-  (gmap (:result list) pair-fn (:arg 2-relation rel)))
+(defmethod convert ((to-type (eql '2-relation)) (pairs set)
+		    &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name)
+  (convert 'ch-2-relation pairs :key-fn key-fn :value-fn value-fn
+				:key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name))
+
+(defmethod convert ((to-type (eql 'ch-2-relation)) (pairs set)
+		    &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name)
+  (let ((key-fn (coerce key-fn 'function))
+	(value-fn (coerce value-fn 'function)))
+    (gmap (:result ch-2-relation :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name)
+	  (fn (pr) (values (funcall key-fn pr) (funcall value-fn pr)))
+	  (:arg set pairs))))
 
 (defmethod convert ((to-type (eql 'set)) (rel ch-2-relation) &key (pair-fn #'cons))
+  (convert 'ch-set rel :pair-fn pair-fn))
+(defmethod convert ((to-type (eql 'fset2:set)) (rel ch-2-relation) &key (pair-fn #'cons))
   (convert 'ch-set rel :pair-fn pair-fn))
 
 (defmethod convert ((to-type (eql 'ch-set)) (rel 2-relation) &key (pair-fn #'cons) compare-fn-name)
@@ -1192,7 +1235,7 @@ values."
 sets, and the result pairs each domain element with each member of the
 corresponding range set.  Otherwise, the result pairs each domain element
 with the corresponding range element directly."
-  (if (eq from-type 'map-to-sets)
+  (if (member from-type '(map-to-sets fset2:map-to-sets))
       (ch-map-to-sets-to-ch-2-relation m nil nil)
     (ch-map-to-ch-2-relation m nil nil)))
 
@@ -1204,7 +1247,7 @@ pairs each domain element with the corresponding range element directly.
 
 The key and value compare-fns of the result are taken from `m' unless
 explicitly overridden in the call."
-  (if (eq from-type 'map-to-sets)
+  (if (member from-type '(map-to-sets fset2:map-to-sets))
       (ch-map-to-sets-to-ch-2-relation m key-compare-fn-name val-compare-fn-name)
     (ch-map-to-ch-2-relation m key-compare-fn-name val-compare-fn-name)))
 
@@ -1226,7 +1269,6 @@ explicitly overridden in the call."
 	     :val-compare-fn-name vcfn-name)))
 
 (defun ch-map-to-ch-2-relation (m kcfn-name vcfn-name)
-  (declare (optimize (debug 3)))
   (let ((map-org (ch-map-org m))
 	((new-tree (ch-map-tree-compose (ch-map-contents m)
 					(fn (x) (ch-set-tree-with nil x (hash-map-org-val-hash-fn map-org)
@@ -1235,6 +1277,13 @@ explicitly overridden in the call."
 	     :key-compare-fn-name (or kcfn-name (hash-map-org-key-compare-fn-name map-org))
 	     :val-compare-fn-name (or vcfn-name (hash-map-org-val-compare-fn-name map-org)))))
 
+(defmethod convert ((to-type (eql '2-relation)) (lst list)
+		    &key (key-fn #'car) (value-fn #'cdr))
+  (let ((key-fn (coerce key-fn 'function))
+	(value-fn (coerce value-fn 'function)))
+    (gmap (:result 2-relation) (fn (pr) (values (funcall key-fn pr) (funcall value-fn pr)))
+	  (:list lst))))
+
 (defmethod convert ((to-type (eql 'ch-2-relation)) (lst list)
 		    &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name)
   (let ((key-fn (coerce key-fn 'function))
@@ -1242,6 +1291,13 @@ explicitly overridden in the call."
     (gmap (:result ch-2-relation :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name)
 	  (fn (pr) (values (funcall key-fn pr) (funcall value-fn pr)))
 	  (:list lst))))
+
+(defmethod convert ((to-type (eql '2-relation)) (s seq)
+		    &key (key-fn #'car) (value-fn #'cdr))
+  (let ((key-fn (coerce key-fn 'function))
+	(value-fn (coerce value-fn 'function)))
+    (gmap (:result 2-relation) (fn (pr) (values (funcall key-fn pr) (funcall value-fn pr)))
+	  (:seq s))))
 
 (defmethod convert ((to-type (eql 'ch-2-relation)) (s seq)
 		    &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name)
@@ -1256,16 +1312,28 @@ explicitly overridden in the call."
 a map representing the function; that is, the relation must map each
 domain value to a single range value, and the returned map maps that
 domain value to that range value."
-  (ch-2-relation-to-ch-map rel nil nil))
+  (ch-2-relation-to-ch-map rel nil nil nil))
+(defmethod convert ((to-type (eql 'fset2:map)) (rel ch-2-relation) &key)
+  "This conversion requires the relation to be functional, and returns
+a map representing the function; that is, the relation must map each
+domain value to a single range value, and the returned map maps that
+domain value to that range value."
+  (ch-2-relation-to-ch-map rel nil nil nil))
 
 (defmethod convert ((to-type (eql 'ch-map)) (rel ch-2-relation) &key key-compare-fn-name val-compare-fn-name)
   "This conversion requires the relation to be functional, and returns
 a map representing the function; that is, the relation must map each
 domain value to a single range value, and the returned map maps that
 domain value to that range value."
-  (ch-2-relation-to-ch-map rel key-compare-fn-name val-compare-fn-name))
+  (ch-2-relation-to-ch-map rel key-compare-fn-name val-compare-fn-name nil))
+(defmethod convert ((to-type (eql 'fset2:ch-map)) (rel ch-2-relation) &key key-compare-fn-name val-compare-fn-name)
+  "This conversion requires the relation to be functional, and returns
+a map representing the function; that is, the relation must map each
+domain value to a single range value, and the returned map maps that
+domain value to that range value."
+  (ch-2-relation-to-ch-map rel key-compare-fn-name val-compare-fn-name nil))
 
-(defun ch-2-relation-to-ch-map (rel key-compare-fn-name val-compare-fn-name)
+(defun ch-2-relation-to-ch-map (rel key-compare-fn-name val-compare-fn-name default)
   (let ((m nil)
 	(rel-org (ch-2-relation-org rel))
 	((org (ch-2-relation-org (empty-ch-2-relation
@@ -1280,14 +1348,41 @@ domain value to that range value."
 	(unless (= 1 sz)
 	  (error "2-relation maps ~A to ~D values" x sz))
 	(setq m (ch-map-tree-with m x (ch-set-tree-arb s) key-hash-fn key-compare-fn val-hash-fn val-compare-fn))))
-    (make-ch-map m org nil)))
+    (make-ch-map m org default)))
 
 (defmethod convert ((to-type (eql 'map-to-sets)) (rel ch-2-relation) &key)
   "This conversion returns a map mapping each domain value to the set of
-corresponding range values."
-  (let ((set-org (ch-2-relation-range-set-org rel)))
-    (make-ch-map (ch-map-tree-compose (ch-2-relation-map0 rel) (fn (tree) (make-ch-set tree set-org)))
-		 (ch-2-relation-org rel) nil)))
+corresponding range values.  If the val-compare-fn of the relation is not
+`compare', the returned map will use `eql-compare' as its `val-compare-fn'."
+  (ch-2-relation-to-map-to-sets rel nil))
+
+(defmethod convert ((to-type (eql 'fset2:map-to-sets)) (rel ch-2-relation)
+		    &key (default nil default?) no-default?)
+  "This conversion returns a map mapping each domain value to the set of
+corresponding range values.  If the val-compare-fn of the relation is not
+`compare', the returned map will use `eql-compare' as its `val-compare-fn'."
+  (ch-2-relation-to-map-to-sets rel (fset2-default default? default no-default?)))
+
+(defun ch-2-relation-to-map-to-sets (rel default)
+  (let ((rel-org (ch-2-relation-org rel))
+	(set-org (ch-2-relation-range-set-org rel))
+	((vcfn-nm (hash-map-org-val-compare-fn-name rel-org))
+	 ((map-val-cfn-nm (if (eq vcfn-nm 'compare) 'compare 'eql-compare))
+	  ((new-contents
+	     ;; The `convert' is because the val-compare-fn may have been redefined (or at least
+	     ;; recompiled; we can't tell the difference).  We may have to rebuild the set trees.
+	     (ch-map-tree-compose (ch-2-relation-map0 rel)
+				  (fn (tree)
+				    (convert 'ch-set (make-ch-set tree set-org) :compare-fn-name vcfn-nm))))))))
+    (make-ch-map new-contents
+		 (make-hash-map-org (hash-map-org-key-compare-fn-name rel-org)
+				    (hash-map-org-key-compare-fn rel-org)
+				    (hash-map-org-key-hash-fn rel-org)
+				    map-val-cfn-nm (symbol-function map-val-cfn-nm)
+				    ;; By the time this is called, if the set trees had to be rebuilt, they
+				    ;; will have their new hash values.
+				    (symbol-function (get map-val-cfn-nm 'hash-function)))
+		 default)))
 
 (defmethod conflicts ((rel ch-2-relation))
   (let ((m0 nil)
@@ -1509,8 +1604,23 @@ the first tuple added."
   (unless (or (null arity) (and (integerp arity) (>= arity 1)))
     (error "Invalid arity"))
   (empty-wb-list-relation arity))
+(defun fset2:empty-list-relation (&key arity)
+  "We allow the arity to be temporarily unspecified; it will be taken from
+the first tuple added."
+  (unless (or (null arity) (and (integerp arity) (>= arity 1)))
+    (error "Invalid arity"))
+  (empty-ch-list-relation arity))
 
 (defun empty-wb-list-relation (&optional arity compare-fn-name)
+  "We allow the arity to be temporarily unspecified; it will be taken from
+the first tuple added.  If `compare-fn-name' is provided, the function must
+be able to compare both tuples \(lists\) and their elements."
+  ;; -- Or, we could construct the tuple comparator from the element comparator...
+  ;; If arity = 1 it's just a set... but what the heck...
+  (unless (or (null arity) (and (integerp arity) (>= arity 1)))
+    (error "Invalid arity"))
+  (make-wb-list-relation arity nil nil (make-tree-list-relation-org (or compare-fn-name 'compare))))
+(defun fset2:empty-wb-list-relation (&key arity compare-fn-name)
   "We allow the arity to be temporarily unspecified; it will be taken from
 the first tuple added.  If `compare-fn-name' is provided, the function must
 be able to compare both tuples \(lists\) and their elements."
@@ -1545,6 +1655,8 @@ be able to compare both tuples \(lists\) and their elements."
 
 (defmethod convert ((to-type (eql 'set)) (rel wb-list-relation) &key)
   (convert 'wb-set rel))
+(defmethod convert ((to-type (eql 'fset2:set)) (rel wb-list-relation) &key)
+  (convert 'wb-set rel))
 
 (defmethod convert ((to-type (eql 'wb-set)) (rel wb-list-relation) &key)
   (make-wb-set (wb-list-relation-tuples rel)
@@ -1553,7 +1665,7 @@ be able to compare both tuples \(lists\) and their elements."
 (defun wb-list-relation-result-org (rel)
   (let ((org (wb-list-relation-org rel)))
     (if (eq (tlrorg-compare-fn-name org) 'compare)
-	(wb-set-org *empty-wb-set*)
+	(wb-set-org +empty-wb-set+)
       (make-tree-set-org '?? (tlrorg-tuple-compare-fn org)))))
 
 (defmethod contains? ((rel wb-list-relation) tuple &optional (arg2 nil arg2?))
@@ -1926,11 +2038,16 @@ be able to compare both tuples \(lists\) and their elements."
   (unless (or (null arity) (and (integerp arity) (>= arity 1)))
     (error "Invalid arity"))
   (make-ch-list-relation arity nil nil (make-hash-list-relation-org (or compare-fn-name 'compare))))
+(defun fset2:empty-ch-list-relation (&key arity compare-fn-name)
+  "We allow the arity to be temporarily unspecified; it will be taken from
+the first tuple added.  If `compare-fn-name' is provided, the function must
+be able to compare both tuples \(lists\) and their elements."
+  ;; -- Or, we could construct the tuple comparator from the element comparator...
+  ;; If arity = 1 it's just a set... but what the heck...
+  (unless (or (null arity) (and (integerp arity) (>= arity 1)))
+    (error "Invalid arity"))
+  (make-ch-list-relation arity nil nil (make-hash-list-relation-org (or compare-fn-name 'compare))))
 
-
-(defmethod arity ((rel list-relation))
-  "Will return `nil' if the arity is not yet specified; see `empty-list-relation'."
-  (list-relation-arity rel))
 
 (defmethod empty? ((rel ch-list-relation))
   (null (ch-list-relation-tuples rel)))
@@ -1943,6 +2060,8 @@ be able to compare both tuples \(lists\) and their elements."
 
 (defmethod convert ((to-type (eql 'set)) (rel ch-list-relation) &key)
   (convert 'ch-set rel))
+(defmethod convert ((to-type (eql 'fset2:set)) (rel ch-list-relation) &key)
+  (convert 'ch-set rel))
 
 (defmethod convert ((to-type (eql 'ch-set)) (rel ch-list-relation) &key)
   (make-ch-set (ch-list-relation-tuples rel)
@@ -1951,7 +2070,7 @@ be able to compare both tuples \(lists\) and their elements."
 (defun ch-list-relation-result-org (rel)
   (let ((org (ch-list-relation-org rel)))
     (if (eq (hlrorg-compare-fn-name org) 'compare)
-	(ch-set-org *empty-ch-set*)
+	+fset-default-hash-set-org+
       (make-hash-set-org '?? (hlrorg-tuple-compare-fn org) (hlrorg-tuple-hash-fn org)))))
 
 (defmethod contains? ((rel ch-list-relation) tuple &optional (arg2 nil arg2?))
@@ -2342,6 +2461,9 @@ composite index?  [Why "square root"?  Maybe a fixed fraction like 1/8?]
 (defun empty-query-registry ()
   (make-query-registry (empty-map (empty-list-relation))))
 
+(defun empty-wb-query-registry ()
+  (make-query-registry (empty-ch-map (empty-wb-list-relation))))
+
 (defun empty-ch-query-registry ()
   (make-query-registry (empty-ch-map (empty-ch-list-relation))))
 
@@ -2378,7 +2500,7 @@ composite index?  [Why "square root"?  Maybe a fixed fraction like 1/8?]
     (do-list-relation (tuple rel)
       (funcall elt-fn (car tuple)))))
 
-(defmethod lookup ((reg query-registry) tuple)
+(define-methods (lookup fset2:lookup) ((reg query-registry) tuple)
   "Returns all queries in `reg' whose patterns match `tuple'."
   (gmap (:result union)
 	(fn (mask list-rel)

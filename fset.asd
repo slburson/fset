@@ -13,11 +13,11 @@
 See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
 "
   :author "Scott L. Burson <Scott@sympoiesis.com>"
-  :version "1.6.0"
+  :version "2.0.0"
   :homepage "https://gitlab.common-lisp.net/fset/fset/-/wikis/home"
   :source-control "https://github.com/slburson/fset"
   :license "BSD-2-Clause"
-  :depends-on (:misc-extensions :mt19937 :named-readtables)
+  :depends-on ((:version :misc-extensions "4.2.2") :mt19937 :named-readtables)
   :in-order-to ((test-op (test-op "fset/test")))
   :serial t
   :components

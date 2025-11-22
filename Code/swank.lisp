@@ -29,7 +29,7 @@
   (append (emacs-inspect-partial s 0 (size s))
 	  (emacs-inspect-footer s)
 	  (and *emacs-inspect-internals*
-	       (cons '(:newline) (call-next-method)))))
+	       (list* '(:newline) '(:newline) (call-next-method)))))
 
 (defmethod emacs-inspect-partial ((s set) lo hi)
   (append (if (<= hi (+ lo 32))
@@ -172,10 +172,12 @@
 				 '(:newline))))))))
 
 (defmethod emacs-inspect-footer append ((b bag))
-  (let ((cmp-fn-name (compare-fn-name b)))
-    (and (not (eq cmp-fn-name 'compare))
-	 (cons '(:newline)
-	       (swank::label-value-line "compare-fn" cmp-fn-name)))))
+  (append (let ((cmp-fn-name (compare-fn-name b)))
+	    (and (not (eq cmp-fn-name 'compare))
+		 (cons '(:newline)
+		       (swank::label-value-line "compare-fn" cmp-fn-name))))
+	  (list '(:newline) '(:newline)
+		`(:value ,(wb-bag-contents b) "[Show internal tree]"))))
 
 (defmethod swank::emacs-inspect ((tup tuple))
   (append (emacs-inspect-partial tup 0 (size tup))
@@ -201,7 +203,8 @@
 			 '(:newline)))))))
 
 (defmethod swank::emacs-inspect ((br 2-relation))
-  (append (emacs-inspect-partial (convert 'map-to-sets br) 0 (size br))
+  (append (let ((mts (convert 'map-to-sets br)))
+	    (emacs-inspect-partial mts 0 (size mts)))
 	  (emacs-inspect-footer br)
 	  (and *emacs-inspect-internals*
 	       (cons '(:newline) (call-next-method)))))

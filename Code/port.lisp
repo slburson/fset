@@ -288,19 +288,22 @@
 ;;; package the same way that `cl:' is locked, so that an attempt to fbind one of its exported
 ;;; functions or macros will cause a warning or error.  For the rest, the best we can do is to
 ;;; define unexported aliases, and use those in the macro expansions instead.
-#+(or)  ; #+sbcl
+#+(and sbcl (not FSet-Disable-Package-Lock))
 (progn
   (pushnew ':FSet-Use-Package-Locks *features*)
-  (defun lock-fset-package ()
-    (sb-ext:lock-package (symbol-package 'lock-fset-package))))
+  (defun lock-fset-packages ()
+    (sb-ext:lock-package (symbol-package 'lookup))
+    (sb-ext:lock-package (symbol-package 'fset2:lookup))))
 
-#+(or)  ; #+allegro
+#+(and allegro (not FSet-Disable-Package-Lock))
 (progn
   (pushnew ':FSet-Use-Package-Locks *features*)
-  (defun lock-fset-package ()
-    (let ((pkg (symbol-package 'lock-fset-package)))
-      (setf (excl:package-lock pkg) t)
-      (setf (excl:package-definition-lock pkg) t))))
+  (defun lock-fset-packages ()
+    (flet ((lock-pkg (pkg)
+	     (setf (excl:package-lock pkg) t)
+	     (setf (excl:package-definition-lock pkg) t)))
+      (lock-pkg (symbol-package 'lookup))
+      (lock-pkg (symbol-package 'fset2:lookup)))))
 
 
 ;;; ----------------
@@ -492,6 +495,7 @@ all nonnull.  (Not the even-parity function.)"
   (and (or (eq a b) (and a b))
        (gmap (:result and) (fn (x) (or (eq x a) (and x a))) (:arg list more))))
 
+(declaim (inline swap-if))
 (defun swap-if (pred x y)
   (if pred (values y x)
     (values x y)))

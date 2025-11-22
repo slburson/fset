@@ -19,12 +19,6 @@ A and B that compare `:unequal' to each other, for any third value C, if A
 compares `:less' or `:greater' to C, then B must compare to C the same way;
 and no more than one of A and B can compare `:equal' to C."))
 
-(defun less-than? (a b)
-  (eq (compare a b) ':less))
-
-(defun greater-than? (a b)
-  (eq (compare a b) ':greater))
-
 (defun equal? (a b)
   (or (eql a b)
       (eq (compare a b) ':equal)))
@@ -174,6 +168,7 @@ This is the right choice for the vast majority of mutable classes."
 (define-cross-type-compare-methods package)
 (define-cross-type-compare-methods pathname)
 (define-cross-type-compare-methods array)
+(define-cross-type-compare-methods class)
 
 ;;; FSet types
 (define-cross-type-compare-methods set)
@@ -409,6 +404,10 @@ and thus of types named by those symbols.")
 			 (setq unequal? t)))))))))))
 
 
+;;; Classes
+;;; [Moved to `post.lisp']
+
+
 ;;; ================================================================================
 ;;; Lexicographic comparison of sequences
 
@@ -420,6 +419,9 @@ and thus of types named by those symbols.")
 can be strings, vectors, lists, or seqs."))
 
 (defmethod compare-lexicographically ((a string) (b string) &key)
+  (compare-strings-lexicographically a b))
+
+(defun compare-strings-lexicographically (a b)
   (if (eq a b)
       ':equal
     (let ((len-a (length a))
@@ -446,6 +448,9 @@ can be strings, vectors, lists, or seqs."))
   (compare-lists-lexicographically a b val-compare-fn))
 
 (defmethod compare-lexicographically ((a vector) (b vector) &key (val-compare-fn #'compare))
+  (compare-vectors-lexicographically a b val-compare-fn))
+
+(defun compare-vectors-lexicographically (a b &optional (val-compare-fn #'compare))
   (declare (type function val-compare-fn))
   (if (eq a b)
       ':equal
@@ -471,3 +476,4 @@ can be strings, vectors, lists, or seqs."))
 	      (return res))
 	    (when (eq res ':unequal)
 	      (setq default ':unequal))))))))
+
