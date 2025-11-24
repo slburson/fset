@@ -257,22 +257,24 @@ This is the right choice for the vast majority of mutable classes."
 
 ;;; Abstracted out for use by `(compare symbol symbol)'.  Do not use otherwise.
 (defun Compare-Strings (a b)
-  (let ((len-a (length a))
-	(len-b (length b)))
-    (cond ((< len-a len-b) ':less)
-	  ((> len-a len-b) ':greater)
-	  (t
-	   (if (and (simple-string-p a) (simple-string-p b))
-	       (dotimes (i len-a ':equal)
-		 (let ((ca (schar a i))
-		       (cb (schar b i)))
-		   (cond ((char< ca cb) (return ':less))
-			 ((char> ca cb) (return ':greater)))))
-	     (dotimes (i len-a ':equal)
-	       (let ((ca (char a i))
-		     (cb (char b i)))
-		 (cond ((char< ca cb) (return ':less))
-		       ((char> ca cb) (return ':greater))))))))))
+  (if (eq a b)
+      ':equal
+      (let ((len-a (length a))
+            (len-b (length b)))
+        (cond ((< len-a len-b) ':less)
+              ((> len-a len-b) ':greater)
+              (t
+               (if (and (simple-string-p a) (simple-string-p b))
+                   (dotimes (i len-a ':equal)
+                     (let ((ca (schar a i))
+                           (cb (schar b i)))
+                       (cond ((char< ca cb) (return ':less))
+                             ((char> ca cb) (return ':greater)))))
+                   (dotimes (i len-a ':equal)
+                     (let ((ca (char a i))
+                           (cb (char b i)))
+                       (cond ((char< ca cb) (return ':less))
+                             ((char> ca cb) (return ':greater)))))))))))
 
 
 ;;; Vectors
