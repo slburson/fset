@@ -724,7 +724,7 @@ argument subforms.  Each argument subform can be an expression whose value is
 to appear in the sequence; or a list of the form ($ `expression'), in which
 case the expression must evaluate to a sequence, all of whose values appear in
 the result sequence.  The order of the result sequence reflects the order of
-the argument subforms."
+the argument subforms.  The result has a default of `nil'."
   (expand-seq-constructor-form 'seq 'empty-seq args))
 (defmacro fset2:seq (&rest args)
   "Constructs a seq of the default implementation according to the supplied
@@ -732,7 +732,19 @@ argument subforms.  Each argument subform can be an expression whose value is
 to appear in the sequence; or a list of the form ($ `expression'), in which
 case the expression must evaluate to a sequence, all of whose values appear in
 the result sequence.  The order of the result sequence reflects the order of
-the argument subforms."
+the argument subforms.  If one of the arguments is `:default', the seq's default
+is the value of the subsequent form; if one is `:no-default', the seq has no
+default; if neither, the seq's default is `nil'.  To include `:default' or
+`:no-default' as an ordinary element, quote it.  Examples:
+
+  > (seq 3 17)
+  #[ 3 17 ]/NIL
+  > (seq 3 17 :default 0)
+  #[ 3 17 ]/0
+  > (seq 3 17 :no-default)
+  #[ 3 17 ]
+  > (seq 3 17 ':default)
+  #[ 3 17 :DEFAULT ]/NIL"
   (expand-seq-constructor-form 'fset2:seq 'fset2:empty-seq args))
 
 (defmacro wb-seq (&rest args)
@@ -740,40 +752,63 @@ the argument subforms."
 argument subform can be an expression whose value is to appear in the sequence;
 or a list of the form ($ `expression'), in which case the expression must
 evaluate to a sequence, all of whose values appear in the result sequence.  The
-order of the result sequence reflects the order of the argument subforms."
+order of the result sequence reflects the order of the argument subforms.
+The result has a default of `nil'."
   (expand-seq-constructor-form 'wb-seq 'empty-wb-seq args))
 (defmacro fset2:wb-seq (&rest args)
   "Constructs a wb-seq according to the supplied argument subforms.  Each
 argument subform can be an expression whose value is to appear in the sequence;
 or a list of the form ($ `expression'), in which case the expression must
 evaluate to a sequence, all of whose values appear in the result sequence.  The
-order of the result sequence reflects the order of the argument subforms."
+order of the result sequence reflects the order of the argument subforms.
+If one of the arguments is `:default', the seq's default is the value of the
+subsequent form; if one is `:no-default', the seq has no default; if neither,
+the seq's default is `nil'.  To include `:default' or `:no-default' as an
+ordinary element, quote it.  Examples:
+
+  > (seq 3 17)
+  #[ 3 17 ]/NIL
+  > (seq 3 17 :default 0)
+  #[ 3 17 ]/0
+  > (seq 3 17 :no-default)
+  #[ 3 17 ]
+  > (seq 3 17 ':default)
+  #[ 3 17 :DEFAULT ]/NIL"
   (expand-seq-constructor-form 'fset2:wb-seq 'fset2:empty-wb-seq args))
 
 (defun expand-seq-constructor-form (type-name empty-fn args)
-  (labels ((recur (args nonsplice-args)
-	     (cond ((null args)
-		    (if nonsplice-args
-			`(convert ',type-name (list . ,(cl:reverse nonsplice-args)))
-		      `(,empty-fn)))
-		   ((and (listp (car args))
-			 (eq (caar args) '$))
-		    (unless (= (length (car args)) 2)
-		      (error "A splice-arg to the `~S' macro must be of the form~@
-			      ($ <sub-seq>) -- not ~S"
-			     type-name (car args)))
-		    (let ((rest (if (cdr args)
-				    `(concat ,(cadar args)
-					     ,(recur (cdr args) nil))
-				  (cadar args))))
+  (let ((fset2? (eq (symbol-package empty-fn) (symbol-package 'fset2:empty-seq))))
+    (labels ((recur (args nonsplice-args default)
+	       (cond ((null args)
 		      (if nonsplice-args
-			  `(concat (convert ',type-name
-					    (list . ,(cl:reverse nonsplice-args)))
-				   ,rest)
-			rest)))
-		   (t
-		    (recur (cdr args) (cons (car args) nonsplice-args))))))
-    (recur args nil)))
+			  `(convert ',type-name (list . ,(cl:reverse nonsplice-args))
+				    . ,(and fset2? `(:default ,default)))
+			`(,empty-fn . ,(and fset2? `(:default ,default)))))
+		     ((and fset2? (eq (car args) ':default))
+		      (unless (cdr args)
+			(error "Syntax error in `~S' form: `:default' must be followed by another form"
+			       type-name))
+		      (recur (cddr args) nonsplice-args (cadr args)))
+		     ((and fset2? (eq (car args) ':no-default))
+		      (recur (cdr args) nonsplice-args ''no-default))
+		     ((and (listp (car args))
+			   (eq (caar args) '$))
+		      (unless (= (length (car args)) 2)
+			(error "A splice-arg to the `~S' macro must be of the form~@
+			      ($ <sub-seq>) -- not ~S"
+			       type-name (car args)))
+		      (let ((rest (if (cdr args)
+				      `(concat (convert ',type-name ,(cadar args))
+					       ,(recur (cdr args) nil default))
+				    `(convert ',type-name ,(cadar args)))))
+			(if nonsplice-args
+			    `(concat (convert ',type-name
+					      (list . ,(cl:reverse nonsplice-args)))
+				     ,rest)
+			  rest)))
+		     (t
+		      (recur (cdr args) (cons (car args) nonsplice-args) default)))))
+      (recur args nil nil))))
 
 
 (defmacro tuple (&rest args)
@@ -1003,6 +1038,11 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
       (error "\"#%\" must be followed by a 2-element list."))
     `(% . ,subform)))
 
+(defun |#"-reader| (stream subchar arg)
+  (declare (ignore arg))
+  (unread-char subchar stream)
+  `(convert 'seq ,(read stream t nil t)))
+
 ;;; The new CHAMP types are printed with a double `#'.
 (defun |##-reader| (stream subchar arg)
   (declare (ignore subchar arg))
@@ -1049,6 +1089,7 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
   (set-dispatch-macro-character #\# #\$ #'|#$-reader| readtable)
   (set-dispatch-macro-character #\# #\% #'|#%-reader| readtable)
   (set-dispatch-macro-character #\# #\# #'|##-reader| readtable)
+  (set-dispatch-macro-character #\# #\" #'|#"-reader| readtable)
   readtable)
 
 (defvar *fset-readtable* (fset-setup-readtable (copy-readtable nil))
@@ -1064,7 +1105,8 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
   (:dispatch-macro-char #\# #\~ #'|#~-reader|)
   (:dispatch-macro-char #\# #\$ #'|#$-reader|)
   (:dispatch-macro-char #\# #\% #'|#%-reader|)
-  (:dispatch-macro-char #\# #\# #'|##-reader|))
+  (:dispatch-macro-char #\# #\# #'|##-reader|)
+  (:dispatch-macro-char #\# #\" #'|#"-reader|))
 
 
 ;;; These function in the traditional Lisp manner, constructing the structures
@@ -1168,6 +1210,11 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
     (otherwise
       (error "\"##\" is expected to be followed by \"{\""))))
 
+(defun |rereading-#"-reader| (stream subchar arg)
+  (declare (ignore arg))
+  (unread-char subchar stream)
+  (convert 'seq (read stream t nil t)))
+
 (defun fset-setup-rereading-readtable (readtable)
   "Adds the FSet rereading reader macros to `readtable'.  These reader macros
 will correctly read structure printed by the FSet print functions.  Returns
@@ -1179,6 +1226,7 @@ will correctly read structure printed by the FSet print functions.  Returns
   (set-dispatch-macro-character #\# #\~ #'|rereading-#~-reader| readtable)
   (set-dispatch-macro-character #\# #\% #'|rereading-#%-reader| readtable)
   (set-dispatch-macro-character #\# #\# #'|rereading-##-reader| readtable)
+  (set-dispatch-macro-character #\# #\" #'|rereading-#"-reader| readtable)
   readtable)
 
 (defvar *fset-rereading-readtable* (fset-setup-rereading-readtable (copy-readtable nil))
@@ -1194,4 +1242,5 @@ print functions.")
   (:macro-char #\] (get-macro-character #\)) nil)
   (:dispatch-macro-char #\# #\~ #'|rereading-#~-reader|)
   (:dispatch-macro-char #\# #\% #'|rereading-#%-reader|)
-  (:dispatch-macro-char #\# #\# #'|rereading-##-reader|))
+  (:dispatch-macro-char #\# #\# #'|rereading-##-reader|)
+  (:dispatch-macro-char #\# #\" #'|rereading-#"-reader|))

@@ -629,7 +629,7 @@ When done, returns `value'."
     (do-tuple (key val tuple)
       (pprint-pop)
       (write-char #\Space stream)
-      (pprint-newline :linear stream)
+      (pprint-newline ':fill stream)
       (write (list (tuple-key-name key) val) :stream stream))
     (format stream " >")))
 

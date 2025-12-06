@@ -585,7 +585,7 @@ explicitly overridden in the call."
 	(value-fn (coerce value-fn 'function)))
     (gmap (:result wb-2-relation :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name)
 	  (fn (pr) (values (funcall key-fn pr) (funcall value-fn pr)))
-	  (:list lst))))
+	  (:arg list lst))))
 
 (defmethod convert ((to-type (eql 'wb-2-relation)) (s seq)
 		    &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name)
@@ -593,7 +593,7 @@ explicitly overridden in the call."
 	(value-fn (coerce value-fn 'function)))
     (gmap (:result wb-2-relation :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name)
 	  (fn (pr) (values (funcall key-fn pr) (funcall value-fn pr)))
-	  (:seq s))))
+	  (:arg seq s))))
 
 (defmethod convert ((to-type (eql 'map)) (rel wb-2-relation) &key)
   "This conversion requires the relation to be functional, and returns
@@ -691,7 +691,7 @@ corresponding range values.  If the val-compare-fn of the relation is not
     (do-2-relation (x y rel)
       (pprint-pop)
       (write-char #\Space stream)
-      (pprint-newline :linear stream)
+      (pprint-newline ':fill stream)
       (write (list x y) :stream stream))))
 
 (defmethod iterator ((rel wb-2-relation) &key)
@@ -1282,7 +1282,7 @@ explicitly overridden in the call."
   (let ((key-fn (coerce key-fn 'function))
 	(value-fn (coerce value-fn 'function)))
     (gmap (:result 2-relation) (fn (pr) (values (funcall key-fn pr) (funcall value-fn pr)))
-	  (:list lst))))
+	  (:arg list lst))))
 
 (defmethod convert ((to-type (eql 'ch-2-relation)) (lst list)
 		    &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name)
@@ -1290,14 +1290,14 @@ explicitly overridden in the call."
 	(value-fn (coerce value-fn 'function)))
     (gmap (:result ch-2-relation :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name)
 	  (fn (pr) (values (funcall key-fn pr) (funcall value-fn pr)))
-	  (:list lst))))
+	  (:arg list lst))))
 
 (defmethod convert ((to-type (eql '2-relation)) (s seq)
 		    &key (key-fn #'car) (value-fn #'cdr))
   (let ((key-fn (coerce key-fn 'function))
 	(value-fn (coerce value-fn 'function)))
     (gmap (:result 2-relation) (fn (pr) (values (funcall key-fn pr) (funcall value-fn pr)))
-	  (:seq s))))
+	  (:arg seq s))))
 
 (defmethod convert ((to-type (eql 'ch-2-relation)) (s seq)
 		    &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name)
@@ -1305,7 +1305,7 @@ explicitly overridden in the call."
 	(value-fn (coerce value-fn 'function)))
     (gmap (:result ch-2-relation :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name)
 	  (fn (pr) (values (funcall key-fn pr) (funcall value-fn pr)))
-	  (:seq s))))
+	  (:arg seq s))))
 
 (defmethod convert ((to-type (eql 'map)) (rel ch-2-relation) &key)
   "This conversion requires the relation to be functional, and returns
@@ -1410,7 +1410,7 @@ corresponding range values.  If the val-compare-fn of the relation is not
     (do-2-relation (x y rel)
       (pprint-pop)
       (write-char #\Space stream)
-      (pprint-newline :linear stream)
+      (pprint-newline ':fill stream)
       (write (list x y) :stream stream))))
 
 (defmethod iterator ((rel ch-2-relation) &key)
@@ -1797,7 +1797,7 @@ be able to compare both tuples \(lists\) and their elements."
 					       (WB-Set-Tree-Intersect a b tuple-compare-fn))
 					     (sort (filter (fn (x) (not (eq x '?))) results)
 						   #'< :key #'WB-Set-Tree-Size))))
-				 (:index 0 (length pattern)))
+				 (:arg index 0 (length pattern)))
 			   (wb-list-relation-result-org rel)))))))))
 
 (defun prepare-pattern (rel-arity pattern)
@@ -2205,7 +2205,7 @@ be able to compare both tuples \(lists\) and their elements."
 					       (ch-set-tree-intersection a b tuple-hash-fn tuple-compare-fn))
 					     (sort (filter (fn (x) (not (eq x '?))) results)
 						   #'< :key #'ch-set-tree-size))))
-				 (:index 0 (length pattern)))
+				 (:arg index 0 (length pattern)))
 			   (ch-list-relation-result-org rel)))))))))
 
 (defmethod get-indices ((rel ch-list-relation) mask)

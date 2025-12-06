@@ -31,7 +31,8 @@
 	   #:position #:position-if #:position-if-not
 	   #:remove #:remove-if #:remove-if-not
 	   #:substitute #:substitute-if #:substitute-if-not
-	   #:some #:every #:notany #:notevery)
+	   #:some #:every #:notany #:notevery
+	   #:search #:mismatch)
   (:export #:collection #:set #:bag #:map #:seq #:tuple
 	   #:collection? #:set? #:bag? #:map? #:seq? #:tuple?
 	   #:wb-set #:wb-bag #:wb-map #:wb-seq #:dyn-tuple
@@ -65,7 +66,8 @@
 	   #:filter #:filter-pairs #:partition
 	   #:image #:reduce #:domain #:range #:update
 	   #:with-default #:default
-	   #:map-union #:map-intersection #:map-difference-2
+	   #:non-char-seq-error #:non-char-seq-error-seq
+	   #:map-union #:map-intersection #:map-difference-2 #:map-image
 	   #:restrict #:restrict-not #:compose
 	   #:first #:last
 	   #:lastcons #:head #:tail
@@ -78,6 +80,7 @@
 	   #:remove #:remove-if #:remove-if-not
 	   #:substitute #:substitute-if #:substitute-if-not
 	   #:some #:every #:notany #:notevery
+	   #:search #:mismatch
 	   #:convert #:iterator
 	   #:do-set #:do-bag #:do-bag-pairs #:do-map #:do-map-domain #:do-seq #:do-tuple
 	   #:adjoinf #:removef #:includef #:excludef
@@ -144,6 +147,7 @@
 			  #:remove #:remove-if #:remove-if-not
 			  #:substitute #:substitute-if #:substitute-if-not
 			  #:some #:every #:notany #:notevery
+			  #:search #:mismatch
 			  ;; Other exported symbols
 			  #:wb-bag-pairs #:$ #:% #:?
 			  ;; Internal, for testing
@@ -153,7 +157,7 @@
 	   #:set #:map #:wb-map #:wb-custom-map #:ch-map #:ch-custom-map #:seq #:wb-seq
 	   #:replay-map #:wb-replay-map #:wb-custom-replay-map #:ch-replay-map #:ch-custom-replay-map
 	   #:empty-set #:empty-map #:empty-wb-map #:empty-ch-map #:empty-seq #:empty-wb-seq
-	   #:rank #:define-tuple-key #:get-tuple-key #:map-to-sets #:concat
+	   #:rank #:define-tuple-key #:get-tuple-key #:map-to-sets
 	   ;; These just changed from `&optional' to `&key'
 	   #:empty-wb-set #:empty-ch-set #:empty-wb-bag #:empty-wb-replay-set #:empty-ch-replay-set
 	   #:empty-replay-map #:empty-wb-replay-map #:empty-ch-replay-map
@@ -199,8 +203,8 @@
 	   #:lookup-error #:map-domain-error #:map-domain-error-map #:map-domain-error-key
 	   #:seq-bounds-error #:seq-bounds-error-seq #:seq-bounds-error-index
 	   #:tuple-key-unbound-error #:tuple-key-unbound-error-tuple #:tuple-key-unbound-error-key
-	   #:empty-seq-error #:empty-seq-error-seq
-	   #:map-union #:map-intersection #:map-difference-2
+	   #:empty-seq-error #:empty-seq-error-seq #:non-char-seq-error #:non-char-seq-error-seq
+	   #:map-union #:map-intersection #:map-difference-2 #:map-image
 	   #:restrict #:restrict-not #:compose
 	   #:first #:last
 	   #:lastcons #:head #:tail
@@ -213,6 +217,7 @@
 	   #:remove #:remove-if #:remove-if-not
 	   #:substitute #:substitute-if #:substitute-if-not
 	   #:some #:every #:notany #:notevery
+	   #:search #:mismatch
 	   #:convert #:iterator
 	   #:do-set #:do-bag #:do-bag-pairs #:do-map #:do-map-domain #:do-seq #:do-tuple
 	   #:adjoinf #:removef #:includef #:excludef
@@ -281,7 +286,8 @@
 			  #:position #:position-if #:position-if-not
 			  #:remove #:remove-if #:remove-if-not
 			  #:substitute #:substitute-if #:substitute-if-not
-			  #:some #:every #:notany #:notevery))
+			  #:some #:every #:notany #:notevery
+			  #:search #:mismatch))
 
 (defpackage :fset2-user
   (:use :cl :fset2 :gmap :new-let :lexical-contexts)
@@ -299,7 +305,8 @@
 			  #:position #:position-if #:position-if-not
 			  #:remove #:remove-if #:remove-if-not
 			  #:substitute #:substitute-if #:substitute-if-not
-			  #:some #:every #:notany #:notevery))
+			  #:some #:every #:notany #:notevery
+			  #:search #:mismatch))
 
 
 (pushnew ':FSet *features*)

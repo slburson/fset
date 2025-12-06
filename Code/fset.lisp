@@ -358,32 +358,35 @@ multiplicity."))
     "Returns a new collection containing the result of applying `fn' to each
 member of `collection', which may be a set, bag, map, or seq.  In the bag case,
 the multiplicity of each member of the result is the sum of the multiplicities
-of the values that `fn' maps to it.  In the map case, `fn' is expected to return
-two values, which become the new domain and range values.  Except in the seq
-case, you may wish to specify the organization of the result, so the set and
-bag methods take keyword argument `:compare-fn-name', and the map method takes
-`:key-compare-fn-name' and `:val-compare-fn-name'.
+of the values that `fn' maps to it.  In the map case, `fn' will be called with
+two arguments, the domain and range values, and is expected to return two
+values, which become the new domain and range values.  In the map and seq
+cases, the returned collection has the same default as the argument.
+
+Except in the seq case, you may wish to specify the organization of the result,
+so the set and bag methods take keyword argument `:compare-fn-name', and the
+map method takes `:key-compare-fn-name' and `:val-compare-fn-name'.
 
 If `collection' is a map or seq, the default of the result is the same.
 
 As well as a Lisp function, `fn' can be a map, or a set (which is treated as
 mapping its members to true and everything else to false)."))
+
 (defgeneric fset2:image (fn collection &key)
   (:documentation
     "Returns a new collection containing the result of applying `fn' to each
-member of `collection', which may be a set, bag, map, or seq.  In the bag case,
+member of `collection', which may be a set, bag, or seq.  In the bag case,
 the multiplicity of each member of the result is the sum of the multiplicities
-of the values that `fn' maps to it.  In the map case, `fn' is expected to return
-two values, which become the new domain and range values.  Except in the seq
-case, you may wish to specify the organization of the result, so the set and
-bag methods take keyword argument `:compare-fn-name', and the map method takes
-`:key-compare-fn-name' and `:val-compare-fn-name'.
+of the values that `fn' maps to it.  In the seq case, if the argument seq has
+a default, the default of the result will be the result of applying `fn' to it.
 
-If `collection' is a map or seq, the result has a default as specified by
-the `:default' or `:no-default?' keyword arguments, if given, or else `nil'.
+Except in the seq case, you may wish to specify the organization of the result,
+so the set and bag methods take keyword argument `:compare-fn-name'.
 
 As well as a Lisp function, `fn' can be a map, or a set (which is treated as
-mapping its members to true and everything else to false)."))
+mapping its members to true and everything else to false).
+
+For imaging a map, see `compose' and `map-image'."))
 
 (defgeneric reduce (fn collection &key key initial-value)
   (:documentation
@@ -401,8 +404,6 @@ accepted only if `collection' is a seq."))
   (:documentation
     "Returns the domain of the map, that is, the set of keys mapped by the map."))
 
-;;; &&& Actually I think this should return a bag.  You can then convert it
-;;; to a set if you want.
 (defgeneric range (map)
   (:documentation
     "Returns the range of the map, that is, the set of all values to which keys
@@ -514,6 +515,22 @@ The default for each returned map is that of its corresponding argument, if
 it has a default, except if the defaults are equal, in which case neither
 returned map has a default."))
 
+;;; I split this out from `image' in FSet 2 because `fn' is called with two arguments, so
+;;; that (a) we can't call `fn' to get the new default because we don't have a domain
+;;; value corresponding to the range value, and (b) `fn' can't be a map, set, or bag.
+;;; `compose' is probably much more useful.
+(defgeneric map-image (fn collection
+			&key key-compare-fn-name val-compare-fn-name
+			default no-default?)
+  (:documentation
+    "Returns a new map containing the result of applying `fn' to each pair of
+`collection'.  That is, `fn' is called with both the domain and range values
+as arguments; it is expected to return two values, which become the new domain
+and range values.  The default of the returned map is `nil' unless a different
+default is specified by `:default', or `:no-default?' is true.
+
+See also `compose', which may fit your needs better."))
+
 ;;; Possible operation: `map-update' (better name??), which would be like
 ;;; `map-union' except the keys would be exactly the keys of `map1'.  This
 ;;; would be useful for removing items from chained maps:
@@ -556,6 +573,10 @@ of that domain to the result of applying first `map1' to it, then applying
 treated as a map from indices to members.  If `map1' has a default, the value
 of `map2-or-fn' applied to that default becomes the default of the returned
 map."))
+
+(defgeneric char-seq? (seq)
+  (:documentation
+    "Returns true iff `seq' contains only characters."))
 
 (defgeneric first (seq)
   (:documentation
@@ -613,10 +634,6 @@ at `idx' \(the seq is extended in either direction if needed prior to the insert
 previously uninitialized indices are filled with the seq's default\)."))
 
 (defgeneric concat (seq1 &rest seqs)
-  (:documentation
-    "Returns the concatenation of `seq1' with each of `seqs'.  The result has the
-same default as `seq1'."))
-(defgeneric fset2:concat (seq1 &rest seqs)
   (:documentation
     "Returns the concatenation of `seq1' with each of `seqs'.  The result has the
 same default as `seq1'."))
@@ -716,6 +733,7 @@ Method summary:     to-type       collection type         notes
                      seq                set               1
                      wb-seq             set
                      string             wb-seq            14
+                     base-string        wb-seq            14
                      seq                bag               1, 5
                      wb-seq             bag               5
                      seq                map               1, 5, 17
@@ -776,6 +794,8 @@ Method summary:     to-type       collection type         notes
                      vector             vector            0
                      vector             list
                      list               sequence
+                     string             sequence
+                     base-string        sequence
 
 Notes:
 0. Identity conversion, provided for convenience.  (If the method also accepts
@@ -809,8 +829,9 @@ Notes:
 12. Returns a map mapping each domain value to the set of corresponding range
     values.
 13. Constructs a `dyn-tuple'.
-14. Always returns a string.  Signals `type-error' if it encounters a non-
-    character.
+14. Always returns a string (or base-string, if specified).  Signals an error
+    if the seq contains a non-character.  Signals `type-error' if a base-string
+    is specified and it encounters a non-base character.
 15. Has keyword parameter `compare-fn-name'.  If nonnull, must be a symbol, the
     name of the comparison function to be used.  The returned set will be
     converted, if necessary, to use the specified function, or to use `compare'
@@ -1302,6 +1323,32 @@ Also works on an FSet seq."))
 	   (ignore key start end from-end count))
   (apply #'cl:substitute-if-not newitem pred s keyword-args))
 
+(defgeneric search (sequence-1 sequence-2 &rest keyword-args
+		    &key from-end test key start1 start2 end1 end2)
+  (:documentation
+    "If `sequence-1' and `sequence-2' are Lisp sequences, this simply calls
+`cl:search'.  On FSet seqs, the default for `test' is `equal?', and the
+`:test-not' keyword is not accepted."))
+
+(defmethod search ((sequence-1 sequence) (sequence-2 sequence) &rest keyword-args
+		   &key from-end test key start1 start2 end1 end2)
+  (declare (dynamic-extent keyword-args)
+	   (ignore from-end test key start1 start2 end1 end2))
+  (apply #'cl:search sequence-1 sequence-2 keyword-args))
+
+(defgeneric mismatch (sequence-1 sequence-2 &rest keyword-args
+		      &key from-end test key start1 start2 end1 end2)
+  (:documentation
+    "If `sequence-1' and `sequence-2' are Lisp sequences, this simply calls
+`cl:mismatch'.  On FSet seqs, the default for `test' is `equal?', and the
+`:test-not' keyword is not accepted."))
+
+(defmethod mismatch ((sequence-1 sequence) (sequence-2 sequence) &rest keyword-args
+		     &key from-end test key start1 start2 end1 end2)
+  (declare (dynamic-extent keyword-args)
+	   (ignore from-end test key start1 start2 end1 end2))
+  (apply #'cl:mismatch sequence-1 sequence-2 keyword-args))
+
 (declaim (inline coerce-to-function coerce-to-function-or-equal?))
 (defun coerce-to-function (s)
   (coerce s 'function))
@@ -1315,7 +1362,7 @@ Also works on an FSet seq."))
 	(t
 	 (values (coerce s 'function) nil))))
 
-;;; `(gmap :or ...)' is a bit faster.
+;;; `(gmap :or ...)' is faster.
 (defun some (pred sequence0 &rest more-sequences)
   "FSet generic version of `cl:some'."
   (let ((it0 (the function (iterator sequence0)))
@@ -1323,7 +1370,7 @@ Also works on an FSet seq."))
 	(pred (coerce-to-function pred)))
     (do ()
 	((or (funcall it0 ':done?)
-	     (gmap (:result or) (fn (it) (funcall it ':done?))
+	     (gmap :or (fn (it) (funcall it ':done?))
 		   (:arg list more-its)))
 	 nil)
       (let ((val (apply pred (funcall it0 ':get)
@@ -1331,7 +1378,7 @@ Also works on an FSet seq."))
 	(when val
 	  (return val))))))
 
-;;; `(gmap (:result and) ...)' is a bit faster.
+;;; `(gmap :and ...)' is faster.
 (defun every (pred sequence0 &rest more-sequences)
   "FSet generic version of `cl:every'."
   (let ((it0 (the function (iterator sequence0)))
@@ -1339,7 +1386,7 @@ Also works on an FSet seq."))
 	(pred (coerce-to-function pred)))
     (do ()
 	((or (funcall it0 ':done?)
-	     (gmap (:result or) (fn (it) (funcall it ':done?))
+	     (gmap :or (fn (it) (funcall it ':done?))
 		   (:arg list more-its)))
 	 t)
       (let ((val (apply pred (funcall it0 ':get)
@@ -1392,7 +1439,7 @@ Also works on an FSet seq."))
   (check-two-arguments y? 'contains 'list)
   (member x ls :test #'equal?))
 
-(define-methods (concat fset2:concat) ((a list) &rest seqs)
+(defmethod concat ((a list) &rest seqs)
   (append a (reduce #'append seqs :key (fn (x) (convert 'list x)) :from-end t)))
 
 (defmethod convert ((to-type (eql 'list)) (ls list) &key)
@@ -1440,6 +1487,11 @@ Also works on an FSet seq."))
 (defmethod fset2:image ((fn set) (l list) &key)
   (mapcar (lambda (x) (fset2:lookup fn x)) l))
 
+(defmethod image ((fn bag) (l list) &key)
+  (mapcar (lambda (x) (lookup fn x)) l))
+(defmethod fset2:image ((fn bag) (l list) &key)
+  (mapcar (lambda (x) (fset2:lookup fn x)) l))
+
 (define-methods (image fset2:image) ((fn function) (l vector) &key)
   (cl:map 'vector fn l))
 
@@ -1454,6 +1506,11 @@ Also works on an FSet seq."))
 (defmethod image ((fn set) (l vector) &key)
   (cl:map 'vector (lambda (x) (lookup fn x)) l))
 (defmethod fset2:image ((fn set) (l vector) &key)
+  (cl:map 'vector (lambda (x) (fset2:lookup fn x)) l))
+
+(defmethod image ((fn bag) (l vector) &key)
+  (cl:map 'vector (lambda (x) (lookup fn x)) l))
+(defmethod fset2:image ((fn bag) (l vector) &key)
   (cl:map 'vector (lambda (x) (fset2:lookup fn x)) l))
 
 
@@ -1738,21 +1795,6 @@ or hash function, as `s'.  `s' can also be a bag."))
 (defmethod compare-fn-name ((s wb-custom-set))
   (tree-set-org-compare-fn-name (wb-custom-set-org s)))
 
-(defgeneric compare-sets (a b elt-compare-fn)
-  (:documentation
-    "Compares two sets `a' and `b', using `elt-compare-fn' to compare their
-elements.  Returns one of the standard FSet comparison result symbols, `:equal',
-`:less', `:greater', or `:unequal'."))
-
-;;; Help users out since the default default is still `nil'.
-(defmethod compare-sets ((a null) (b null) elt-compare-fn)
-  (declare (ignore elt-compare-fn))
-  ':equal)
-
-(defmethod compare-sets ((a wb-set) (b wb-set) elt-compare-fn)
-  (declare (type function elt-compare-fn))
-  (WB-Set-Tree-Compare (wb-set-contents a) (wb-set-contents b) elt-compare-fn))
-
 (define-wb-set-method empty? ((s wb-set))
   (null (contents s)))
 
@@ -1960,6 +2002,9 @@ a subset of `super' and the two are not equal."
 	;; Shouldn't be possible, since we check the symbol-package in `empty-wb-custom-set'.
 	(error "Can't compare wb-sets with uninterned compare-fn-names with same symbol-name")))))
 
+;;; This may appear to replace the previous definition, but it does not, because it
+;;; defines methods on (wb-default-set wb-default-set) and (wb-custom-set wb-custom-set).
+;;; I.e., it doesn't cover the mixed cases.
 (define-wb-set-method compare ((s1 wb-set) (s2 wb-set))
   (if-same-compare-fns (s1 s2)
       (WB-Set-Tree-Compare (contents s1) (contents s2) (compare-fn s1))
@@ -2253,7 +2298,7 @@ for the possibility of different set implementations; it is not for public use.
     (do-set (x set)
       (pprint-pop)
       (write-char #\Space stream)
-      (pprint-newline :linear stream)
+      (pprint-newline ':fill stream)
       (write x :stream stream))))
 
 (defun print-wb-custom-set (set stream level)
@@ -2265,7 +2310,7 @@ for the possibility of different set implementations; it is not for public use.
     (do-set (x set)
       (pprint-pop)
       (write-char #\Space stream)
-      (pprint-newline :linear stream)
+      (pprint-newline ':fill stream)
       (write x :stream stream))))
 
 (defmethod make-load-form ((s wb-set) &optional environment)
@@ -2630,7 +2675,7 @@ comparison function as `compare-fn-name'."
     (do-set (x set)
       (pprint-pop)
       (write-char #\Space stream)
-      (pprint-newline :linear stream)
+      (pprint-newline ':fill stream)
       (write x :stream stream))))
 
 (defmethod make-load-form ((s ch-set) &optional environment)
@@ -3473,7 +3518,7 @@ different bag implementations; it is not for public use.  `elt-fn' and
       (do-bag-pairs (x n bag)
         (pprint-pop)
         (write-char #\Space stream)
-        (pprint-newline :linear stream)
+        (pprint-newline ':fill stream)
         (incf i)
         (if (> n 1)
 	    ;; There might be a bag entry for 'quote or 'function...
@@ -3851,16 +3896,16 @@ symbols."))
 
 (defmethod image ((fn function) (m wb-map) &key key-compare-fn-name val-compare-fn-name)
   (wb-map-image fn m key-compare-fn-name val-compare-fn-name (map-default m)))
-(defmethod fset2:image ((fn function) (m wb-map) &key key-compare-fn-name val-compare-fn-name)
-  ;; We can't call `fn' to compute a new default, because we don't have a corresponding
-  ;; domain value.  Copying the default from `m', as FSet1 did, doesn't make sense either;
-  ;; in general, the range type is different.
-  (wb-map-image fn m key-compare-fn-name val-compare-fn-name 'no-default))
+(defmethod map-image ((fn function) (m wb-map)
+		      &key key-compare-fn-name val-compare-fn-name (default nil default?) no-default?)
+  (wb-map-image fn m key-compare-fn-name val-compare-fn-name (fset2-default default? default no-default?)))
 
 (defmethod image ((fn symbol) (m wb-map) &key key-compare-fn-name val-compare-fn-name)
   (wb-map-image (coerce-to-function fn) m key-compare-fn-name val-compare-fn-name (map-default m)))
-(defmethod fset2:image ((fn symbol) (m wb-map) &key key-compare-fn-name val-compare-fn-name)
-  (wb-map-image (coerce-to-function fn) m key-compare-fn-name val-compare-fn-name 'no-default))
+(defmethod map-image ((fn symbol) (m wb-map)
+		      &key key-compare-fn-name val-compare-fn-name (default nil default?) no-default?)
+  (wb-map-image (coerce-to-function fn) m key-compare-fn-name val-compare-fn-name
+		(fset2-default default? default no-default?)))
 
 (defun wb-map-image (fn m key-compare-fn-name val-compare-fn-name default)
   (declare (type function fn))
@@ -4234,6 +4279,8 @@ to `compare'."
 (defmethod convert ((to-type (eql 'map)) (l list)
 		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?)
   (wb-map-from-sequence l key-fn value-fn input-sorted?))
+(defmethod convert ((to-type (eql 'fset2:map)) (l list) &key (key-fn #'car) (value-fn #'cdr))
+  (convert 'ch-map l :key-fn key-fn :value-fn value-fn))
 
 (define-convert-methods (wb-map fset2:wb-map) ((l list)
 			    &key (key-fn #'car) (value-fn #'cdr) input-sorted?
@@ -4244,6 +4291,8 @@ to `compare'."
 		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?)
   (with-default (wb-map-from-sequence s key-fn value-fn input-sorted?)
 		(seq-default s)))
+(defmethod convert ((to-type (eql 'fset2:map)) (s seq) &key (key-fn #'car) (value-fn #'cdr))
+  (convert 'ch-map s :key-fn key-fn :value-fn value-fn))
 
 (define-convert-methods (wb-map fset2:wb-map)
 			((s seq) &key (key-fn #'car) (value-fn #'cdr) input-sorted?
@@ -4254,6 +4303,8 @@ to `compare'."
 (defmethod convert ((to-type (eql 'map)) (s sequence)
 		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?)
   (wb-map-from-sequence s key-fn value-fn input-sorted?))
+(defmethod convert ((to-type (eql 'fset2:map)) (s sequence) &key (key-fn #'car) (value-fn #'cdr))
+  (convert 'ch-map s :key-fn key-fn :value-fn value-fn))
 
 (define-convert-methods (wb-map fset2:wb-map)
 			((s sequence) &key (key-fn #'car) (value-fn #'cdr) input-sorted?
@@ -4392,7 +4443,7 @@ to `compare'."
     (do-map (x y map)
       (pprint-pop)
       (write-char #\Space stream)
-      (pprint-newline :linear stream)
+      (pprint-newline ':fill stream)
       ;; There might be a map entry for 'quote or 'function...
       (let (#+sbcl (sb-pretty:*pprint-quote-with-syntactic-sugar* nil))
 	(write (list x y) :stream stream)))))
@@ -4800,13 +4851,16 @@ The map's default is `nil' unless a different default is supplied, or
 
 (defmethod image ((fn function) (m ch-map) &key key-compare-fn-name val-compare-fn-name)
   (ch-map-image fn m key-compare-fn-name val-compare-fn-name (map-default m)))
-(defmethod fset2:image ((fn function) (m ch-map) &key key-compare-fn-name val-compare-fn-name)
-  (ch-map-image fn m key-compare-fn-name val-compare-fn-name 'no-default))
+(defmethod map-image ((fn function) (m ch-map)
+		      &key key-compare-fn-name val-compare-fn-name (default nil default?) no-default?)
+  (ch-map-image fn m key-compare-fn-name val-compare-fn-name (fset2-default default? default no-default?)))
 
 (defmethod image ((fn symbol) (m ch-map) &key key-compare-fn-name val-compare-fn-name)
   (ch-map-image (coerce-to-function fn) m key-compare-fn-name val-compare-fn-name (map-default m)))
-(defmethod fset2:image ((fn symbol) (m ch-map) &key key-compare-fn-name val-compare-fn-name)
-  (ch-map-image (coerce-to-function fn) m key-compare-fn-name val-compare-fn-name 'no-default))
+(defmethod map-image ((fn symbol) (m ch-map)
+		      &key key-compare-fn-name val-compare-fn-name (default nil default?) no-default?)
+  (ch-map-image (coerce-to-function fn) m key-compare-fn-name val-compare-fn-name
+		(fset2-default default? default no-default?)))
 
 (defun ch-map-image (fn m key-compare-fn-name val-compare-fn-name default)
   (declare (type function fn))
@@ -4920,7 +4974,7 @@ The map's default is `nil' unless a different default is supplied, or
     (do-map (x y map)
       (pprint-pop)
       (write-char #\Space stream)
-      (pprint-newline :linear stream)
+      (pprint-newline ':fill stream)
       ;; There might be a map entry for 'quote or 'function...
       (let (#+sbcl (sb-pretty:*pprint-quote-with-syntactic-sugar* nil))
 	(write (list x y) :stream stream)))))
@@ -4934,11 +4988,11 @@ The map's default is `nil' unless a different default is supplied, or
 ;;; ================================================================================
 ;;; Seqs
 
-(declaim (inline make-wb-seq))
+(declaim (inline raw-make-wb-seq))
 
 (defstruct (wb-seq
 	     (:include seq)
-	     (:constructor make-wb-seq (contents default))
+	     (:constructor raw-make-wb-seq (contents default))
 	     (:predicate wb-seq?)
 	     (:print-function print-wb-seq)
 	     (:copier nil))
@@ -4947,15 +5001,24 @@ confusion with `cl:sequence') represented as weight-balanced binary trees.
 This is the default implementation of seqs in FSet."
   (contents nil :read-only t))
 
+;;; A slotless subclass used for method dispatching.  In this case, `contents'
+;;; is always a `WB-HT-Seq-Tree'.
+(defstruct (wb-ht-seq
+	     (:include wb-seq)
+	     (:constructor make-wb-ht-seq (contents default))
+	     (:predicate nil)
+	     (:print-function print-wb-seq)
+	     (:copier nil)))
 
-(defparameter +empty-wb-seq+ (make-wb-seq nil nil))
 
-(defparameter +empty-wb-seq/no-default+ (make-wb-seq nil 'no-default))
+(defparameter +empty-wb-seq+ (raw-make-wb-seq nil nil))
+
+(defparameter +empty-wb-seq/no-default+ (raw-make-wb-seq nil 'no-default))
 
 (declaim (inline empty-seq fset2:empty-seq))
 (defun empty-seq (&optional default)
   "Returns an empty seq of the default implementation."
-  (if default (make-wb-seq nil default)
+  (if default (raw-make-wb-seq nil default)
     +empty-wb-seq+))
 (defun fset2:empty-seq (&key (default nil default?) no-default?)
   "Returns an empty seq of the default implementation.  The seq's default is
@@ -4965,7 +5028,7 @@ This is the default implementation of seqs in FSet."
 (declaim (inline empty-wb-seq fset2:empty-wb-seq))
 (defun empty-wb-seq (&optional default)
   "Returns an empty wb-seq."
-  (if default (make-wb-seq nil default)
+  (if default (raw-make-wb-seq nil default)
     +empty-wb-seq+))
 (defun fset2:empty-wb-seq (&key (default nil default?) no-default?)
   "Returns an empty wb-seq."
@@ -4976,7 +5039,13 @@ This is the default implementation of seqs in FSet."
 	 +empty-wb-seq+)
 	((eq default 'no-default)
 	 +empty-wb-seq/no-default+)
-	(t (make-wb-seq nil default))))
+	(t (raw-make-wb-seq nil default))))
+
+(declaim (inline make-wb-seq))
+(defun make-wb-seq (contents default)
+  (if (WB-HT-Seq-Tree? contents)
+      (make-wb-ht-seq contents default)
+    (raw-make-wb-seq contents default)))
 
 (defmethod empty? ((s wb-seq))
   (null (wb-seq-contents s)))
@@ -4992,8 +5061,15 @@ This is the default implementation of seqs in FSet."
 (defmethod fset2:without-default ((s wb-seq))
   (make-wb-seq (wb-seq-contents s) 'no-default))
 
-(defmethod size ((s wb-seq))
-  (WB-Seq-Tree-Size (wb-seq-contents s)))
+(define-wb-seq-method size ((s wb-seq))
+  (n-values 1 (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size
+			     (wb-seq-contents s))))
+
+(define-wb-seq-method char-seq? ((s wb-seq))
+  (let ((size chars? (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size
+				    (wb-seq-contents s))))
+    (declare (ignore size))
+    chars?))
 
 (define-condition fset2:seq-bounds-error (fset2:lookup-error)
     ((fset2:seq :initarg :seq :reader fset2:seq-bounds-error-seq)
@@ -5004,8 +5080,10 @@ This is the default implementation of seqs in FSet."
 	       (format stream "Index ~D out of bounds for seq ~A, which has no default"
 		       (fset2:seq-bounds-error-index sbe) (fset2:seq-bounds-error-seq sbe))))))
 
-(define-methods (lookup fset2:lookup) ((s wb-seq) index)
-  (let ((val? val (if (typep index 'fixnum) (WB-Seq-Tree-Subscript (wb-seq-contents s) index)
+(define-wb-seq-methods (lookup fset2:lookup) ((s wb-seq) index)
+  (let ((val? val (if (typep index 'fixnum)
+		      (call-selected WB-Seq-Tree-Subscript WB-HT-Seq-Tree-Subscript
+				     (wb-seq-contents s) index)
 		    (values nil nil))))
     (values (if val? val
 	      (let ((dflt (seq-default s)))
@@ -5022,8 +5100,9 @@ This is the default implementation of seqs in FSet."
 	       (format stream "Seq ~A, which has no default, is empty"
 		       (fset2:empty-seq-error-seq sbe))))))
 
-(defmethod first ((s wb-seq))
-  (let ((val? val (WB-Seq-Tree-Subscript (wb-seq-contents s) 0)))
+(define-wb-seq-method first ((s wb-seq))
+  (let ((val? val (call-selected WB-Seq-Tree-Subscript WB-HT-Seq-Tree-Subscript
+				 (wb-seq-contents s) 0)))
     (values (if val? val
 	      (let ((dflt (seq-default s)))
 		(if (eq dflt 'no-default)
@@ -5031,9 +5110,10 @@ This is the default implementation of seqs in FSet."
 		  dflt)))
 	    val?)))
 
-(defmethod last ((s wb-seq))
+(define-wb-seq-method last ((s wb-seq))
   (let ((tree (wb-seq-contents s))
-	((val? val (WB-Seq-Tree-Subscript tree (1- (WB-Seq-Tree-Size tree))))))
+	((val? val (call-selected WB-Seq-Tree-Subscript WB-HT-Seq-Tree-Subscript
+				  tree (1- (WB-Seq-Tree-Size tree))))))
     (values (if val? val
 	      (let ((dflt (seq-default s)))
 		(if (eq dflt 'no-default)
@@ -5041,122 +5121,119 @@ This is the default implementation of seqs in FSet."
 		  dflt)))
 	    val?)))
 
-(defmethod with-first ((s wb-seq) val)
-  (make-wb-seq (WB-Seq-Tree-Insert (wb-seq-contents s) 0 val)
+(define-wb-seq-method with-first ((s wb-seq) val)
+  (make-wb-seq (call-selected WB-Seq-Tree-Insert WB-HT-Seq-Tree-Insert (wb-seq-contents s) 0 val)
 	       (seq-default s)))
 
-(defmethod with-last ((s wb-seq) val)
+(define-wb-seq-method with-last ((s wb-seq) val)
   (let ((tree (wb-seq-contents s)))
-    (make-wb-seq (WB-Seq-Tree-Append tree val)
+    (make-wb-seq (call-selected WB-Seq-Tree-Append WB-HT-Seq-Tree-Append tree val)
 		 (seq-default s))))
 
-(defmethod less-first ((s wb-seq))
+(define-wb-seq-method less-first ((s wb-seq))
   (let ((tree (wb-seq-contents s)))
-    (make-wb-seq (WB-Seq-Tree-Subseq tree 1 (WB-Seq-Tree-Size tree))
+    (make-wb-seq (call-selected WB-Seq-Tree-Subseq WB-HT-Seq-Tree-Subseq
+				tree 1 (WB-Seq-Tree-Size tree))
 		 (seq-default s))))
 
-(defmethod less-last ((s wb-seq))
+(define-wb-seq-method less-last ((s wb-seq))
   (let ((tree (wb-seq-contents s)))
-    (make-wb-seq (WB-Seq-Tree-Subseq tree 0 (1- (WB-Seq-Tree-Size tree)))
+    (make-wb-seq (call-selected WB-Seq-Tree-Subseq WB-HT-Seq-Tree-Subseq
+				tree 0 (1- (WB-Seq-Tree-Size tree)))
 		 (seq-default s))))
 
-(defmethod with ((s wb-seq) idx &optional (val nil val?))
+(define-wb-seq-method with ((s wb-seq) idx &optional (val nil val?))
   (check-three-arguments val? 'with 'wb-seq)
   (let ((tree (wb-seq-contents s))
-	((size (WB-Seq-Tree-Size tree))))
+	((size (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size tree))))
     (when (< idx -1)
       (when (eq (seq-default s) 'no-default)
 	(error 'fset2:seq-bounds-error :seq s :index idx))
-      (setq tree (WB-Seq-Tree-Concat
-		   (WB-Seq-Tree-From-Vector
-		     (make-array (- -1 idx) :initial-element (seq-default s)))
-		   tree))
+      (setq tree (call-selected WB-Seq-Tree-Concat WB-HT-Seq-Tree-Concat
+				(WB-Seq-Tree-Fill (- -1 idx) (seq-default s))
+				tree))
       (setq idx -1))
     (when (> idx size)
       (when (eq (seq-default s) 'no-default)
 	(error 'fset2:seq-bounds-error :seq s :index idx))
-      (setq tree (WB-Seq-Tree-Concat
-		   tree (WB-Seq-Tree-From-Vector
-			  (make-array (- idx size) :initial-element (seq-default s)))))
+      (setq tree (call-selected WB-Seq-Tree-Concat WB-HT-Seq-Tree-Concat tree
+				(WB-Seq-Tree-Fill (- idx size) (seq-default s))))
       (setq size idx))
     (make-wb-seq (if (= idx -1)
-		     (WB-Seq-Tree-Insert tree 0 val)
+		     (call-selected WB-Seq-Tree-Insert WB-HT-Seq-Tree-Insert tree 0 val)
 		   (if (= idx size)
-		       (WB-Seq-Tree-Insert tree idx val)
-		     (WB-Seq-Tree-With tree idx val)))
+		       (call-selected WB-Seq-Tree-Insert WB-HT-Seq-Tree-Insert tree idx val)
+		     (call-selected WB-Seq-Tree-With WB-HT-Seq-Tree-With tree idx val)))
 		 (seq-default s))))
 
-(defmethod insert ((s wb-seq) idx val)
+(define-wb-seq-method insert ((s wb-seq) idx val)
   (let ((tree (wb-seq-contents s))
-	((size (WB-Seq-Tree-Size tree))))
+	((size (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size tree))))
     (when (< idx 0)
       (when (eq (seq-default s) 'no-default)
 	(error 'fset2:seq-bounds-error :seq s :index idx))
-      (setq tree (WB-Seq-Tree-Concat
-		   (WB-Seq-Tree-From-Vector
-		     (make-array (- idx) :initial-element (seq-default s)))
-		   tree))
+      (setq tree (call-selected WB-Seq-Tree-Concat WB-HT-Seq-Tree-Concat
+				(WB-Seq-Tree-Fill (- idx) (seq-default s))
+				tree))
       (setq idx 0))
     (when (> idx size)
       (when (eq (seq-default s) 'no-default)
 	(error 'fset2:seq-bounds-error :seq s :index idx))
-      (setq tree (WB-Seq-Tree-Concat
-		   tree (WB-Seq-Tree-From-Vector
-			  (make-array (- idx size) :initial-element (seq-default s)))))
+      (setq tree (call-selected WB-Seq-Tree-Concat WB-HT-Seq-Tree-Concat tree
+				(WB-Seq-Tree-Fill (- idx size) (seq-default s))))
       (setq size idx))
-    (make-wb-seq (WB-Seq-Tree-Insert tree idx val)
+    (make-wb-seq (call-selected WB-Seq-Tree-Insert WB-HT-Seq-Tree-Insert tree idx val)
 		 (seq-default s))))
 
-(defmethod splice ((s wb-seq) idx subseq)
+(define-wb-seq-method splice ((s wb-seq) idx subseq)
   (let ((tree (wb-seq-contents s))
-	((size (WB-Seq-Tree-Size tree)))
+	((size (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size tree)))
 	(subseq-tree (wb-seq-contents (convert 'wb-seq subseq))))
     (when (< idx 0)
       (when (eq (seq-default s) 'no-default)
 	(error 'fset2:seq-bounds-error :seq s :index idx))
-      (setq tree (WB-Seq-Tree-Concat
-		   (WB-Seq-Tree-From-Vector
-		     (make-array (- idx) :initial-element (seq-default s)))
-		   tree))
+      (setq tree (WB-Seq-Tree-Concat (WB-Seq-Tree-Fill (- idx) (seq-default s))
+				     tree))
       (setq idx 0))
     (when (> idx size)
       (when (eq (seq-default s) 'no-default)
 	(error 'fset2:seq-bounds-error :seq s :index idx))
-      (setq tree (WB-Seq-Tree-Concat
-		   tree (WB-Seq-Tree-From-Vector
-			  (make-array (- idx size) :initial-element (seq-default s))))))
-    (make-wb-seq (WB-Seq-Tree-Concat (WB-Seq-Tree-Concat (WB-Seq-Tree-Subseq tree 0 idx)
-							 subseq-tree)
-				     (WB-Seq-Tree-Subseq tree idx (WB-Seq-Tree-Size tree)))
+      (setq tree (WB-Seq-Tree-Concat tree (WB-Seq-Tree-Fill (- idx size) (seq-default s)))))
+    ;; `subseq-tree' could be an HT tree.
+    (make-wb-seq (WB-HT-Seq-Tree-Concat (WB-HT-Seq-Tree-Concat (WB-Seq-Tree-Subseq tree 0 idx) subseq-tree)
+					(WB-Seq-Tree-Subseq tree idx (WB-Seq-Tree-Size tree)))
 		 (seq-default s))))
 
-(defmethod less ((s wb-seq) idx &optional (arg2 nil arg2?))
+(define-wb-seq-method less ((s wb-seq) idx &optional (arg2 nil arg2?))
   (declare (ignore arg2))
   (check-two-arguments arg2? 'less 'wb-seq)
   (let ((tree (wb-seq-contents s))
-	((size (WB-Seq-Tree-Size tree))))
+	((size (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size
+			      tree))))
     (if (and (>= idx 0) (< idx size))
-	(make-wb-seq (WB-Seq-Tree-Remove tree idx) (seq-default s))
+	(make-wb-seq (call-selected WB-Seq-Tree-Remove WB-HT-Seq-Tree-Remove
+				    tree idx)
+		     (seq-default s))
       s)))
 
-(define-methods (concat fset2:concat) ((s1 seq) &rest seqs)
+(defmethod concat ((s1 seq) &rest seqs)
   (let ((tree (wb-seq-contents s1)))
     (dolist (seq seqs)
-      (setq tree (WB-Seq-Tree-Concat tree (wb-seq-contents (convert 'seq seq)))))
+      (setq tree (WB-HT-Seq-Tree-Concat tree (wb-seq-contents (convert 'seq seq)))))
     (make-wb-seq tree (seq-default s1))))
 
-(defmethod subseq ((s wb-seq) start &optional end)
+(define-wb-seq-method subseq ((s wb-seq) start &optional end)
   (let ((tree (wb-seq-contents s))
-	((size (WB-Seq-Tree-Size tree))
+ 	((size (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size tree))
 	 ((start (max 0 start))
 	  (end (if end (min end size) size)))))
     (if (and (= start 0) (= end size))
 	s
-      (make-wb-seq (WB-Seq-Tree-Subseq tree start end)
+      (make-wb-seq (call-selected WB-Seq-Tree-Subseq WB-HT-Seq-Tree-Subseq tree start end)
 		   (seq-default s)))))
 
-(defmethod reverse ((s wb-seq))
-  (make-wb-seq (WB-Seq-Tree-Reverse (wb-seq-contents s))
+(define-wb-seq-method reverse ((s wb-seq))
+  (make-wb-seq (call-selected WB-Seq-Tree-Reverse WB-HT-Seq-Tree-Reverse (wb-seq-contents s))
 	       (seq-default s)))
 
 (defmethod sort ((s wb-seq) pred &key key)
@@ -5167,13 +5244,13 @@ This is the default implementation of seqs in FSet."
   (with-default (convert 'seq (cl:stable-sort (convert 'vector s) pred :key key))
 		(seq-default s)))
 
-(defmethod domain ((s wb-seq))
+(define-wb-seq-method domain ((s wb-seq))
   (let ((result nil))
     (dotimes (i (size s))
       (setq result (WB-Set-Tree-With result i #'compare)))
     (make-wb-set result)))
 
-(defmethod range ((s wb-seq))
+(define-wb-seq-method range ((s wb-seq))
   (convert 'set s))
 
 (defmethod convert ((to-type (eql 'list)) (s wb-seq) &key)
@@ -5182,8 +5259,23 @@ This is the default implementation of seqs in FSet."
 (defmethod convert ((to-type (eql 'vector)) (s wb-seq) &key)
   (WB-Seq-Tree-To-Vector (wb-seq-contents s)))
 
+(define-condition non-char-seq-error (error)
+    ((seq :initarg :seq :reader non-char-seq-error-seq))
+  (:report (lambda (ncse stream)
+	     (let ((*print-length* 8)
+		   (*print-level* 3))
+	       (format stream "Cannot convert seq to string; it contains non-characters:~%~S"
+		       (non-char-seq-error-seq ncse))))))
+
 (defmethod convert ((to-type (eql 'string)) (s wb-seq) &key)
+  (unless (char-seq? s)
+    (error 'non-char-seq-error :seq s))
   (WB-Seq-Tree-To-String (wb-seq-contents s)))
+
+(defmethod convert ((to-type (eql 'base-string)) (s wb-seq) &key)
+  (unless (char-seq? s)
+    (error 'non-char-seq-error :seq s))
+  (WB-Seq-Tree-To-String (wb-seq-contents s) 'base-char))
 
 (define-convert-methods (seq fset2:seq) ((s seq) &key)
   s)
@@ -5278,7 +5370,8 @@ This is the default implementation of seqs in FSet."
     result))
 
 (defmethod compare-lexicographically ((s1 wb-seq) (s2 wb-seq) &key (val-compare-fn #'compare))
-  (WB-Seq-Tree-Compare-Lexicographically (wb-seq-contents s1) (wb-seq-contents s2) val-compare-fn))
+  (WB-Seq-Tree-Compare (wb-seq-contents s1) (wb-seq-contents s2) val-compare-fn
+		       :lexicographic? t))
 
 (defgeneric internal-do-seq (seq elt-fn value-fn index?
 				 &key start end from-end?)
@@ -5318,6 +5411,19 @@ not symbols."))
   (if from-end?
       (WB-Seq-Tree-Rev-Fun-Iter (wb-seq-contents s))
     (WB-Seq-Tree-Fun-Iter (wb-seq-contents s))))
+
+(defgeneric internal-do-seq-chunks (seq vec-fn value-fn)
+  (:documentation
+    "Internally, a seq is represented as a tree whose leaves are vectors, each
+either a `simple-vector' or a `simple-string'.  Calls `vec-fn' on successive
+vectors of `seq'.  When done, calls `value-fn' on no arguments and returns the
+result(s).  This is called by `do-seq-chunks' to provide for the possibility of
+different seq implementations; it is not for public use.  `vec-fn' and
+`value-fn' must be function objects, not symbols."))
+
+(defmethod internal-do-seq-chunks (seq vec-fn value-fn)
+  (Do-WB-Seq-Tree-Leaves (v (wb-seq-contents seq) (funcall value-fn))
+    (funcall vec-fn v)))
 
 (defmethod domain-contains? ((s seq) x)
   (and (integerp x) (>= x 0) (< x (size s))))
@@ -5405,38 +5511,42 @@ not symbols."))
 
 (defmethod image ((fn function) (s seq) &key)
   (seq-image fn s (seq-default s)))
-(defmethod fset2:image ((fn function) (s seq) &key (default nil default?) no-default?)
-  (seq-image fn s (fset2-default default? default no-default?)))
+(defmethod fset2:image ((fn function) (s seq) &key)
+  (seq-image fn s (let ((dflt (seq-default s)))
+		    (if (eq dflt 'no-default) dflt
+		      (funcall fn dflt)))))
 
 (defmethod image ((fn symbol) (s seq) &key)
   (seq-image (coerce-to-function fn) s (seq-default s)))
-(defmethod fset2:image ((fn symbol) (s seq) &key (default nil default?) no-default?)
-  (seq-image (coerce-to-function fn) s (fset2-default default? default no-default?)))
+(defmethod fset2:image ((fn symbol) (s seq) &key)
+  (let ((fn (coerce-to-function fn)))
+    (seq-image fn s (let ((dflt (seq-default s)))
+		      (if (eq dflt 'no-default) dflt
+			(funcall fn dflt))))))
 
 (defmethod image ((fn map) (s seq) &key)
   (seq-image #'(lambda (x) (lookup fn x)) s (seq-default s)))
-(defmethod fset2:image ((fn map) (s seq) &key (default nil default?) no-default?)
-  (seq-image #'(lambda (x) (fset2:lookup fn x)) s (fset2-default default? default no-default?)))
+(defmethod fset2:image ((fn map) (s seq) &key)
+  (seq-image #'(lambda (x) (fset2:lookup fn x)) s (let ((dflt (seq-default s)))
+						    (if (eq dflt 'no-default) dflt
+						      (fset2:lookup fn (seq-default s))))))
 
 (defmethod image ((fn set) (s seq) &key)
   (seq-image #'(lambda (x) (lookup fn x)) s (seq-default s)))
-(defmethod fset2:image ((fn set) (s seq) &key (default nil default?) no-default?)
-  (seq-image #'(lambda (x) (fset2:lookup fn x)) s (fset2-default default? default no-default?)))
+(defmethod fset2:image ((fn set) (s seq) &key)
+  (seq-image #'(lambda (x) (fset2:lookup fn x)) s (let ((dflt (seq-default s)))
+						    (if (eq dflt 'no-default) dflt
+						      (fset2:lookup fn (seq-default s))))))
 
 (defmethod image ((fn bag) (s seq) &key)
   (seq-image #'(lambda (x) (lookup fn x)) s (seq-default s)))
-(defmethod fset2:image ((fn bag) (s seq) &key (default nil default?) no-default?)
-  (seq-image #'(lambda (x) (fset2:lookup fn x)) s (fset2-default default? default no-default?)))
+(defmethod fset2:image ((fn bag) (s seq) &key)
+  (seq-image #'(lambda (x) (fset2:lookup fn x)) s (let ((dflt (seq-default s)))
+						    (if (eq dflt 'no-default) dflt
+						      (fset2:lookup fn (seq-default s))))))
 
 (defun seq-image (fn s default)
-  (declare (optimize (speed 3) (safety 0))
-	   (type function fn))
-  ;; This is not bad, but we could do better by walking the tree of `s' and building
-  ;; the result in the same shape.
-  (let ((result nil))
-    (do-seq (x s)
-      (push (funcall fn x) result))
-    (make-wb-seq (WB-Seq-Tree-From-List (nreverse result)) default)))
+  (make-wb-seq (WB-HT-Seq-Tree-Image (wb-seq-contents s) fn) default))
 
 (defmethod reduce ((fn function) (s seq)
 		   &key key (initial-value nil init?)
@@ -5650,7 +5760,7 @@ not symbols."))
 	       (funcall test olditem (if key (funcall key x) x)))
 	  (progn (push newitem mid) (decf count))
 	(push x mid)))
-    (concat head (concat (convert 'seq (if from-end mid (nreverse mid)))
+    (concat head (concat (convert 'seq mid :reverse? (not from-end))
 			 tail))))
 
 (defmethod substitute-if (newitem pred (s seq) &key key start end from-end count)
@@ -5669,7 +5779,7 @@ not symbols."))
 	       (funcall pred (if key (funcall key x) x)))
 	  (progn (push newitem mid) (decf count))
 	(push x mid)))
-    (concat head (concat (convert 'seq (if from-end mid (nreverse mid)))
+    (concat head (concat (convert 'seq mid :reverse? (not from-end))
 			 tail))))
 
 (defmethod substitute-if-not (newitem pred (s seq) &key key start end from-end count)
@@ -5678,17 +5788,163 @@ not symbols."))
     (substitute-if newitem #'(lambda (x) (not (funcall pred x))) s
 		   :key key :start start :end end :from-end from-end :count count)))
 
+;;; TIL!  "Quaesitum" is Latin for "thing to be searched for".
+(defmethod search (quaesitum (in-seq seq) &key from-end test key (start1 0) (start2 0) end1 end2)
+  (declare (optimize (speed 3) (safety 1))
+	   (fixnum start1 start2))
+  (let ((quaesitum (convert 'seq quaesitum))
+	(test (if test (coerce-to-function test) #'equal?))
+	(key (and key (coerce-to-function key)))
+	(q-size (size quaesitum))
+	(s-size (size in-seq))
+	((end1 (or end1 q-size))
+	 (end2 (or end2 s-size))))
+    (declare (fixnum q-size s-size end1 end2))
+    (unless (and (<= 0 start1 q-size) (<= 0 start2 s-size)
+		 (<= 0 end1 q-size) (<= 0 end2 s-size))
+      (error "One of `start1', `end1', `start2', or `end2' is out of bounds: ~D, ~D, ~D, ~D"
+	     start1 end1 start2 end2))
+    (flet ((apply-key (x)
+	     (muffle-notes  ; `split-cases' will cause unreachable code, as intended.
+	       (if key (funcall key x) x))))
+      (declare (inline apply-key))
+      (if (not from-end)
+	  (if (<= end1 start1)
+	      start2
+	    (split-cases key
+	      (let ((q-it (the function (iterator quaesitum :start start1 :end end1))))
+		(loop
+		  (let ((q-elt (apply-key (funcall q-it ':get)))
+			(match-started? nil))
+		    (Do-WB-Seq-Tree-Members-Gen (seq-elt (wb-seq-contents in-seq) start2 end2 nil)
+		      (when (> (the fixnum (+ start2 q-size)) end2)
+			(return-from search nil))
+		      (if (funcall test q-elt (apply-key seq-elt))
+			  (if (funcall q-it ':done?)
+			      (return-from search (the fixnum start2))
+			    (setq q-elt (apply-key (funcall q-it ':get))
+				  match-started? t))
+			(progn
+			  (incf start2)
+			  (when match-started?
+			    (funcall q-it ':reset)
+			    (return))))))))))  ; exits inner loop
+	(if (<= end1 start1)
+	    end2
+	  (split-cases key
+	    (let ((q-it (the function (iterator quaesitum :start start1 :end end1 :from-end? t))))
+	      (loop
+		(let ((q-elt (apply-key (funcall q-it ':get)))
+		      (match-started? nil))
+		  (Do-WB-Seq-Tree-Members-Gen (seq-elt (wb-seq-contents in-seq) start2 end2 t)
+		    (when (< (the fixnum (- end2 q-size)) start2)
+		      (return-from search nil))
+		    (if (funcall test q-elt (apply-key seq-elt))
+			(if (funcall q-it ':done?)
+			    (return-from search (the fixnum (- end2 q-size)))
+			  (setq q-elt (apply-key (funcall q-it ':get))
+				match-started? t))
+		      (progn
+			(decf end2)
+			(when match-started?
+			  (funcall q-it ':reset)
+			  (return))))))))))))))
+
+(defmethod mismatch ((sequence-1 seq) sequence-2 &key from-end test key (start1 0) (start2 0) end1 end2)
+  (declare (optimize (speed 3) (safety 1))
+	   (fixnum start1 start2))
+  (let ((test (if test (coerce-to-function test) #'equal?))
+	(key (and key (coerce-to-function key)))
+	(sequence-2 (convert 'seq sequence-2))
+	((size-1 (size sequence-1))
+	 (size-2 (size sequence-2))
+	 ((end1 (or end1 size-1))
+	  (end2 (or end2 size-2)))))
+    (declare (fixnum size-1 size-2 end1 end2))
+    (unless (and (<= 0 start1 size-1) (<= 0 start2 size-2)
+		 (<= 0 end1 size-1) (<= 0 end2 size-2))
+      (error "One of `start1', `end1', `start2', or `end2' is out of bounds: ~D, ~D, ~D, ~D"
+	     start1 end1 start2 end2))
+    (flet ((apply-key (x)
+	     (muffle-notes  ; `split-cases' will cause unreachable code, as intended.
+	       (if key (funcall key x) x))))
+      (if (or (<= end1 start1) (<= end2 start2))
+	      0
+	(if (not from-end)
+	    (split-cases key
+	      (let ((it-1 (the function (iterator sequence-1 :start start1 :end end1)))
+		    (it-2 (the function (iterator sequence-2 :start start2 :end end2)))
+		    (idx start1))
+		(declare (fixnum idx))
+		(loop
+		  (when (or (funcall it-1 ':done?) (funcall it-2 ':done?))
+		    (return nil))
+		  (let ((elt-1 (apply-key (funcall it-1 ':get)))
+			(elt-2 (apply-key (funcall it-2 ':get))))
+		    (unless (funcall test elt-1 elt-2)
+		      (return idx)))
+		  (incf idx))))
+	  (split-cases key
+	    (let ((it-1 (the function (iterator sequence-1 :start start1 :end end1 :from-end? t)))
+		  (it-2 (the function (iterator sequence-2 :start start2 :end end2 :from-end? t)))
+		  (idx end1))
+	      (declare (fixnum idx))
+	      (loop
+		(when (or (funcall it-1 ':done?) (funcall it-2 ':done?))
+		  (return nil))
+		(let ((elt-1 (apply-key (funcall it-1 ':get)))
+		      (elt-2 (apply-key (funcall it-2 ':get))))
+		  (unless (funcall test elt-1 elt-2)
+		    (return idx)))
+		(decf idx)))))))))
+
+(defmethod mismatch (sequence-1 (sequence-2 seq) &rest keyword-args)
+  (apply #'mismatch (convert 'seq sequence-1) sequence-2 keyword-args))
+
+
 (defun print-wb-seq (seq stream level)
   (declare (ignore level))
-  (pprint-logical-block (stream nil :prefix "#["
-				    :suffix (let ((dflt (seq-default seq)))
-					      (format nil " ]~:[/~A~;~]"
-						      (eq dflt 'no-default) dflt)))
-    (do-seq (x seq)
-      (pprint-pop)
-      (write-char #\Space stream)
-      (pprint-newline :linear stream)
-      (write x :stream stream))))
+  (flet ((print-as-string (prefix seq stream)
+	   (write-string prefix stream)
+	   (write-char #\" stream)
+	   (do-seq (c seq)
+	     (when (or (eql c #\\) (eql c #\"))
+	       (write-char #\\ stream))
+	     (write-char c stream))
+	   (write-char #\" stream)))
+    (if (char-seq? seq)
+	(if (or *print-readably* *print-escape*)
+	    (print-as-string "#" seq stream)
+	  ;; Probably faster than writing individual characters.
+	  (do-seq-chunks (s seq)
+	    (write-string s stream)))
+      (pprint-logical-block (stream nil :prefix "#["
+					:suffix (let ((dflt (seq-default seq)))
+						  (format nil " ]~:[/~S~;~]"
+							  (eq dflt 'no-default) dflt)))
+	(let ((chars (empty-seq)))
+	  (labels ((print-thing (x)
+		     (pprint-pop)
+		     (write-char #\Space stream)
+		     (pprint-newline ':fill stream)
+		     (write x :stream stream))
+		   (print-chars ()
+		     (if (>= (size chars) 2)
+			 (progn
+			   (pprint-pop)
+			   (write-char #\Space stream)
+			   (pprint-newline ':fill stream)
+			   (print-as-string "#$" chars stream))
+		       (do-seq (x chars)
+			 (print-thing x)))
+		     (setq chars (empty-seq))))
+	    (do-seq (x seq)
+	      (if (characterp x)
+		  (push-last chars x)
+		(progn
+		  (print-chars)
+		  (print-thing x))))
+	    (print-chars)))))))
 
 (defmethod make-load-form ((s wb-seq) &optional environment)
   (declare (ignore environment))
@@ -5723,6 +5979,12 @@ not symbols."))
 
 (defmethod convert ((to-type (eql 'vector)) (l list) &key)
   (coerce l 'vector))
+
+(defmethod convert ((to-type (eql 'string)) (s sequence) &key)
+  (coerce s 'string))
+
+(defmethod convert ((to-type (eql 'base-string)) (s sequence) &key)
+  (coerce s 'base-string))
 
 (defmethod convert ((to-type (eql 'list)) (s sequence) &key)
   (coerce s 'list))

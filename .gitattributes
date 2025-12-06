@@ -1,1 +1,1 @@
-*.lisp diff=lisp
+*.lisp diff=scheme

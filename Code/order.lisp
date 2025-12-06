@@ -23,6 +23,12 @@ and no more than one of A and B can compare `:equal' to C."))
   (or (eql a b)
       (eq (compare a b) ':equal)))
 
+(defun invert-comparison (comp)
+  (ecase comp
+    (:less ':greater)
+    (:greater ':less)
+    ((:equal :unequal) comp)))
+
 (defun eql-compare (a b)
   "This simple comparison function returns `:equal' if the arguments are `eql',
 otherwise `:unequal'.  It might occasionally be useful as a value comparator

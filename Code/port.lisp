@@ -454,21 +454,21 @@ fixnums; the result is a fixnum."
 ;;; routines without all those compiler notes from CMUCL, SBCL, or Scieneer
 ;;; CL.
 (defmacro gen (op &rest args)
+  ;; Bind nontrivial arguments to variables so `op' is the only operation affected.
   (let ((vars (mapcar (lambda (x) (and (not (or (symbolp x) (numberp x)))
 				       (gensym "VAR-")))
 		      args)))
     `(let ,(cl:remove nil (mapcar (lambda (var arg)
 				    (and var `(,var ,arg)))
 				  vars args))
-       (locally (declare (optimize (speed 1) (safety 1)))
+       (locally (declare #+sbcl (sb-ext:muffle-conditions sb-ext:compiler-note)
+			 #-sbcl (optimize (speed 1) (safety 1)))  ; is this needed?
 	 (,op . ,(mapcar (lambda (var arg) (or var arg))
 			 vars args))))))
 
-(defmacro without-optimization (&body body)
-  "Turns off optimization, and thus the compiler's complaints when it can't."
-  `(locally (declare (optimize (speed 1) (safety 1)))
+(defmacro muffle-notes (&body body)
+  `(locally (declare #+sbcl (sb-ext:muffle-conditions sb-ext:compiler-note))
      . ,body))
-
 
 ;;; This little oddity exists because of a limitation in the SBCL/CMUCL compiler.
 ;;; Given a call to `length' on type `(or null simple-vector)', it isn't quite

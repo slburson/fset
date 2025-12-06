@@ -11,7 +11,7 @@
 
 ;;; Both FSet and Iterate export a `with', and we would prefer not to write a package prefix
 ;;; on either of them.  Fortunately, we can have this particular piece of cake and eat it too,
-;;; because Iterate doesn't fdefine `with'; it defines it as a clause. We can force Iterate to
+;;; because Iterate doesn't fdefine `with'; it defines it as a clause.  We can force Iterate to
 ;;; treat `fset:with` as a special form, superseding clause dispatch, and decide based on whether
 ;;; we are at the top level to expand into a binding or a function call.
 
@@ -35,8 +35,20 @@
     (setq *loop-end-used?* t)
     (return-driver-code :next (list test setqs) :variable var)))
 
+;;; I don't know what I was thinking, calling this `in-iterator', since it doesn't take
+;;; an iterator, but rather a collection on which `iterator' will be called.
 (defclause-driver (for var in-iterator x)
-  "Elements of any FSet iterator."
+  "Elements of any FSet iterator.  Deprecated; use `in-collection'."
+  (top-level-check)
+  (let ((iter-var (make-var-and-binding 'iter `(iterator ,x)))
+	((setqs (do-dsetq var `(funcall ,iter-var ':get)))
+	 (test `(when (funcall ,iter-var ':done?) (go ,*loop-end*)))))
+    (setq *loop-end-used?* t)
+    (return-driver-code :next (list test setqs) :variable var)))
+
+(defclause-driver (for var in-collection x)
+  "Elements or pairs of any collection.  There must be an `fset:iterator' method
+on it which returns an object that conforms to the FSet iterator protocol."
   (top-level-check)
   (let ((iter-var (make-var-and-binding 'iter `(iterator ,x)))
 	((setqs (do-dsetq var `(funcall ,iter-var ':get)))

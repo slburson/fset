@@ -33,6 +33,24 @@ constant."
     `(multiple-value-bind ,vars ,expr
        (values . ,vars))))
 
+(defmacro split-cases (pred &body body)
+  "Useful when `body' can be optimized differently based on the value
+of `pred'."
+  `(if ,pred (progn . ,body)
+     (progn . ,body)))
+
+(defmacro split-cases-on-var ((var . values) &body body)
+  "For each of `values', if `var' is `eql' to it, binds it to that value
+around `body'.  The `values' are unevaluated constants.  Useful when `body'
+can be optimized differently depending on the value of `var'."
+  (if (null (cdr values))
+      `(let ((,var ',(car values)))
+	 . ,body)
+    `(if (eql ,var ',(car values))
+	 (let ((,var ',(car values)))
+	   . ,body)
+       (split-cases-on-var (,var . ,(cdr values)) . ,body))))
+
 
 ;;; ================================================================================
 ;;; Macros related to order.lisp
@@ -747,6 +765,16 @@ iteration to the index of the current element of `seq'.  When done, returns
 			,@(and end? `(:end ,end))
 			,@(and from-end?? `(:from-end? ,from-end?))))))
 
+(defmacro do-seq-chunks ((var seq &optional value) &body body)
+  "Internally, a seq is represented as a tree whose leaves are vectors, each
+either a `simple-vector' or a `simple-string'.  For each such vector in left-
+to-right order, binds `var' to it and executes `body'."
+  `(block nil
+     (let ((vec-fn (fn (,var) . ,body))
+	   (value-fn (fn () ,value)))
+       (declare (dynamic-extent vec-fn value-fn))
+       (internal-do-seq-chunks ,seq vec-fn value-fn))))
+
 (defmacro do-2-relation ((key val br &optional value) &body body)
   "Enumerates all pairs of the relation `br', binding them successively to `key' and `val'
 and executing `body'."
@@ -1196,14 +1224,13 @@ Also note that `filterp', if supplied, must take two arguments."
 ;;; ----------------
 ;;; Seqs
 
-(gmap:def-gmap-arg-type seq (seq &key start end from-end?)
-  "Yields the elements of `seq'.  The keyword arguments `start' and `end'
-can be supplied to restrict the range of the iteration; `start' is inclusive
-and defaults to 0, while `end' is exclusive and defaults to the size of the
-seq.  If `from-end?' is true, the elements will be yielded in reverse order."
-  `((the function (iterator ,seq :start ,start :end ,end :from-end? ,from-end?))
-    #'(lambda (it) (funcall it ':done?))
-    #'(lambda (it) (funcall it ':get))))
+(gmap:def-arg-type-synonym seq wb-seq)
+
+(gmap:def-arg-type-synonym fset2:seq wb-seq)
+;;; Grandfather in the old syntax
+(gmap:def-arg-type-synonym :seq wb-seq)
+
+(gmap:def-arg-type-synonym fset2:wb-seq wb-seq)
 
 (gmap:def-arg-type-synonym fset2:seq seq)
 
@@ -1214,19 +1241,27 @@ and defaults to 0, while `end' is exclusive and defaults to the size of the
 seq.  If `from-end?' is true, the elements will be yielded in reverse order."
   (let ((seq-var (gensymx #:seq-)))
     (cond ((null from-end?)
-	   `((Make-WB-Seq-Tree-Iterator-Internal (wb-seq-contents ,seq-var) ,start ,end)
-	      #'WB-Seq-Tree-Iterator-Done?
-	      #'WB-Seq-Tree-Iterator-Get
-	      nil ((,seq-var ,seq)) nil
-	      (Do-WB-Seq-Tree-Members-Gen (wb-seq-contents ,seq-var)
-		(or ,start 0) (or ,end (size ,seq-var)) nil)))
+	   (let ((tree-var (gensymx #:tree-)))
+	     `((Make-WB-Seq-Tree-Iterator-Internal ,tree-var ,start ,end)
+	       #'WB-Seq-Tree-Iterator-Done?
+	       #'WB-Seq-Tree-Iterator-Get
+	       nil
+	       ((,seq-var ,seq)
+		((,tree-var (WB-Seq-Tree-Canonicalize-Down-Unbalanced (wb-seq-contents ,seq-var)))))
+	       nil
+	       (Do-WB-Seq-Tree-Members-Gen ,tree-var
+		 ,(or start 0) ,(or end `(size ,seq-var)) nil))))
 	  ((eq from-end? 't)
-	   `((Make-WB-Seq-Tree-Rev-Iterator-Internal (wb-seq-contents ,seq-var) ,start ,end)
-	      #'WB-Seq-Tree-Rev-Iterator-Done?
-	      #'WB-Seq-Tree-Rev-Iterator-Get
-	      nil ((,seq-var ,seq)) nil
-	      (Do-WB-Seq-Tree-Members-Gen (wb-seq-contents ,seq-var)
-		(or ,start 0) (or ,end (size ,seq-var)) t)))
+	   (let ((tree-var (gensymx #:tree-)))
+	     `((Make-WB-Seq-Tree-Rev-Iterator-Internal ,tree-var ,start ,end)
+	       #'WB-Seq-Tree-Rev-Iterator-Done?
+	       #'WB-Seq-Tree-Rev-Iterator-Get
+	       nil
+	       ((,seq-var ,seq)
+		((,tree-var (WB-Seq-Tree-Canonicalize-Down-Unbalanced (wb-seq-contents ,seq-var)))))
+	       nil
+	       (Do-WB-Seq-Tree-Members-Gen ,tree-var
+		 (or ,start 0) (or ,end (size ,seq-var)) t))))
 	  (t
 	   ;; Can't do much better than this if we don't statically know the direction.
 	   `((the function (iterator ,seq :start ,start :end ,end :from-end? ,from-end?))
@@ -1258,10 +1293,6 @@ seq.  If `from-end?' is true, the elements will be yielded in reverse order."
 (gmap:def-result-type concat (&key filterp)
   "Returns the concatenation of the seq values, optionally filtered by `filterp'."
   `((empty-seq) #'concat nil ,filterp))
-
-(gmap:def-result-type fset2:concat (&key filterp)
-  "Returns the concatenation of the seq values, optionally filtered by `filterp'."
-  `((fset2:empty-seq) #'fset2:concat nil ,filterp))
 
 ;;; ----------------
 ;;; Tuples
@@ -1541,47 +1572,32 @@ the iteration order."
   `(eq (funcall ,cmp-fn ,a ,b) ':greater))
 
 (defmacro define-wb-set-method (name param-list &body body)
-  (let ((decls nil)
-	(doc-string body (if (stringp (car body)) (values (car body) (cdr body))
-			   (values nil body))))
-    (while (and (listp (car body)) (eq (caar body) 'declare))
-      (push (pop body) decls))
-    (setq decls (nreverse decls))
-    (flet ((mod-param-list (new-class)
-	     (do ((param-list param-list (cdr param-list))
-		  (new-pl nil))
-		 ((or (null param-list) (member (car param-list) '(&optional &key &rest)))
-		  (revappend new-pl param-list))
-	       (let ((plelt (car param-list)))
-		 (push (if (and (listp plelt) (eq (cadr plelt) 'wb-set))
-			   `(,(car plelt) ,new-class)
-			 plelt)
-		       new-pl)))))
-      `(progn
-	 (defmethod ,name ,(mod-param-list 'wb-default-set)
-	   ,@(and doc-string (list doc-string))
-	   ,@decls
-	   (macrolet ((contents (coll)
-			`(wb-set-contents ,coll))
-		      (compare-fn (coll)
-			(declare (ignore coll))
-			'#'compare)
-		      ;; Done this way so we don't get unreachable-code warnings for the `else' branch.
-		      (if-same-compare-fns ((coll1 coll2) then else)
+  (let ((doc-string decls body (parse-body body)))
+    `(progn
+       (defmethod ,name ,(change-specializer-class param-list 'wb-set 'wb-default-set)
+	 ,@(and doc-string (list doc-string))
+	 ,@decls
+	 (macrolet ((contents (coll)
+		      `(wb-set-contents ,coll))
+		    (compare-fn (coll)
+		      (declare (ignore coll))
+		      '#'compare)
+		    ;; Done this way so we don't get unreachable-code warnings for the `else' branch.
+		    (if-same-compare-fns ((coll1 coll2) then else)
 			(declare (ignore coll1 coll2 else))
-			then)
-		      (make (like-coll contents)
-			(declare (ignore like-coll))
-			`(make-wb-set ,contents)))
-	     . ,body))
-	 (defmethod ,name ,(mod-param-list 'wb-custom-set)
-	   ,@(and doc-string (list doc-string))
-	   ,@decls
-	   (macrolet ((contents (coll)
-			`(wb-custom-set-contents ,coll))
-		      (compare-fn (coll)
-			`(wb-set-compare-fn ,coll))
-		      (if-same-compare-fns ((coll1 coll2) then else)
+		      then)
+		    (make (like-coll contents)
+		      (declare (ignore like-coll))
+		      `(make-wb-set ,contents)))
+	   . ,body))
+       (defmethod ,name ,(change-specializer-class param-list 'wb-set 'wb-custom-set)
+	 ,@(and doc-string (list doc-string))
+	 ,@decls
+	 (macrolet ((contents (coll)
+		      `(wb-custom-set-contents ,coll))
+		    (compare-fn (coll)
+		      `(wb-set-compare-fn ,coll))
+		    (if-same-compare-fns ((coll1 coll2) then else)
 		        ;; I originally thought I would compare the names instead of the function objects.
 			;; That would have had the advantage that merely recompiling the function without
 			;; changing it (as tends to happen during development) would still allow use of
@@ -1593,14 +1609,56 @@ the iteration order."
 				 (wb-set-compare-fn ,coll2))
 			     ,then
 			   ,else))
-		      (make (like-coll contents)
-			`(make-wb-custom-set ,contents (wb-custom-set-org ,like-coll))))
-	     . ,body))))))
+		    (make (like-coll contents)
+		      `(make-wb-custom-set ,contents (wb-custom-set-org ,like-coll))))
+	   . ,body)))))
 
-(defmacro define-wb-set-methods (methods parameter-list &body body)
+(defmacro define-wb-set-methods (methods param-list &body body)
   `(progn . ,(mapcar (fn (method)
-		       `(define-wb-set-method ,method ,parameter-list . ,body))
+		       `(define-wb-set-method ,method ,param-list . ,body))
 		     methods)))
+
+(defmacro define-wb-seq-method (name param-list &body body)
+  (let ((doc-string decls body (parse-body body)))
+    `(progn
+       (defmethod ,name ,param-list
+	 ,@(and doc-string (list doc-string))
+	 ,@decls
+	 (macrolet ((call-selected (norm-fn ht-fn &rest args)
+		      (declare (ignore ht-fn))
+		      `(,norm-fn . ,args)))
+	   . ,body))
+       (defmethod ,name ,(change-specializer-class param-list 'wb-seq 'wb-ht-seq)
+	 ,@(and doc-string (list doc-string))
+	 ,@decls
+	 (macrolet ((call-selected (norm-fn ht-fn &rest args)
+		      (declare (ignore norm-fn))
+		      `(,ht-fn . ,args)))
+	   . ,body)))))
+
+(defmacro define-wb-seq-methods (methods param-list &body body)
+  `(progn . ,(mapcar (fn (method)
+		       `(define-wb-seq-method ,method ,param-list . ,body))
+		     methods)))
+
+(defun parse-body (body)
+  (let ((decls nil)
+	(doc-string body (if (stringp (car body)) (values (car body) (cdr body))
+			   (values nil body))))
+    (while (and (listp (car body)) (eq (caar body) 'declare))
+      (push (pop body) decls))
+    (values doc-string (nreverse decls) body)))
+
+(defun change-specializer-class (param-list from-class to-class)
+  (do ((param-list param-list (cdr param-list))
+       (new-pl nil))
+      ((or (null param-list) (member (car param-list) '(&optional &key &rest)))
+       (revappend new-pl param-list))
+    (let ((plelt (car param-list)))
+      (push (if (and (listp plelt) (eq (cadr plelt) from-class))
+		`(,(car plelt) ,to-class)
+	      plelt)
+	    new-pl))))
 
 (defmacro if-same-ch-set-orgs ((s1 s2 hsorg-var) then else)
   (let ((s1-var (gensymx #:s1-))

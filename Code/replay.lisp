@@ -294,7 +294,7 @@ result is that of `s1', filtered by membership in `s2'."
     (do-set (x set)
       (pprint-pop)
       (write-char #\Space stream)
-      (pprint-newline :linear stream)
+      (pprint-newline ':fill stream)
       (write x :stream stream))))
 
 
@@ -546,7 +546,7 @@ result is that of `s1', filtered by membership in `s2'."
     (do-set (x set)
       (pprint-pop)
       (write-char #\Space stream)
-      (pprint-newline :linear stream)
+      (pprint-newline ':fill stream)
       (write x :stream stream))))
 
 
@@ -858,6 +858,7 @@ or `no-default?' is true."
 	    (and (eq (tree-map-org-key-compare-fn tmorg1) (tree-map-org-key-compare-fn tmorg2))
 		 (eq (tree-map-org-val-compare-fn tmorg1) (tree-map-org-val-compare-fn tmorg2))))
 	(let ((key-compare-fn (tree-map-org-key-compare-fn tmorg1))
+	      (val-compare-fn (tree-map-org-val-compare-fn tmorg1))
 	      ((comp (wb-map-tree-compare (wb-replay-map-contents map1) (wb-replay-map-contents map2)
 					  key-compare-fn (tree-map-org-val-compare-fn tmorg1)))))
 	  (if (member comp '(:less :greater))
@@ -865,9 +866,12 @@ or `no-default?' is true."
 	    (let ((ord-comp (wb-seq-tree-compare (replay-map-ordering map1) (replay-map-ordering map2) key-compare-fn)))
 	      (if (member ord-comp '(:less :greater))
 		  ord-comp
-		(if (or (eq comp ':unequal) (eq ord-comp ':unequal))
-		    ':unequal
-		  ':equal)))))
+		(let ((def-comp (funcall val-compare-fn (map-default map1) (map-default map2))))
+		  (if (member def-comp '(:less :greater))
+		      def-comp
+		    (if (or (eq comp ':unequal) (eq ord-comp ':unequal) (eq def-comp ':unequal))
+			':unequal
+		      ':equal)))))))
       (let ((m1-kcfn-name (tree-map-org-key-compare-fn-name tmorg1))
 	    (m1-vcfn-name (tree-map-org-val-compare-fn-name tmorg1))
 	    (m2-kcfn-name (tree-map-org-key-compare-fn-name tmorg2))
@@ -934,7 +938,7 @@ or `no-default?' is true."
     (do-map (x y map)
       (pprint-pop)
       (write-char #\Space stream)
-      (pprint-newline :linear stream)
+      (pprint-newline ':fill stream)
       ;; There might be a map entry for 'quote or 'function...
       (let (#+sbcl (sb-pretty:*pprint-quote-with-syntactic-sugar* nil))
 	(write (list x y) :stream stream)))))
@@ -1271,7 +1275,7 @@ or `no-default?' is true."
     (do-map (x y map)
       (pprint-pop)
       (write-char #\Space stream)
-      (pprint-newline :linear stream)
+      (pprint-newline ':fill  stream)
       ;; There might be a map entry for 'quote or 'function...
       (let (#+sbcl (sb-pretty:*pprint-quote-with-syntactic-sugar* nil))
 	(write (list x y) :stream stream)))))
