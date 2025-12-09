@@ -27,7 +27,8 @@
 			  #:position #:position-if #:position-if-not
 			  #:remove #:remove-if #:remove-if-not
 			  #:substitute #:substitute-if #:substitute-if-not
-			  #:some #:every #:notany #:notevery)
+			  #:some #:every #:notany #:notevery
+			  #:search #:mismatch)
   (:shadowing-import-from :new-let #:let #:cond)
   (:import-from :iterate #:defclause #:defclause-driver
 		#:top-level-check #:local-binding-check #:check-sequence-keywords #:clause-error
@@ -58,6 +59,7 @@
 			  #:position #:position-if #:position-if-not
 			  #:remove #:remove-if #:remove-if-not
 			  #:substitute #:substitute-if #:substitute-if-not
-			  #:some #:every #:notany #:notevery)
+			  #:some #:every #:notany #:notevery
+			  #:search #:mismatch)
   (:shadowing-import-from :new-let #:let #:cond)
   (:shadowing-import-from :fset/iterate #:unioning))
