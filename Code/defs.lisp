@@ -84,7 +84,7 @@
 	   #:convert #:iterator
 	   #:do-set #:do-bag #:do-bag-pairs #:do-map #:do-map-domain #:do-seq #:do-tuple
 	   #:adjoinf #:removef #:includef #:excludef
-	   #:unionf #:intersectf #:set-differencef #:map-unionf #:map-intersectf #:imagef #:composef
+	   #:unionf #:intersectf #:set-differencef #:map-unionf #:map-intersectf #:imagef #:updatef #:composef
 	   #:define-tuple-key #:def-tuple-key #:get-tuple-key #:tuple-key-name #:tuple-key?
 	   #:tuple-merge
 	   #:fset-setup-readtable #:*fset-readtable*
@@ -221,7 +221,7 @@
 	   #:convert #:iterator
 	   #:do-set #:do-bag #:do-bag-pairs #:do-map #:do-map-domain #:do-seq #:do-tuple
 	   #:adjoinf #:removef #:includef #:excludef
-	   #:unionf #:intersectf #:set-differencef #:map-unionf #:map-intersectf #:imagef #:composef
+	   #:unionf #:intersectf #:set-differencef #:map-unionf #:map-intersectf #:imagef #:updatef #:composef
 	   #:define-tuple-key #:get-tuple-key #:tuple-key-name #:tuple-key?
 	   #:tuple-merge
 	   #:fset-setup-readtable #:*fset-readtable*
