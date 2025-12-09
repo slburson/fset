@@ -4432,7 +4432,7 @@
     (test (equal? (convert 'wb-map (wb-2-relation ('a 3) ('b 2) ('c 4)))
 		  (map ('a 3) ('b 2) ('c 4))))
     (test (equal? (convert 'map-to-sets (wb-2-relation ('a 3) ('a 5) ('b 3) ('c 4) ('c 8)))
-		  (map ('a (set 3 5)) ('b (set 3)) ('c (set 4 8)))))
+		  (map ('a (set 3 5)) ('b (set 3)) ('c (set 4 8)) :default (set))))
     (let ((conv (convert 'map-to-sets (wb-custom-2-relation 'compare 'int-compare
 							    ('a 3) ('a 5) ('b 3) ('c 4) ('c 8)))))
       (test (gmap :and (fn (k s) (equal? s (@ conv k)))
@@ -4599,7 +4599,7 @@
     (test (equal? (convert 'map (ch-2-relation ('a 3) ('b 2) ('c 4)))
 		  (ch-map ('a 3) ('b 2) ('c 4))))
     (test (equal? (convert 'map-to-sets (ch-2-relation ('a 3) ('a 5) ('b 3) ('c 4) ('c 8)))
-		  (ch-map ('a (ch-set 3 5)) ('b (ch-set 3)) ('c (ch-set 4 8)))))
+		  (ch-map ('a (ch-set 3 5)) ('b (ch-set 3)) ('c (ch-set 4 8)) :default (ch-set))))
 
     (test (equal? (conflicts (ch-2-relation ('a 3) ('a 5) ('b 3) ('c 4) ('c 8)))
 		  (ch-2-relation ('a 3) ('a 5) ('c 4) ('c 8))))
@@ -5155,7 +5155,7 @@
     (test (equal? (convert 'ch-map (bag (% 'a 7) 'b 'b 'c))
 		  (map ('a 7) ('b 2) ('c 1))))
     (test (equal? (convert 'seq (map (1 3) (2 10) :default 17))
-		  (seq '(1 . 3) '(2 . 10) :default 17)))
+		  (seq '(1 . 3) '(2 . 10))))
 
     ;; New defaulting semantics for `map-union', `map-intersection', `map-difference-2', and `compose'
     (let ((chm (map ('a 3)))
@@ -5350,9 +5350,9 @@
       (test (equal? (convert 'ch-map (ch-2-relation ('a 3) ('b 2) ('c 4)))
 		    (map ('a 3) ('b 2) ('c 4))))
       (test (equal? (convert 'map-to-sets (wb-2-relation ('a 3) ('a 5) ('b 3) ('c 4) ('c 8)))
-		    (wb-map ('a (wb-set 3 5)) ('b (wb-set 3)) ('c (wb-set 4 8)))))
+		    (wb-map ('a (wb-set 3 5)) ('b (wb-set 3)) ('c (wb-set 4 8)) :default (wb-set))))
       (test (equal? (convert 'map-to-sets (ch-2-relation ('a 3) ('a 5) ('b 3) ('c 4) ('c 8)))
-		    (map ('a (set 3 5)) ('b (set 3)) ('c (set 4 8)))))
+		    (map ('a (set 3 5)) ('b (set 3)) ('c (set 4 8)) :default (ch-set))))
       (let ((conv (convert 'map-to-sets (ch-custom-2-relation 'compare 'fset::int-compare
 							      ('a 3) ('a 5) ('b 3) ('c 4) ('c 8)))))
 	(test (gmap :and (fn (k s) (equal? s (@ conv k)))

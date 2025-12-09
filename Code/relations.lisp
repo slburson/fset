@@ -513,9 +513,7 @@ values."
 (defmethod convert ((to-type (eql 'list)) (rel 2-relation) &key (pair-fn #'cons))
   (gmap (:result list) pair-fn (:arg 2-relation rel)))
 
-(defmethod convert ((to-type (eql 'set)) (rel wb-2-relation) &key (pair-fn #'cons))
-  (convert 'wb-set rel :pair-fn pair-fn))
-(defmethod convert ((to-type (eql 'fset2:set)) (rel wb-2-relation) &key (pair-fn #'cons))
+(define-convert-methods (set fset2:set) ((rel wb-2-relation) &key (pair-fn #'cons))
   (convert 'wb-set rel :pair-fn pair-fn))
 
 (defmethod convert ((to-type (eql 'wb-set)) (rel 2-relation) &key (pair-fn #'cons) compare-fn-name)
@@ -595,33 +593,21 @@ explicitly overridden in the call."
 	  (fn (pr) (values (funcall key-fn pr) (funcall value-fn pr)))
 	  (:arg seq s))))
 
-(defmethod convert ((to-type (eql 'map)) (rel wb-2-relation) &key)
+(define-convert-methods (map fset2:map) ((rel wb-2-relation) &key default)
   "This conversion requires the relation to be functional, and returns
 a map representing the function; that is, the relation must map each
 domain value to a single range value, and the returned map maps that
 domain value to that range value."
-  (wb-2-relation-to-wb-map rel nil nil nil))
-(defmethod convert ((to-type (eql 'fset2:map)) (rel wb-2-relation) &key)
-  "This conversion requires the relation to be functional, and returns
-a map representing the function; that is, the relation must map each
-domain value to a single range value, and the returned map maps that
-domain value to that range value."
-  (wb-2-relation-to-wb-map rel nil nil nil))
+  (wb-2-relation-to-wb-map rel nil nil default))
 
-(defmethod convert ((to-type (eql 'wb-map)) (rel wb-2-relation) &key key-compare-fn-name val-compare-fn-name)
+(define-convert-methods (wb-map fset2:wb-map)
+			((rel wb-2-relation) &key key-compare-fn-name val-compare-fn-name default)
   "This conversion requires the relation to be functional, and returns
 a map representing the function; that is, the relation must map each
 domain value to a single range value, and the returned map maps that
 domain value to that range value."
-  (wb-2-relation-to-wb-map rel key-compare-fn-name val-compare-fn-name nil))
-(defmethod convert ((to-type (eql 'fset2:wb-map)) (rel wb-2-relation) &key key-compare-fn-name val-compare-fn-name)
-  "This conversion requires the relation to be functional, and returns
-a map representing the function; that is, the relation must map each
-domain value to a single range value, and the returned map maps that
-domain value to that range value."
-  (wb-2-relation-to-wb-map rel key-compare-fn-name val-compare-fn-name nil))
+  (wb-2-relation-to-wb-map rel key-compare-fn-name val-compare-fn-name default))
 
-;;; `default' is always `nil' now, but for a while, it wasn't.
 (defun wb-2-relation-to-wb-map (rel key-compare-fn-name val-compare-fn-name default)
   (let ((m nil)
 	(rel-org (wb-2-relation-org rel))
@@ -637,20 +623,13 @@ domain value to that range value."
 	(setq m (WB-Map-Tree-With m x (WB-Set-Tree-Arb s) key-compare-fn val-compare-fn))))
     (make-wb-map m org default)))
 
-(defmethod convert ((to-type (eql 'map-to-sets)) (rel wb-2-relation) &key)
+(define-convert-methods (map-to-sets fset2:map-to-sets) ((rel wb-2-relation) &key)
   "This conversion returns a map mapping each domain value to the set of
 corresponding range values.  If the val-compare-fn of the relation is not
 `compare', the returned map will use `eql-compare' as its `val-compare-fn'."
-  (wb-2-relation-to-map-to-sets rel nil))
+  (wb-2-relation-to-map-to-sets rel))
 
-(defmethod convert ((to-type (eql 'fset2:map-to-sets)) (rel wb-2-relation)
-		    &key (default nil default?) no-default?)
-  "This conversion returns a map mapping each domain value to the set of
-corresponding range values.  If the val-compare-fn of the relation is not
-`compare', the returned map will use `eql-compare' as its `val-compare-fn'."
-  (wb-2-relation-to-map-to-sets rel (fset2-default default? default no-default?)))
-
-(defun wb-2-relation-to-map-to-sets (rel default)
+(defun wb-2-relation-to-map-to-sets (rel)
   (let ((rel-org (wb-2-relation-org rel))
 	(set-org (wb-2-relation-range-set-org rel))
 	((vcfn-nm (tree-map-org-val-compare-fn-name rel-org))
@@ -665,7 +644,7 @@ corresponding range values.  If the val-compare-fn of the relation is not
 		 (make-tree-map-org (tree-map-org-key-compare-fn-name rel-org)
 				    (tree-map-org-key-compare-fn rel-org)
 				    map-val-cfn-nm (symbol-function map-val-cfn-nm))
-		 default)))
+		 (empty-wb-set vcfn-nm))))
 
 (defmethod conflicts ((rel wb-2-relation))
   (let ((m0 nil)
@@ -1203,10 +1182,8 @@ values."
 	    (incf size)))
 	(make-ch-2-relation size map0 nil org)))))
 
-(defmethod convert ((to-type (eql '2-relation)) (pairs set)
-		    &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name)
-  (convert 'ch-2-relation pairs :key-fn key-fn :value-fn value-fn
-				:key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name))
+(defmethod convert ((to-type (eql '2-relation)) (pairs set) &key (key-fn #'car) (value-fn #'cdr))
+  (convert 'ch-2-relation pairs :key-fn key-fn :value-fn value-fn))
 
 (defmethod convert ((to-type (eql 'ch-2-relation)) (pairs set)
 		    &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name)
@@ -1216,9 +1193,7 @@ values."
 	  (fn (pr) (values (funcall key-fn pr) (funcall value-fn pr)))
 	  (:arg set pairs))))
 
-(defmethod convert ((to-type (eql 'set)) (rel ch-2-relation) &key (pair-fn #'cons))
-  (convert 'ch-set rel :pair-fn pair-fn))
-(defmethod convert ((to-type (eql 'fset2:set)) (rel ch-2-relation) &key (pair-fn #'cons))
+(define-convert-methods (set fset2:set) ((rel ch-2-relation) &key (pair-fn #'cons))
   (convert 'ch-set rel :pair-fn pair-fn))
 
 (defmethod convert ((to-type (eql 'ch-set)) (rel 2-relation) &key (pair-fn #'cons) compare-fn-name)
@@ -1307,31 +1282,21 @@ explicitly overridden in the call."
 	  (fn (pr) (values (funcall key-fn pr) (funcall value-fn pr)))
 	  (:arg seq s))))
 
-(defmethod convert ((to-type (eql 'map)) (rel ch-2-relation) &key)
+(define-convert-methods (map fset2:map) ((rel ch-2-relation) &key (default nil default?) no-default?)
   "This conversion requires the relation to be functional, and returns
 a map representing the function; that is, the relation must map each
 domain value to a single range value, and the returned map maps that
 domain value to that range value."
-  (ch-2-relation-to-ch-map rel nil nil nil))
-(defmethod convert ((to-type (eql 'fset2:map)) (rel ch-2-relation) &key)
-  "This conversion requires the relation to be functional, and returns
-a map representing the function; that is, the relation must map each
-domain value to a single range value, and the returned map maps that
-domain value to that range value."
-  (ch-2-relation-to-ch-map rel nil nil nil))
+  (ch-2-relation-to-ch-map rel nil nil (fset2-default default? default no-default?)))
 
-(defmethod convert ((to-type (eql 'ch-map)) (rel ch-2-relation) &key key-compare-fn-name val-compare-fn-name)
+(define-convert-methods (ch-map fset2:ch-map)
+			((rel ch-2-relation)
+			 &key key-compare-fn-name val-compare-fn-name (default nil default?) no-default?)
   "This conversion requires the relation to be functional, and returns
 a map representing the function; that is, the relation must map each
 domain value to a single range value, and the returned map maps that
 domain value to that range value."
-  (ch-2-relation-to-ch-map rel key-compare-fn-name val-compare-fn-name nil))
-(defmethod convert ((to-type (eql 'fset2:ch-map)) (rel ch-2-relation) &key key-compare-fn-name val-compare-fn-name)
-  "This conversion requires the relation to be functional, and returns
-a map representing the function; that is, the relation must map each
-domain value to a single range value, and the returned map maps that
-domain value to that range value."
-  (ch-2-relation-to-ch-map rel key-compare-fn-name val-compare-fn-name nil))
+  (ch-2-relation-to-ch-map rel key-compare-fn-name val-compare-fn-name (fset2-default default? default no-default?)))
 
 (defun ch-2-relation-to-ch-map (rel key-compare-fn-name val-compare-fn-name default)
   (let ((m nil)
@@ -1350,20 +1315,13 @@ domain value to that range value."
 	(setq m (ch-map-tree-with m x (ch-set-tree-arb s) key-hash-fn key-compare-fn val-hash-fn val-compare-fn))))
     (make-ch-map m org default)))
 
-(defmethod convert ((to-type (eql 'map-to-sets)) (rel ch-2-relation) &key)
+(define-convert-methods (map-to-sets fset2:map-to-sets) ((rel ch-2-relation) &key)
   "This conversion returns a map mapping each domain value to the set of
 corresponding range values.  If the val-compare-fn of the relation is not
 `compare', the returned map will use `eql-compare' as its `val-compare-fn'."
-  (ch-2-relation-to-map-to-sets rel nil))
+  (ch-2-relation-to-map-to-sets rel))
 
-(defmethod convert ((to-type (eql 'fset2:map-to-sets)) (rel ch-2-relation)
-		    &key (default nil default?) no-default?)
-  "This conversion returns a map mapping each domain value to the set of
-corresponding range values.  If the val-compare-fn of the relation is not
-`compare', the returned map will use `eql-compare' as its `val-compare-fn'."
-  (ch-2-relation-to-map-to-sets rel (fset2-default default? default no-default?)))
-
-(defun ch-2-relation-to-map-to-sets (rel default)
+(defun ch-2-relation-to-map-to-sets (rel)
   (let ((rel-org (ch-2-relation-org rel))
 	(set-org (ch-2-relation-range-set-org rel))
 	((vcfn-nm (hash-map-org-val-compare-fn-name rel-org))
@@ -1382,7 +1340,7 @@ corresponding range values.  If the val-compare-fn of the relation is not
 				    ;; By the time this is called, if the set trees had to be rebuilt, they
 				    ;; will have their new hash values.
 				    (symbol-function (get map-val-cfn-nm 'hash-function)))
-		 default)))
+		 (empty-ch-set vcfn-nm))))
 
 (defmethod conflicts ((rel ch-2-relation))
   (let ((m0 nil)

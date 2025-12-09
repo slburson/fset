@@ -208,10 +208,27 @@ This is a list in reverse order."))
 		     methods)))
 
 (defmacro define-convert-methods (to-types parameter-list-rest &body body)
+  "Defines a method on `convert' for each of `to-types'.  For each one, if it
+is not in the `fset' package, and `parameter-list-rest' contains `default',
+replaces `default' with the appropriate FSet 2 parameters, and binds `default'
+around the body."
   `(progn . ,(mapcar (fn (to-type)
-		       `(defmethod convert ,(cons `(to-type (eql ',to-type))
-					     parameter-list-rest)
-			  . ,body))
+		       (let ((fset1? (eq (symbol-package to-type) (symbol-package 'collection)))
+			     (dflt-pos (cl:position-if (fn (x) (or (eq x 'default)
+								   (and (consp x) (eq (car x) 'default))))
+						       parameter-list-rest))
+			     ((dflt-param (and dflt-pos (nth dflt-pos parameter-list-rest)))
+			      (params-rest (if (or fset1? (null dflt-pos))
+					       parameter-list-rest
+					     (append (subseq parameter-list-rest 0 dflt-pos)
+						     '((default nil default?) no-default?)
+						     (subseq parameter-list-rest (1+ dflt-pos)))))))
+			 `(defmethod convert ,(cons `(to-type (eql ',to-type))
+					            params-rest)
+			    (let ,(and (not fset1?) dflt-pos
+				       `((default (fset2-default default? default no-default?
+								 . ,(and (consp dflt-param) `(,(cadr dflt-param)))))))
+			      . ,body))))
 		     to-types)))
 
 ;;; Handy macro to generate the cross-comparison methods.

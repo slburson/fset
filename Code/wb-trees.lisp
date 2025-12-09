@@ -1193,8 +1193,7 @@ or `Equivalent-Set' removed."
 	   ;; know how well we're doing here, or how we might improve further, until
 	   ;; we have some real applications running and can gather some stats.
 	   (cond ((and (WB-Set-Tree-Node? left)
-		       (> sizl (the (signed-byte 32)
-				 (* sizr WB-Tree-Balance-Factor))))
+		       (> sizl (the fixnum (* sizr WB-Tree-Balance-Factor))))
 		  (let ((ll (WB-Set-Tree-Node-Left left))
 			(rl (WB-Set-Tree-Node-Right left)))
 		    (if (or (null rl) (simple-vector-p rl)
@@ -1211,8 +1210,7 @@ or `Equivalent-Set' removed."
 					       value (WB-Set-Tree-Node-Right rl)
 					       right)))))
 		 ((and (WB-Set-Tree-Node? right)
-		       (> sizr (the (signed-byte 32)
-				 (* sizl WB-Tree-Balance-Factor))))
+		       (> sizr (the fixnum (* sizl WB-Tree-Balance-Factor))))
 		  (let ((lr (WB-Set-Tree-Node-Left right))
 			(rr (WB-Set-Tree-Node-Right right)))
 		    (if (or (null lr) (simple-vector-p lr)

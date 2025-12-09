@@ -664,12 +664,12 @@ Method summary:     to-type       collection type         notes
                      set                set               0
                      wb-set             set               0, 15
                      wb-set             wb-set            15
-                     set                list              1, 2
+                     set                list              18, 2
                      wb-set             list              2, 15
                      list               set
-                     set                seq               1, 2
+                     set                seq               18, 2
                      wb-set             seq               2, 15
-                     set                sequence          1, 2
+                     set                sequence          18, 2
                      wb-set             sequence          2, 15
                      vector             set
                      ch-set             set               15
@@ -698,30 +698,31 @@ Method summary:     to-type       collection type         notes
                      wb-bag             sequence          2, 3, 15
 
                      map                map               0
-                     wb-map             wb-map            0, 16
+                     wb-map             wb-map            0, 16, 21
+                     wb-map             map               16, 21
+                     ch-map             ch-map            0, 16, 21
+                     ch-map             map               16, 21
                      list               map               5
                      alist              map
                      seq                map               5
                      vector             map               5
                      set                map               5
-                     map                list              1, 2, 6, 7
-                     wb-map             list              2, 6, 7, 16
-                     map                seq               1, 2, 6, 7, 17
-                     wb-map             seq               2, 6, 7, 16, 17
-                     map                sequence          1, 2, 6, 7
-                     wb-map             sequence          2, 6, 7, 16
-                     map                bag               1
-                     wb-map             bag               16
-                     map                hash-table        1
-                     wb-map             hash-table        16
-                     hash-table         map               8
-                     wb-map             ch-map            16
-                     ch-map             ch-map            0, 16
-                     ch-map             map               16
+                     map                list              2, 6, 7, 18, 20
+                     wb-map             list              2, 6, 7, 16, 20
                      ch-map             list              6, 7, 16
+                     map                seq               18, 2, 6, 7, 17
+                     wb-map             seq               2, 6, 7, 16, 17
                      ch-map             seq               6, 7, 16
+                     map                sequence          2, 6, 7, 18, 20
+                     wb-map             sequence          2, 6, 7, 16, 20
                      ch-map             sequence          6, 7, 16
-                     ch-map             hash-table        16
+                     map                bag               18, 20
+                     wb-map             bag               16, 20
+                     ch-map             bag               16, 20
+                     map                hash-table        18, 20
+                     wb-map             hash-table        16, 20
+                     ch-map             hash-table        16, 20
+                     hash-table         map               8
 
                      seq                seq               0
                      wb-seq             wb-seq            0
@@ -740,18 +741,30 @@ Method summary:     to-type       collection type         notes
                      wb-seq             map               5, 17
 
                      2-relation         2-relation        0
-                     wb-2-relation      wb-2-relation     0
-                     set                2-relation        1, 5
+                     wb-2-relation      wb-2-relation     0, 16
+                     ch-2-relation      ch-2-relation     0, 16
+                     2-relation         set               6, 19
+                     wb-2-relation      set               6, 16
+                     ch-2-relation      set               6, 16
+                     set                wb-2-relation     1, 5
+                     set                ch-2-relation     19, 5
                      wb-set             2-relation        5
-                     2-relation         map               1, 10
+                     ch-set             2-relation        5
+                     2-relation         wb-map            1, 10
+                     2-relation         ch-map            19, 10
                      wb-2-relation      map               10
-                     2-relation         list              1, 6
-                     wb-2-relation      list              6
-                     2-relation         seq               1, 6
-                     wb-2-relation      seq               6
-                     map                wb-2-relation     1, 11
-                     wb-map             wb-2-relation     11
+                     2-relation         list              19, 6
+                     wb-2-relation      list              6, 16
+                     ch-2-relation      list              6, 16
+                     2-relation         seq               19, 6
+                     wb-2-relation      seq               6, 16
+                     ch-2-relation      seq               6, 16
+                     map                wb-2-relation     1, 11, 20
+                     map                ch-2-relation     19, 11, 20
+                     wb-map             wb-2-relation     11, 20
+                     ch-map             ch-2-relation     11, 20
                      map-to-sets        wb-2-relation     12
+                     map-to-sets        ch-2-relation     12
 
                      tuple              tuple             0
                      dyn-tuple          dyn-tuple         0
@@ -763,31 +776,35 @@ Method summary:     to-type       collection type         notes
 
                      replay-set         replay-set        0
                      wb-replay-set      wb-replay-set     0
+                     ch-replay-set      ch-replay-set     0
                      list               wb-replay-set
                      vector             wb-replay-set
                      seq                wb-replay-set     1
                      wb-seq             wb-replay-set
                      set                wb-replay-set     1
                      wb-set             wb-replay-set
-                     replay-set         list              18
+                     replay-set         list              19
                      wb-replay-set      list
-                     replay-set         seq               18
+                     replay-set         seq               19
                      wb-replay-set      seq
-                     replay-set         sequence          18
+                     replay-set         sequence          19
                      wb-replay-set      sequence
 
                      replay-map         replay-map        0
                      wb-replay-map      wb-replay-map     0
+                     ch-replay-map      ch-replay-map     0
                      map                wb-replay-map     1
+                     map                ch-replay-map     19
                      wb-map             wb-replay-map
+                     ch-map             ch-replay-map
                      list               wb-replay-map     5
                      vector             wb-replay-map     5
                      seq                wb-replay-map     5
-                     replay-map         list              1, 6
+                     replay-map         list              19, 6
                      wb-replay-map      list              6
-                     replay-map         seq               1, 6
+                     replay-map         seq               19, 6
                      wb-replay-map      seq               6
-                     replay-map         sequence          1, 6
+                     replay-map         sequence          19, 6
                      wb-replay-map      sequence          6
 
                      list               list              0
@@ -796,6 +813,9 @@ Method summary:     to-type       collection type         notes
                      list               sequence
                      string             sequence
                      base-string        sequence
+
+In the below, whether the FSet 1 or FSet 2 rule applies is determined by the
+package of `to-type' (e.g., `fset:set' or `fset2:set').
 
 Notes:
 0. Identity conversion, provided for convenience.  (If the method also accepts
@@ -812,8 +832,8 @@ Notes:
 4. Has keyword parameter `from-type'.  If it's the symbol `alist', treats the
    input elements as pairs (as conses) of a value and a count.  Deprecated; use
    `pairs?'.
-5. Has keyword parameter `pair-fn', defaulting to `#'cons'.  The function used
-   to combine each key/value pair.
+5. Has keyword parameter `pair-fn', defaulting to `#'cons', specifies the
+   function used to combine each key/value pair.
 6. Has keyword parameters `key-fn' and `value-fn', used to extract a key/value
    pair from each input element.  Defaults are `#'car' and `#'cdr'.
 7. If a key occurs more than once in the input, the result will have the value
@@ -827,7 +847,7 @@ Notes:
 11. The relation must be a function (must have only one range value per domain
     value).
 12. Returns a map mapping each domain value to the set of corresponding range
-    values.
+    values.  The default of the result is the empty set.
 13. Constructs a `dyn-tuple'.
 14. Always returns a string (or base-string, if specified).  Signals an error
     if the seq contains a non-character.  Signals `type-error' if a base-string
@@ -841,9 +861,20 @@ Notes:
     functions, respectively, to be used.  The returned map will be converted,
     if necessary, to use the specified functions, or to use `compare' for those
     not specified.
-17. The default of the result is `nil' (in FSet 1) or the same as that of the
-    argument (in FSet 2).
-18. Constructs the ch (CHAMP tree) implementation of its type (`ch-set' etc.)."))
+17. FSet 1: has keyword parameter `default', which specifies the default of the
+    result; if not supplied, the default is the same as that of the argument.
+    FSet 2: has keyword parameters `default' and `no-default?', which specify
+    the default of the result; if not supplied, the default is `nil'.
+18. FSet 1: constructs the WB (weight-balanced tree) implementation of its type
+    (`wb-set' etc.).  FSet 2: constructs the CHAMP implementation (`ch-set'
+    etc.).
+19. Constructs the CHAMP implementation of its type (`ch-set' etc.).
+20. FSet 1: has keyword parameter `default', which specifies the default of the
+    result; if not supplied, the default is `nil'.  FSet 2: also has keyword
+    parameter `no-default?' to specify no default.
+21. FSet 1: has keyword parameter `default', which specifies the default of the
+    result; if not supplied, the default is the same as that of the argument.
+    FSet 2: also has keyword parameter `no-default?' to specify no default."))
 
 
 ;;; ================================================================================
@@ -2189,8 +2220,6 @@ for the possibility of different set implementations; it is not for public use.
 
 (defmethod convert ((to-type (eql 'set)) (l list) &key input-sorted?)
   (make-wb-set (wb-set-from-list l input-sorted? #'compare)))
-(defmethod convert ((to-type (eql 'fset2:set)) (l list) &key)
-  (convert 'ch-set l))
 
 (defmethod convert ((to-type (eql 'wb-set)) (l list) &key input-sorted? compare-fn-name)
   (convert-to-wb-set s nil
@@ -2203,8 +2232,6 @@ for the possibility of different set implementations; it is not for public use.
 
 (defmethod convert ((to-type (eql 'set)) (s seq) &key input-sorted?)
   (make-wb-set (wb-set-from-sequence s input-sorted? #'compare)))
-(defmethod convert ((to-type (eql 'fset2:set)) (s seq) &key)
-  (convert 'ch-set s))
 
 (defmethod convert ((to-type (eql 'wb-set)) (s seq) &key input-sorted? compare-fn-name)
   (convert-to-wb-set s nil
@@ -2212,8 +2239,6 @@ for the possibility of different set implementations; it is not for public use.
 
 (defmethod convert ((to-type (eql 'set)) (s sequence) &key input-sorted?)
   (make-wb-set (wb-set-from-sequence s input-sorted? #'compare)))
-(defmethod convert ((to-type (eql 'fset2:set)) (s sequence) &key)
-  (convert 'ch-set s))
 
 (defmethod convert ((to-type (eql 'wb-set)) (s sequence) &key input-sorted? compare-fn-name)
   (convert-to-wb-set s nil
@@ -2313,7 +2338,7 @@ for the possibility of different set implementations; it is not for public use.
       (pprint-newline ':fill stream)
       (write x :stream stream))))
 
-(defmethod make-load-form ((s wb-set) &optional environment)
+(defmethod make-load-form ((s wb-default-set) &optional environment)
   (declare (ignore environment))
   `(convert 'wb-set ',(convert 'list s)))
 
@@ -2644,21 +2669,21 @@ comparison function as `compare-fn-name'."
       (do-ch-set-tree-members (x (ch-set-contents s) tree)
 	(setq tree (ch-set-tree-with tree x hash-fn compare-fn))))))
 
-(defmethod convert ((to-type (eql 'ch-set)) (l list) &key compare-fn-name)
+(define-convert-methods (ch-set fset2:set) ((l list) &key compare-fn-name)
   (convert-to-ch-set l nil
     (let ((tree nil))
       (dolist (x l)
 	(setq tree (ch-set-tree-with tree x hash-fn compare-fn)))
       tree)))
 
-(defmethod convert ((to-type (eql 'ch-set)) (s seq) &key compare-fn-name)
+(define-convert-methods (ch-set fset2:set) ((s seq) &key compare-fn-name)
   (convert-to-ch-set s nil
     (let ((tree nil))
       (do-seq (x s)
 	(setq tree (ch-set-tree-with tree x hash-fn compare-fn)))
       tree)))
 
-(defmethod convert ((to-type (eql 'ch-set)) (s sequence) &key compare-fn-name)
+(define-convert-methods (ch-set fset2:set) ((s sequence) &key compare-fn-name)
   (convert-to-ch-set s nil
     (let ((tree nil))
       (dotimes (i (length s))
@@ -3567,12 +3592,12 @@ the default implementation of maps in FSet."
 (defparameter +empty-wb-map/no-default+ (make-wb-map nil +fset-default-tree-map-org+ 'no-default))
 
 (declaim (inline fset2-default))
-(defun fset2-default (default? default no-default?)
+(defun fset2-default (default? default no-default? &optional default-default)
   (if (and default? no-default?)
       (error "Both a default and `no-default?' specified")
     (cond (default? default)
 	  (no-default? 'no-default)
-	  (t nil))))
+	  (t default-default))))
 
 (declaim (inline empty-map))
 (defun empty-map (&optional default)
@@ -4220,29 +4245,23 @@ to `compare'."
 (define-convert-methods (map fset2:map) ((m map) &key)
   m)
 
-(defmethod convert ((to-type (eql 'wb-map)) (m wb-map)
-		    &key (default nil default?) key-compare-fn-name val-compare-fn-name)
-  "The result uses `default' if supplied, otherwise has the same default as `m'."
-  (convert-to-wb-map m (if default? default (map-default m))
+(define-convert-methods (wb-map fset2:wb-map)
+			((m wb-map) &key key-compare-fn-name val-compare-fn-name (default (map-default m)))
+  (convert-to-wb-map m default
       (let ((m-tmorg (wb-map-org m)))
-	(or (eq m-tmorg tmorg)
-	    (and (eq key-compare-fn (tree-map-org-key-compare-fn m-tmorg))
-		 (eq val-compare-fn (tree-map-org-val-compare-fn m-tmorg)))))
+	(and (or (eq m-tmorg tmorg)
+		 (and (eq key-compare-fn (tree-map-org-key-compare-fn m-tmorg))
+		      (eq val-compare-fn (tree-map-org-val-compare-fn m-tmorg))))
+	     (equal?-cmp default (map-default m) val-compare-fn)))
     (let ((tree nil))
       (Do-WB-Map-Tree-Pairs (k v (wb-map-contents m) tree)
 	(setq tree (WB-Map-Tree-With tree k v key-compare-fn val-compare-fn))))))
-(defmethod convert ((to-type (eql 'fset2:wb-map)) (m wb-map)
-		    &key (default nil default?) no-default? key-compare-fn-name val-compare-fn-name)
-  "The result uses `default' if supplied, otherwise has the same default as `m'."
-  (when (and default? no-default?)
-    (error "Both a default and `no-default?' specified"))
-  (convert-to-wb-map m (if default? default (if no-default? 'no-default (map-default m)))
-      (let ((m-tmorg (wb-map-org m)))
-	(or (eq m-tmorg tmorg)
-	    (and (eq key-compare-fn (tree-map-org-key-compare-fn m-tmorg))
-		 (eq val-compare-fn (tree-map-org-val-compare-fn m-tmorg)))))
+
+(define-convert-methods (wb-map fset2:wb-map)
+			((m map) &key key-compare-fn-name val-compare-fn-name (default (map-default m)))
+  (convert-to-wb-map m default nil
     (let ((tree nil))
-      (Do-WB-Map-Tree-Pairs (k v (wb-map-contents m) tree)
+      (do-map (k v m tree)
 	(setq tree (WB-Map-Tree-With tree k v key-compare-fn val-compare-fn))))))
 
 (defmethod convert ((to-type (eql 'list)) (m map) &key (pair-fn #'cons))
@@ -4276,43 +4295,32 @@ to `compare'."
     (make-ch-set result +fset-default-hash-set-org+)))
 
 ;;; &&& Plist support?
-(defmethod convert ((to-type (eql 'map)) (l list)
-		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?)
-  (wb-map-from-sequence l key-fn value-fn input-sorted?))
-(defmethod convert ((to-type (eql 'fset2:map)) (l list) &key (key-fn #'car) (value-fn #'cdr))
-  (convert 'ch-map l :key-fn key-fn :value-fn value-fn))
-
-(define-convert-methods (wb-map fset2:wb-map) ((l list)
-			    &key (key-fn #'car) (value-fn #'cdr) input-sorted?
-			    key-compare-fn-name val-compare-fn-name)
-  (wb-map-from-sequence l key-fn value-fn input-sorted? key-compare-fn-name val-compare-fn-name))
+(define-convert-methods (wb-map fset2:wb-map)
+			((l list) &key (key-fn #'car) (value-fn #'cdr) input-sorted?
+				       key-compare-fn-name val-compare-fn-name default)
+  (wb-map-from-sequence l key-fn value-fn input-sorted? key-compare-fn-name val-compare-fn-name default))
 
 (defmethod convert ((to-type (eql 'map)) (s seq)
-		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?)
-  (with-default (wb-map-from-sequence s key-fn value-fn input-sorted?)
-		(seq-default s)))
-(defmethod convert ((to-type (eql 'fset2:map)) (s seq) &key (key-fn #'car) (value-fn #'cdr))
-  (convert 'ch-map s :key-fn key-fn :value-fn value-fn))
+		    &key (key-fn #'car) (value-fn #'cdr) input-sorted? (default (seq-default s)))
+  (wb-map-from-sequence s key-fn value-fn input-sorted? nil nil default))
 
 (define-convert-methods (wb-map fset2:wb-map)
 			((s seq) &key (key-fn #'car) (value-fn #'cdr) input-sorted?
-			 key-compare-fn-name val-compare-fn-name)
-  (with-default (wb-map-from-sequence s key-fn value-fn input-sorted? key-compare-fn-name val-compare-fn-name)
-    (seq-default s)))
+			 key-compare-fn-name val-compare-fn-name (default (and (eq to-type 'wb-map) (seq-default s))))
+  (wb-map-from-sequence s key-fn value-fn input-sorted? key-compare-fn-name val-compare-fn-name default))
 
 (defmethod convert ((to-type (eql 'map)) (s sequence)
-		    &key (key-fn #'car) (value-fn #'cdr) input-sorted?)
-  (wb-map-from-sequence s key-fn value-fn input-sorted?))
-(defmethod convert ((to-type (eql 'fset2:map)) (s sequence) &key (key-fn #'car) (value-fn #'cdr))
-  (convert 'ch-map s :key-fn key-fn :value-fn value-fn))
+		    &key (key-fn #'car) (value-fn #'cdr) input-sorted? default)
+  (wb-map-from-sequence s key-fn value-fn input-sorted? nil nil default))
 
 (define-convert-methods (wb-map fset2:wb-map)
 			((s sequence) &key (key-fn #'car) (value-fn #'cdr) input-sorted?
-			 key-compare-fn-name val-compare-fn-name)
-  (wb-map-from-sequence s key-fn value-fn input-sorted? key-compare-fn-name val-compare-fn-name))
+					   key-compare-fn-name val-compare-fn-name default)
+  (wb-map-from-sequence s key-fn value-fn input-sorted? key-compare-fn-name val-compare-fn-name default))
 
-(defun wb-map-from-sequence (s key-fn value-fn input-sorted? &optional key-compare-fn-name val-compare-fn-name)
-  (convert-to-wb-map s nil nil
+(defun wb-map-from-sequence (s key-fn value-fn input-sorted?
+			     &optional key-compare-fn-name val-compare-fn-name default)
+  (convert-to-wb-map s default nil
     (let ((key-fn (coerce key-fn 'function))
 	  (value-fn (coerce value-fn 'function)))
       (cond (input-sorted?
@@ -4324,22 +4332,22 @@ to `compare'."
 	     (WB-Map-Tree-From-Iterable (iterator s) key-fn value-fn
 					key-compare-fn val-compare-fn))))))
 
-(define-convert-methods (map fset2:map) ((b bag) &key)
-  (convert 'wb-map b))
+(define-convert-methods (map fset2:map) ((b bag) &key default)
+  (convert 'wb-map b :default default))
 
-(define-convert-methods (wb-map fset2:wb-map) ((b bag) &key key-compare-fn-name val-compare-fn-name)
+(define-convert-methods (wb-map fset2:wb-map) ((b bag) &key key-compare-fn-name val-compare-fn-name default)
   ;; &&& If desired, we can easily make a very fast version of this -- all it has to do is
   ;; build new interior nodes, reusing the leaf vectors.  (But only if the compare-fns match.)
-  (convert-to-wb-map b nil nil
+  (convert-to-wb-map b default nil
     (let ((tree nil))
       (do-bag-pairs (x n b tree)
 	(setq tree (WB-Map-Tree-With tree x n key-compare-fn val-compare-fn))))))
 
-(define-convert-methods (map fset2:map) ((ht hash-table) &key)
-  (convert 'wb-map ht))
+(defmethod convert ((to-type (eql 'map)) (ht hash-table) &key default)
+  (convert 'wb-map ht :default default))
 
-(define-convert-methods (wb-map fset2:wb-map) ((ht hash-table) &key key-compare-fn-name val-compare-fn-name)
-  (convert-to-wb-map ht nil nil
+(define-convert-methods (wb-map fset2:wb-map) ((ht hash-table) &key key-compare-fn-name val-compare-fn-name default)
+  (convert-to-wb-map ht default nil
     (let ((tree nil))
       (maphash (lambda (k v)
 		 (setq tree (WB-Map-Tree-With tree k v key-compare-fn val-compare-fn)))
@@ -4885,73 +4893,79 @@ The map's default is `nil' unless a different default is supplied, or
       (ch-map-tree-rev-fun-iter (ch-map-contents s))
     (ch-map-tree-fun-iter (ch-map-contents s))))
 
-(define-convert-methods (wb-map fset2:wb-map) ((m ch-map) &key key-compare-fn-name val-compare-fn-name)
-  (convert-to-wb-map m nil nil
-    (let ((tree nil))
-      (do-ch-map-tree-pairs (k v (ch-map-contents m) tree)
-	(setq tree (WB-Map-Tree-With tree k v key-compare-fn val-compare-fn))))))
-
-(define-convert-methods (ch-map fset2:ch-map) ((m map) &key key-compare-fn-name val-compare-fn-name)
-  (convert-to-ch-map m (map-default m) nil
+(define-convert-methods (ch-map fset2:ch-map)
+			((m map) &key key-compare-fn-name val-compare-fn-name default)
+  (convert-to-ch-map m default nil
     (let ((tree nil))
       (do-map (k v m)
 	(setq tree (ch-map-tree-with tree k v key-hash-fn key-compare-fn val-hash-fn val-compare-fn)))
       tree)))
 
 (define-convert-methods (ch-map fset2:ch-map)
-			((m ch-map) &key (default nil default?) key-compare-fn-name val-compare-fn-name)
+			((m ch-map) &key key-compare-fn-name val-compare-fn-name default)
   "The result uses `default' if supplied, otherwise has the same default as `m'."
-  (convert-to-ch-map m (if default? default (map-default m))
+  (convert-to-ch-map m default
       (let ((m-hmorg (ch-map-org m)))
-	(or (eq m-hmorg hmorg)
-	    (and (eq key-hash-fn (hash-map-org-key-hash-fn m-hmorg))
-		 (eq key-compare-fn (hash-map-org-key-compare-fn m-hmorg))
-		 (eq val-hash-fn (hash-map-org-val-hash-fn m-hmorg))
-		 (eq val-compare-fn (hash-map-org-val-compare-fn m-hmorg)))))
+	(and (or (eq m-hmorg hmorg)
+		 (and (eq key-hash-fn (hash-map-org-key-hash-fn m-hmorg))
+		      (eq key-compare-fn (hash-map-org-key-compare-fn m-hmorg))
+		      (eq val-hash-fn (hash-map-org-val-hash-fn m-hmorg))
+		      (eq val-compare-fn (hash-map-org-val-compare-fn m-hmorg))))
+	     (equal?-cmp default (map-default m) val-compare-fn)))
     (let ((tree nil))
       (do-ch-map-tree-pairs (k v (ch-map-contents m))
 	(setq tree (ch-map-tree-with tree k v key-hash-fn key-compare-fn val-hash-fn val-compare-fn)))
       tree)))
 
-(define-convert-methods (ch-map fset2:map fset2:ch-map)
-			((l list) &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name)
-  (declare (type function key-fn value-fn))
-  (convert-to-ch-map l nil nil
-    (let ((tree nil))
-      (dolist (x l)
-	(setq tree (ch-map-tree-with tree (funcall key-fn x) (funcall value-fn x)
-				     key-hash-fn key-compare-fn val-hash-fn val-compare-fn)))
+(defmethod convert ((to-type (eql 'fset2:map)) (s seq)
+		    &key (key-fn #'car) (value-fn #'cdr) default)
+  (ch-map-from-sequence s key-fn value-fn nil nil default))
+
+(define-convert-methods (ch-map)
+			((s seq) &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name
+				      (default (seq-default s)))
+  (ch-map-from-sequence s key-fn value-fn key-compare-fn-name val-compare-fn-name default))
+(define-convert-methods (fset2:ch-map)
+			((s seq) &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name
+				      default) ; default default is now `nil'
+  (ch-map-from-sequence s key-fn value-fn key-compare-fn-name val-compare-fn-name default))
+
+(defmethod convert ((to-type (eql 'fset2:map)) (s sequence)
+		    &key (key-fn #'car) (value-fn #'cdr) default)
+  (ch-map-from-sequence s key-fn value-fn nil nil default))
+
+(define-convert-methods (ch-map fset2:ch-map)
+			((s sequence) &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name
+					   default)
+  (ch-map-from-sequence s key-fn value-fn key-compare-fn-name val-compare-fn-name default))
+
+(defun ch-map-from-sequence (s key-fn value-fn &optional key-compare-fn-name val-compare-fn-name default)
+  (convert-to-ch-map s default nil
+    (let ((key-fn (coerce key-fn 'function))
+	  (value-fn (coerce value-fn 'function))
+	  (tree nil))
+      (if (listp s)
+	  (dolist (x s)
+	    (setq tree (ch-map-tree-with tree (funcall key-fn x) (funcall value-fn x)
+					 key-hash-fn key-compare-fn val-hash-fn val-compare-fn)))
+	(let ((it (iterator s)))
+	  (while (funcall it ':more?)
+	    (let ((x (funcall it ':get)))
+	      (setq tree (ch-map-tree-with tree (funcall key-fn x) (funcall value-fn x)
+					   key-hash-fn key-compare-fn val-hash-fn val-compare-fn))))))
       tree)))
 
-(define-convert-methods (ch-map fset2:map fset2:ch-map)
-			((s seq) &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name)
-  (declare (type function key-fn value-fn))
-  (convert-to-ch-map l nil nil
-    (let ((tree nil))
-      (do-seq (x s)
-	(setq tree (ch-map-tree-with tree (funcall key-fn x) (funcall value-fn x)
-				     key-hash-fn key-compare-fn val-hash-fn val-compare-fn)))
-      tree)))
-
-(define-convert-methods (ch-map fset2:map fset2:ch-map)
-			((s sequence) &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name)
-  (declare (type function key-fn value-fn))
-  (convert-to-ch-map l nil nil
-    (let ((tree nil))
-      (dotimes (i (length s))
-	(let ((x (elt s i)))
-	  (setq tree (ch-map-tree-with tree (funcall key-fn x) (funcall value-fn x)
-				       key-hash-fn key-compare-fn val-hash-fn val-compare-fn))))
-      tree)))
-
-(define-convert-methods (ch-map fset2:ch-map) ((b bag) &key key-compare-fn-name val-compare-fn-name)
-  (convert-to-ch-map b nil nil
+(define-convert-methods (ch-map fset2:ch-map) ((b bag) &key key-compare-fn-name val-compare-fn-name default)
+  (convert-to-ch-map b default nil
     (let ((tree nil))
       (do-bag-pairs (x n b tree)
 	(setq tree (ch-map-tree-with tree x n key-hash-fn key-compare-fn val-hash-fn val-compare-fn))))))
 
-(define-convert-methods (ch-map fset2:ch-map) ((ht hash-table) &key key-compare-fn-name val-compare-fn-name)
-  (convert-to-ch-map ht nil nil
+(defmethod convert ((to-type (eql 'fset2:map)) (ht hash-table) &key (default nil default?) no-default?)
+  (convert 'ch-map ht :default (fset2-default default? default no-default?)))
+
+(define-convert-methods (ch-map fset2:ch-map) ((ht hash-table) &key key-compare-fn-name val-compare-fn-name default)
+  (convert-to-ch-map ht default nil
     (let ((tree nil))
       (maphash (lambda (k v)
 		 (setq tree (ch-map-tree-with tree k v key-hash-fn key-compare-fn val-hash-fn val-compare-fn)))
@@ -5277,40 +5291,23 @@ This is the default implementation of seqs in FSet."
     (error 'non-char-seq-error :seq s))
   (WB-Seq-Tree-To-String (wb-seq-contents s) 'base-char))
 
-(define-convert-methods (seq fset2:seq) ((s seq) &key)
+(define-convert-methods (seq fset2:seq wb-seq fset2:wb-seq) ((s wb-seq) &key)
   s)
 
-(define-convert-methods (wb-seq fset2:wb-seq) ((s wb-seq) &key)
-  s)
+(define-convert-methods (seq wb-seq fset2:seq fset2:wb-seq) ((vec vector) &key default)
+  (make-wb-seq (WB-Seq-Tree-From-Vector vec) default))
 
-(define-convert-methods (seq wb-seq) ((vec vector) &key)
-  (make-wb-seq (WB-Seq-Tree-From-Vector vec) nil))
-
-(define-convert-methods (fset2:seq fset2:wb-seq) ((vec vector) &key (default nil default?) no-default?)
-  (make-wb-seq (WB-Seq-Tree-From-Vector vec) (fset2-default default? default no-default?)))
-
-(define-convert-methods (seq wb-seq) ((l list) &key reverse?)
+(define-convert-methods (seq wb-seq fset2:seq fset2:wb-seq) ((l list) &key reverse? default)
   (make-wb-seq (if reverse? (WB-Seq-Tree-From-List-Reverse l)
 		 (WB-Seq-Tree-From-List l))
-	       nil))
+	       default))
 
-(define-convert-methods (fset2:seq fset2:wb-seq) ((l list) &key reverse? (default nil default?) no-default?)
-  (make-wb-seq (if reverse? (WB-Seq-Tree-From-List-Reverse l)
-		 (WB-Seq-Tree-From-List l))
-	       (fset2-default default? default no-default?)))
+(define-convert-methods (seq wb-seq fset2:seq fset2:wb-seq) ((s set) &key default)
+  (make-wb-seq (wb-seq-tree-from-iterable (iterator s) (size s)) default))
 
-(define-convert-methods (seq wb-seq) ((s set) &key)
-  (make-wb-seq (wb-seq-tree-from-iterable (iterator s) (size s)) nil))
-
-(define-convert-methods (fset2:seq fset2:wb-seq) ((s set) &key (default nil default?) no-default?)
-  (make-wb-seq (wb-seq-tree-from-iterable (iterator s) (size s)) (fset2-default default? default no-default?)))
-
-(define-convert-methods (seq wb-seq) ((b bag) &key pairs? (pair-fn #'cons))
-  (bag-to-seq b pairs? pair-fn nil))
-
-(define-convert-methods (fset2:seq fset2:wb-seq)
-			((b bag) &key pairs? (pair-fn #'cons) (default nil default?) no-default?)
-  (bag-to-seq b pairs? pair-fn (fset2-default default? default no-default?)))
+(define-convert-methods (seq wb-seq fset2:seq fset2:wb-seq)
+			((b bag) &key pairs? (pair-fn #'cons) default)
+  (bag-to-seq b pairs? pair-fn default))
 
 (defun bag-to-seq (b pairs? pair-fn default)
   (make-wb-seq (wb-seq-tree-from-iterable (if pairs?
@@ -5324,13 +5321,8 @@ This is the default implementation of seqs in FSet."
 					  (if pairs? (set-size b) (size b)))
 	       default))
 
-(define-convert-methods (seq wb-seq) ((m map) &key (pair-fn #'cons))
-  (map-to-seq m pair-fn nil))
-
-(define-convert-methods (fset2:seq fset2:wb-seq) ((m map) &key (pair-fn #'cons))
-  (map-to-seq m pair-fn (map-default m)))
-
-(defun map-to-seq (m pair-fn default)
+(define-convert-methods (seq wb-seq fset2:seq fset2:wb-seq)
+			((m map) &key (pair-fn #'cons) (default (and (member to-type '(seq wb-seq)) (map-default m))))
   (make-wb-seq (wb-seq-tree-from-iterable (let ((m-it (iterator m)))
 					    (lambda (op)
 					      (ecase op
