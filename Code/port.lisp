@@ -87,7 +87,7 @@
 #+(and sbcl sb-thread)
 (progn
   (defun make-lock (&optional name)
-    (apply #'sb-thread:make-mutex (and name `(:name ,name))))
+    (apply #'sb-thread:make-mutex (and name `(:name ,(string name)))))
   (defmacro with-lock ((lock &key (wait? t)) &body body)
     `(sb-thread:with-mutex (,lock :wait-p ,wait?)
        . ,body))

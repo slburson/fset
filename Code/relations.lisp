@@ -1282,21 +1282,21 @@ explicitly overridden in the call."
 	  (fn (pr) (values (funcall key-fn pr) (funcall value-fn pr)))
 	  (:arg seq s))))
 
-(define-convert-methods (map fset2:map) ((rel ch-2-relation) &key (default nil default?) no-default?)
+(define-convert-methods (map fset2:map) ((rel ch-2-relation) &key default)
   "This conversion requires the relation to be functional, and returns
 a map representing the function; that is, the relation must map each
 domain value to a single range value, and the returned map maps that
 domain value to that range value."
-  (ch-2-relation-to-ch-map rel nil nil (fset2-default default? default no-default?)))
+  (ch-2-relation-to-ch-map rel nil nil default))
 
 (define-convert-methods (ch-map fset2:ch-map)
 			((rel ch-2-relation)
-			 &key key-compare-fn-name val-compare-fn-name (default nil default?) no-default?)
+			 &key key-compare-fn-name val-compare-fn-name default)
   "This conversion requires the relation to be functional, and returns
 a map representing the function; that is, the relation must map each
 domain value to a single range value, and the returned map maps that
 domain value to that range value."
-  (ch-2-relation-to-ch-map rel key-compare-fn-name val-compare-fn-name (fset2-default default? default no-default?)))
+  (ch-2-relation-to-ch-map rel key-compare-fn-name val-compare-fn-name default))
 
 (defun ch-2-relation-to-ch-map (rel key-compare-fn-name val-compare-fn-name default)
   (let ((m nil)

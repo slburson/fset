@@ -6577,7 +6577,6 @@ accepts `nil' for an empty `str'."
 	   (type fixnum idx))
   (let ((len (length-nv str))
 	(elt-type (string-plus-char-type str ch)))
-    #+FSet-Ext-Strings
     (split-cases-on-var (elt-type base-char #+FSet-Ext-Strings character)
       (split-cases ((typep str 'simple-base-string))
 	(let ((new-str (make-string (1+ len) :element-type elt-type)))
@@ -6587,9 +6586,7 @@ accepts `nil' for an empty `str'."
 	  (dotimes (i (- len idx))
 	    (setf (schar new-str (+ idx i 1))
 		  (schar str (+ idx i))))
-	  new-str)))
-    #-FSet-Ext-Strings
-    (insert-it 'base-char)))
+	  new-str)))))
 
 (defun Vector-Insert-From-String (str idx val)
   "Returns a new vector like `str' (a string) but with `val' inserted at `idx'.

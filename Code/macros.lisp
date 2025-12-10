@@ -244,9 +244,9 @@ around the body."
 			     ((dflt-param (and dflt-pos (nth dflt-pos parameter-list-rest)))
 			      (params-rest (if (or fset1? (null dflt-pos))
 					       parameter-list-rest
-					     (append (subseq parameter-list-rest 0 dflt-pos)
+					     (append (cl:subseq parameter-list-rest 0 dflt-pos)
 						     '((default nil default?) no-default?)
-						     (subseq parameter-list-rest (1+ dflt-pos)))))))
+						     (cl:subseq parameter-list-rest (1+ dflt-pos)))))))
 			 `(defmethod convert ,(cons `(to-type (eql ',to-type))
 					            params-rest)
 			    (let ,(and (not fset1?) dflt-pos
