@@ -312,14 +312,10 @@
 (pushnew ':FSet *features*)
 (pushnew ':FSet2 *features*)
 
-;;; The seq implementation tries to use strings for leaf vectors when possible.
-;;; In some Lisp implementations, there are two kinds of strings; but in some
-;;; of these, the larger form takes as much space as a general vector, so nothing
-;;; is to be saved by using it.
-(when (and (not (typep (make-string 1 :element-type 'character :initial-element #\A)
-		       'base-string))
-	   (not (and (> (integer-length (1- char-code-limit)) 16)
-		     (< (integer-length most-positive-fixnum) 32))))
+;;; The seq implementation uses strings for leaf vectors when possible.
+;;; In some Lisp implementations, there are two kinds of strings.
+(when (not (typep (make-string 1 :element-type 'character :initial-element #\A)
+		  'base-string))
   (pushnew ':FSet-Ext-Strings *features*))
 
 

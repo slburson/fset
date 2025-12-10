@@ -255,24 +255,33 @@ This is the right choice for the vast majority of mutable classes."
 (defmethod compare ((a string) (b string))
   (Compare-Strings a b))
 
-;;; Abstracted out for use by `(compare symbol symbol)'.  Do not use otherwise.
 (defun Compare-Strings (a b)
-  (let ((len-a (length a))
-	(len-b (length b)))
-    (cond ((< len-a len-b) ':less)
-	  ((> len-a len-b) ':greater)
-	  (t
-	   (if (and (simple-string-p a) (simple-string-p b))
-	       (dotimes (i len-a ':equal)
-		 (let ((ca (schar a i))
-		       (cb (schar b i)))
-		   (cond ((char< ca cb) (return ':less))
-			 ((char> ca cb) (return ':greater)))))
-	     (dotimes (i len-a ':equal)
-	       (let ((ca (char a i))
-		     (cb (char b i)))
-		 (cond ((char< ca cb) (return ':less))
-		       ((char> ca cb) (return ':greater))))))))))
+  (declare (optimize (speed 3) (safety 1))
+	   (type string a b))
+  (if (eq a b) ':equal
+    (let ((len-a (length a))
+	  (len-b (length b)))
+      (cond ((< len-a len-b) ':less)
+	    ((> len-a len-b) ':greater)
+	    ((and (simple-string-p a) (simple-string-p b))
+	     (locally (declare (optimize (safety 0)))
+	       ;; Duplicates the body, in effect hoisting the type tests out of the loop.
+	       (split-string-cases (a)
+		 (split-string-cases (b)
+		   (dotimes (i len-a ':equal)
+		     (let ((ca (schar a i))
+			   (cb (schar b i)))
+		       (cond ((char< ca cb) (return ':less))
+			     ((char> ca cb) (return ':greater)))))))))
+	    (t
+	     ;; Slow catch-all case for when they're not both simple.
+	     (locally (declare (optimize (safety 0)))
+	       (muffle-notes
+		 (dotimes (i len-a ':equal)
+		   (let ((ca (char a i))
+			 (cb (char b i)))
+		     (cond ((char< ca cb) (return ':less))
+			   ((char> ca cb) (return ':greater))))))))))))
 
 
 ;;; Vectors

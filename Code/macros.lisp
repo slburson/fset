@@ -33,11 +33,35 @@ constant."
     `(multiple-value-bind ,vars ,expr
        (values . ,vars))))
 
-(defmacro split-cases (pred &body body)
-  "Useful when `body' can be optimized differently based on the value
-of `pred'."
-  `(if ,pred (progn . ,body)
-     (progn . ,body)))
+(defmacro split-cases (preds &body body)
+  "Duplicates `body' in each branch of a `cond' using `preds', a list of forms,
+as the corresponding tests, and once more for the case where `preds' are all
+false.  Useful when `body' can be optimized differently based on the value of
+each predicate."
+  `(cond ,@(mapcar (fn (pred)
+		     `(,pred . ,body))
+		   preds)
+	 (t . ,body)))
+
+(defmacro e-split-cases (preds &body body)
+  "Duplicates `body' in each branch of a `cond' using `preds', a list of forms,
+as the corresponding tests; signals an error the case where `preds' are all
+false.  Useful when `body' can be optimized differently based on the value of
+each predicate.  (The name should recall `ecase' etc.)"
+  `(cond ,@(mapcar (fn (pred)
+		     `(,pred . ,body))
+		   preds)
+	 (t (error "Fell through `e-split-cases'"))))
+
+(defmacro split-string-cases ((var) &body body)
+  "Assumes `var' is bound to a string; if feature `FSet-Ext-Strings' is set,
+duplicates `body' in one context where `var' holds a simple-base-string, and
+one where it doesn't.  If the feature is not set, this is just `progn'."
+  #+FSet-Ext-Strings
+  `(if (typep ,var 'simple-base-string) (progn . ,body)
+     (progn . ,body))
+  #-FSet-Ext-Strings
+  `(progn . ,body))
 
 (defmacro split-cases-on-var ((var . values) &body body)
   "For each of `values', if `var' is `eql' to it, binds it to that value

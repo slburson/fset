@@ -5803,7 +5803,7 @@ different seq implementations; it is not for public use.  `vec-fn' and
       (if (not from-end)
 	  (if (<= end1 start1)
 	      start2
-	    (split-cases key
+	    (split-cases (key)
 	      (let ((q-it (the function (iterator quaesitum :start start1 :end end1))))
 		(loop
 		  (let ((q-elt (apply-key (funcall q-it ':get)))
@@ -5823,7 +5823,7 @@ different seq implementations; it is not for public use.  `vec-fn' and
 			    (return))))))))))  ; exits inner loop
 	(if (<= end1 start1)
 	    end2
-	  (split-cases key
+	  (split-cases (key)
 	    (let ((q-it (the function (iterator quaesitum :start start1 :end end1 :from-end? t))))
 	      (loop
 		(let ((q-elt (apply-key (funcall q-it ':get)))
@@ -5863,7 +5863,7 @@ different seq implementations; it is not for public use.  `vec-fn' and
       (if (or (<= end1 start1) (<= end2 start2))
 	      0
 	(if (not from-end)
-	    (split-cases key
+	    (split-cases (key)
 	      (let ((it-1 (the function (iterator sequence-1 :start start1 :end end1)))
 		    (it-2 (the function (iterator sequence-2 :start start2 :end end2)))
 		    (idx start1))
@@ -5876,7 +5876,7 @@ different seq implementations; it is not for public use.  `vec-fn' and
 		    (unless (funcall test elt-1 elt-2)
 		      (return idx)))
 		  (incf idx))))
-	  (split-cases key
+	  (split-cases (key)
 	    (let ((it-1 (the function (iterator sequence-1 :start start1 :end end1 :from-end? t)))
 		  (it-2 (the function (iterator sequence-2 :start start2 :end end2 :from-end? t)))
 		  (idx end1))
