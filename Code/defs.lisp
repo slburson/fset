@@ -34,7 +34,7 @@
 	   #:some #:every #:notany #:notevery
 	   #:search #:mismatch)
   (:export #:collection #:set #:bag #:map #:seq #:tuple
-	   #:collection? #:set? #:bag? #:map? #:seq? #:tuple?
+	   #:collection? #:set? #:bag? #:map? #:seq? #:char-seq? #:tuple?
 	   #:wb-set #:wb-bag #:wb-map #:wb-seq #:dyn-tuple
 	   #:ch-set #:ch-map
 	   #:replay-set #:replay-set? #:wb-replay-set #:wb-replay-set? #:ch-replay-set #:ch-replay-set?
@@ -168,7 +168,7 @@
 	   ;; Functions that call `lookup', transitively
 	   #:internal-lookup #:@ #:image #:filter #:partition)
   (:export #:collection #:set #:bag #:map #:seq #:tuple
-	   #:collection? #:set? #:bag? #:map? #:seq? #:tuple?
+	   #:collection? #:set? #:bag? #:map? #:seq? #:char-seq? #:tuple?
 	   #:wb-set #:wb-bag #:wb-map #:wb-seq #:dyn-tuple
 	   #:ch-set #:ch-map
 	   #:replay-set #:replay-set? #:wb-replay-set #:wb-replay-set? #:ch-replay-set #:ch-replay-set?
