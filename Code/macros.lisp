@@ -57,6 +57,7 @@ each predicate.  (The name should recall `ecase' etc.)"
   "Assumes `var' is bound to a string; if feature `FSet-Ext-Strings' is set,
 duplicates `body' in one context where `var' holds a simple-base-string, and
 one where it doesn't.  If the feature is not set, this is just `progn'."
+  (declare (ignorable var))
   #+FSet-Ext-Strings
   `(if (typep ,var 'simple-base-string) (progn . ,body)
      (progn . ,body))
