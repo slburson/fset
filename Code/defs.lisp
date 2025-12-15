@@ -68,7 +68,7 @@
 	   #:with-default #:default
 	   #:non-char-seq-error #:non-char-seq-error-seq
 	   #:map-union #:map-intersection #:map-difference-2 #:map-image
-	   #:restrict #:restrict-not #:compose
+	   #:restrict #:restrict-not #:compose #:map-default
 	   #:first #:last
 	   #:lastcons #:head #:tail
 	   #:with-first #:less-first #:push-first #:pop-first
