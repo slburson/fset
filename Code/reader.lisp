@@ -1043,9 +1043,10 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
   (unread-char subchar stream)
   `(convert 'seq ,(read stream t nil t)))
 
+(defvar |impl-##-reader| (get-dispatch-macro-character #\# #\#))
+
 ;;; The new CHAMP types are printed with a double `#'.
 (defun |##-reader| (stream subchar arg)
-  (declare (ignore subchar arg))
   (case (peek-char nil stream t nil t)
     (#\{
       (read-char stream t nil t)
@@ -1074,9 +1075,9 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
 	    `(ch-replay-set . ,(read-delimited-list #\} stream t))))
 	(otherwise
 	  `(ch-set . ,(read-delimited-list #\} stream t)))))
-    ;; No other options, currently.
     (otherwise
-      (error "\"##\" is expected to be followed by \"{\""))))
+      ;; Forward to the Lisp implementation's `##' reader.
+      (funcall |impl-##-reader| stream subchar arg))))
 
 
 (defun fset-setup-readtable (readtable)
