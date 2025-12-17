@@ -1203,13 +1203,13 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
     `(%% . ,subform)))
 
 (defun |rereading-##-reader| (stream subchar arg)
-  (declare (ignore subchar arg))
   (case (peek-char nil stream t nil t)
     (#\{
       (read-char stream t nil t)
       (|rereading-#{-read-internal| stream 'ch-set 'ch-bag 'ch-map 'ch-replay-set 'ch-replay-map))
     (otherwise
-      (error "\"##\" is expected to be followed by \"{\""))))
+      ;; Forward to the Lisp implementation's `##' reader.
+      (funcall |impl-##-reader| stream subchar arg))))
 
 (defun |rereading-#"-reader| (stream subchar arg)
   (declare (ignore arg))
