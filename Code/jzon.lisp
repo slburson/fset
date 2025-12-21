@@ -16,6 +16,38 @@
   max-depth
   object-type)
 
+(defmacro with-parser ((var in &rest kwd-args
+			&key allow-comments allow-trailing-comma allow-multiple-content
+			  max-string-length max-depth key-fn object-type
+			  key-package key-case-mode key-prefix key-suffix)
+		       &body body)
+  "Binds `var' around `body' to an FSet/Jzon parser that will read from `in',
+which can be a vector, a stream, or a pathname.  If `allow-comments' is true,
+comments as in C \(`//' for single-line or `/* ... */' for block\) will be
+accepted.  If `allow-trailing-comma', a comma will be permitted after the last
+element of an array or object.  `max-string-length' limits the length of
+strings, and `map-depth' the maximum nesting depth; these help protect against
+DoS attacks.  `key-fn' controls whether and how string pooling is done; the
+default uses an FSet set.
+
+If `allow-multiple-content' is true, the input may contain multiple top-level
+JSON values, which you can read by calling `parse-top-level' multiple times.
+
+JSON arrays are returned as FSet seqs; JSON objects are returned according to
+`object-type', which can be `replay-map', `map', or `tuple'.  If
+`key-package' is supplied, keys will be interned in this package; this option
+overrides `key-fn'.  If `object-type' is `tuple', `key-package' is
+required, and may not be the CL keyword package.  If `key-package' is supplied:
+\(a\) `key-case-mode' can be any of `:upcase', `:downcase', or `:preserve'; the
+default is `:upcase'.  \(b\) If supplied, `key-prefix' is prepended and
+`key-suffix' is appended to the case-converted key before interning."
+  (declare (ignore allow-comments allow-trailing-comma allow-multiple-content
+		   max-string-length max-depth key-fn object-type
+		   key-package key-case-mode key-prefix key-suffix))
+  `(let ((,var (make-parser ,in . ,kwd-args)))
+     (unwind-protect (progn . ,body)
+       (close-parser ,var))))
+
 (defun make-parser (in &key allow-comments allow-trailing-comma allow-multiple-content
 			 (max-string-length (min 1048576 (1- array-dimension-limit)))
 			 (max-depth 128) (key-fn (make-fset-string-pool))
@@ -30,6 +62,9 @@ an array or object.  `max-string-length' limits the length of strings, and
 `key-fn' controls whether and how string pooling is done; the default uses
 an FSet set.
 
+The returned parser should be closed after use; see `close-parser', and macro
+`with-parser' which closes it automatically.
+
 If `allow-multiple-content' is true, the input may contain multiple top-level
 JSON values, which you can read by calling `parse-top-level' multiple times.
 
@@ -39,15 +74,17 @@ JSON arrays are returned as FSet seqs; JSON objects are returned according to
 overrides `key-fn'.  If `object-type' is `tuple', `key-package' is
 required, and may not be the CL keyword package.  If `key-package' is supplied:
 \(a\) `key-case-mode' can be any of `:upcase', `:downcase', or `:preserve'; the
-default is `:preserve'.  \(b\) If supplied, `key-prefix' is prepended and
+default is `:upcase'.  \(b\) If supplied, `key-prefix' is prepended and
 `key-suffix' is appended to the case-converted key before interning."
   (check-type max-depth (integer 1 65535))
   (check-type object-type (member replay-map map tuple))
-  (check-type key-package (or null package))
+  (check-type key-package (or null string symbol package))
   (check-type key-case-mode (member :upcase :downcase :preserve))
   (when (eq object-type 'tuple)
     (when (null key-package)
       (error "To use object-type `tuple', you must also supply a `key-package'"))
+    (unless (packagep key-package)
+      (setq key-package (uiop:find-package* key-package)))
     (when (eq key-package (symbol-package ':upcase))
       ;; The problem is that keyword symbols are bound to themselves; we want to bind key names
       ;; to their key objects.
@@ -78,38 +115,6 @@ default is `:preserve'.  \(b\) If supplied, `key-prefix' is prepended and
   "Closes the parser.  If the input was specified as a pathname, closes the
 input stream."
   (com.inuoe.jzon:close-parser (parser-jzon-parser parser)))
-
-(defmacro with-parser ((var in &rest kwd-args
-			&key allow-comments allow-trailing-comma allow-multiple-content
-			  max-string-length max-depth key-fn object-type
-			  key-package key-case-mode key-prefix key-suffix)
-		       &body body)
-  "Binds `var' around `body' to an FSet/Jzon parser that will read from `in',
-which can be a vector, a stream, or a pathname.  If `allow-comments' is true,
-comments as in C \(`//' for single-line or `/* ... */' for block\) will be
-accepted.  If `allow-trailing-comma', a comma will be permitted after the last
-element of an array or object.  `max-string-length' limits the length of
-strings, and `map-depth' the maximum nesting depth; these help protect against
-DoS attacks.  `key-fn' controls whether and how string pooling is done; the
-default uses an FSet set.
-
-If `allow-multiple-content' is true, the input may contain multiple top-level
-JSON values, which you can read by calling `parse-top-level' multiple times.
-
-JSON arrays are returned as FSet seqs; JSON objects are returned according to
-`object-type', which can be `replay-map', `map', or `tuple'.  If
-`key-package' is supplied, keys will be interned in this package; this option
-overrides `key-fn'.  If `object-type' is `tuple', `key-package' is
-required, and may not be the CL keyword package.  If `key-package' is supplied:
-\(a\) `key-case-mode' can be any of `:upcase', `:downcase', or `:preserve'; the
-default is `:preserve'.  \(b\) If supplied, `key-prefix' is prepended and
-`key-suffix' is appended to the case-converted key before interning."
-  (declare (ignore allow-comments allow-trailing-comma allow-multiple-content
-		   max-string-length max-depth key-fn object-type
-		   key-package key-case-mode key-prefix key-suffix))
-  `(let ((,var (make-parser ,in . ,kwd-args)))
-     (unwind-protect (progn . ,body)
-       (close-parser ,var))))
 
 (defun parse-top-level (parser)
   "Reads one top-level JSON object from `parser'.  If `parser' was created

@@ -32,7 +32,7 @@
     (test (equal? (parse "[\"gubbish\", {\"color\": \"blue\", \"sizes\": [4, 7, 11]}]" :object-type 'map)
 		  (seq "gubbish" (map ("color" "blue") ("sizes" (seq 4 7 11))))))
     (test (equal? (parse "[\"gubbish\", {\"color\": \"blue\", \"sizes\": [4, 7, 11]}]"
-			 :object-type 'tuple :key-package (symbol-package 'foo)
+			 :object-type 'tuple :key-package :fset/jzon/test
 			 :key-prefix '#:+json- :key-suffix #\+)
 		  (seq "gubbish" (tuple (+json-color+ "blue") (+json-sizes+ (seq 4 7 11))))))
 

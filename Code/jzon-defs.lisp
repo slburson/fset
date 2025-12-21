@@ -9,7 +9,7 @@
 		#:seq #:replay-map #:tuple #:push-last #:@ #:convert #:includef #:get-tuple-key
 		#:do-seq #:do-map #:do-tuple #:tuple-key #:tuple-key-name #:tuple-key-type #:char-seq?)
   ;; Exports of names defined in this system
-  (:export #:json-element #:make-parser #:close-parser #:with-parser #:parse #:parse-top-level
+  (:export #:json-element #:with-parser #:make-parser #:close-parser #:parse #:parse-top-level
 	   #:coerced-fields #:coerce-tuple-key)
   ;; We import and re-export (our guess at) the most commonly used parts of the Jzon API,
   ;; mostly writer-related.

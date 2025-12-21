@@ -102,7 +102,7 @@
 
 (defstruct (dyn-tuple
 	    (:include tuple)
-	    (:constructor make-dyn-tuple (descriptor contents &optional hash-value))
+	    (:constructor make-dyn-tuple (descriptor contents hash-value))
 	    (:predicate dyn-tuple?)
 	    (:print-function print-dyn-tuple)
 	    (:copier nil))
@@ -171,7 +171,7 @@ is specified, then if the key is being freshly created, it will have a default
 of `nil'; if it already existed, its default will be unchanged."
   (when (and default? no-default?)
     (error "Both a default and `no-default?' specified"))
-  (when (and default? (not (eq type 't)) (not (typep default type)))
+  (unless (or no-default? (eq type 't) (typep default type))
     (error 'tuple-default-type-error :datum default :expected-type type :key-name name))
   (with-lock (+Tuple-Key-Lock+)
     (let ((key (lookup +Tuple-Key-Name-Map+ name))
@@ -332,7 +332,7 @@ in that case."
     (unless desc
       (setq desc (Make-Tuple-Desc (empty-ch-set) (vector)))
       (setf (lookup +Tuple-Descriptor-Map+ (empty-ch-set)) desc))
-  (make-dyn-tuple desc (vector))))
+  (make-dyn-tuple desc (vector) nil)))
 
 (deflex +Tuple-Random-Value+ 0
   "State for an extremely fast, low-quality generator of small numbers of
@@ -463,7 +463,7 @@ don't worry about locking it, either.")
 					      (hash-unmix (hash-value-fixnum val)
 							  (hash-value-fixnum prev-val))))))))
 	      (setf (svref new-chunk val-idx) val)
-	      (if single-chunk? (make-dyn-tuple desc new-chunk)
+	      (if single-chunk? (make-dyn-tuple desc new-chunk new-hash)
 		(progn
 		  (dotimes (i (length contents))
 		    (setf (svref new-contents i) (svref contents i)))
