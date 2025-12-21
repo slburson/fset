@@ -13,7 +13,7 @@
 See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
 "
   :author "Scott L. Burson <Scott@sympoiesis.com>"
-  :version "2.1.3"
+  :version "2.2.0"
   :homepage "https://gitlab.common-lisp.net/fset/fset/-/wikis/home"
   :source-control "https://github.com/slburson/fset"
   :license "BSD-2-Clause"
@@ -74,3 +74,24 @@ See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
   :components ((:module "Code"
 		:serial t
 		:components ((:file "iterate-tests")))))
+
+(defsystem :FSet/Jzon
+  :description "FSet definitions for the Jzon JSON reader/writer."
+  :author "Scott L. Burson <Scott@sympoiesis.com>"
+  :homepage "https://gitlab.common-lisp.net/fset/fset/-/wikis/home"
+  :source-control "https://github.com/slburson/fset"
+  :license "BSD-2-Clause"
+  :depends-on ("fset" "com.inuoe.jzon")
+  :in-order-to ((test-op (test-op "fset/jzon/test")))
+  :components ((:module "Code"
+		:serial t
+		:components ((:file "jzon-defs")
+			     (:file "jzon")))))
+
+(defsystem :FSet/Jzon/test
+  :description "Test system for FSet/Iterate"
+  :depends-on (:fset/jzon)
+  :perform (test-op (o c) (symbol-call :fset/jzon/test :test-fset/jzon))
+  :components ((:module "Code"
+		:serial t
+		:components ((:file "jzon-tests")))))

@@ -117,20 +117,28 @@ reordered key vectors.  This is the default implementation of tuples in FSet."
 
 
 (defstruct (tuple-key
-	    (:constructor make-tuple-key (name default number))
+	    (:constructor make-tuple-key (name default number &optional type))
 	    (:predicate tuple-key?)
 	    (:print-function print-tuple-key))
   (name nil :read-only t)	; a symbol (normally, but actually can be any type known to FSet)
   (default 'no-default)		; default, if any, for tuples with no explicit entry for this key
 				;   (in FSet1, this was a function called on the tuple)
   (number nil :type fixnum
-	      :read-only t))	; used for lookup and sorting
+	      :read-only t)	; used for lookup and sorting
+  (type t))
 
 (deflex +Tuple-Key-Name-Map+ (empty-ch-map))
 
 (deflex +Tuple-Key-Seq+ (empty-seq))
 
 (deflex +Tuple-Key-Lock+ (make-lock "Tuple Key Lock"))
+
+(define-condition tuple-default-type-error (type-error)
+    ((key-name :initarg :key-name :reader tuple-default-type-error-key-name))
+  (:report (lambda (err stream)
+	     (format stream "The value~%  ~S~%is not of type~%  ~S~%when setting default for tuple key ~S"
+		     (type-error-datum err) (type-error-expected-type err)
+		     (tuple-default-type-error-key-name err)))))
 
 (defun get-tuple-key (name &optional default)
   "Finds or creates a tuple key named `name'.  If `default' is supplied and
@@ -154,7 +162,7 @@ you have to wrap it in an extra lambda."
 		  (push-last +Tuple-Key-Seq+ key)
 		  key)
 	      (error "Tuple key space exhausted")))))))
-(defun fset2:get-tuple-key (name &key (default nil default?) no-default?)
+(defun fset2:get-tuple-key (name &key (type 't) (default nil default?) no-default?)
   "Finds or creates a tuple key named `name'.  If `default' is supplied, sets
 the key's default to it; this value will be returned from `lookup' when the
 tuple has no explicit pair with this key.  If `no-default?' is true, clears the
@@ -163,6 +171,8 @@ is specified, then if the key is being freshly created, it will have a default
 of `nil'; if it already existed, its default will be unchanged."
   (when (and default? no-default?)
     (error "Both a default and `no-default?' specified"))
+  (when (and default? (not (eq type 't)) (not (typep default type)))
+    (error 'tuple-default-type-error :datum default :expected-type type :key-name name))
   (with-lock (+Tuple-Key-Lock+)
     (let ((key (lookup +Tuple-Key-Name-Map+ name))
 	  (key-idx (size +Tuple-Key-Seq+)))
@@ -171,10 +181,11 @@ of `nil'; if it already existed, its default will be unchanged."
 		    (setf (tuple-key-default key) default))
 		   (no-default?
 		    (setf (tuple-key-default key) 'no-default)))
+	     (setf (tuple-key-type key) type)
 	     key)
 	    ((<= key-idx Tuple-Key-Number-Mask)
 	     (let ((key (make-tuple-key name (if default? default (and no-default? 'no-default))
-					key-idx)))
+					key-idx type)))
 	       (setf (lookup +Tuple-Key-Name-Map+ name) key)
 	       (push-last +Tuple-Key-Seq+ key)
 	       key))
@@ -198,7 +209,7 @@ for `default'."
   (assert (symbolp name))
   `(deflex ,name (get-tuple-key ',name ,default)
      . ,(and doc-string `(,doc-string))))
-(defmacro fset2:define-tuple-key (name &key (default nil default?) no-default? documentation)
+(defmacro fset2:define-tuple-key (name &key (type 't) (default nil default?) no-default? documentation)
   "Defines a tuple key named `name' as a global lexical variable (see
 `deflex').  If `default' is supplied, it will be returned from `lookup',
 instead of `nil', when the tuple has no explicit pair with this key.
@@ -207,13 +218,14 @@ in that case."
   (assert (symbolp name))
   (when (and default? no-default?)
     (error "Both a default and `no-default?' specified"))
-  `(deflex-reinit ,name (fset2:get-tuple-key ',name ,@(if default? `(:default ,default)
-							(and no-default? '(:no-default? t))))
+  `(deflex-reinit ,name (fset2:get-tuple-key ',name :type ',type
+					     ,@(if default? `(:default ,default)
+						 (and no-default? '(:no-default? t))))
      . ,(and documentation `(,documentation))))
 
 (defun print-tuple-key (key stream level)
   (declare (ignore level))
-  (format stream "#<Key ~A>" (tuple-key-name key)))
+  (format stream "#<Key ~S>" (tuple-key-name key)))
 
 (declaim (inline key-compare))
 (defun key-compare (key1 key2)
@@ -292,7 +304,7 @@ in that case."
 
 (define-hash-function tuple-desc-compare tuple-desc-hash-value)
 
-;;; Urgh, Allegro 6 doesn't obey inline declarations, so we use a macro for this.
+;;; Urgh, Allegro doesn't obey inline declarations, so we use a macro for this.
 ;;; This takes its argument doubled for the convenience of the common case (lookup).
 ;;; &&& These numbers are SWAGs and may be too small.  See `Tuple-Reorder-Keys'.
 (defmacro Tuple-Window-Size (nkeys*2)
@@ -403,11 +415,20 @@ don't worry about locking it, either.")
 	  (setf (svref pairs idx) to-key-pr)
 	  (setf (svref pairs to-idx) key-pr))))))
 
+(define-condition tuple-value-type-error (type-error)
+    ((key :initarg :key :reader tuple-value-type-error-key))
+  (:report (lambda (err stream)
+	     (format stream "The value~%  ~S~%is not of type~%  ~S~%when assigning tuple key ~S"
+		     (type-error-datum err) (type-error-expected-type err)
+		     (tuple-value-type-error-key err)))))
 
 ;;; Someday: multiple key/value pair update.
 (defun Tuple-With (tuple key val)
-  (declare (optimize (speed 3) (safety 0)))
+  (let ((type (tuple-key-type key)))
+    (unless (or (eq type 't) (typep val type))
+      (error 'tuple-value-type-error :datum val :expected-type type :key key)))
   (let ((old-val? old-val (Tuple-Lookup tuple key)))
+    (declare (optimize (speed 3) (safety 0)))  ; moved here to quiet note on `(typep val type)'
     (if old-val?
 	(if (equal? val old-val)
 	    tuple
