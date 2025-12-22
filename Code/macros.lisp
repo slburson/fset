@@ -1343,7 +1343,9 @@ seq.  If `from-end?' is true, the elements will be yielded in reverse order."
   `((convert 'list ,tuple)
     #'null
     (:values 2 #'(lambda (al) (values (caar al) (cdar al))))
-    #'cdr))
+    #'cdr
+    nil nil
+    (do-tuple ,tuple)))
 
 (gmap:def-gmap-res-type tuple (&key filterp)
   `((empty-dyn-tuple) (:consume 2 #'Tuple-With) nil ,filterp))
