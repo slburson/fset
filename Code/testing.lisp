@@ -1895,7 +1895,7 @@
 	(test (equal? s2 (concat (subseq s 13) (subseq s 0 13)))))
       (let ((s (convert 'seq "abcdefghijklmnopqrstuvwxyz"))
 	    ((s2 (image (fn (c) (if (or (eql c #\e) (eql c #\x))
-				    (intern (string c))
+				    (intern (string c) (symbol-package 'test-misc-2))
 				  c))
 			s))))
 	(test (verify s2))
