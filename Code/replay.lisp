@@ -924,17 +924,18 @@ or `no-default?' is true."
 
 (defun print-wb-replay-map (map stream level)
   (declare (ignore level))
-  (pprint-logical-block (stream nil :prefix "#{=|"
-				    :suffix (let ((tmorg (wb-replay-map-org map))
-						  ((key-cf-name (tree-map-org-key-compare-fn-name tmorg))
-						   (val-cf-name (tree-map-org-val-compare-fn-name tmorg))
-						   ((key-default? (eq key-cf-name 'compare))
-						    (val-default? (eq val-cf-name 'compare))))
-						  (dflt (map-default map)))
-					      (format nil " |}~:[[~:[~S~;~*~]:~:[~S~;~*~]]~;~4*~]~:[/~S~;~]"
-						      (and key-default? val-default?)
-						      key-default? key-cf-name val-default? val-cf-name
-						      (eq dflt 'no-default) dflt)))
+  (pprint-logical-block
+      (stream nil :prefix "#{=|"
+		  :suffix (let ((tmorg (wb-replay-map-org map))
+				((key-cf-name (tree-map-org-key-compare-fn-name tmorg))
+				 (val-cf-name (tree-map-org-val-compare-fn-name tmorg))
+				 ((key-default? (eq key-cf-name 'compare))
+				  (val-default? (eq val-cf-name 'compare))))
+				(dflt (map-default map)))
+			    (format nil " |}~:[[~:[~S~;~*~];~:[~S~;~*~]]~;~4*~]~:[~;/~:[~S~;[no default]~]~]"
+				    (and key-default? val-default?)
+				    key-default? key-cf-name val-default? val-cf-name
+				    dflt (eq dflt 'no-default) dflt)))
     (do-map (x y map)
       (pprint-pop)
       (write-char #\Space stream)
@@ -1261,17 +1262,18 @@ or `no-default?' is true."
 
 (defun print-ch-replay-map (map stream level)
   (declare (ignore level))
-  (pprint-logical-block (stream nil :prefix "##{=|"
-				    :suffix (let ((hmorg (ch-replay-map-org map))
-						  ((key-cf-name (hash-map-org-key-compare-fn-name hmorg))
-						   (val-cf-name (hash-map-org-val-compare-fn-name hmorg))
-						   ((key-default? (eq key-cf-name 'compare))
-						    (val-default? (eq val-cf-name 'compare))))
-						  (dflt (map-default map)))
-					      (format nil " |}~:[[~:[~S~;~*~]:~:[~S~;~*~]]~;~4*~]~:[/~S~;~]"
-						      (and key-default? val-default?)
-						      key-default? key-cf-name val-default? val-cf-name
-						      (eq dflt 'no-default) dflt)))
+  (pprint-logical-block
+      (stream nil :prefix "##{=|"
+		  :suffix (let ((hmorg (ch-replay-map-org map))
+				((key-cf-name (hash-map-org-key-compare-fn-name hmorg))
+				 (val-cf-name (hash-map-org-val-compare-fn-name hmorg))
+				 ((key-default? (eq key-cf-name 'compare))
+				  (val-default? (eq val-cf-name 'compare))))
+				(dflt (map-default map)))
+			    (format nil " |}~:[[~:[~S~;~*~];~:[~S~;~*~]]~;~4*~]~:[~;/~:[~S~;[no default]~]~]"
+				    (and key-default? val-default?)
+				    key-default? key-cf-name val-default? val-cf-name
+				    dflt (eq dflt 'no-default) dflt)))
     (do-map (x y map)
       (pprint-pop)
       (write-char #\Space stream)

@@ -1136,8 +1136,15 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
 	       (if (eql #\/ (peek-char nil stream nil nil t))
 		   (progn
 		     (read-char stream t nil t)
-		     (values pairs (read stream t nil t) key-cfn-name val-cfn-name))
-		 (values pairs 'no-default key-cfn-name val-cfn-name)))))
+		     (if (eql #\[ (peek-char nil stream nil nil t))
+			 (progn
+			   (read-char stream t nil t)
+			   (let ((stuff (read-delimited-list #\] stream t)))
+			     (unless (equal stuff '(no default))
+			       (error "Unexpected map default syntax")))
+			   (values pairs 'no-default key-cfn-name val-cfn-name))
+		       (values pairs (read stream t nil t) key-cfn-name val-cfn-name)))
+		 (values pairs nil key-cfn-name val-cfn-name)))))
 	 (read-compare-fn ()
 	   (and (eql #\[ (peek-char nil stream nil nil t))
 		(progn
@@ -1178,8 +1185,15 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
     (if (eql #\/ (peek-char nil stream nil nil t))
 	(progn
 	  (read-char stream t nil t)
-	  (with-default seq (read stream t nil t)))
-      (fset2:without-default seq))))
+	  (if (eql #\[ (peek-char nil stream nil nil t))
+	      (progn
+		(read-char stream t nil t)
+		(let ((stuff (read-delimited-list #\] stream t)))
+		  (unless (equal stuff '(no default))
+		    (error "Unexpected seq default syntax")))
+		(fset2:without-default seq))
+	    (with-default seq (read stream t nil t))))
+      seq)))
 
 (defun |rereading-#~-reader| (stream subchar arg)
   (declare (ignore subchar arg))
