@@ -5378,12 +5378,13 @@ it is not for public use.  `elt-fn' and `value-fn' must be function objects,
 not symbols."))
 
 
-(defmethod internal-do-seq ((s wb-seq) elt-fn value-fn index?
-			    &key (start 0)
-			         (end (WB-Seq-Tree-Size (wb-seq-contents s)))
-			         from-end?)
+(define-wb-seq-method internal-do-seq ((s wb-seq) elt-fn value-fn index?
+				       &key (start 0) end from-end?)
   (declare (optimize (speed 3) (safety 0))
 	   (type function elt-fn value-fn))
+  (unless end
+    (setq end (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size
+			     (wb-seq-contents s))))
   (assert (and (typep start 'fixnum) (typep end 'fixnum)))
   (if index?
       (let ((i start))
