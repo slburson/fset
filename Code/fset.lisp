@@ -2792,7 +2792,7 @@ or hash function, as `b'.  `b' can also be a set."))
     (if tree
 	(let ((val mult (WB-Bag-Tree-Arb-Pair tree)))
 	  (values val mult t))
-      (values nil nil nil))))
+      (values nil 0 nil))))
 
 (defmethod contains? ((b wb-bag) x &optional (y nil y?))
   (declare (ignore y))
@@ -3534,11 +3534,13 @@ different bag implementations; it is not for public use.  `elt-fn' and
     (count-if #'(lambda (x) (not (funcall pred x))) s :key key)))
 
 (defun print-wb-bag (bag stream level)
+  (print-bag bag stream level "#{%" (let ((cfn-name (tree-set-org-compare-fn-name (wb-bag-org bag))))
+				      (if (eq cfn-name 'compare) " %}"
+					(format nil " %}[~S]" cfn-name)))))
+
+(defun print-bag (bag stream level prefix suffix)
   (declare (ignore level))
-  (pprint-logical-block (stream nil :prefix "#{%"
-				    :suffix (let ((tsorg (wb-bag-org bag)))
-					      (if (eq (tree-set-org-compare-fn-name tsorg) 'compare) " %}"
-						(format nil " %}[~S]" (tree-set-org-compare-fn-name tsorg)))))
+  (pprint-logical-block (stream nil :prefix prefix :suffix suffix)
     (let ((i 0))
       (do-bag-pairs (x n bag)
         (pprint-pop)
@@ -3557,6 +3559,170 @@ different bag implementations; it is not for public use.  `elt-fn' and
   `(convert 'wb-bag ',(convert 'alist b) :from-type 'alist
 					 :compare-fn-name ',(tree-set-org-compare-fn-name
 							      (wb-bag-org b))))
+
+
+;;; ================================================================================
+;;; CHAMP Bags
+
+(declaim (inline make-ch-bag))
+
+(defstruct (ch-bag
+	     (:include bag)
+	     (:constructor make-ch-bag (contents org))
+	     (:predicate ch-bag?)
+	     (:print-function print-ch-bag)
+	     (:copier nil))
+  (contents nil :read-only t)  ; a `ch-map-tree'
+  (org nil :type hash-set-org :read-only t))
+
+(defparameter +empty-ch-bag+ (make-ch-bag nil +fset-default-hash-set-org+))
+
+(declaim (inline empty-ch-bag fset2:empty-ch-bag))
+(defun empty-ch-bag (&optional compare-fn-name)
+  "Returns an empty ch-bag using `compare-fn-name', which must be a symbol."
+  (if (null compare-fn-name)
+      +empty-ch-bag+
+    (empty-ch-custom-bag compare-fn-name)))
+(defun fset2:empty-ch-bag (&key compare-fn-name)
+  "Returns an empty ch-bag using `compare-fn-name', which must be a symbol."
+  (if (null compare-fn-name)
+      +empty-ch-bag+
+    (empty-ch-custom-bag compare-fn-name)))
+
+(deflex +empty-ch-custom-bag-cache+ (make-hash-table :test 'eq))
+
+(defun empty-ch-custom-bag (compare-fn-name)
+  (assert (and compare-fn-name (symbolp compare-fn-name) (symbol-package compare-fn-name)) ()
+	  "compare-fn-name must be a nonnull interned symbol")
+  (if (eq compare-fn-name 'compare)
+      +empty-ch-bag+
+    (let ((prev-instance (gethash compare-fn-name +empty-ch-custom-bag-cache+))
+	  (compare-fn (symbol-function compare-fn-name))
+	  (hash-fn-name (or (get compare-fn-name 'hash-function)
+			    (error "compare-fn-name `~S' not defined for hashing -- see `define-hash-function'"
+				   compare-fn-name)))
+	  ((hash-fn (symbol-function hash-fn-name))))
+      (if (and prev-instance
+	       (let ((prev-org (ch-bag-org prev-instance)))
+		 (and (eq compare-fn (hash-set-org-compare-fn prev-org))
+		      (eq hash-fn (hash-set-org-hash-fn prev-org)))))
+	  prev-instance
+	(setf (gethash compare-fn-name +empty-ch-custom-bag-cache+)
+	      (make-ch-bag nil (make-hash-set-org compare-fn-name compare-fn hash-fn)))))))
+
+(defmethod empty-set-like ((b ch-bag))
+  (let ((hsorg (ch-bag-org b)))
+    (empty-ch-custom-set (hash-set-org-compare-fn-name hsorg))))
+
+(defmethod empty-bag-like ((b ch-bag))
+  (let ((hsorg (ch-bag-org b)))
+    (empty-ch-custom-bag (hash-set-org-compare-fn-name hsorg))))
+
+(defmethod empty-bag-like ((s ch-set))
+  (let ((hsorg (ch-set-org s)))
+    (empty-ch-bag (hash-set-org-compare-fn-name hsorg))))
+
+(defmethod compare-fn ((b ch-bag))
+  (hash-set-org-compare-fn (ch-bag-org b)))
+
+(defmethod compare-fn-name ((b ch-bag))
+  (hash-set-org-compare-fn-name (ch-bag-org b)))
+
+(defmethod empty? ((b ch-bag))
+  (null (ch-bag-contents b)))
+
+(defmethod arb ((m ch-bag))
+  (let ((tree (ch-bag-contents m)))
+    (if tree
+	(let ((val mult (ch-map-tree-arb-pair tree)))
+	  (values val mult t))
+      (values nil 0 nil))))
+
+(defmethod contains? ((b ch-bag) x &optional (y nil y?))
+  (declare (ignore y))
+  (check-two-arguments y? 'contains? 'c-bag)
+  (let ((hsorg (ch-bag-org b)))
+    (ch-map-tree-lookup (ch-bag-contents b) x
+			(hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg))))
+
+(defmethod lookup ((b ch-bag) x)
+  (let ((hsorg (ch-bag-org b))
+	((val? val x-found (ch-map-tree-lookup (ch-bag-contents b) x
+					       (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg)))))
+    (declare (ignore val))
+    (if val? (values t x-found)
+      (values nil nil))))
+(defmethod fset2:lookup ((b ch-bag) x)
+  (let ((hsorg (ch-bag-org b))
+	((val? val x-found (ch-map-tree-lookup (ch-bag-contents b) x
+					       (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg)))))
+    (if val? (values val x-found)
+      (values 0 nil))))
+
+(defmethod index ((s ch-bag) x)
+  "Returns the index in the set ordering, i.e. the upper bound is the `set-size'."
+  (let ((hsorg (ch-bag-org s)))
+    (ch-map-tree-index (ch-bag-contents s) x (hash-set-org-hash-fn hsorg)
+		       (hash-set-org-compare-fn hsorg))))
+
+(defmethod at-index ((s ch-bag) index)
+  "Takes the index in the set ordering, i.e. the upper bound is the `set-size'."
+  (let ((contents (ch-bag-contents s))
+	((size (ch-map-tree-size contents))))
+    (unless (and (>= index 0) (< index size))
+      (error 'simple-type-error :datum index :expected-type `(integer 0 (,size))
+				:format-control "Index ~D out of bounds on ~A"
+				:format-arguments (list index s)))
+    (ch-bag-tree-index-pair contents index)))
+
+(defmethod size ((b ch-bag))
+  (ch-bag-tree-total-count (ch-bag-contents b)))
+
+(defmethod set-size ((b ch-bag))
+  (ch-map-tree-size (ch-bag-contents b)))
+
+(defmethod multiplicity ((b ch-bag) x)
+  (let ((hsorg (ch-bag-org b))
+	((val? val (ch-map-tree-lookup (ch-bag-contents b) x
+				       (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg)))))
+    (if val? val 0)))
+
+(defmethod with ((b ch-bag) value &optional (multiplicity 1))
+  (assert (and (integerp multiplicity) (not (minusp multiplicity))))
+  (if (zerop multiplicity) b
+    (let ((hsorg (ch-bag-org b)))
+      (make-ch-bag (ch-map-tree-with (ch-bag-contents b) value multiplicity
+				     (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg) nil nil)
+		   (ch-bag-org b)))))
+
+(defmethod less ((b ch-bag) value &optional (multiplicity 1))
+  (assert (and (integerp multiplicity) (not (minusp multiplicity))))
+  (if (zerop multiplicity) b
+    (let ((hsorg (ch-bag-org b)))
+      (make-ch-bag (ch-map-tree-less (ch-bag-contents b) value (hash-set-org-hash-fn hsorg) 
+				     (hash-set-org-compare-fn hsorg) multiplicity)
+		   hsorg))))
+
+
+
+(defmethod convert ((to-type (eql 'wb-bag)) (b ch-bag) &key)
+  (let ((hsorg (ch-bag-org b))
+	(result nil))
+    (do-ch-bag-tree-pairs (x n (ch-bag-contents b))
+      (setq result (wb-bag-tree-with result x (hash-set-org-compare-fn hsorg) n)))
+    ;; &&& For now
+    (make-wb-bag result (make-tree-set-org (hash-set-org-compare-fn-name hsorg) (hash-set-org-compare-fn hsorg)))))
+
+(defmethod internal-do-bag-pairs ((b ch-bag) elt-fn value-fn)
+  (declare (optimize (speed 3) (safety 0))
+	   (type function elt-fn value-fn))
+  (do-ch-bag-tree-pairs (x n (ch-bag-contents b) (funcall value-fn))
+    (funcall elt-fn x n)))
+
+(defun print-ch-bag (bag stream level)
+  (print-bag bag stream level "##{%" (let ((cfn-name (hash-set-org-compare-fn-name (ch-bag-org bag))))
+				       (if (eq cfn-name 'compare) " %}"
+					 (format nil " %}[~S]" cfn-name)))))
 
 
 ;;; ================================================================================

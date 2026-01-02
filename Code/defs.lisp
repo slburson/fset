@@ -55,7 +55,7 @@
 	   #:empty-set #:empty-set-like #:empty-bag #:empty-bag-like #:empty-map #:empty-map-like
 	   #:empty-seq #:empty-tuple
 	   #:empty-wb-set #:empty-wb-bag #:empty-wb-map #:empty-wb-seq
-	   #:empty-dyn-tuple #:empty-ch-set #:empty-ch-map
+	   #:empty-dyn-tuple #:empty-ch-set #:empty-ch-bag #:empty-ch-map
 	   #:empty-replay-set #:empty-wb-replay-set #:empty-replay-map #:empty-wb-replay-map
 	   #:empty-ch-replay-set #:empty-ch-replay-map
 	   #:least #:greatest #:lookup #:rank #:at-rank #:index #:at-index #:@
@@ -160,7 +160,8 @@
 	   #:empty-set #:empty-map #:empty-wb-map #:empty-ch-map #:empty-seq #:empty-wb-seq
 	   #:rank #:define-tuple-key #:get-tuple-key #:map-to-sets
 	   ;; These just changed from `&optional' to `&key'
-	   #:empty-wb-set #:empty-ch-set #:empty-wb-bag #:empty-wb-replay-set #:empty-ch-replay-set
+	   #:empty-wb-set #:empty-ch-set #:empty-wb-bag #:empty-ch-bag
+	   #:empty-wb-replay-set #:empty-ch-replay-set
 	   #:empty-replay-map #:empty-wb-replay-map #:empty-ch-replay-map
 	   #:empty-wb-2-relation #:empty-ch-2-relation
 	   #:empty-list-relation #:empty-wb-list-relation #:empty-ch-list-relation
@@ -190,7 +191,7 @@
 	   #:empty-set #:empty-set-like #:empty-bag #:empty-bag-like #:empty-map #:empty-map-like
 	   #:empty-seq #:empty-tuple
 	   #:empty-wb-set #:empty-wb-bag #:empty-wb-map #:empty-wb-seq
-	   #:empty-dyn-tuple #:empty-ch-set #:empty-ch-map
+	   #:empty-dyn-tuple #:empty-ch-set #:empty-ch-bag #:empty-ch-map
 	   #:empty-replay-set #:empty-wb-replay-set #:empty-replay-map #:empty-wb-replay-map
 	   #:empty-ch-replay-set #:empty-ch-replay-map
 	   #:least #:greatest #:lookup #:rank #:at-rank #:index #:at-index #:@

@@ -5047,6 +5047,46 @@
 	  (setq saved-wbm wbm)
 	  (setq saved-chm chm))))))
 
+(defmethod verify ((b ch-bag))
+  (let ((hsorg (ch-bag-org b)))
+    (ch-map-tree-verify (ch-bag-contents b) (hash-set-org-hash-fn hsorg) nil)))
+
+(defun test-champ-bags (n)
+  (declare (optimize (speed 0) (debug 3)))
+  (macrolet ((test (form)
+	       `(let ((form-tested ',form))
+		  (unless ,form
+		    (error "Test failed: ~S" form-tested)))))
+    (let ((saved-wbb nil)
+	  (saved-chb nil))
+      (declare (ignore saved-wbb saved-chb))  ; for now
+      (dotimes (i n)
+	(when (zerop (mod i 10))
+	  (format t "."))
+	(let ((wbb (wb-bag))
+	      (chb (empty-ch-bag)))
+	  (dotimes (j (+ 64 (random 128)))
+	    (let ((mi (make-my-integer (random 64)))
+		  (prev-wbb wbb)
+		  (prev-chb chb))
+	      (test (= (multiplicity chb mi) (multiplicity wbb mi)))
+	      (test (or (empty? chb) (contains? chb (arb chb))))
+	      (if (< (random 100) 30)
+		  (progn
+		    ;(format t "-")
+		    (excludef wbb mi)
+		    (excludef chb mi))
+		(progn
+		  ;(format t "+")
+		  (includef wbb mi)
+		  (includef chb mi)))
+	      (test (= (multiplicity chb mi) (multiplicity wbb mi)))
+	      (test (verify chb))
+	      (test (= (size chb) (size wbb)))
+	      (test (equal? (convert 'wb-bag chb) wbb))
+	      (when (< (get-universal-time) 100000)
+		(format t "~A ~A" prev-wbb prev-chb)))))))))
+
 
 ;;; ====================================================================================================
 ;;; ====================================================================================================
