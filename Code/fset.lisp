@@ -5129,7 +5129,7 @@ This is the default implementation of seqs in FSet."
 (define-wb-seq-method last ((s wb-seq))
   (let ((tree (wb-seq-contents s))
 	((val? val (call-selected WB-Seq-Tree-Subscript WB-HT-Seq-Tree-Subscript
-				  tree (1- (WB-Seq-Tree-Size tree))))))
+				  tree (1- (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size tree))))))
     (values (if val? val
 	      (let ((dflt (seq-default s)))
 		(if (eq dflt 'no-default)
@@ -5149,13 +5149,13 @@ This is the default implementation of seqs in FSet."
 (define-wb-seq-method less-first ((s wb-seq))
   (let ((tree (wb-seq-contents s)))
     (make-wb-seq (call-selected WB-Seq-Tree-Subseq WB-HT-Seq-Tree-Subseq
-				tree 1 (WB-Seq-Tree-Size tree))
+				tree 1 (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size tree))
 		 (seq-default s))))
 
 (define-wb-seq-method less-last ((s wb-seq))
   (let ((tree (wb-seq-contents s)))
     (make-wb-seq (call-selected WB-Seq-Tree-Subseq WB-HT-Seq-Tree-Subseq
-				tree 0 (1- (WB-Seq-Tree-Size tree)))
+				tree 0 (1- (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size tree)))
 		 (seq-default s))))
 
 (define-wb-seq-method with ((s wb-seq) idx &optional (val nil val?))
@@ -5216,8 +5216,11 @@ This is the default implementation of seqs in FSet."
 	(error 'fset2:seq-bounds-error :seq s :index idx))
       (setq tree (WB-Seq-Tree-Concat tree (WB-Seq-Tree-Fill (- idx size) (seq-default s)))))
     ;; `subseq-tree' could be an HT tree.
-    (make-wb-seq (WB-HT-Seq-Tree-Concat (WB-HT-Seq-Tree-Concat (WB-Seq-Tree-Subseq tree 0 idx) subseq-tree)
-					(WB-Seq-Tree-Subseq tree idx (WB-Seq-Tree-Size tree)))
+    (make-wb-seq (WB-HT-Seq-Tree-Concat (WB-HT-Seq-Tree-Concat
+					  (call-selected WB-Seq-Tree-Subseq WB-HT-Seq-Tree-Subseq tree 0 idx)
+					  subseq-tree)
+					(call-selected WB-Seq-Tree-Subseq WB-HT-Seq-Tree-Subseq tree idx
+						       (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size tree)))
 		 (seq-default s))))
 
 (define-wb-seq-method less ((s wb-seq) idx &optional (arg2 nil arg2?))
