@@ -5165,21 +5165,18 @@ This is the default implementation of seqs in FSet."
     (when (< idx -1)
       (when (eq (seq-default s) 'no-default)
 	(error 'fset2:seq-bounds-error :seq s :index idx))
-      (setq tree (call-selected WB-Seq-Tree-Concat WB-HT-Seq-Tree-Concat
-				(WB-Seq-Tree-Fill (- -1 idx) (seq-default s))
-				tree))
+      (setq tree (WB-HT?-Seq-Tree-Concat (WB-Seq-Tree-Fill (- -1 idx) (seq-default s)) tree))
       (setq idx -1))
     (when (> idx size)
       (when (eq (seq-default s) 'no-default)
 	(error 'fset2:seq-bounds-error :seq s :index idx))
-      (setq tree (call-selected WB-Seq-Tree-Concat WB-HT-Seq-Tree-Concat tree
-				(WB-Seq-Tree-Fill (- idx size) (seq-default s))))
+      (setq tree (WB-HT?-Seq-Tree-Concat tree (WB-Seq-Tree-Fill (- idx size) (seq-default s))))
       (setq size idx))
     (make-wb-seq (if (= idx -1)
-		     (call-selected WB-Seq-Tree-Insert WB-HT-Seq-Tree-Insert tree 0 val)
+		     (WB-HT?-Seq-Tree-Insert tree 0 val)
 		   (if (= idx size)
-		       (call-selected WB-Seq-Tree-Insert WB-HT-Seq-Tree-Insert tree idx val)
-		     (call-selected WB-Seq-Tree-With WB-HT-Seq-Tree-With tree idx val)))
+		       (WB-HT?-Seq-Tree-Insert tree idx val)
+		     (WB-HT?-Seq-Tree-With tree idx val)))
 		 (seq-default s))))
 
 (define-wb-seq-method insert ((s wb-seq) idx val)
@@ -5188,14 +5185,14 @@ This is the default implementation of seqs in FSet."
     (when (< idx 0)
       (when (eq (seq-default s) 'no-default)
 	(error 'fset2:seq-bounds-error :seq s :index idx))
-      (setq tree (call-selected WB-Seq-Tree-Concat WB-HT-Seq-Tree-Concat
+      (setq tree (call-selected WB-Seq-Tree-Concat WB-HT?-Seq-Tree-Concat
 				(WB-Seq-Tree-Fill (- idx) (seq-default s))
 				tree))
       (setq idx 0))
     (when (> idx size)
       (when (eq (seq-default s) 'no-default)
 	(error 'fset2:seq-bounds-error :seq s :index idx))
-      (setq tree (call-selected WB-Seq-Tree-Concat WB-HT-Seq-Tree-Concat tree
+      (setq tree (call-selected WB-Seq-Tree-Concat WB-HT?-Seq-Tree-Concat tree
 				(WB-Seq-Tree-Fill (- idx size) (seq-default s))))
       (setq size idx))
     (make-wb-seq (call-selected WB-Seq-Tree-Insert WB-HT-Seq-Tree-Insert tree idx val)
@@ -5208,19 +5205,17 @@ This is the default implementation of seqs in FSet."
     (when (< idx 0)
       (when (eq (seq-default s) 'no-default)
 	(error 'fset2:seq-bounds-error :seq s :index idx))
-      (setq tree (WB-Seq-Tree-Concat (WB-Seq-Tree-Fill (- idx) (seq-default s))
-				     tree))
+      (setq tree (WB-HT?-Seq-Tree-Concat (WB-Seq-Tree-Fill (- idx) (seq-default s))
+					 tree))
       (setq idx 0))
     (when (> idx size)
       (when (eq (seq-default s) 'no-default)
 	(error 'fset2:seq-bounds-error :seq s :index idx))
-      (setq tree (WB-Seq-Tree-Concat tree (WB-Seq-Tree-Fill (- idx size) (seq-default s)))))
+      (setq tree (WB-HT?-Seq-Tree-Concat tree (WB-Seq-Tree-Fill (- idx size) (seq-default s)))))
     ;; `subseq-tree' could be an HT tree.
-    (make-wb-seq (WB-HT-Seq-Tree-Concat (WB-HT-Seq-Tree-Concat
-					  (call-selected WB-Seq-Tree-Subseq WB-HT-Seq-Tree-Subseq tree 0 idx)
-					  subseq-tree)
-					(call-selected WB-Seq-Tree-Subseq WB-HT-Seq-Tree-Subseq tree idx
-						       (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size tree)))
+    (make-wb-seq (WB-HT?-Seq-Tree-Concat (WB-HT?-Seq-Tree-Concat (WB-HT?-Seq-Tree-Subseq tree 0 idx)
+								 subseq-tree)
+					(WB-HT?-Seq-Tree-Subseq tree idx (WB-HT?-Seq-Tree-Size tree)))
 		 (seq-default s))))
 
 (define-wb-seq-method less ((s wb-seq) idx &optional (arg2 nil arg2?))
@@ -5238,7 +5233,7 @@ This is the default implementation of seqs in FSet."
 (defmethod concat ((s1 seq) &rest seqs)
   (let ((tree (wb-seq-contents s1)))
     (dolist (seq seqs)
-      (setq tree (WB-HT-Seq-Tree-Concat tree (wb-seq-contents (convert 'seq seq)))))
+      (setq tree (WB-HT?-Seq-Tree-Concat tree (wb-seq-contents (convert 'seq seq)))))
     (make-wb-seq tree (seq-default s1))))
 
 (define-wb-seq-method subseq ((s wb-seq) start &optional end)
@@ -5544,7 +5539,7 @@ different seq implementations; it is not for public use.  `vec-fn' and
 						      (fset2:lookup fn (seq-default s))))))
 
 (defun seq-image (fn s default)
-  (make-wb-seq (WB-HT-Seq-Tree-Image (wb-seq-contents s) fn) default))
+  (make-wb-seq (WB-HT?-Seq-Tree-Image (wb-seq-contents s) fn) default))
 
 (defmethod reduce ((fn function) (s seq)
 		   &key key (initial-value nil init?)

@@ -780,35 +780,43 @@ ordinary element, quote it.  Examples:
   (let ((fset2? (eq (symbol-package empty-fn) (symbol-package 'fset2:empty-seq))))
     (labels ((recur (args nonsplice-args default)
 	       (cond ((null args)
-		      (if nonsplice-args
-			  `(convert ',type-name (list . ,(cl:reverse nonsplice-args))
-				    . ,(and fset2? `(:default ,default)))
-			`(,empty-fn . ,(and fset2? `(:default ,default)))))
+		      (values (if nonsplice-args
+				  `(convert ',type-name (list . ,(cl:reverse nonsplice-args)))
+				`(,empty-fn))
+			      default))
 		     ((and fset2? (eq (car args) ':default))
 		      (unless (cdr args)
 			(error "Syntax error in `~S' form: `:default' must be followed by another form"
 			       type-name))
+		      (unless (null default)
+			(error "More than one `:default' or `:no-default' in seq form ~S"
+			       (cons type-name args)))
 		      (recur (cddr args) nonsplice-args (cadr args)))
 		     ((and fset2? (eq (car args) ':no-default))
+		      (unless (null default)
+			(error "More than one `:default' or `:no-default' in seq form ~S"
+			       (cons type-name args)))
 		      (recur (cdr args) nonsplice-args ''no-default))
 		     ((and (listp (car args))
 			   (eq (caar args) '$))
 		      (unless (= (length (car args)) 2)
 			(error "A splice-arg to the `~S' macro must be of the form~@
-			      ($ <sub-seq>) -- not ~S"
+			        ($ <sub-seq>) -- not ~S"
 			       type-name (car args)))
-		      (let ((rest (if (cdr args)
-				      `(concat (convert ',type-name ,(cadar args))
-					       ,(recur (cdr args) nil default))
-				    `(convert ',type-name ,(cadar args)))))
-			(if nonsplice-args
-			    `(concat (convert ',type-name
-					      (list . ,(cl:reverse nonsplice-args)))
-				     ,rest)
-			  rest)))
+		      (let ((rest-expansion default (recur (cdr args) nil default))
+			    ((rest-with-splice `(concat (convert ',type-name ,(cadar args))
+							,rest-expansion))))
+			(values (if nonsplice-args
+				    `(concat (convert ',type-name
+						      (list . ,(cl:reverse nonsplice-args)))
+					     ,rest-with-splice)
+				  rest-with-splice)
+				default)))
 		     (t
 		      (recur (cdr args) (cons (car args) nonsplice-args) default)))))
-      (recur args nil nil))))
+      (let ((form default (recur args nil nil)))
+	(if default `(with-default ,form ,default)
+	  form)))))
 
 
 (defmacro tuple (&rest args)

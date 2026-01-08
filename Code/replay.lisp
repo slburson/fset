@@ -111,12 +111,12 @@ sets are printed as \"#{= ... }\"."
       (values nil nil))))
 
 (defmethod first ((s wb-replay-set))
-  (let ((val? val (WB-Seq-Tree-Subscript (replay-set-ordering s) 0)))
+  (let ((val? val (WB-HT?-Seq-Tree-Subscript (replay-set-ordering s) 0)))
     (values val val?)))
 
 (defmethod last ((s wb-replay-set))
   (let ((tree (replay-set-ordering s))
-	((val? val (WB-Seq-Tree-Subscript tree (1- (WB-Seq-Tree-Size tree))))))
+	((val? val (WB-HT?-Seq-Tree-Subscript tree (1- (WB-HT?-Seq-Tree-Size tree))))))
     (values val val?)))
 
 (defmethod least ((s wb-replay-set))
@@ -139,12 +139,12 @@ sets are printed as \"#{= ... }\"."
 
 (defmethod at-index ((m wb-replay-set) index)
   (let ((ordering (replay-set-ordering m))
-	((size (wb-seq-tree-size ordering))))
+	((size (wb-ht?-seq-tree-size ordering))))
     (unless (and (>= index 0) (< index size))
       (error 'simple-type-error :datum index :expected-type `(integer 0 (,size))
 	     :format-control "Index ~D out of bounds on ~A"
 				:format-arguments (list index m)))
-    (let ((ignore val (wb-seq-tree-subscript ordering index)))
+    (let ((ignore val (wb-ht?-seq-tree-subscript ordering index)))
       (declare (ignore ignore))
       val)))
 
@@ -239,7 +239,7 @@ sets are printed as \"#{= ... }\"."
 	((new-contents (wb-set-tree-with contents value (wb-set-compare-fn s)))))
     (if (eq new-contents contents)
 	s
-      (make-wb-replay-set new-contents (wb-seq-tree-append (replay-set-ordering s) value)
+      (make-wb-replay-set new-contents (wb-ht?-seq-tree-append (replay-set-ordering s) value)
 			  (wb-replay-set-org s)))))
 
 (defmethod union ((s1 wb-replay-set) (s2 set) &key)
@@ -255,7 +255,7 @@ new members appended."
 	(let ((tmp (wb-set-tree-with contents x compare-fn)))
 	  (unless (eq tmp contents)
 	    (setq contents tmp)
-	    (setq ordering (wb-seq-tree-append ordering x)))))
+	    (setq ordering (wb-ht?-seq-tree-append ordering x)))))
       (make-wb-replay-set contents ordering (wb-replay-set-org s1)))))
 
 (defmethod intersection ((s1 wb-replay-set) (s2 set) &key)
@@ -277,12 +277,11 @@ result is that of `s1', filtered by membership in `s2'."
 	((new-contents (wb-set-tree-less contents value compare-fn))))
     (if (eq new-contents contents)
 	s
-      (make-wb-replay-set new-contents
-			  (let ((tree (replay-set-ordering s)))
-			    (wb-seq-tree-remove tree
-						(or (position value (make-wb-seq tree nil) :test (equal?-fn compare-fn))
-						    (error "Bug in `less' on `wb-replay-set'"))))
-			  (wb-replay-set-org s)))))
+      (let ((tree (replay-set-ordering s))
+	    ((pos (or (wb-ht?-seq-tree-position-if tree (fn (x) (equal?-cmp x value compare-fn)))
+		      (error "Bug in `less' on `wb-replay-set'")))
+	     ((new-ordering (wb-ht?-seq-tree-remove tree pos)))))
+	(make-wb-replay-set new-contents new-ordering (wb-replay-set-org s))))))
 
 (defun print-wb-replay-set (set stream level)
   (declare (ignore level))
@@ -375,12 +374,12 @@ sets are printed as \"#{= ... }\"."
       (values nil nil))))
 
 (defmethod first ((s ch-replay-set))
-  (let ((val? val (wb-seq-tree-subscript (replay-set-ordering s) 0)))
+  (let ((val? val (wb-ht?-seq-tree-subscript (replay-set-ordering s) 0)))
     (values val val?)))
 
 (defmethod last ((s ch-replay-set))
   (let ((tree (replay-set-ordering s))
-	((val? val (wb-seq-tree-subscript tree (1- (wb-seq-tree-size tree))))))
+	((val? val (wb-ht?-seq-tree-subscript tree (1- (wb-ht?-seq-tree-size tree))))))
     (values val val?)))
 
 (defmethod index ((s ch-replay-set) x)
@@ -394,12 +393,12 @@ sets are printed as \"#{= ... }\"."
 
 (defmethod at-index ((m ch-replay-set) index)
   (let ((ordering (replay-set-ordering m))
-	((size (wb-seq-tree-size ordering))))
+	((size (wb-ht?-seq-tree-size ordering))))
     (unless (and (>= index 0) (< index size))
       (error 'simple-type-error :datum index :expected-type `(integer 0 (,size))
 	     :format-control "Index ~D out of bounds on ~A"
 				:format-arguments (list index m)))
-    (let ((ignore val (wb-seq-tree-subscript ordering index)))
+    (let ((ignore val (wb-ht?-seq-tree-subscript ordering index)))
       (declare (ignore ignore))
       val)))
 
@@ -485,7 +484,7 @@ sets are printed as \"#{= ... }\"."
 	((new-contents (ch-set-tree-with contents value (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg)))))
     (if (eq new-contents contents)
 	s
-      (make-ch-replay-set new-contents (wb-seq-tree-append (replay-set-ordering s) value) hsorg))))
+      (make-ch-replay-set new-contents (wb-ht?-seq-tree-append (replay-set-ordering s) value) hsorg))))
 
 (defmethod union ((s1 ch-replay-set) (s2 set) &key)
   "As the parameter types suggest, this is not symmetric: it adds the members
@@ -529,12 +528,11 @@ result is that of `s1', filtered by membership in `s2'."
 	 ((new-contents (ch-set-tree-less contents value hash-fn compare-fn)))))
     (if (eq new-contents contents)
 	s
-      (make-ch-replay-set new-contents
-			  (let ((tree (replay-set-ordering s)))
-			    (wb-seq-tree-remove tree
-						(or (position value (make-wb-seq tree nil) :test (equal?-fn compare-fn))
-						    (error "Bug in `less' on `ch-replay-set'"))))
-			  hsorg))))
+      (let ((tree (replay-set-ordering s))
+	    ((pos (or (wb-ht?-seq-tree-position-if tree (fn (x) (equal?-cmp x value compare-fn)))
+		      (error "Bug in `less' on `ch-replay-set'")))
+	     ((new-ordering (wb-ht?-seq-tree-remove tree pos)))))
+	(make-ch-replay-set new-contents new-ordering hsorg)))))
 
 (defun print-ch-replay-set (set stream level)
   (declare (ignore level))
@@ -751,12 +749,12 @@ or `no-default?' is true."
 
 (defmethod at-index ((m wb-replay-map) index)
   (let ((ordering (replay-map-ordering m))
-	((size (wb-seq-tree-size ordering))))
+	((size (wb-ht?-seq-tree-size ordering))))
     (unless (and (>= index 0) (< index size))
       (error 'simple-type-error :datum index :expected-type `(integer 0 (,size))
 	     :format-control "Index ~D out of bounds on ~A"
 				:format-arguments (list index m)))
-    (let ((ignore1 key (wb-seq-tree-subscript ordering index))
+    (let ((ignore1 key (wb-ht?-seq-tree-subscript ordering index))
 	  ((ignore2 val (wb-map-tree-lookup (wb-replay-map-contents m) key
 					    (tree-map-org-key-compare-fn (wb-replay-map-org m))))))
       (declare (ignore ignore1 ignore2))
@@ -830,7 +828,7 @@ or `no-default?' is true."
 	    (val (funcall value-fn pr)))
 	(let ((new-contents (wb-map-tree-with contents key val key-compare-fn val-compare-fn)))
 	  (unless (eq new-contents contents)
-	    (setq ordering (wb-seq-tree-append ordering key))
+	    (setq ordering (wb-ht?-seq-tree-append ordering key))
 	    (setq contents new-contents)))))
     (make-wb-replay-map contents ordering proto-tmorg default)))
 
@@ -897,7 +895,7 @@ or `no-default?' is true."
       (if (= (wb-map-tree-size new-contents) (wb-map-tree-size contents))
 	  ;; New value for existing key.
 	  (make-wb-replay-map new-contents (replay-map-ordering m) tmorg (map-default m))
-	(make-wb-replay-map new-contents (wb-seq-tree-append (replay-map-ordering m) key)
+	(make-wb-replay-map new-contents (wb-ht?-seq-tree-append (replay-map-ordering m) key)
 			    tmorg (map-default m))))))
 
 (defmethod less ((m wb-replay-map) key &optional (arg2 nil arg2?))
@@ -906,14 +904,15 @@ or `no-default?' is true."
   (check-two-arguments arg2? 'less 'wb-replay-map)
   (let ((contents (wb-replay-map-contents m))
 	(tmorg (wb-replay-map-org m))
-	((new-contents (wb-map-tree-less contents key (tree-map-org-key-compare-fn tmorg)))))
+	((key-cmp-fn (tree-map-org-key-compare-fn tmorg))
+	 ((new-contents (wb-map-tree-less contents key key-cmp-fn)))))
     (if (eq new-contents contents)
 	m
-      (make-wb-replay-map new-contents
-			  (let ((tree (replay-map-ordering m)))
-			    (wb-seq-tree-remove tree (or (position key (make-wb-seq tree nil))
-							 (error "Bug in `less' on `wb-replay-map'"))))
-			  tmorg (map-default m)))))
+      (let ((tree (replay-map-ordering m))
+	    ((pos (or (wb-ht?-seq-tree-position-if tree (fn (x) (equal?-cmp x key key-cmp-fn)))
+		      (error "Bug in `less' on `wb-replay-map'")))
+	     ((new-ordering (wb-ht?-seq-tree-remove tree pos)))))
+	(make-wb-replay-map new-contents new-ordering tmorg (map-default m))))))
 
 (defmethod domain ((m wb-replay-map))
   "The domain of a replay map is a replay set."
@@ -1080,12 +1079,12 @@ or `no-default?' is true."
 
 (defmethod at-index ((m ch-replay-map) index)
   (let ((ordering (replay-map-ordering m))
-	((size (wb-seq-tree-size ordering))))
+	((size (wb-ht?-seq-tree-size ordering))))
     (unless (and (>= index 0) (< index size))
       (error 'simple-type-error :datum index :expected-type `(integer 0 (,size))
 	     :format-control "Index ~D out of bounds on ~A"
 				:format-arguments (list index m)))
-    (let ((ignore key (wb-seq-tree-subscript ordering index))
+    (let ((ignore key (wb-ht?-seq-tree-subscript ordering index))
 	  (hmorg (ch-replay-map-org m))
 	  ((val? val (ch-map-tree-lookup (ch-replay-map-contents m) key
 					 (hash-map-org-key-hash-fn hmorg)
@@ -1233,7 +1232,7 @@ or `no-default?' is true."
       (if (= (ch-map-tree-size new-contents) (ch-map-tree-size contents))
 	  ;; New value for existing key.
 	  (make-ch-replay-map new-contents (replay-map-ordering m) hmorg (map-default m))
-	(make-ch-replay-map new-contents (wb-seq-tree-append (replay-map-ordering m) key)
+	(make-ch-replay-map new-contents (wb-ht?-seq-tree-append (replay-map-ordering m) key)
 			    hmorg (map-default m))))))
 
 (defmethod less ((m ch-replay-map) key &optional (arg2 nil arg2?))
@@ -1242,16 +1241,16 @@ or `no-default?' is true."
   (check-two-arguments arg2? 'less 'ch-replay-map)
   (let ((contents (ch-replay-map-contents m))
 	(hmorg (ch-replay-map-org m))
-	((new-contents (ch-map-tree-less contents key
-					 (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)
-					 (hash-map-org-val-hash-fn hmorg)))))
+	((key-cmp-fn (hash-map-org-key-compare-fn hmorg))
+	 ((new-contents (ch-map-tree-less contents key (hash-map-org-key-hash-fn hmorg) key-cmp-fn
+					  (hash-map-org-val-hash-fn hmorg))))))
     (if (eq new-contents contents)
 	m
-      (make-ch-replay-map new-contents
-			  (let ((tree (replay-map-ordering m)))
-			    (wb-seq-tree-remove tree (or (position key (make-wb-seq tree nil))
-							 (error "Bug in `less' on `ch-replay-map'"))))
-			  hmorg (map-default m)))))
+      (let ((tree (replay-map-ordering m))
+	    ((pos (or (wb-ht?-seq-tree-position-if tree (fn (x) (equal?-cmp x key key-cmp-fn)))
+		      (error "Bug in `less' on `ch-replay-map'")))
+	     ((new-ordering (wb-ht?-seq-tree-remove tree pos)))))
+	(make-ch-replay-map new-contents new-ordering hmorg (map-default m))))))
 
 (defmethod domain ((m ch-replay-map))
   "The domain of a replay map is a replay set."

@@ -6255,6 +6255,11 @@ returned as the third value."
 	(values (- raw-size) t)
       (values raw-size nil))))
 
+(defun WB-HT?-Seq-Tree-Size (tree)
+  (if (WB-HT-Seq-Tree? tree)
+      (WB-HT-Seq-Tree-Size tree)
+    (WB-Seq-Tree-Size tree)))
+
 (defun Make-WB-Seq-Tree-Node (left right)
   "The low-level constructor for a sequence tree node."
   (declare (optimize (speed 3) (safety 0))
@@ -6419,6 +6424,12 @@ returned as the third value."
 			       (schar tail (- idx tail-start))))
 		 (WB-Seq-Tree-Subscript (WB-HT-Seq-Tree-Body tree) (- idx head-size)))))))))
 
+(declaim (inline WB-HT?-Seq-Tree-Subscript))
+(defun WB-HT?-Seq-Tree-Subscript (tree idx)
+  (if (WB-HT-Seq-Tree? tree)
+      (WB-HT-Seq-Tree-Subscript tree idx)
+    (WB-Seq-Tree-Subscript tree idx)))
+
 
 ;;; We assume bounds checking has already been done.
 (defun WB-Seq-Tree-Insert (tree idx value &optional not-at-root?)
@@ -6496,11 +6507,23 @@ returned as the third value."
 	      (Make-WB-HT-Seq-Tree head body (WB-Seq-Tree-Insert tail idx1 value t)))
 	  (Make-WB-HT-Seq-Tree head (WB-Seq-Tree-Insert body (- idx head-size) value t) tail))))))
 
+(declaim (inline WB-HT?-Seq-Tree-Insert))
+(defun WB-HT?-Seq-Tree-Insert (tree idx value)
+  (if (WB-HT-Seq-Tree? tree)
+      (WB-HT-Seq-Tree-Insert tree idx value)
+    (WB-Seq-Tree-Insert tree idx value)))
+
 (defun WB-Seq-Tree-Append (tree value)
   (WB-Seq-Tree-Insert tree (WB-Seq-Tree-Size tree) value))
 
 (defun WB-HT-Seq-Tree-Append (tree value)
   (WB-HT-Seq-Tree-Insert tree (WB-HT-Seq-Tree-Size tree) value))
+
+(declaim (inline WB-HT?-Seq-Tree-Append))
+(defun WB-HT?-Seq-Tree-Append (tree value)
+  (if (WB-HT-Seq-Tree? tree)
+      (WB-HT-Seq-Tree-Append tree value)
+    (WB-Seq-Tree-Append tree value)))
 
 ;;; We assume bounds checking has already been done.
 (defun WB-Seq-Tree-With (tree idx value)
@@ -6550,6 +6573,12 @@ returned as the third value."
 				 (WB-Seq-Tree-With tail (the fixnum (- idx tail-start)) value))
 	  (Make-WB-HT-Seq-Tree head (WB-Seq-Tree-With (WB-HT-Seq-Tree-Body tree) (- idx head-size) value)
 			       tail))))))
+
+(declaim (inline WB-HT?-Seq-Tree-With))
+(defun WB-HT?-Seq-Tree-With (tree idx value)
+  (if (WB-HT-Seq-Tree? tree)
+      (WB-HT-Seq-Tree-With tree idx value)
+    (WB-Seq-Tree-With tree idx value)))
 
 
 (defun Vector-Subseq-Maybe-String (vec start end)
@@ -6709,6 +6738,12 @@ possible."
 				   (WB-Seq-Tree-Remove tail (the fixnum (- idx tail-start))))
 	    (Make-WB-HT-Seq-Tree head (WB-Seq-Tree-Remove (WB-HT-Seq-Tree-Body tree) (- idx head-size))
 				 tail)))))))
+
+(declaim (inline WB-HT?-Seq-Tree-Remove))
+(defun WB-HT?-Seq-Tree-Remove (tree idx)
+  (if (WB-HT-Seq-Tree? tree)
+      (WB-HT-Seq-Tree-Remove tree idx)
+    (WB-Seq-Tree-Remove tree idx)))
 
 (defun WB-Seq-Tree-Canonicalize-Down (tree)
   (declare (type WB-HT-Seq-Tree tree))
@@ -6887,14 +6922,26 @@ of the result are all characters, returns a string instead."
 	(tail (WB-HT-Seq-Tree-Tail tree))
 	((body-size (WB-Seq-Tree-Size body))
 	 ((tail-start (+ head-size body-size))
-	  ((new-head (and (< start head-size) (subseq head start (min head-size end))))
+	  ((new-head (and (< start head-size)
+			  (if (simple-vector-p head)
+			      (Vector-Subseq-Maybe-String head start (min head-size end))
+			    (String-Subseq head start (min head-size end)))))
 	   (new-body (and (> end head-size) (< start tail-start)
 			  (WB-Seq-Tree-Subseq body (the fixnum (max 0 (- start head-size)))
 					      (the fixnum (min body-size (- end head-size))))))
-	   (new-tail (and (> end tail-start) (subseq tail (max 0 (- start tail-start)) (- end tail-start))))))))
+	   (new-tail (and (> end tail-start)
+			  (if (simple-vector-p tail)
+			      (Vector-Subseq-Maybe-String tail (max 0 (- start tail-start)) (- end tail-start))
+			    (String-Subseq tail (max 0 (- start tail-start)) (- end tail-start)))))))))
     (if (> (- end start) WB-Seq-Tree-HT-Threshold)
 	(Make-WB-HT-Seq-Tree new-head new-body new-tail)
       (WB-Seq-Tree-Concat (WB-Seq-Tree-Concat new-head new-body) new-tail))))
+
+(declaim (inline WB-HT?-Seq-Tree-Subseq))
+(defun WB-HT?-Seq-Tree-Subseq (tree start end)
+  (if (WB-HT-Seq-Tree? tree)
+      (WB-HT-Seq-Tree-Subseq tree start end)
+    (WB-Seq-Tree-Subseq tree start end)))
 
 
 (defun WB-Seq-Tree-Reverse (tree)
@@ -7408,7 +7455,7 @@ of the result are all characters, returns a string instead."
 	(t
 	 (WB-Seq-Tree-Build-Node left right))))
 
-(defun WB-HT-Seq-Tree-Concat (left right)
+(defun WB-HT?-Seq-Tree-Concat (left right)
   "The arguments can be HT trees, but do not have to be.  The result also
 may or may not be an HT tree."
   (declare (optimize (speed 3) (safety 0)))
@@ -7617,7 +7664,7 @@ may or may not be an HT tree."
 
 
 (defun WB-Seq-Tree-Image (tree fn)
-  (declare (optimize (speed 3) (safety 1))
+  (declare (optimize (speed 3) (safety 0))
 	   (type function fn))
   (cond ((null tree) nil)
 	((stringp tree)
@@ -7643,12 +7690,23 @@ may or may not be an HT tree."
 	 (WB-Seq-Tree-Build-Node (WB-Seq-Tree-Image (WB-Seq-Tree-Node-Left tree) fn)
 				 (WB-Seq-Tree-Image (WB-Seq-Tree-Node-Right tree) fn)))))
 
-(defun WB-HT-Seq-Tree-Image (tree fn)
+(defun WB-HT?-Seq-Tree-Image (tree fn)
   (if (WB-HT-Seq-Tree? tree)
       (Make-WB-HT-Seq-Tree (WB-Seq-Tree-Image (WB-HT-Seq-Tree-Head tree) fn)
 			   (WB-Seq-Tree-Image (WB-HT-Seq-Tree-Body tree) fn)
 			   (WB-Seq-Tree-Image (WB-HT-Seq-Tree-Tail tree) fn))
     (WB-Seq-Tree-Image tree fn)))
+
+
+(defun WB-HT?-Seq-Tree-Position-If (tree pred)
+  (declare (optimize (speed 3))
+	   (type function pred))
+  (let ((pos 0))
+    (declare (fixnum pos))
+    (Do-WB-Seq-Tree-Members (x tree)
+      (when (funcall pred x)
+	(return pos))
+      (incf pos))))
 
 
 ;;; ----------------
