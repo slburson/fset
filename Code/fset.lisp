@@ -77,8 +77,10 @@ is preferred over `member?'."
 
 (defgeneric contains? (collection x &optional y)
   (:documentation
-    "Returns true iff the set or bag contains `x', or the map or relation contains
-the pair <x, y>."))
+    "On a set or bag, returns true iff it contains `x'.  On a map, if `y' is not
+supplied, returns true iff the map's domain contains `x'; if `y' is supplied,
+returns true iff the map maps `x' to `y'.  On a relation, `y' must be supplied;
+returns true iff it contains the pair <x, y>."))
 
 (defgeneric domain-contains? (collection x)
   (:documentation
@@ -2541,36 +2543,26 @@ comparison function as `compare-fn-name'."
     (call-next-method)))
 
 (define-methods (partition fset2:partition) ((pred function) (s ch-set))
-  (let ((hsorg (ch-set-org s))
-	((res1 res2 (ch-set-partition pred (ch-set-contents s) hsorg))))
-    (values (make-ch-set res1 hsorg) (make-ch-set res2 hsorg))))
+  (ch-set-partition pred (ch-set-contents s) (ch-set-org s)))
 
 (define-methods (partition fset2:partition) ((pred symbol) (s ch-set))
-  (let ((hsorg (ch-set-org s))
-	((res1 res2 (ch-set-partition (coerce-to-function pred) (ch-set-contents s) hsorg))))
-    (values (make-ch-set res1 hsorg) (make-ch-set res2 hsorg))))
+  (ch-set-partition (coerce-to-function pred) (ch-set-contents s) (ch-set-org s)))
 
 (defmethod partition ((pred map) (s ch-set))
-  (let ((hsorg (ch-set-org s))
-	((res1 res2 (ch-set-partition #'(lambda (x) (lookup pred x)) (ch-set-contents s) hsorg))))
-    (values (make-ch-set res1 hsorg) (make-ch-set res2 hsorg))))
+  (ch-set-partition #'(lambda (x) (lookup pred x)) (ch-set-contents s) (ch-set-org s)))
 (defmethod fset2:partition ((pred map) (s ch-set))
-  (let ((hsorg (ch-set-org s))
-	((res1 res2 (ch-set-partition #'(lambda (x) (fset2:lookup pred x)) (ch-set-contents s) hsorg))))
-    (values (make-ch-set res1 hsorg) (make-ch-set res2 hsorg))))
+  (ch-set-partition #'(lambda (x) (fset2:lookup pred x)) (ch-set-contents s) (ch-set-org s)))
 
 (defun ch-set-partition (pred contents hsorg)
   (declare (optimize (speed 3) (safety 0))
 	   (type function pred))
-  (let ((result-1 nil)
-	(result-2 nil)
-	(hash-fn (hash-set-org-hash-fn hsorg))
-	(compare-fn (hash-set-org-compare-fn hsorg)))
+  (let ((result-0 (make-transient (empty-ch-set (hash-set-org-compare-fn-name hsorg))))
+	(result-1 (make-transient (empty-ch-set (hash-set-org-compare-fn-name hsorg)))))
     (do-ch-set-tree-members (x contents)
       (if (funcall pred x)
-	  (setq result-1 (ch-set-tree-with result-1 x hash-fn compare-fn))
-	(setq result-2 (ch-set-tree-with result-2 x hash-fn compare-fn))))
-    (values result-1 result-2)))
+	  (include! result-0 x)
+	(include! result-1 x)))
+    (values (make-persistent result-0) (make-persistent result-1))))
 
 (define-methods (filter fset2:filter) ((pred function) (s ch-set))
   (ch-set-filter pred s))
@@ -2586,13 +2578,12 @@ comparison function as `compare-fn-name'."
 (defun ch-set-filter (pred s)
   (declare (optimize (speed 3) (safety 0))
 	   (type function pred))
-  (let ((result nil)
-	(hsorg (ch-set-org s)))
+  (let ((result (make-transient s)))
+    (clear! result)
     (do-ch-set-tree-members (x (ch-set-contents s))
       (when (funcall pred x)
-	(setq result (ch-set-tree-with result x (hash-set-org-hash-fn hsorg)
-				       (hash-set-org-compare-fn hsorg)))))
-    (make-ch-set result hsorg)))
+	(include! result x)))
+    (make-persistent result)))
 
 (define-methods (image fset2:image) ((fn function) (s ch-set) &key compare-fn-name)
   (ch-set-image fn s compare-fn-name))
@@ -2612,13 +2603,13 @@ comparison function as `compare-fn-name'."
   (ch-set-image (fn (x) (lookup fn x)) s compare-fn-name))
 
 (defun ch-set-image (fn s compare-fn-name)
-  (declare (type function fn))
-  (let ((result nil)
-	(hsorg (ch-set-org (if compare-fn-name (empty-ch-set compare-fn-name) s))))
+  (declare (optimize (speed 3) (safety 0))
+	   (type function fn))
+  (let ((result (make-transient (if compare-fn-name (empty-ch-set compare-fn-name) s))))
+    (clear! result)
     (do-ch-set-tree-members (x (ch-set-contents s))
-      (setq result (ch-set-tree-with result (funcall fn x) (hash-set-org-hash-fn hsorg)
-				     (hash-set-org-compare-fn hsorg))))
-    (make-ch-set result hsorg)))
+      (include! result (funcall fn x)))
+    (make-persistent result)))
 
 (defmethod compare ((s1 ch-set) (s2 ch-set))
   (if-same-ch-set-orgs (s1 s2 hsorg)
@@ -2655,40 +2646,32 @@ comparison function as `compare-fn-name'."
     (ch-set-tree-fun-iter (ch-set-contents s))))
 
 (defmethod convert ((to-type (eql 'ch-set)) (s set) &key compare-fn-name)
-  (convert-to-ch-set s nil
-    (let ((tree nil))
-      (do-set (x s tree)
-	(setq tree (ch-set-tree-with tree x hash-fn compare-fn))))))
+  (gmap (:result ch-set :compare-fn-name compare-fn-name) nil
+	(:arg set s)))
 
 (defmethod convert ((to-type (eql 'ch-set)) (s ch-set) &key compare-fn-name)
-  (convert-to-ch-set s (let ((from-hsorg (ch-set-org s)))
-			 (or (eq from-hsorg hsorg)
-			     (and (eq (hash-set-org-hash-fn from-hsorg) hash-fn)
-				  (eq (hash-set-org-compare-fn from-hsorg) compare-fn))))
-    (let ((tree nil))
-      (do-ch-set-tree-members (x (ch-set-contents s) tree)
-	(setq tree (ch-set-tree-with tree x hash-fn compare-fn))))))
+  (let ((prototype (empty-ch-set compare-fn-name))
+	((hsorg (ch-set-org prototype))
+	 ((hash-fn (hash-set-org-hash-fn hsorg))
+	  (compare-fn (hash-set-org-compare-fn hsorg))))
+	(from-hsorg (ch-set-org s)))
+    (if (or (eq from-hsorg hsorg)
+	    (and (eq (hash-set-org-hash-fn from-hsorg) hash-fn)
+		 (eq (hash-set-org-compare-fn from-hsorg) compare-fn)))
+	s
+      (gmap (:result ch-set :compare-fn-name compare-fn-name) nil
+	    (:arg ch-set s)))))
 
 (define-convert-methods (ch-set fset2:set) ((l list) &key compare-fn-name)
-  (convert-to-ch-set l nil
-    (let ((tree nil))
-      (dolist (x l)
-	(setq tree (ch-set-tree-with tree x hash-fn compare-fn)))
-      tree)))
+  (gmap (:result ch-set :compare-fn-name compare-fn-name) nil
+	(:arg list l)))
 
-(define-convert-methods (ch-set fset2:set) ((s seq) &key compare-fn-name)
-  (convert-to-ch-set s nil
-    (let ((tree nil))
-      (do-seq (x s)
-	(setq tree (ch-set-tree-with tree x hash-fn compare-fn)))
-      tree)))
+;;; Conversion to ch-set from seq moved down under `defstruct seq'.
 
 (define-convert-methods (ch-set fset2:set) ((s sequence) &key compare-fn-name)
-  (convert-to-ch-set s nil
-    (let ((tree nil))
-      (dotimes (i (length s))
-	(setq tree (ch-set-tree-with tree (elt s i) hash-fn compare-fn)))
-      tree)))
+  (gmap (:result ch-set :compare-fn-name compare-fn-name)
+	(fn (i) (elt s i))
+	(:arg index 0 (length s))))
 
 (defun print-ch-set (set stream level)
   (declare (ignore level))
@@ -3725,10 +3708,10 @@ or hash functions, as `m'."))
   (WB-Map-Tree-Size (wb-map-contents m)))
 
 (defmethod contains? ((m wb-map) x &optional (y nil y?))
-  (check-three-arguments y? 'contains? 'wb-map)
   (let ((comp (wb-map-org m))
 	((val? val (WB-Map-Tree-Lookup (wb-map-contents m) x (tree-map-org-key-compare-fn comp)))))
-    (and val? (equal?-cmp val y (tree-map-org-val-compare-fn comp)))))
+    (if y? (and val? (equal?-cmp val y (tree-map-org-val-compare-fn comp)))
+      val?)))
 
 (define-condition fset2:lookup-error (error)
     ())
@@ -4289,10 +4272,10 @@ to `compare'."
       (setq result (WB-Set-Tree-With result (funcall pair-fn key val) #'compare)))
     (make-wb-set result)))
 (defmethod convert ((to-type (eql 'fset2:set)) (m map) &key (pair-fn #'cons))
-  (let ((result nil))
+  (let ((result (make-transient (empty-ch-set))))
     (do-map (key val m)
-      (setq result (ch-set-tree-with result (funcall pair-fn key val) #'hash-value #'compare)))
-    (make-ch-set result +fset-default-hash-set-org+)))
+      (include! result (funcall pair-fn key val)))
+    (make-persistent result)))
 
 ;;; &&& Plist support?
 (define-convert-methods (wb-map fset2:wb-map)
@@ -4608,11 +4591,11 @@ The map's default is `nil' unless a different default is supplied, or
   (ch-map-tree-size (ch-map-contents m)))
 
 (defmethod contains? ((m ch-map) x &optional (y nil y?))
-  (check-three-arguments y? 'contains? 'wb-map)
   (let ((hmorg (ch-map-org m))
 	((val? val (ch-map-tree-lookup (ch-map-contents m) x
 				       (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)))))
-    (and val? (equal?-cmp val y (hash-map-org-val-compare-fn hmorg)))))
+    (if y? (and val? (equal?-cmp val y (hash-map-org-val-compare-fn hmorg)))
+      val?)))
 
 (defmethod with ((m ch-map) key &optional (value nil value?))
   (check-three-arguments value? 'with 'ch-map)
@@ -4669,15 +4652,11 @@ The map's default is `nil' unless a different default is supplied, or
 		 (ch-set-org set-prototype))))
 
 (defmethod range ((m ch-map))
-  (let ((hmorg (ch-map-org m))
-	((set-prototype (empty-ch-set (hash-map-org-val-compare-fn-name hmorg)))
-	 (val-hash-fn (hash-map-org-val-hash-fn hmorg))
-	 (val-compare-fn (hash-map-org-val-compare-fn hmorg)))
-	(result nil))
+  (let ((result (make-transient (empty-ch-set (hash-map-org-val-compare-fn-name (ch-map-org m))))))
     (do-map (key val m)
       (declare (ignore key))
-      (setq result (ch-set-tree-with result val val-hash-fn val-compare-fn)))
-    (make-ch-set result (ch-set-org set-prototype))))
+      (include! result val))
+    (make-persistent result)))
 
 (defmethod domain-contains? ((m ch-map) x)
   (let ((hmorg (ch-map-org m)))
@@ -4846,17 +4825,13 @@ The map's default is `nil' unless a different default is supplied, or
 
 (defun ch-map-filter (pred m)
   (declare (optimize (speed 3) (safety 0)) (type function pred))
-  (let* ((result nil)
-         (hmorg (ch-map-org m))
-         (key-hash-fn (hash-map-org-key-hash-fn hmorg))
-         (key-compare-fn (hash-map-org-key-compare-fn hmorg))
-         (val-hash-fn (hash-map-org-val-hash-fn hmorg))
-         (val-compare-fn (hash-map-org-val-compare-fn hmorg)))
+  (let ((hmorg (ch-map-org m))
+        ((result (make-transient (empty-ch-map (ch-map-default m) (hash-map-org-key-compare-fn-name hmorg)
+					       (hash-map-org-val-compare-fn-name hmorg))))))
     (do-ch-map-tree-pairs (k v (ch-map-contents m))
       (when (funcall pred k v)
-	(setq result
-              (ch-map-tree-with result k v key-hash-fn key-compare-fn val-hash-fn val-compare-fn))))
-    (make-ch-map result hmorg (ch-map-default m))))
+	(include! result k v)))
+    (make-persistent result)))
 
 (defmethod image ((fn function) (m ch-map) &key key-compare-fn-name val-compare-fn-name)
   (ch-map-image fn m key-compare-fn-name val-compare-fn-name (map-default m)))
@@ -4874,17 +4849,13 @@ The map's default is `nil' unless a different default is supplied, or
 (defun ch-map-image (fn m key-compare-fn-name val-compare-fn-name default)
   (declare (type function fn))
   (let ((m-org (ch-map-org m))
-	((res-org (ch-map-org (empty-ch-map nil (or key-compare-fn-name (hash-map-org-key-compare-fn-name m-org))
-					    (or val-compare-fn-name (hash-map-org-val-compare-fn-name m-org)))))
-	 ((key-hash-fn (hash-map-org-key-hash-fn res-org))
-          (key-compare-fn (hash-map-org-key-compare-fn res-org))
-          (val-hash-fn (hash-map-org-val-hash-fn res-org))
-          (val-compare-fn (hash-map-org-val-compare-fn res-org))))
-	(result nil))
+	((result (make-transient (empty-ch-map default
+					       (or key-compare-fn-name (hash-map-org-key-compare-fn-name m-org))
+					       (or val-compare-fn-name (hash-map-org-val-compare-fn-name m-org)))))))
     (do-ch-map-tree-pairs (x y (ch-map-contents m))
       (let ((new-x new-y (funcall fn x y)))
-	(setq result (ch-map-tree-with result new-x new-y key-hash-fn key-compare-fn val-hash-fn val-compare-fn))))
-    (make-ch-map result res-org default)))
+	(include! result new-x new-y)))
+    (make-persistent result)))
 
 (defmethod iterator ((m ch-map) &key)
   (make-ch-map-tree-iterator (ch-map-contents m)))
@@ -4896,43 +4867,36 @@ The map's default is `nil' unless a different default is supplied, or
 
 (define-convert-methods (ch-map fset2:ch-map)
 			((m map) &key key-compare-fn-name val-compare-fn-name default)
-  (convert-to-ch-map m default nil
-    (let ((tree nil))
-      (do-map (k v m)
-	(setq tree (ch-map-tree-with tree k v key-hash-fn key-compare-fn val-hash-fn val-compare-fn)))
-      tree)))
+  (gmap (:result ch-map :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name
+			:default default)
+	nil
+	(:arg map m)))
 
 (define-convert-methods (ch-map fset2:ch-map)
 			((m ch-map) &key key-compare-fn-name val-compare-fn-name default)
   "The result uses `default' if supplied, otherwise has the same default as `m'."
-  (convert-to-ch-map m default
-      (let ((m-hmorg (ch-map-org m)))
-	(and (or (eq m-hmorg hmorg)
+  (let ((prototype (empty-ch-map nil key-compare-fn-name val-compare-fn-name))
+	((hmorg (ch-map-org prototype))
+	 ((key-hash-fn (hash-map-org-key-hash-fn hmorg))
+	  (key-compare-fn (hash-map-org-key-compare-fn hmorg))
+	  (val-hash-fn (hash-map-org-val-hash-fn hmorg))
+	  (val-compare-fn (hash-map-org-val-compare-fn hmorg))))
+	(m-hmorg (ch-map-org m)))
+    (if (and (or (eq m-hmorg hmorg)
 		 (and (eq key-hash-fn (hash-map-org-key-hash-fn m-hmorg))
 		      (eq key-compare-fn (hash-map-org-key-compare-fn m-hmorg))
 		      (eq val-hash-fn (hash-map-org-val-hash-fn m-hmorg))
 		      (eq val-compare-fn (hash-map-org-val-compare-fn m-hmorg))))
-	     (equal?-cmp default (map-default m) val-compare-fn)))
-    (let ((tree nil))
-      (do-ch-map-tree-pairs (k v (ch-map-contents m))
-	(setq tree (ch-map-tree-with tree k v key-hash-fn key-compare-fn val-hash-fn val-compare-fn)))
-      tree)))
+	     (equal?-cmp default (map-default m) val-compare-fn))
+	m
+      (gmap (:result ch-map :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name
+			    :default default)
+	    nil
+	    (:arg ch-map m)))))
 
-(defmethod convert ((to-type (eql 'fset2:map)) (s seq)
-		    &key (key-fn #'car) (value-fn #'cdr) default)
-  (ch-map-from-sequence s key-fn value-fn nil nil default))
+;;; Conversions to ch-maps from seqs moved down under `defstruct seq'.
 
-(define-convert-methods (ch-map)
-			((s seq) &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name
-				      (default (seq-default s)))
-  (ch-map-from-sequence s key-fn value-fn key-compare-fn-name val-compare-fn-name default))
-(define-convert-methods (fset2:ch-map)
-			((s seq) &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name
-				      default) ; default default is now `nil'
-  (ch-map-from-sequence s key-fn value-fn key-compare-fn-name val-compare-fn-name default))
-
-(defmethod convert ((to-type (eql 'fset2:map)) (s sequence)
-		    &key (key-fn #'car) (value-fn #'cdr) default)
+(define-convert-methods (fset2:map) ((s sequence) &key (key-fn #'car) (value-fn #'cdr) default)
   (ch-map-from-sequence s key-fn value-fn nil nil default))
 
 (define-convert-methods (ch-map fset2:ch-map)
@@ -4941,37 +4905,33 @@ The map's default is `nil' unless a different default is supplied, or
   (ch-map-from-sequence s key-fn value-fn key-compare-fn-name val-compare-fn-name default))
 
 (defun ch-map-from-sequence (s key-fn value-fn &optional key-compare-fn-name val-compare-fn-name default)
-  (convert-to-ch-map s default nil
-    (let ((key-fn (coerce key-fn 'function))
-	  (value-fn (coerce value-fn 'function))
-	  (tree nil))
-      (if (listp s)
-	  (dolist (x s)
-	    (setq tree (ch-map-tree-with tree (funcall key-fn x) (funcall value-fn x)
-					 key-hash-fn key-compare-fn val-hash-fn val-compare-fn)))
-	(let ((it (iterator s)))
-	  (while (funcall it ':more?)
-	    (let ((x (funcall it ':get)))
-	      (setq tree (ch-map-tree-with tree (funcall key-fn x) (funcall value-fn x)
-					   key-hash-fn key-compare-fn val-hash-fn val-compare-fn))))))
-      tree)))
+  (let ((key-fn (coerce key-fn 'function))
+	(value-fn (coerce value-fn 'function)))
+    (if (listp s)
+	(gmap (:result ch-map :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name
+			      :default default)
+	      (fn (x) (values (funcall key-fn x) (funcall value-fn x)))
+	      (:arg list s))
+      (gmap (:result ch-map :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name
+			    :default default)
+	    (fn (i) (let ((x (elt s i)))
+		      (values (funcall key-fn x) (funcall value-fn x))))
+	    (:arg index 0 (length s))))))
 
 (define-convert-methods (ch-map fset2:ch-map) ((b bag) &key key-compare-fn-name val-compare-fn-name default)
-  (convert-to-ch-map b default nil
-    (let ((tree nil))
-      (do-bag-pairs (x n b tree)
-	(setq tree (ch-map-tree-with tree x n key-hash-fn key-compare-fn val-hash-fn val-compare-fn))))))
+  (gmap (:result ch-map :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name
+			:default default)
+	nil
+	(:arg bag-pairs b)))
 
 (defmethod convert ((to-type (eql 'fset2:map)) (ht hash-table) &key (default nil default?) no-default?)
   (convert 'ch-map ht :default (fset2-default default? default no-default?)))
 
 (define-convert-methods (ch-map fset2:ch-map) ((ht hash-table) &key key-compare-fn-name val-compare-fn-name default)
-  (convert-to-ch-map ht default nil
-    (let ((tree nil))
-      (maphash (lambda (k v)
-		 (setq tree (ch-map-tree-with tree k v key-hash-fn key-compare-fn val-hash-fn val-compare-fn)))
-	       ht)
-      tree)))
+  (gmap (:result ch-map :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name
+			:default default)
+	nil
+	(:arg hash-table ht)))
 
 (defun print-ch-map (map stream level)
   (declare (ignore level))
@@ -5330,6 +5290,32 @@ This is the default implementation of seqs in FSet."
 							(funcall pair-fn k v))))))
 					  (size m))
 	       default))
+
+;;; Next four moved down here so we can use `:arg seq'.
+
+(define-convert-methods (ch-set fset2:set) ((s seq) &key compare-fn-name)
+  (gmap (:result ch-set :compare-fn-name compare-fn-name) nil
+	(:arg seq s)))
+
+(define-convert-methods (fset2:map) ((s seq) &key (key-fn #'car) (value-fn #'cdr) default)
+  (gmap (:result ch-map :default default)
+	(fn (x) (values (funcall key-fn x) (funcall value-fn x)))
+	(:arg seq s)))
+
+(define-convert-methods (ch-map)
+			((s seq) &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name
+				      (default (seq-default s)))
+  (gmap (:result ch-map :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name
+			:default default)
+	(fn (x) (values (funcall key-fn x) (funcall value-fn x)))
+	(:arg seq s)))
+(define-convert-methods (fset2:ch-map)
+			((s seq) &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name
+				      default) ; default default is now `nil'
+  (gmap (:result ch-map :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name
+			:default default)
+	(fn (x) (values (funcall key-fn x) (funcall value-fn x)))
+	(:arg seq s)))
 
 ;;; Prior to FSet 1.4.0, this method ignored the defaults, so two seqs with the same
 ;;; elements but different defaults compared `:equal'.  While that was clearly a bug,

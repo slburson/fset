@@ -252,6 +252,17 @@
     '(threads:with-mutex (*Memory-Barrier-Lock*)
        nil)))
 
+(defmacro with-lock-maybe ((lock &key (wait? t)) &body body)
+  "If `lock' is nonnull, locks it around `body'; otherwise just executes `body'."
+  (let ((lock-var (gensym "LOCK-"))
+	(body-fn (gensym "BODY-")))
+    `(let ((,lock-var ,lock))
+       (flet ((,body-fn ()
+		. ,body))
+	 (if ,lock-var
+	     (with-lock (,lock-var :wait? ,wait?)
+	       (,body-fn))
+	   (,body-fn))))))
 
 #+sbcl
 (defmacro defglobal (name value &optional doc-string)

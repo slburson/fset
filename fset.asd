@@ -13,7 +13,7 @@
 See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
 "
   :author "Scott L. Burson <Scott@sympoiesis.com>"
-  :version "2.2.2"
+  :version "2.3.0"
   :homepage "https://gitlab.common-lisp.net/fset/fset/-/wikis/home"
   :source-control "https://github.com/slburson/fset"
   :license "BSD-2-Clause"
@@ -39,6 +39,7 @@ See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
 	     (:file "relations")
 	     (:file "complement-sets")
 	     (:file "bounded-sets")
+	     (:file "transients")
 	     (:file "testing")
 	     (:file "post")
 	     #+swank

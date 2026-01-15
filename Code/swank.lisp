@@ -61,10 +61,19 @@
   (list '(:newline) '(:newline)
 	`(:value ,(wb-set-contents s) "[Show internal tree]")))
 
+(defmethod emacs-inspect-footer append ((s wb-replay-set))
+  (list '(:newline) '(:newline)
+	`(:value ,(wb-replay-set-contents s) "[Show internal tree]")))
+
 (defmethod emacs-inspect-footer append ((s ch-set))
   ;; &&& Also show hash fn?
   (list '(:newline) '(:newline)
 	`(:value ,(ch-set-contents s) "[Show internal tree]")))
+
+(defmethod emacs-inspect-footer append ((s ch-replay-set))
+  ;; &&& Also show hash fn?
+  (list '(:newline) '(:newline)
+	`(:value ,(ch-replay-set-contents s) "[Show internal tree]")))
 
 (defmethod swank::emacs-inspect ((s seq))
   (append (emacs-inspect-partial s 0 (size s))

@@ -495,11 +495,12 @@ new members appended."
 	  ((hash-fn (hash-set-org-hash-fn hsorg))
 	   (compare-fn (hash-set-org-compare-fn hsorg)))
 	  (contents (ch-replay-set-contents s1))
-	  (new-ord-elts nil))
+	  (new-ord-elts nil)
+	  (transient-id (get-next-transient-id)))
       ;; This is O(n log m), rather than the usual O(m + n).
       (do-set (x s2)
-	(let ((tmp (ch-set-tree-with contents x hash-fn compare-fn)))
-	  (unless (eq tmp contents)
+	(let ((tmp changed? (ch-set-tree-with contents x hash-fn compare-fn transient-id)))
+	  (when changed?
 	    (setq contents tmp)
 	    (push x new-ord-elts))))
       (make-ch-replay-set contents
@@ -846,6 +847,13 @@ or `no-default?' is true."
 		  dflt)))
 	    val?)))
 
+(defmethod contains? ((m wb-replay-map) x &optional (y nil y?))
+  (let ((tmorg (wb-replay-map-org m))
+	((val? val
+	   (wb-map-tree-lookup (wb-replay-map-contents m) x (tree-map-org-key-compare-fn tmorg)))))
+    (if y? (and val? (equal?-cmp val y (tree-map-org-val-compare-fn tmorg)))
+      val?)))
+
 (defmethod domain-contains? ((m wb-replay-map) x)
   (wb-map-tree-lookup (wb-replay-map-contents m) x (tree-map-org-key-compare-fn (wb-replay-map-org m))))
 
@@ -1081,7 +1089,7 @@ or `no-default?' is true."
   (let ((ordering (replay-map-ordering m))
 	((size (wb-ht?-seq-tree-size ordering))))
     (unless (and (>= index 0) (< index size))
-      (error 'simple-type-error :datum index :expected-type `(integer 0 (,size))
+      (error 'simple-type-error :datum index :expected-type `(integer 0 (,(1- size)))
 	     :format-control "Index ~D out of bounds on ~A"
 				:format-arguments (list index m)))
     (let ((ignore key (wb-ht?-seq-tree-subscript ordering index))
@@ -1177,6 +1185,14 @@ or `no-default?' is true."
 		    (error 'fset2:map-domain-error :map m :key key)
 		  dflt)))
 	    val?)))
+
+(defmethod contains? ((m ch-replay-map) x &optional (y nil y?))
+  (let ((hmorg (ch-replay-map-org m))
+	((val? val
+	   (ch-map-tree-lookup (ch-replay-map-contents m) x
+			       (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)))))
+    (if y? (and val? (equal?-cmp val y (hash-map-org-val-compare-fn hmorg)))
+      val?)))
 
 (defmethod domain-contains? ((m ch-replay-map) x)
   (let ((hmorg (ch-replay-map-org m)))

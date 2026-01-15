@@ -15,7 +15,8 @@
   (:use :cl :new-let :lexical-contexts :rev-fun-bind :misc-extensions.define-class)
   (:import-from :gmap #:gmap #:alist #:constant #:index #:index-inc #:sum)
   (:shadowing-import-from :new-let #:let #:cond)
-  (:shadowing-import-from :mt19937 #:make-random-state #:random #:*random-state*)
+  (:shadowing-import-from :mt19937 #:random #:*random-state*
+			   #:make-random-state #:make-random-object #:init-random-state)
   #+allegro (:implementation-packages "FSET" "FSET2")
   ;; For each of these shadowed symbols, using packages must either shadowing-
   ;; import it or shadowing-import the original Lisp symbol.
@@ -114,6 +115,17 @@
 	   #:query-registry #:empty-query-registry #:empty-ch-query-registry #:with-query #:less-query
 	   #:all-queries #:do-all-queries #:lookup-multi #:forward-key #:lookup-restricted
 	   #:lookup-multi-restricted
+
+	   ;; Transients
+	   #:transient-collection #:transient-collection?
+	   #:transient-set #:transient-set? #:transient-ch-set #:transient-ch-set?
+	   #:transient-map #:transient-map? #:transient-ch-map #:transient-ch-map?
+	   #:transient-relation #:transient-relation? #:transient-2-relation #:transient-2-relation?
+	   #:transient-ch-2-relation #:transient-ch-2-relation?
+	   #:transient-replay-set #:transient-replay-set? #:transient-ch-replay-set #:transient-ch-replay-set?
+	   #:transient-replay-map #:transient-replay-map? #:transient-ch-replay-map #:transient-ch-replay-map?
+	   #:make-transient #:make-persistent
+	   #:clear! #:include! #:exclude! #:lookup! #:default! #:clear-default!
 
            ;; named-readtable readtables
            #:fset-readtable #:fset-rereading-readtable))
@@ -251,6 +263,17 @@
 	   #:query-registry #:empty-query-registry #:empty-ch-query-registry #:with-query #:less-query
 	   #:all-queries #:do-all-queries #:lookup-multi #:forward-key #:lookup-restricted
 	   #:lookup-multi-restricted
+
+	   ;; Transients
+	   #:transient-collection #:transient-collection?
+	   #:transient-set #:transient-set? #:transient-ch-set #:transient-ch-set?
+	   #:transient-map #:transient-map? #:transient-ch-map #:transient-ch-map?
+	   #:transient-relation #:transient-relation? #:transient-2-relation #:transient-2-relation?
+	   #:transient-ch-2-relation #:transient-ch-2-relation?
+	   #:transient-replay-set #:transient-replay-set? #:transient-ch-replay-set #:transient-ch-replay-set?
+	   #:transient-replay-map #:transient-replay-map? #:transient-ch-replay-map #:transient-ch-replay-map?
+	   #:make-transient #:make-persistent
+	   #:clear! #:include! #:exclude! #:lookup! #:default! #:clear-default!
 
            ;; named-readtable readtables
            #:fset-readtable #:fset-rereading-readtable))

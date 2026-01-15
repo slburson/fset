@@ -970,22 +970,18 @@ If `:from-end?' is true, iterates in reverse order."
 (gmap:def-result-type fset2:set (&key filterp)
   "Returns a set of the values, optionally filtered by `filterp'.  If
 `compare-fn-name' is nonnull, it specifies a custom ordering."
-  `(nil #'(lambda (s x) (ch-set-tree-with s x #'hash-value #'compare))
-	#'(lambda (s) (make-ch-set s +fset-default-hash-set-org+))
-	,filterp))
+  `((make-transient (fset2:empty-set))
+    #'include!
+    #'make-persistent
+    ,filterp))
 
 (gmap:def-gmap-res-type ch-set (&key filterp compare-fn-name)
   "Returns a set of the values, optionally filtered by `filterp'.  If
 `compare-fn-name' is nonnull, it specifies a custom ordering."
-  (let ((org-var (gensymx #:org-))
-	(hf-var (gensymx #:hash-))
-	(cf-var (gensymx #:cmp-)))
-    `(nil #'(lambda (s x) (ch-set-tree-with s x ,hf-var ,cf-var))
-	  #'(lambda (s) (make-ch-set s ,org-var))
-	  ,filterp
-	  ((,org-var (ch-set-org (empty-ch-set ,compare-fn-name)))
-	   ((,hf-var (hash-set-org-hash-fn ,org-var))
-	    (,cf-var (hash-set-org-compare-fn ,org-var)))))))
+  `((make-transient (empty-ch-set ,compare-fn-name))
+    #'include!
+    #'make-persistent
+    ,filterp))
 
 (gmap:def-gmap-res-type union (&key filterp)
   "Returns the union of the sets, optionally filtered by `filterp'."
@@ -1128,10 +1124,11 @@ Note that `filterp', if supplied, must take two arguments."
 (gmap:def-result-type fset2:map (&key filterp (default nil default?) no-default?)
   "Consumes two values from the mapped function; returns a map of the pairs.
 Note that `filterp', if supplied, must take two arguments."
-  `(nil (:consume 2 #'(lambda (m x y) (ch-map-tree-with m x y #'hash-value #'compare #'hash-value #'compare)))
-	#'(lambda (tree) (make-ch-map tree +fset-default-hash-map-org+
-				      (fset2-default ,default? ,default ,no-default?)))
-	,filterp))
+  `((make-transient (fset2:empty-map ,@(and default? `(:default ,default))
+				     ,@(and no-default? `(:no-default? ,no-default?))))
+    (:consume 2 #'include!)
+    #'make-persistent
+    ,filterp))
 
 (gmap:def-result-type wb-map (&key filterp default key-compare-fn-name val-compare-fn-name)
   "Consumes two values from the mapped function; returns a wb-map of the pairs.
@@ -1174,37 +1171,22 @@ Note that `filterp', if supplied, must take two arguments."
 (gmap:def-result-type ch-map (&key filterp default key-compare-fn-name val-compare-fn-name)
   "Consumes two values from the mapped function; returns a wb-map of the pairs.
 Note that `filterp', if supplied, must take two arguments."
-  (let ((org-var (gensymx #:org-))
-	(khf-var (gensymx #:key-hash-))
-	(kcf-var (gensymx #:key-cmp-))
-	(vhf-var (gensymx #:val-hash-))
-	(vcf-var (gensymx #:val-cmp-)))
-    `(nil (:consume 2 #'(lambda (tree k v) (ch-map-tree-with tree k v ,khf-var ,kcf-var ,vhf-var ,vcf-var)))
-	  #'(lambda (tree) (make-ch-map tree ,org-var ,default))
-	  ,filterp
-	  ((,org-var (ch-map-org (empty-ch-map nil ,key-compare-fn-name ,val-compare-fn-name)))
-	   ((,khf-var (hash-map-org-key-hash-fn ,org-var))
-	    (,kcf-var (hash-map-org-key-compare-fn ,org-var))
-	    (,vhf-var (hash-map-org-val-hash-fn ,org-var))
-	    (,vcf-var (hash-map-org-val-compare-fn ,org-var)))))))
+  `((make-transient (empty-ch-map ,default ,key-compare-fn-name ,val-compare-fn-name))
+    (:consume 2 #'include!)
+    #'make-persistent
+    ,filterp))
 
 (gmap:def-result-type fset2:ch-map (&key filterp (default nil default?) no-default?
 					 key-compare-fn-name val-compare-fn-name)
   "Consumes two values from the mapped function; returns a wb-map of the pairs.
 Note that `filterp', if supplied, must take two arguments."
-  (let ((org-var (gensymx #:org-))
-	(khf-var (gensymx #:key-hash-))
-	(kcf-var (gensymx #:key-cmp-))
-	(vhf-var (gensymx #:val-hash-))
-	(vcf-var (gensymx #:val-cmp-)))
-    `(nil (:consume 2 #'(lambda (tree k v) (ch-map-tree-with tree k v ,khf-var ,kcf-var ,vhf-var ,vcf-var)))
-	  #'(lambda (tree) (make-ch-map tree ,org-var (fset2-default ,default? ,default ,no-default?)))
-	  ,filterp
-	  ((,org-var (ch-map-org (empty-ch-map nil ,key-compare-fn-name ,val-compare-fn-name)))
-	   ((,khf-var (hash-map-org-key-hash-fn ,org-var))
-	    (,kcf-var (hash-map-org-key-compare-fn ,org-var))
-	    (,vhf-var (hash-map-org-val-hash-fn ,org-var))
-	    (,vcf-var (hash-map-org-val-compare-fn ,org-var)))))))
+  `((make-transient (fset2:empty-ch-map ,@(and default? `(:default ,default))
+					,@(and no-default? `(:no-default? ,no-default?))
+					:key-compare-fn-name ,key-compare-fn-name
+					:val-compare-fn-name ,val-compare-fn-name))
+    (:consume 2 #'include!)
+    #'make-persistent
+    ,filterp))
 
 (gmap:def-gmap-res-type map-union (&key (val-fn nil val-fn?)
 				    (default nil default?) filterp)
@@ -1256,11 +1238,11 @@ values, with each one mapped to a set of the corresponding second values.
 Note, if you supply `val-compare-fn-name', to customize the ordering of the
 range sets, the returned map will use `eql-compare' as its `val-compare-fn'.
 Also note that `filterp', if supplied, must take two arguments."
-  (let ((vcfn-var (gensymx #:vcfn-)))
-    `((empty-ch-map (empty-ch-set ,vcfn-var) ,key-compare-fn-name (and ,vcfn-var 'eql-compare))
-      (:consume 2 #'(lambda (m x y) (with m x (with (lookup m x) y))))
-      nil ,filterp
-      ((,vcfn-var ,val-compare-fn-name)))))
+  `((make-transient (fset2:empty-ch-2-relation :key-compare-fn-name ,key-compare-fn-name
+					       :val-compare-fn-name ,val-compare-fn-name))
+    (:consume 2 #'include!)
+    (fn (m) (convert 'map-to-sets (make-persistent m)))
+    ,filterp))
 
 
 ;;; ----------------
@@ -1273,8 +1255,6 @@ Also note that `filterp', if supplied, must take two arguments."
 (gmap:def-arg-type-synonym :seq wb-seq)
 
 (gmap:def-arg-type-synonym fset2:wb-seq wb-seq)
-
-(gmap:def-arg-type-synonym fset2:seq seq)
 
 (gmap:def-gmap-arg-type wb-seq (seq &key start end from-end?)
   "Yields the elements of `seq'.  The keyword arguments `start' and `end'
@@ -1817,17 +1797,6 @@ the iteration order."
 	    `(if ,identity-test ,coll ,body)
 	  body))))
 
-(defmacro convert-to-ch-set (coll identity-test &body contents-forms)
-  (let ((body `(let ((tree (progn . ,contents-forms)))
-		 (make-ch-set tree hsorg))))
-    `(let ((prototype (empty-ch-set compare-fn-name))
-	   ((hsorg (ch-set-org prototype))
-	    ((hash-fn (hash-set-org-hash-fn hsorg))
-	     (compare-fn (hash-set-org-compare-fn hsorg)))))
-       ,(if identity-test
-	    `(if ,identity-test ,coll ,body)
-	  body))))
-
 (defmacro convert-to-wb-bag (coll identity-test &body contents-forms)
   (let ((body `(let ((tree (progn . ,contents-forms)))
 		 (make-wb-bag tree (wb-bag-org prototype)))))
@@ -1844,19 +1813,6 @@ the iteration order."
 	   ((tmorg (wb-map-org prototype))
 	    ((key-compare-fn (tree-map-org-key-compare-fn tmorg))
 	     (val-compare-fn (tree-map-org-val-compare-fn tmorg)))))
-       ,(if identity-test
-	    `(if ,identity-test ,coll ,body)
-	  body))))
-
-(defmacro convert-to-ch-map (coll default identity-test &body contents-forms)
-  (let ((body `(let ((tree (progn . ,contents-forms)))
-		 (make-ch-map tree hmorg ,default))))
-    `(let ((prototype (empty-ch-map nil key-compare-fn-name val-compare-fn-name))
-	   ((hmorg (ch-map-org prototype))
-	    ((key-hash-fn (hash-map-org-key-hash-fn hmorg))
-	     (key-compare-fn (hash-map-org-key-compare-fn hmorg))
-	     (val-hash-fn (hash-map-org-val-hash-fn hmorg))
-	     (val-compare-fn (hash-map-org-val-compare-fn hmorg)))))
        ,(if identity-test
 	    `(if ,identity-test ,coll ,body)
 	  body))))
