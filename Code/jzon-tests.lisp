@@ -46,4 +46,7 @@
 		  "[\"gubbish\",{\"color\":\"blue\",\"sizes\":[4,7,11]}]"))
     (test (equal? (stringify (seq "gubbish" (tuple (+json-color+ nil) (+json-sizes-list+ nil) (+json-visible?+ nil))))
 		  "[\"gubbish\",{\"color\":null,\"sizes-list\":[],\"visible?\":false}]"))
+    ;; Check that the default method on `coerce-tuple-key' exists and does downcasing.
+    (test (equal? (stringify (tuple (fset::+k0+ 3)))
+		  "{\"+k0+\":3}"))
     "Passed."))
