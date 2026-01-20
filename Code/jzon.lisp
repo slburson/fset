@@ -240,10 +240,6 @@ keyword symbol.  So you can write methods like
   (coerce-tuple-key key (intern (package-name (symbol-package (tuple-key-name key)))
 				(symbol-package ':foo))))
 
-(defmethod coerce-tuple-key (key pkg-name)
-  (declare (ignore pkg-name))
-  (symbol-name (tuple-key-name key)))
-
 (defmethod com.inuoe.jzon:write-value ((writer writer) (s seq))
   (com.inuoe.jzon:with-array writer
     (do-seq (x s)
