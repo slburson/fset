@@ -30,7 +30,8 @@ or `:unequal', this function returns the same hash value."))
 (defun hash-value-fixnum (x)
   "Returns the `hash-value' of `x', ensuring that the result is a fixnum."
   (let ((h (hash-value x)))
-    (if (typep h 'fixnum) h
+    (if (typep h 'fixnum)
+	(logand h most-positive-fixnum)
       (the fixnum (squash-bignum-hash h)))))
 
 (defun squash-bignum-hash (h)
@@ -39,7 +40,7 @@ or `:unequal', this function returns the same hash value."))
 	(fh 0))
     (dotimes (i (ceiling len fixnum-len))
       (hash-mixf fh (ldb (byte fixnum-len (* fixnum-len i)) h)))
-    (the fixnum (if (< h 0) (- fh) fh))))
+    fh))
 
 
 (defmethod hash-value ((x identity-equality-mixin))

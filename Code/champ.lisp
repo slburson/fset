@@ -91,7 +91,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 (defmacro hash-to-fixnum (val hash-fn)
   `(let ((h (funcall ,hash-fn ,val)))
      (if (typep h 'fixnum)
-	 h
+	 (logand h most-positive-fixnum)
        (the fixnum (squash-bignum-hash h)))))
 
 
