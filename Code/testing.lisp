@@ -31,6 +31,11 @@
 	  :accessor My-Identity-Ordered-Obj-Value))
   (:documentation "Object that has identity ordering"))
 
+(defstruct (frob
+	     (:constructor make-frob (a b)))
+  a
+  b)
+
 #+sbcl
 (progn
   (defclass my-sequence (standard-object sequence)
@@ -2655,6 +2660,7 @@
 	(test (equal? x (eval (make-load-form x))))))))
 
 (defun Test-Misc-4 ()
+  (declare (optimize (debug 3)))
   (macrolet ((test (form)
 	       `(unless ,form
 		  (error "Test failed: ~S" ',form))))
@@ -2831,7 +2837,35 @@
       (include! tsb 'd)
       (test (equal? ps (ch-set 'a 'b)))
       (test (equal? (make-persistent tsa) (with ps 'c)))
-      (test (equal? (make-persistent tsb) (with ps 'd))))))
+      (test (equal? (make-persistent tsb) (with ps 'd))))
+
+    ;; Test `compare-slots' and `compare-slots-no-unequal'.
+    (let ((frob0 (make-frob "foo" 17))
+	  (frob1 (make-frob "bar" 42))
+	  (frob2 (make-frob "foo" 23))
+	  (frob3 (make-frob "bar" 17)))
+      (test (eq ':greater (compare-slots frob0 frob1 #'frob-a 'b)))
+      (test (eq ':less (compare-slots frob0 frob1 'b #'frob-a)))
+      (test (eq ':less (compare-slots frob0 frob1 (:compare-fn #'frob-a #'erapmoc) #'frob-b)))
+      (test (eq ':less (compare-slots frob0 frob1 (:less-fn 'b #'<) #'frob-a)))
+      (test (eq ':less (compare-slots frob0 frob1 (:compare 'b #'<) #'frob-a))) ; deprecated synonym of `:less-fn'
+      (test (eq ':greater (compare-slots frob1 frob0 (:less-fn 'b #'<) #'frob-a)))
+      (test (eq ':greater (compare-slots-no-unequal frob0 frob1 #'frob-a 'b)))
+      (test (eq ':less (compare-slots-no-unequal frob0 frob1 'b #'frob-a)))
+      (test (eq ':less (compare-slots-no-unequal frob0 frob1 (:compare-fn #'frob-a #'erapmoc) #'frob-b)))
+      (test (eq ':less (compare-slots-no-unequal frob0 frob1 (:less-fn 'b #'<) #'frob-a)))
+      (test (eq ':less (compare-slots frob0 frob2 #'frob-a #'frob-b)))
+      (test (eq ':greater (compare-slots frob0 frob2 #'frob-a (:less-fn 'b #'>))))
+      (test (eq ':less (compare-slots frob0 frob3 'b (:compare-fn 'a #'erapmoc))))
+      (test (eq ':greater (compare-slots frob0 frob3 (:less-fn 'b #'>) #'frob-a)))
+      (let ((frob0a (make-frob "foo" 17)))
+	(test (eql ':equal (compare-slots frob0 frob0a 'a #'frob-b)))
+	(test (eql ':unequal (compare-slots frob0 frob0a 'a #'frob-b :eql)))
+	(test (eql ':equal (compare-slots-no-unequal frob0 frob0a 'a #'frob-b))))
+      (let ((frob4 (make-frob 1 2))
+	    (frob5 (make-frob 1.0 2)))
+	(test (eql ':unequal (compare-slots frob4 frob5 'a 'b)))
+	(test (eql ':unequal (compare-slots frob4 frob5 'b 'a)))))))
 
 ;;; Outlined so SBCL constant propagation doesn't do the test at compile time.
 (defun hash-mix-func (a b)
