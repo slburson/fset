@@ -26,6 +26,11 @@ or `:unequal', this function returns the same hash value."))
 
 (define-hash-function compare hash-value)
 
+(defconstant hash-list-car-depth 4)
+(defconstant hash-list-cdr-depth 12)
+(defconstant hash-vector-length 16)
+(defconstant hash-array-nelts 32)
+
 (declaim (inline hash-value-fixnum))
 (defun hash-value-fixnum (x)
   "Returns the `hash-value' of `x', ensuring that the result is a fixnum."
@@ -55,9 +60,7 @@ or `:unequal', this function returns the same hash value."))
   (sxhash x))
 
 (defmethod hash-value ((x integer))
-  ;; It's fine if `x' is negative.
-  (if (typep x 'fixnum) x
-    (squash-bignum-hash x)))
+  x)
 
 (defmethod hash-value ((x complex))
   (sxhash x))
@@ -80,7 +83,7 @@ or `:unequal', this function returns the same hash value."))
 
 (defmethod hash-value ((x list))
   ;; We assume that the list is longer (cdr-wise) than it is deep (car-wise).
-  (list-hash-value x 4 12))
+  (list-hash-value x hash-list-car-depth hash-list-cdr-depth))
 
 (defun list-hash-value (ls car-depth cdr-depth)
   ;; Since lists can be trees, they can have an arbitrary amount of stuff beneath them.
@@ -104,12 +107,12 @@ or `:unequal', this function returns the same hash value."))
 (defmethod hash-value ((x vector))
   (declare #+sbcl (sb-ext:muffle-conditions sb-ext:compiler-note))
   (if (simple-vector-p x)
-      (do ((len (length x))
+      (do ((len (min (length x) hash-vector-length))
 	   (i 0 (1+ i))
 	   (mult 1 (hash-multiply mult 13))
 	   (result 0 (hash-mix result (hash-multiply mult (hash-value-fixnum (svref x i))))))
 	  ((= i len) result))
-    (do ((len (length x))
+    (do ((len (min (length x) hash-vector-length))
 	 (i 0 (1+ i))
 	 (mult 1 (hash-multiply mult 13))
 	 (result 0 (hash-mix result (hash-multiply mult (hash-value-fixnum (aref x i))))))
@@ -121,7 +124,9 @@ or `:unequal', this function returns the same hash value."))
 ;;; Arrays (that aren't vectors)
 (defmethod hash-value ((x array))
   (declare #+sbcl (sb-ext:muffle-conditions sb-ext:compiler-note))
-  (do ((len (array-total-size x))
+  ;; Do we want to try to be cleverer about which elements we look at, when our bound is exceeded?
+  ;; This is an awfully rare case anyway.
+  (do ((len (min (array-total-size x) hash-array-nelts))
        (i 0 (1+ i))
        (mult 1 (hash-multiply mult 13))
        (result 0 (hash-mix result (hash-multiply mult (hash-value-fixnum (row-major-aref x i))))))
@@ -135,6 +140,15 @@ or `:unequal', this function returns the same hash value."))
        (mult 1 (hash-multiply mult 13))
        (result 0 (hash-mix result (hash-multiply mult (hash-value-fixnum (elt x i))))))
       ((= i len) result)))
+
+(defmethod hash-value ((x class))
+  (class-hash-value x))
+
+(defmethod hash-value ((x package))
+  ;; I have verified on SBCL, ABCL, and CLASP that hash values follow the package when `rename-package'
+  ;; is used on it.  On CCL, Allegro, and LispWorks, it looks like all packages have the same `sxhash',
+  ;; which is unimpressive but not wrong.
+  (sxhash x))
 
 (defun zero (x)
   (declare (ignore x))
