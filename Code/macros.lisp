@@ -80,80 +80,49 @@ can be optimized differently depending on the value of `var'."
 ;;; ================================================================================
 ;;; Macros related to order.lisp
 
-;;; Makes it easy to define `compare' methods on new classes.  Just say:
-;;;
-;;; (defmethod compare ((f1 frob) (f2 frob))
-;;;   (compare-slots f1 f2 'foo #'frob-bar))
-;;;
-;;; where `foo' is a slot and `frob-bar' is an accessor (or any other
-;;; function on your class).
-;;;
-;;; If you want distinct instances to never compare `:equal', put `:eql'
-;;; at the end of the accessor list to specify that `eql' is the final
-;;; determiner of equality for your type:
-;;;
-;;; (defmethod compare ((f1 frob) (f2 frob))
-;;;   (compare-slots f1 f2 'foo #'frob-bar :eql))
-;;;
-
 (defmacro compare-slots (obj1 obj2 &rest accessors)
-  "A handy macro for writing the bodies of `compare' methods for user classes.
-Returns the result of comparing the two objects by comparing the results of
-calling each of `accessors', in order, on the objects.  Despite the name, an
-accessor can actually be any function on the class in question; it can also
-be a symbol, which will be used to access the slot via `slot-value'.  For
-example, if class `frob' has accessor `frob-foo' and slot `bar':
+  "A handy macro for writing the bodies of `compare' methods and comparison
+functions for user classes.  Returns the result of comparing the two objects
+by comparing the results of calling each of `accessors', in order, on the
+objects.  Despite the name, an accessor can actually be any function on the
+class in question; it can also be a symbol, which will be used to access the
+slot via `slot-value'.  For example, if class `frob' has accessor `frob-color'
+and slot `id':
 
   (defmethod compare ((f1 frob) (f2 frob))
-    (compare-slots f1 f2 #'frob-foo 'bar))
+    (compare-slots f1 f2 #'frob-color 'id))
+
+At least on SBCL, it will be fastest to use slot names (e.g. 'id) on standard
+classes, but accessor functions (e.g. #'frob-color) on structure classes.  If
+you're writing a function instead of a method, declaring the type of the
+parameters can also help.
+
+By default, the values of a given accessor on the two objects will be compared
+with `compare'.  To override this, you have two choices depending on whether
+the function you want to call obeys the FSet comparison protocol (returning
+`:equal', `:less', `:greater', or `:unequal') or is just a boolean predicate
+\(like `cl:<'\).  In the first case, supply the accessor as a list
+`\(:compare-fn ,acc ,compare-fn\) where `acc' is the accessor and `compare-fn'
+is the name of the function to use; in the second case, use `:less-fn' instead
+of `:compare-fn'.  For example:
+
+  (defmethod compare ((f1 frob) (f2 frob))
+    (compare-slots f1 f2 (:compare-fn #'frob-color #'compare-colors)
+                         (:less-fn 'id #'<)))
 
 If the symbol `:eql' is supplied as the last accessor, then if the comparisons
 by the other supplied accessors all return `:equal' but `obj1' and `obj2' are
 not eql, this returns `:unequal'."
-  (let ((default-var (gensymx #:default-))
-	(comp-var (gensymx #:comp-))
-	(obj1-var (gensymx #:obj1-))
-	(obj2-var (gensymx #:obj2-)))
-    (labels ((rec (accs)
-	       (if (or (null accs)
-		       (and (eq (car accs) ':eql)
-			    (or (null (cdr accs))
-				(error "If ~S is supplied to ~S, it must be ~
-					the last argument"
-				       ':eql 'compare-slots))))
-		   default-var
-		 `(let ((,comp-var (compare ,(call (car accs) obj1-var)
-					    ,(call (car accs) obj2-var))))
-		    (if (or (eq ,comp-var ':less) (eq ,comp-var ':greater))
-			,comp-var
-		      (let ((,default-var (if (eq ,comp-var ':unequal)
-					      ':unequal ,default-var)))
-			,(rec (cdr accs)))))))
-	     (call (fn arg)
-	       ;; Makes the expansion more readable, if nothing else
-	       (cond ((and (listp fn)
-			   (eq (car fn) 'function))
-		      `(,(cadr fn) ,arg))
-		     ((and (listp fn)
-			   (eq (car fn) 'lambda))
-		      `(,fn ,arg))
-		     ((and (listp fn) (eq (car fn) 'fn))
-		      (call (macroexpand fn) arg))
-		     ((and (listp fn)
-			   (eq (car fn) 'quote)
-			   (symbolp (cadr fn)))
-		      `(slot-value ,arg ,fn))
-		     (t `(funcall ,fn ,arg)))))
-      `(let ((,obj1-var ,obj1)
-	     (,obj2-var ,obj2)
-	     (,default-var ,(if (member ':eql accessors) '':unequal '':equal)))
-	(if (eql ,obj1-var ,obj2-var) ':equal
-	    ,(rec accessors))))))
+  (expand-compare-slots obj1 obj2 accessors t))
 
 (defmacro compare-slots-no-unequal (obj1 obj2 &rest accessors)
   "A handy macro for writing the bodies of `compare' methods for user classes,
 in the case when you know the comparison will never need to return `:unequal'
-(a case handled correctly by `compare-slots', but with a slight time cost).
+\(a case handled correctly by `compare-slots', but with a slight time cost\).
+\[UPDATE: after improvements to `compare-slots', the performance difference is
+now negligible, and `compare-slots' now supports `:compare-fn' and `:less-fn',
+so this macro is now fairly pointless and is deprecated.  Just use
+`compare-slots'.\]
 
 Returns the result of comparing the two objects by comparing the results of
 calling each of `accessors', in order, on the objects, using a nested call to
@@ -162,59 +131,82 @@ class in question; it can also be a symbol, which will be used to access the
 slot via `slot-value'.  For example, if class `frob' has accessor `frob-foo' and
 slot `bar':
 
+At least on SBCL, it will be fastest to use slot names (e.g. 'id) on standard
+classes, but accessor functions (e.g. #'frob-color) on structure classes.
+
   (defmethod compare ((f1 frob) (f2 frob))
     (compare-slots-no-unequal f1 f2 #'frob-foo 'bar))
 
-Additionally, an accessor can be a list of the form `(:compare acc less-fn)', in
-which `acc` is an accessor as defined above, and `less-fn' is a function to be
-used to compare the two values, returning true iff the first is less than the
-second.  This feature allows you to avoid the nested call to `compare'.  For
-example, if your objects have an `id' slot that holds a unique integer:
+By default, the values of a given accessor on the two objects will be compared
+with `compare'.  To override this, you have two choices depending on whether
+the function you want to call obeys the FSet comparison protocol (returning
+`:equal', `:less', `:greater', or `:unequal') or is just a boolean predicate
+\(like `cl:<'\).  In the first case, supply the accessor as a list
+`\(:compare-fn ,acc ,compare-fn\) where `acc' is the accessor and `compare-fn'
+is the name of the function to use; in the second case, use `:less-fn' instead
+of `:compare-fn'.  For example:
 
   (defmethod compare ((f1 frob) (f2 frob))
-    (compare-slots-no-unequal f1 f2 (:compare 'id #'<))"
-  (let ((comp-var (gensymx #:comp-))
+    (compare-slots f1 f2 (:compare-fn #'frob-color #'compare-colors)
+                         (:less-fn 'id #'<)))
+
+`:compare' (sic; not `:compare-fn') is a deprecated synonym of `:less-fn'."
+  (expand-compare-slots obj1 obj2 accessors nil))
+
+(defun expand-compare-slots (obj1 obj2 accessors check-unequal?)
+  (let ((default-var (gensymx #:default-))
+	(comp-var (gensymx #:comp-))
 	(obj1-var (gensymx #:obj1-))
 	(obj2-var (gensymx #:obj2-)))
     (labels ((rec (accs)
-	       (if (null accs)
-		   ':equal
-		 (if (null (cdr accs))
-		     (comp (car accs))
-		   `(let ((,comp-var ,(comp (car accs))))
-		      (if (or (eq ,comp-var ':less) (eq ,comp-var ':greater))
-			  ,comp-var
-			,(rec (cdr accs)))))))
-	     (comp (acc)
-	       (if (and (listp acc) (eq (car acc) ':compare))
-		   (let ((accval1-var (gensymx #:accval1-))
-			 (accval2-var (gensymx #:accval2-)))
-		     `(let ((,accval1-var ,(call (second acc) obj1-var))
-			    (,accval2-var ,(call (second acc) obj2-var)))
-			(if ,(call (third acc) accval1-var accval2-var)
-			    ':less
-			  (if ,(call (third acc) accval2-var accval1-var)
-			      ':greater
-			    ':equal))))
-		 `(compare ,(call acc obj1-var) ,(call acc obj2-var))))
+	       (if (or (null accs)
+		       (and check-unequal? (eq (car accs) ':eql)
+			    (or (null (cdr accs))
+				(error "If ~S is supplied to ~S, it must be ~
+					the last argument"
+				       ':eql 'compare-slots))))
+		   (if check-unequal? default-var '':equal)
+		 (let ((acc (car accs)))
+		   (if (and (listp acc) (member (car acc) '(:less-fn :compare)))
+		       (let ((accval1-var (gensymx #:accval1-))
+			     (accval2-var (gensymx #:accval2-)))
+			 `(let ((,accval1-var ,(call (second acc) obj1-var))
+				(,accval2-var ,(call (second acc) obj2-var)))
+			    (if ,(call (third acc) accval1-var accval2-var)
+				':less
+			      (if ,(call (third acc) accval2-var accval1-var)
+				  ':greater
+				,(rec (cdr accs))))))
+		     (let ((acc comp-fn (if (and (listp acc) (eq (car acc) ':compare-fn))
+					    (values (second acc) (third acc))
+					  (values acc '#'compare))))
+		       `(let ((,comp-var ,(call comp-fn (call acc obj1-var) (call acc obj2-var))))
+			  (if (or (eq ,comp-var ':less) (eq ,comp-var ':greater))
+			      ,comp-var
+			    (progn
+			      ,@(and check-unequal?
+				 `((when (eq ,comp-var ':unequal)
+				     (setq ,default-var ':unequal))))
+			      ,(rec (cdr accs))))))))))
 	     (call (fn &rest args)
-	       ;; Makes the expansion more readable, if nothing else
 	       (cond ((and (listp fn)
 			   (eq (car fn) 'function))
 		      `(,(cadr fn) . ,args))
 		     ((and (listp fn)
 			   (eq (car fn) 'lambda))
 		      `(,fn . ,args))
-		     ((and (null (cdr args))
-			   (listp fn)
+		     ((and (listp fn) (eq (car fn) 'fn))
+		      (call (macroexpand fn) args))
+		     ((and (listp fn)
 			   (eq (car fn) 'quote)
 			   (symbolp (cadr fn)))
 		      `(slot-value ,(car args) ,fn))
 		     (t `(funcall ,fn . ,args)))))
       `(let ((,obj1-var ,obj1)
-	     (,obj2-var ,obj2))
-	 (if (eq ,obj1-var ,obj2-var) ':equal
-	     ,(rec accessors))))))
+	     (,obj2-var ,obj2)
+	     . ,(and check-unequal? `((,default-var ,(if (member ':eql accessors) '':unequal '':equal)))))
+	(if (eql ,obj1-var ,obj2-var) ':equal
+	  ,(rec accessors))))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (deflex +Master-Type-Ordering+ nil
@@ -324,8 +316,8 @@ forms -- but accessor names as functions for structure classes.  Arbitrary
 functions on the class may also be supplied.
 
 If the symbol `:eql' is supplied as the last accessor, then if the comparisons
-by the other supplied accessors all return `:equal' but `obj1' and `obj2' are
-not eql, the generated `compare' method returns `:unequal'.
+by the other supplied accessors all return `:equal' but the arguments are not
+eql, the generated `compare' method returns `:unequal'.
 
 Examples:
 
@@ -1584,10 +1576,12 @@ the iteration order."
 	    :format-arguments (list ,(copy-tree op) ,(copy-tree type)))))
 
 (defmacro equal?-fn (cmp-fn)
-  `(lambda (a b) (eq (funcall ,cmp-fn a b) ':equal)))
+  `(lambda (a b) (or (gen eql a b) (eq (funcall ,cmp-fn a b) ':equal))))
 
 (defmacro equal?-cmp (a b cmp-fn)
-  `(eq (funcall ,cmp-fn ,a ,b) ':equal))
+  (once-only (a b)
+    `(or (gen eql ,a ,b)
+	 (eq (funcall ,cmp-fn ,a ,b) ':equal))))
 
 (defmacro less-than?-cmp (a b cmp-fn)
   `(eq (funcall ,cmp-fn ,a ,b) ':less))

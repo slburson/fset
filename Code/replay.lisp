@@ -58,7 +58,7 @@
 	     (:predicate wb-replay-set?)
 	     (:print-function print-wb-replay-set)
 	     (:copier nil))
-  "A replay set is like a set, except that its iteration order is the order in which members
+  "A replay set is like a set, except that its iteration order is the order in which elements
 were added to it.  It does not support all set operations, but you can convert it to a set.
 Note that in the current implementation, `less' on a replay set takes O(n) time.  Also, two
 replay sets are equal only if they both contain the same elements and have the same iteration
@@ -243,9 +243,9 @@ sets are printed as \"#{= ... }\"."
 			  (wb-replay-set-org s)))))
 
 (defmethod union ((s1 wb-replay-set) (s2 set) &key)
-  "As the parameter types suggest, this is not symmetric: it adds the members
+  "As the parameter types suggest, this is not symmetric: it adds the elements
 of `s2' to `s1', so the ordering of the result will be that of `s1' with any
-new members appended."
+new elements appended."
   (if (empty? s2) s1
     (let ((compare-fn (tree-set-org-compare-fn (wb-replay-set-org s1)))
 	  (contents (wb-replay-set-contents s1))
@@ -306,7 +306,7 @@ result is that of `s1', filtered by membership in `s2'."
 	     (:predicate ch-replay-set?)
 	     (:print-function print-ch-replay-set)
 	     (:copier nil))
-  "A replay set is like a set, except that its iteration order is the order in which members
+  "A replay set is like a set, except that its iteration order is the order in which elements
 were added to it.  It does not support all set operations, but you can convert it to a set.
 Note that in the current implementation, `less' on a replay set takes O(n) time.  Also, two
 replay sets are equal only if they both contain the same elements and have the same iteration
@@ -487,9 +487,9 @@ sets are printed as \"#{= ... }\"."
       (make-ch-replay-set new-contents (wb-ht?-seq-tree-append (replay-set-ordering s) value) hsorg))))
 
 (defmethod union ((s1 ch-replay-set) (s2 set) &key)
-  "As the parameter types suggest, this is not symmetric: it adds the members
+  "As the parameter types suggest, this is not symmetric: it adds the elements
 of `s2' to `s1', so the ordering of the result will be that of `s1' with any
-new members appended."
+new elements appended."
   (if (empty? s2) s1
     (let ((hsorg (ch-replay-set-org s1))
 	  ((hash-fn (hash-set-org-hash-fn hsorg))

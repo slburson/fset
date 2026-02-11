@@ -2070,11 +2070,9 @@ in `eqvs1' are equivalent to those in `eqvs2'."
 
 (defun WB-Bag-Tree-Total-Count (tree)
   (declare (optimize (speed 3) (safety 0))
-	   (type WB-Bag-Tree tree)
-	   #+(or cmu sbcl scl)
-	   (values integer))
+	   (type WB-Bag-Tree tree))
   (cond ((null tree) 0)
-	((consp tree) (reduce #'+ (cdr tree)))
+	((consp tree) (muffle-notes (gmap (:result sum) nil (:arg simple-vector (cdr tree)))))
 	(t (WB-Bag-Tree-Node-Total-Count tree))))
 
 (declaim (ftype (function (WB-Bag-Tree) integer) WB-Bag-Tree-Total-Count))

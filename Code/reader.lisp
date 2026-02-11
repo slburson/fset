@@ -85,7 +85,7 @@
 ;;;   #[ <form>* ]
 ;;;
 ;;; Any form can be prefixed with `#$' to indicate that it is to be a subsequence
-;;; rather than a member.  Note that, unlike in quoted lists and `#(...)', the
+;;; rather than an element.  Note that, unlike in quoted lists and `#(...)', the
 ;;; forms are evaluated.  Examples:
 ;;;
 ;;;   #[ 1 2 3 ]
@@ -139,51 +139,51 @@
 (defmacro set (&rest args)
   "Constructs a set of the default implementation according to the supplied
 argument subforms.  Each argument subform can be an expression, whose value
-will be a member of the result set; or a list of the form ($ `expression'), in
-which case the expression must evaluate to a set, all of whose members become
-members of the result set."
+will be an element of the result set; or a list of the form ($ `expression'), in
+which case the expression must evaluate to a set, all of whose elements become
+elements of the result set."
   (expand-set-constructor-form 'set 'empty-set args))
 (defmacro fset2:set (&rest args)
   "Constructs a set of the default implementation according to the supplied
 argument subforms.  Each argument subform can be an expression, whose value
-will be a member of the result set; or a list of the form ($ `expression'), in
-which case the expression must evaluate to a set, all of whose members become
-members of the result set."
+will be an element of the result set; or a list of the form ($ `expression'), in
+which case the expression must evaluate to a set, all of whose elements become
+elements of the result set."
   (expand-set-constructor-form 'fset2:set 'fset2:empty-set args))
 
 (defmacro wb-set (&rest args)
   "Constructs a wb-set according to the supplied argument subforms.  Each
-argument subform can be an expression, whose value will be a member of the
+argument subform can be an expression, whose value will be an element of the
 result set; or a list of the form ($ `expression'), in which case the
-expression must evaluate to a set, all of whose members become members of the
+expression must evaluate to a set, all of whose elements become elements of the
 result set."
   (expand-set-constructor-form 'wb-set 'empty-wb-set args))
 
 (defmacro wb-custom-set (compare-fn-name &rest args)
-  "Constructs a wb-set with a custom ordering, according to the supplied
+  "Constructs a wb-set with a custom organization, according to the supplied
 argument subforms.  `compare-fn-name' must be a symbol naming the desired
 comparison function.  Each of `args' can be an expression, whose value
-will be a member of the result set; or a list of the form ($ `expression'),
-in which case the expression must evaluate to a set, all of whose members
-become members of the result set."
+will be an element of the result set; or a list of the form ($ `expression'),
+in which case the expression must evaluate to a set, all of whose elements
+become elements of the result set."
   (expand-set-constructor-form 'wb-set 'empty-wb-set args compare-fn-name))
 
 (defmacro ch-set (&rest args)
   "Constructs a ch-set according to the supplied argument subforms.  Each
-argument subform can be an expression, whose value will be a member of the
+argument subform can be an expression, whose value will be an element of the
 result set; or a list of the form ($ `expression'), in which case the
-expression must evaluate to a set, all of whose members become members of the
+expression must evaluate to a set, all of whose elements become elements of the
 result set."
   (expand-set-constructor-form 'ch-set 'empty-ch-set args))
 
 (defmacro ch-custom-set (compare-fn-name &rest args)
-  "Constructs a ch-set of a custom type, according to the supplied argument
-subforms.  `compare-fn-name' must be a symbol naming the desired comparison
-function; a hash function must have been defined for it using
-`define-hash-function'.  Each of `args' can be an expression, whose value
-will be a member of the result set; or a list of the form ($ `expression'),
-in which case the expression must evaluate to a set, all of whose members become
-members of the result set."
+  "Constructs a ch-set with a custom organization, according to the supplied
+argument subforms.  `compare-fn-name' must be a symbol naming the desired
+comparison function; a hash function must have been defined for it using
+`define-hash-function'.  Each of `args' can be an expression, whose value will
+be an element of the result set; or a list of the form ($ `expression'), in which
+case the expression must evaluate to a set, all of whose elements become elements
+of the result set."
   (expand-set-constructor-form 'ch-set 'empty-ch-set args compare-fn-name))
 
 (defun expand-set-constructor-form (type-name empty-fn args &optional compare-fn-name)
@@ -205,16 +205,16 @@ members of the result set."
 (defmacro replay-set (&rest args)
   "Constructs a replay-set of the default implementation according to the
 supplied argument subforms.  Each argument subform can be an expression,
-whose value will be a member of the result set; or a list of the form
+whose value will be an element of the result set; or a list of the form
 \($ `expression'), in which case the expression must evaluate to a set,
-all of whose members become members of the result set."
+all of whose elements become elements of the result set."
   (expand-replay-set-constructor-form 'replay-set 'empty-replay-set args))
 
 (defmacro wb-replay-set (&rest args)
   "Constructs a wb-replay-set according to the supplied argument subforms.  Each
-argument subform can be an expression, whose value will be a member of the
+argument subform can be an expression, whose value will be an element of the
 result set; or a list of the form ($ `expression'), in which case the
-expression must evaluate to a set, all of whose members become members of the
+expression must evaluate to a set, all of whose elements become elements of the
 result set."
   (expand-replay-set-constructor-form 'wb-replay-set 'empty-wb-replay-set args))
 
@@ -222,16 +222,16 @@ result set."
   "Constructs a wb-replay-set with a custom ordering, according to the supplied
 argument subforms.  `compare-fn-name' must be a symbol naming the desired
 comparison function.  Each of `args' can be an expression, whose value
-will be a member of the result set; or a list of the form ($ `expression'),
-in which case the expression must evaluate to a set, all of whose members
-become members of the result set."
+will be an element of the result set; or a list of the form ($ `expression'),
+in which case the expression must evaluate to a set, all of whose elements
+become elements of the result set."
   (expand-replay-set-constructor-form 'wb-replay-set 'empty-wb-replay-set args compare-fn-name))
 
 (defmacro ch-replay-set (&rest args)
   "Constructs a ch-replay-set according to the supplied argument subforms.  Each
-argument subform can be an expression, whose value will be a member of the
+argument subform can be an expression, whose value will be an element of the
 result set; or a list of the form ($ `expression'), in which case the
-expression must evaluate to a set, all of whose members become members of the
+expression must evaluate to a set, all of whose elements become elements of the
 result set."
   (expand-replay-set-constructor-form 'ch-replay-set 'empty-ch-replay-set args))
 
@@ -239,9 +239,9 @@ result set."
   "Constructs a ch-replay-set with a custom ordering, according to the supplied
 argument subforms.  `compare-fn-name' must be a symbol naming the desired
 comparison function.  Each of `args' can be an expression, whose value
-will be a member of the result set; or a list of the form ($ `expression'),
-in which case the expression must evaluate to a set, all of whose members
-become members of the result set."
+will be an element of the result set; or a list of the form ($ `expression'),
+in which case the expression must evaluate to a set, all of whose elements
+become elements of the result set."
   (expand-replay-set-constructor-form 'ch-replay-set 'empty-ch-replay-set args compare-fn-name))
 
 (defun expand-replay-set-constructor-form (type-name empty-fn args &optional compare-fn-name)
@@ -266,7 +266,7 @@ will be added to the bag with multiplicity 1; or a list of the form
 set), which is bag-summed into the result; or a list of the form
 \(% `expression1' `expression2') (called a \"multi-arg\"), which indicates that
 the value of `expression1' is bag-summed into the result with multiplicity
-given by the value of `expression2'.  That is, the multiplicity of each member
+given by the value of `expression2'.  That is, the multiplicity of each element
 of the result bag is the sum of its multiplicities as supplied by each of the
 argument subforms."
   (expand-bag-constructor-form 'bag 'empty-bag args))
@@ -279,7 +279,7 @@ expression must evaluate to a bag (or a set), which is bag-summed into the
 result; or a list of the form (% `expression1' `expression2') (called a
 \"multi-arg\"), which indicates that the value of `expression1' is bag-summed
 into the result with multiplicity given by the value of `expression2'.  That
-is, the multiplicity of each member of the result bag is the sum of its
+is, the multiplicity of each element of the result bag is the sum of its
 multiplicities as supplied by each of the argument subforms."
   (expand-bag-constructor-form 'wb-bag 'empty-wb-bag args))
 
@@ -292,7 +292,7 @@ will be added to the bag with multiplicity 1; or a list of the form
 set\), which is bag-summed into the result; or a list of the form
 \(% `expression1' `expression2'\) (called a \"multi-arg\"), which indicates
 that the value of `expression1' is bag-summed into the result with multiplicity
-given by the value of `expression2'.  That is, the multiplicity of each member
+given by the value of `expression2'.  That is, the multiplicity of each element
 of the result bag is the sum of its multiplicities as supplied by each of the
 argument subforms."
   (expand-bag-constructor-form 'wb-bag 'empty-wb-bag args compare-fn-name))
@@ -335,7 +335,7 @@ argument subforms.  Each argument subform can be a list of the form (`key-expr'
 `value-expr'), denoting a mapping from the value of `key-expr' to the value of
 `value-expr'; or a list of the form ($ `expression'), in which case the
 expression must evaluate to a map, denoting all its mappings; or the symbol
-`:default', in which case the next argument subform is a form whose value will
+`:default', in which case the value of the next argument subform will
 become the map's default.  As a convenience, if a subform is ($ `expression')
 and the expression evaluates to `nil', it will be treated as an empty map.
 The result is constructed from the denoted mappings in left-to-right order; so

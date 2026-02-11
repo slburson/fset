@@ -1,8 +1,5 @@
 (in-package :fset)
 
-;;; &&& Naming: should we treat "transient" as a substantive, giving `transient', `set-transient',
-;;; and `ch-set-transient'?
-
 (defstruct (transient-collection
 	     (:constructor nil)
 	     (:predicate transient-collection?)
