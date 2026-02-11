@@ -1,0 +1,390 @@
+@node Getting Started
+@chapter Getting Started
+
+This chapter offers a brief tutorial, followed by some small examples comparing how things are done
+natively in CL with how they can be done with FSet.  It concludes with discussion of practical
+considerations that are likely to arise when you first start using FSet in a project.
+
+@include Tutorial.texi
+
+@c @include Examples.texi
+
+@node Using FSet
+@section Using FSet
+
+I expect there will be two primary ways that FSet gets used; I'll call them ``FSet-light'' and
+``FSet-heavy''. In the ``light'' mode of use, FSet types and operations will be sprinkled into code —
+perhaps, code that was originally written without FSet — but the code will mostly use non-FSet
+collections.  In the ``heavy'' mode, on the other hand, code uses FSet for most things (of course,
+Lisp code will always use lists for some purposes).
+
+There are some choices to be made based on this difference.  The major one is whether to import the
+external FSet symbols into the package(s) you are developing in, so that they can be referenced
+without package prefixes.  Some projects have a blanket policy against importing symbols, but if
+yours allows importing, and you plan to use FSet heavily, I think you should consider it.  This is
+the mode in which I use FSet personally; it does give the feeling of using a new dialect of Lisp,
+which you could find desirable or not, depending on your tastes.
+
+A small choice is whether to use @code{lookup} or @code{@@} (@pxref{The @code{@@} Macro}).  In
+FSet-light code you should probably use @code{lookup} since the name will be easier to recognize,
+but in FSet-heavy code I think you may as well use @code{@@}.
+
+If your project doesn't permit importing, or if you're planning to use FSet only in a few places,
+just use an explicit @code{fset2:} prefix on FSet symbols.  (The older @code{fset} package is still
+provided for compatibility with codebases that have been using it, but I don't recommend it for new
+code.)
+
+This is clearly desirable for FSet-heavy code (see the
+@code{defpackage :fset2-user} form in @code{defs.lisp} for an example of how to do this, including a list of
+symbols you will need to @code{shadowing-import} from either @code{fset2} or @code{cl}). 
+
+@node Importing FSet Symbols
+@subsection Importing FSet Symbols
+
+@cindex Package setup
+@cindex FSet packages
+There's yet another choice to make, once you've decided to import FSet symbols: do you want all of
+them, most of them, or just the ones you're actually using?
+
+If you want the full FSet experience, add @code{:fset2} to the @code{:use} clause of your
+@code{defpackage} form, as in this example, and copy the @code{:shadowing-import-from} clause:
+
+@example
+(defpackage :my-package
+  (:use :cl :fset2 :misc-extensions.gmap :misc-extensions.mvlet)
+  (:shadowing-import-from :fset2
+			  ;; Shadowed type/constructor names
+			  #:set #:map
+			  ;; Shadowed set operations
+			  #:union #:intersection #:set-difference #:complement
+			  ;; Shadowed sequence operations
+			  #:first #:last #:subseq #:reverse #:sort #:stable-sort
+			  #:reduce
+			  #:find #:find-if #:find-if-not
+			  #:count #:count-if #:count-if-not
+			  #:position #:position-if #:position-if-not
+			  #:remove #:remove-if #:remove-if-not
+			  #:substitute #:substitute-if #:substitute-if-not
+			  #:some #:every #:notany #:notevery
+			  #:search #:mismatch))
+@end example
+
+(I'll explain the @code{misc-extensions} packages in the next section.)
+
+Here is a description of each of the symbols shadowing-imported in this example, to help you
+understand the consequences of importing it and to decide whether you want to.
+
+@table @asis
+@item @code{set}
+A no-brainer: import @code{fset2:set}. The CL @code{set} is archaic, deprecated in the ANSI CL spec,
+and easily replaced with @code{(setf (symbol-value @dots{})  @dots{})}, which is stylistically
+preferable anyway. @code{fset2:set} names both a type and a constructor macro for that type.
+
+@item @code{map}
+This one is a little harder, because @code{cl:map} has perfectly legitimate uses, though it's rarer
+than @code{mapcar}. Personally, I never use it because I use @href{my GMap macro, GMap}
+instead, but others might miss it. (FSet has a similar operation called @code{image}.) Again,
+@code{fset2:map} names both a type and a constructor macro.
+
+@item @code{union}, @code{intersection}, @code{set-difference}
+These are generic functions, with methods for lists that invoke the CL builtins.  I recommend
+importing them.
+
+@item @code{complement}
+A generic function, with a method for functions that invokes the CL builtin.  Rarely used, but you
+may as well import it anyway.
+
+@item @code{first}, @code{last}
+These are generic functions that return the first or last element of a sequence, which can be a Lisp
+sequence or an FSet seq.  These differ from the CL builtins in two ways: the latter accept only
+lists, and @code{cl:last} returns not the last @emph{element} of its argument, but rather the last
+@emph{cons} (the cons whose @code{car} is the last element).  @xref{Divergences from Common Lisp}
+for further discussion.
+
+@item @code{subseq}, @code{reverse}
+@itemx @code{sort}, @code{stable-sort}
+@itemx @code{reduce}
+@itemx @code{find}, @code{find-if}, @code{find-if-not}
+@itemx @code{count}, @code{count-if}, @code{count-if-not}
+@itemx @code{position}, @code{position-if}, @code{position-if-not}
+@itemx @code{remove}, @code{remove-if}, @code{remove-if-not}
+@itemx @code{substitute}, @code{substitute-if}, @code{substitute-if-not}
+@itemx @code{some}, @code{every}, @code{notany}, @code{notevery}
+@itemx @code{search}, @code{mismatch}
+These are now generic functions that accept both CL sequences and FSet seqs, with compatibility
+methods on CL sequences that simply forward the call to the original CL versions.  There is little
+reason not to prefer these; I recommend importing them..
+@end table
+
+@c &&& This stuff goes somewhere else...
+
+They also have methods on seqs; @code{find} etc., @code{count}
+etc., and @code{remove} etc. have methods on sets, bags, and maps as well.  When called on an FSet
+collection, the default for @code{:test} is @code{equal?}; the @code{:test-not} keyword is not
+supported; and the @code{:start}, @code{:end}, and @code{:from-end} keywords are supported only on
+seqs, not on sets, bags, or maps.  On a map, only the domain elements are examined.
+
+Here are some Lisp sequence operations for which FSet does @emph{not} export a symbol with the same
+name.  I have omitted mutating operations, for which FSet of course has no equivalent.
+
+@table @asis
+@item @code{elt}
+The FSet operation (which applies to maps as well as seqs) is @code{lookup}; see also @ref{The
+@code{@@} Macro}.
+
+@item @code{length}
+The FSet operation (which applies to all FSet collections, not just seqs) is @code{size}.
+
+@item @code{remove-duplicates}, @code{merge}
+Use FSet sets.
+@end table
+
+@c &&& (end of stuff to go somewhere else)
+
+@node Misc-Extensions
+@subsection Misc-Extensions
+
+@uref{https://gitlab.common-lisp.net/misc-extensions/misc-extensions/,Misc-Extensions} is a small
+library of macros that is used by FSet and which FSet users might also find handy to use in their
+code.  One of these is an extensible iteration macro called @href{GMap, GMap}.  The rest are
+discussed here.
+
+I use @code{mvlet}, @code{mvlet*}, and @code{fn} elsewhere in this book, so you'll want to read
+about them below.  The rest of the section can be skipped on first reading.
+@c &&& Maybe cut the other topics?
+
+@defmac nvlet (binding-clause@dots{}) declaration@dots{} form@dots{}
+@defmacx nvlet* (binding-clause@dots{}) declaration@dots{} form@dots{}
+@defmacx nlet (binding-clause@dots{}) declaration@dots{} form@dots{}
+
+For writing code in a mostly-functional style, Common Lisp's multiple-value feature is extremely
+useful (I make heavy use of it both internally within FSet and in the API).  But the most important
+primitive the language provides for receiving multiple values from a call,
+@code{multiple-value-bind}, is a bit clunky to use.  First, its long name would be appropriate for a
+rarely used operation, but in the mostly-functional style, it can be used quite frequently.
+Second, combining it with other bindings can be done only by nesting; where @code{cl:let} and
+@code{cl:let*} let you bind several variables to the values of their respective init-forms,
+@code{multiple-value-bind} receives values from only a single form.
+
+Misc-Extensions provides three related macros to elegantly and succinctly bind lists of one or more
+variables to the one or more values of their respective init-forms.  All of these allow more than one
+variable in a binding clause; the last element of the clause is the init-form, and the preceding
+elements are the variables to be bound to the values of the init-form.
+
+The two that I expect most people will want to use are @code{mvlet} and @code{mvlet*}.
+@code{mvlet}, like @code{cl:let}, makes all bindings in parallel, so the init-forms can refer to
+variables of the same names in the containing scope.  @code{mvlet*}, like @code{cl:let*}, makes them
+sequentially, so each init-form can refer to any of the variables bound in the preceding clauses.
+Except for being able to bind multiple values, they are almost perfectly upward-compatible with the
+CL operators, with a minor caveat I will return to below.
+
+@code{nlet} generalizes the other two by making it possible to do any combination of parallel and
+sequential binding.  It allows the binding clauses to be nested to indicate sequential binding: more
+deeply nested clauses are within the scopes of bindings made by less deeply nested clauses.  Within
+a level, bindings are parallel.  I'm personally fond of @code{nlet}, but some people find the
+heavily parenthesized syntax a little off-putting.
+
+Here are examples of all three.
+
+@verbatim
+  (let ((a (foo)))
+    ...
+    (mvlet ((a b (bar))
+            (c (baz a))  ; outer 'a'
+            ...)
+      ...)
+
+    (mvlet* ((a b (bar))
+             (c (baz a))  ; inner 'a'
+             ...)
+      ...)
+
+    (nlet ((a b (bar))
+           (c (baz a))  ; outer 'a'
+           ...)
+      ...)
+
+    (nlet ((a b (bar))
+           ((c (baz a)))  ; inner 'a'
+           ...)
+      ...))
+@end verbatim
+
+In all four examples we see @code{a} and @code{b} being bound to the first two values of
+@code{(bar)} in the first clause, but whether the reference to @code{a} in the second clause refers
+to the @code{a} in the outer scope or the one that was just bound depends on whether @code{mvlet} or
+@code{mvlet*} was used, or in the @code{nlet} case, the nesting level of the second clause.
+
+A more complex @code{nlet} example:
+
+@verbatim
+  (nlet ((a b c (zot))
+         ((d (quux a c))
+          ((e f (mumble b d))
+           (g (mung a))))
+         ((h (frobozz c))
+          ((i (xyzzy h))))
+         (*print-level* 3))
+    ...)
+@end verbatim
+
+First @code{a}, @code{b}, and @code{c} are bound to the first three values of @code{(zot)}, and in
+parallel, @code{*print-level*} is bound to 3; then @code{d} and @code{h} are bound; then @code{e},
+@code{f}, @code{g}, and @code{i} are bound.
+
+As this example illustrates, all bindings at a given nesting level are done in parallel, with all
+bindings at a deeper level following.  Stylistically, it is expected that init-forms in nested
+clauses will refer only to variables bound in containing clauses.  However, this is not enforced; for
+instance, the init-form for @code{g} could refer to @code{h}, since the latter is bound one level
+out.
+
+The macros correctly handle @code{declare} forms at the beginning of the body, emitting the
+declarations at the correct level within the expansion so that they apply to the binding named.
+
+The symbol @code{nlet} is exported from package @code{new-let}.  It also exports the same macro under
+the name @code{let}, so that it can shadow @code{cl:let}; this is how I use it, though again, I
+suspect most people will not want to do that.  Anyway, because @code{new-let:let} is exported, if you
+@code{(:use :new-let)} in your package declaration, you will also need to include a
+@code{:shadowing-import-from} clause to say which version of @code{let} you want to use.
+
+@code{mvlet} and @code{mvlet*} are initially exported from @code{new-let} as well, but to make them
+a little more convenient to use (especially for those not yet expert in dealing with CL packages), I
+created another package @code{mvlet} that re-exports only these two symbols.  So you can say
+@code{(:use :mvlet)} to get them, without having to shadowing-import anything.
+
+Historical note: I first wrote @code{nlet} in 1980, on the MIT Lisp Machine, and have used it ever
+since in my own projects.
+
+(Paul Rodriguez's @uref{https://github.com/ruricolist/serapeum/, Serapeum} also includes
+implementations of @code{mvlet} and @code{mvlet*}.)
+@end defmac
+
+@defmac fn (parameter@dots{}) declaration@dots{} form@dots{}
+
+For very small lambda expressions, the six characters taken by the word @code{lambda} can be a
+significant fraction of the total.  If the body doesn't reference all the parameters, moreover,
+you'll want to add a @code{(declare (ignore ...))} for the unused ones, which adds to the verbosity.
+The @code{fn} macro helps with both annoyances.  Obviously, its name is quite short.  (Those willing
+to set foot on the slippery slope of Unicode could use @code{λ}, of course, but I've been afraid to
+go there yet, lest my code wind up as an unintelligible mass of obscure mathematical symbols and cat
+emojis.) Also, you can use either a bare @code{_} or a name beginning with @code{_} as a parameter
+name, to indicate an ignored parameter; @code{fn} automatically inserts the required @code{ignore}
+declaration.
+
+One catch, though, is that if you inadvertently write @code{#'(fn ...)}, you will get a
+probably-unintelligible compiler error.  Just delete the @code{#'}.
+@end defmac
+
+@defmac deflex var [val [doc]]
+@defmacx deflex-reinit var [val [doc]]
+
+Declares @code{var} as a global lexical variable, and if @code{val} is supplied and @code{var} is
+not already bound, initializes it to @code{val}.  @code{doc}, if supplied, is taken as a
+documentation string.  Locally binding the same name creates a new lexical variable, with no effect
+on the global one.
+
+Macro @code{deflex-reinit} is the same except that it reinitializes the variable even if it's
+already bound, like @code{cl:defparameter}.
+@end defmac
+
+@defmac isetq var val@dots{}
+
+Some implementations, notably CMUCL and SBCL, issue a rather verbose warning if you use @code{setq}
+to set a previously undeclared global variable in the REPL.  I find this annoying.  I could use
+@code{defvar} or @code{defparameter} instead, but they return the name of the variable, not its
+value, so if I want the value printed, I have to enter the name at the next prompt.  Besides, using
+one of those declares the variable special, so I have to be careful to put @code{*earmuffs*} on my
+variable names.  The other Lisps I've used for many years have quietly accepted @code{setq} of a new
+variable, without declaring it special.
+
+So I wrote a macro @code{isetq} (``interactive @code{setq}'').  It uses the same technique as
+@code{deflex} to make the variable being assigned to into a global lexical, so I don't need to use
+earmuffs to prevent name collisions with local variables in my code.
+
+@code{isetq} is only for interactive use; it is @strong{@emph{not recommended for use in programs}}.
+@end defmac
+
+@c Maybe don't mention rflet and rmacrolet here???
+@defmac rlabels form &body function-binding-clause@dots{}
+@defmacx rflet form &body function-binding-clause@dots{}
+@defmacx rmacrolet form &bodyfunction-binding-clause@dots{}
+
+It's not uncommon to use @code{labels} to define a set of several mutually-recursive functions,
+whose code can fill a screen or two, then have the body of the @code{labels} kick off the recursion
+with a one-liner that just calls one of the functions.  This strikes me as a little hard to read ---
+you have to scroll all the way to the bottom to find the initial values of the recursion variables
+--- and also a little wasteful of indentation space.  So I introduced a macro @code{rlabels}
+(``reversed @code{labels}''), which puts the initial call first as a single subform, then takes the
+function-binding clauses as its @code{&body} parameter, saving seven columns of indentation.
+
+The effect on code layout is simiiar to that of the @code{named-let} macro that some people use, but
+it's more general as it can define multiple local functions.
+
+There are also @code{rflet} and @code{rmacrolet}, but they're rarely useful.
+@end defmac
+
+@anchor{Succinct Class Definitions With @code{define-class}}
+@defmac define-class name (superclass@dots{}) (slot-specifier@dots{}) class-option@dots{}
+@end defmac
+
+As everyone knows, @code{defclass} forms tend to be rather verbose and repetitive:
+
+@verbatim
+(defclass frob (widget)
+    ((color :initarg :color :reader frob-color
+       :initform (error "A color must be specified.")
+       :documentation "The color of the frob.")
+     (height :initarg :height :accessor frob-height
+       :initform 3.0
+       :documentation "The height of the frob in cm."))
+  (:documentation "The class of all frobs."))
+@end verbatim
+
+I've written a @code{define-class} macro to shorten them.  It is completely upward compatible with
+@code{defclass}; you could just replace @code{defclass} with @code{define-class} and have a valid
+invocation that would produce the same result.  But @code{define-class} provides several features to
+make the definition more succinct.  Use only the ones you like!  The big change is that where
+@code{defclass} slot descriptions have a strict alternating keyword-value syntax,
+@code{define-class} is more flexible.
+
+@itemize
+@item
+A doc string for the class can be placed just before the slot specs (visually similar to where doc
+strings for functions go).
+@item
+The first element of a slot specifier, which is normally a slot name, can instead be a list
+@code{(slot-name initform)}; an @code{:initform} option will be generated.
+@item
+@code{:may-init} generates @code{:initarg :slot-name}.
+@item
+@code{:must-init} generates @code{:initarg :slot-name}, and also an @code{:initform} that signals an
+error if the argument is not provided to @code{make-instance}.
+@item
+@code{:readable} generates @code{:reader gf-name}, and @code{:accessible} generates
+@code{:accessor gf-name}, where @code{gf-name} is either the slot name or, if a @code{:conc-name}
+@emph{class} option is supplied, that string prepended to the slot name.
+@item
+Additionally, @code{:constant} is an abbreviation for @code{:must-init :readable} if the spec
+contains no initform, or @code{:may-init :readable} if there is an initform (in either syntax).
+@item
+And @code{:variable} is an abbreviation for @code{:may-init :accessible}.
+@item
+A doc string can appear anywhere in the slot options; @code{:documentation} will be inserted.
+@item
+Or, you can use @code{:doc} as an abbreviation for @code{:documentation}.
+@end itemize
+
+So, here's the above example using @code{define-class}; 347 characters have been reduced to 186, and
+I think it's actually easier to understand:
+
+@verbatim
+(define-class frob (widget)
+  "The class of all frobs."
+  ((color :constant "The color of the frob.")
+   ((height 3.0) :variable "The height of the frob in cm."))
+  (:conc-name #:frob-))
+@end verbatim
+
+Let me emphasize: you can still use the @code{defclass} slot options in any case where the above
+features do not do what you want; for instance, if you want a different reader/accessor name for a
+particular slot than what @code{define-class} would have used.

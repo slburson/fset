@@ -1,0 +1,577 @@
+@node FSet Tutorial
+@section FSet Tutorial
+
+If you are new to FSet, this tutorial will get you up and running quickly.  We have just a few
+preliminaries before we get started.  First, this tutorial is addressed to those who have acquired
+at least some familiarity with Common Lisp; it's not the place to start for newcomers to the
+language.  Second, you will want to have a copy of FSet running so you can follow along.  Assuming
+you are already using Quicklisp, just do
+
+@example
+> @b{(ql:quickload "fset")}
+@end example
+
+This tutorial presents FSet 2; you should be using v2.4.0 or later.  If, at the time you read this,
+Quicklisp is still on v2.2.0, I strongly recommend getting the latest release from either
+@uref{https://gitlab.common-lisp.net/fset/fset, Common-Lisp.net} or
+@uref{https://github.com/slburson/fset, GitHub}.  If you clone the repo into
+@code{~/quicklisp/local-projects/}, Quicklisp will use it automatically.  To find out what version
+Quicklisp is providing, you can do
+
+@example
+% grep ^fset ~/quicklisp/dists/quicklisp/releases.txt
+@end example
+
+FSet 2 added two new packages, @code{fset2} and @code{fset2-user}; it also changed the default
+implementations of sets and maps from the older WB-tree collections to the newer CHAMP collections.
+The aspect of that change that is relevant to this tutorial is that the CHAMP types print with a
+double sharpsign, @code{##}; you will see this in the examples below.
+
+@menu
+* The Major FSet Types::
+* Nested collections::
+* Assignment and updating::
+@end menu
+
+@node The Major FSet Types
+@subsection The Major FSet Types
+FSet provides four major types: sets, maps, seqs, and bags.  Sets are the most basic: a set is an
+unordered collection of unique elements.  (FSet imposes an ordering, but this is a standard ordering
+FSet uses for its own purposes, and can't be changed for a particular set instance.)  Maps are
+perhaps the most useful: a map, like a hash table, associates each of a set of keys with a unique
+value.  Seqs are FSet's sequences; I use a shortened form of the word "sequence" because
+@code{sequence} is, of course, already a CL type name.  And finally, bags (another term is
+"multisets") are somewhat like sets except that a bag remembers the number of times each element has
+been added to it.
+
+The examples assume one is typing to a REPL.  User input is shown in bold.  To follow along, which I
+highly recommend, assuming you have installed and loaded FSet, first do this:
+
+@example
+> @b{(in-package fset2-user)}
+@end example
+
+@menu
+* Sets Tutorial::
+* Maps Tutorial::
+* Seqs Tutorial::
+* Bags Tutorial::
+@end menu
+
+@node Sets Tutorial
+@subsubsection Sets
+The simplest way to create a set is with the function @code{empty-set}:
+
+@example
+> @b{(defparameter es (empty-set))}
+ES
+> es
+##@{ @}
+@end example
+
+Now we can add an element to the set with @code{with}:
+
+@example
+> @b{(defparameter s (with es 3))}
+S
+> s
+##@{ 3 @}
+@end example
+
+You can see that the @code{with} function has returned a new set without modifying the original:
+
+@example
+> @b{es}
+##@{ @}
+@end example
+
+The function @code{empty?} tells you whether a set is empty.  (FSet uses the trailing question mark
+rather than the older @code{-p} convention for the names of boolean-valued functions.)
+
+@example
+> @b{(empty? s)}
+NIL
+> @b{(empty? es)}
+T
+@end example
+
+If the set is not empty, @code{arb} will give you an arbitrary one of its elements:
+
+@example
+> @b{(arb s)}
+3
+T
+@end example
+
+Note that @code{arb} is not guaranteed to give you any particular element, nor is its job to give you
+a "randomly selected" element.  Its only postcondition is to give you @emph{some} element of the set.
+This contract may seem a bit odd, but it gives the implementation flexibility to return a
+"convenient" element.  And it's still usable in algorithms.  For one thing, if the set is a singleton
+(has size 1), then @code{arb} is guaranteed to return the only element.  For another, some "workset"
+algorithms don't need a particular element; they just need to pull some element out of the set on each
+loop iteration until it's empty.  (Example below.)
+
+(The second value of @code{T} indicates that the set was, in fact, nonempty; FSet's philosophy is to
+use multiple values to indicate special cases, when that makes sense, instead of signalling errors.)
+
+Having obtained an element of the set, we can remove it with @code{less}:
+
+@example
+> @b{(less s 3)}
+##@{ @}
+@end example
+
+This may not seem too exciting yet, but it is already enough to write certain algorithms which have
+this general form:
+
+@example
+(let ((workset (some-set)))
+  (loop while (not (empty? workset))
+    (let ((x (arb workset)))
+      (setq workset (less workset x))
+      (some-operation-on x)
+      (dolist (y (successors-of-some-kind x))
+        (if (some-predicate y)
+          (setq workset (with workset y)))))))
+@end example
+
+Another important function on sets is @code{size}, which returns the number of elements:
+
+@example
+> @b{(size s)}
+1
+@end example
+
+To test membership of a particular value, there's @code{contains?}:
+
+@example
+> @b{(contains? s 2)}
+NIL
+> @b{(contains? s 3)}
+T
+@end example
+
+Constructing literal sets by repeated applications of @code{with} gets tedious, so FSet provides a
+constructor macro which is simply called @code{set}.  (We have shadowed @code{cl:set}, which is
+archaic anyway, in the @code{fset-user} package.) For example:
+
+@example
+> @b{(set)}
+##@{ @}
+> @b{(defparameter s1 (set 1 2 3))}
+S1
+> s1
+##@{ 1 2 3 @}
+> @b{(defparameter s2 (set 'c 1 "foo" 'a 'c))}
+S2
+> s2
+##@{ 1 C A "foo" @}
+@end example
+
+(The order in which set and map elements are printed can depend on which Common Lisp implementation
+you are running on.)
+
+You can see that FSet handles many builtin Lisp types (we'll get to the whole list later); that
+mixing types in a collection is no problem, of course, this being Lisp; that sets ignore duplication
+of elements; and that FSet imposes its own ordering on sets.
+
+The @code{set} constructor macro has a syntax for including all the elements of another set (this is
+why it's a macro):
+
+@example
+> @b{(set ($ s1) 'x)}
+##@{ 1 2 3 X @}
+@end example
+
+Given a couple of sets, we can start to do some more interesting things with them:
+
+@example
+> @b{(equal? s1 (set 3 2 1))}
+T
+> @b{(union s1 s2)}
+##@{ 1 2 3 C A "foo" @}
+> @b{(intersection s1 s2)}
+##@{ 1 @}
+> @b{(set-difference s1 s2)}
+##@{ 2 3 @}
+> @b{(set-difference-2 s1 s2)}
+##@{ 2 3 @}
+##@{ C A "foo" @}
+@end example
+
+(That last one is returning both differences as two values.)
+
+FSet provides alternate versions of many CL functions, which are intended to be shadowing-imported
+into your code package (and are, obviously, in @code{fset-user}).  Most of these are CLOS generic
+functions, with compatibility methods so they will do the same thing as the CL builtins if invoked
+on non-FSet types.  However, you see we have a separate predicate @code{equal?} rather than
+shadowing @code{cl:equal}.
+
+There are also a couple of useful predicates on pairs of sets:
+
+@example
+> @b{(subset? (set 1 2) s1)}
+T
+> @b{(subset? s1 (set 1 2))}
+NIL
+> @b{(disjoint? s1 (set 1 2))}
+NIL
+> @b{(disjoint? s1 (set 4 5))}
+T
+@end example
+
+@node Maps Tutorial
+@subsubsection Maps
+You can create an empty map with @code{empty-map}; @code{with} on a map takes two arguments:
+
+@example
+> @b{(empty-map)}
+##@{| |@}
+> @b{(defparameter m1 (with (empty-map) 'x 1))}
+M1
+> m1
+##@{| (X 1) |@}
+@end example
+
+Retrieving the value associated with a map key is done with @code{lookup} or its synonym @code{@@}
+(which to use is a stylistic choice I'll discuss further below; herein I'll mostly use @code{@@}):
+
+@example
+> @b{(lookup m1 'x)}
+1
+T     ; second value indicates whether the key was found
+X     ; third value is the key object in the map (ignore this for now)
+> @b{(@ m1 'x)}
+1
+T
+X
+> @b{(@ m1 'y)}
+NIL
+NIL
+NIL
+@end example
+
+As you see, these functions return a second value indicating whether the key was in the map.  This
+is in case you're using @code{nil} as a range element; since such usage is rare, most of the time
+you can ignore the second value.  Also as you see, the "default default" for the primary value, when
+the key is not in the map, is @code{nil}.  The default can be changed, though, either by supplying
+an argument to @code{empty-map} when first creating the map, or later by using @code{with-default}:
+
+@example
+> @b{(defparameter m2 (with (empty-map :default 0) 'x 1))}
+M2
+> m2
+##@{| (X 1) |@}/0
+> @b{(@ m2 'x)}
+1
+T
+X
+> @b{(@ m2 'y)}
+0
+NIL
+NIL
+> @b{(setq m2 (with-default m2 3))}
+##@{| (X 1) |@}/3
+> @b{(@ m2 'y)}
+3
+NIL
+NIL
+@end example
+
+(When the default is not @code{nil}, it is printed after the map, separated by a slash.)
+
+There is also a constructor macro for maps called @code{map} --- the obvious choice of name except
+that it requires shadowing @code{cl:map}, which is a little unfortunate (but see the discussion of
+GMap below).  The @code{map} macro has a more complex syntax than @code{set} since it accepts pairs:
+
+@example
+> @b{(defparameter m3 (map ('a 1) ('b 2)))}
+M3
+> m3
+##@{| (B 2) (A 1) |@}
+@end example
+
+Note that the sublists immediately within the @code{map} form are not forms, but pairs of forms
+(e.g. @code{('a} @code{1)} is not evaluated, but @code{'a} and @code{1} are evaluated separately).
+The macro also supports the @code{$} syntax for including the pairs of another map:
+
+@example
+> @b{(defparameter m4 (map ('b 3) ('c 4)))}
+M4
+> m4
+##@{| (B 3) (C 4) |@}
+> @b{(defparameter m5 (map ($ m3) ('D 42) ($ m4)))}
+M5
+> m5
+##@{| (B 3) (C 4) (A 1) (D 42) |@}
+@end example
+
+As you see, when two of the maps included with @code{$} have pairs with the same key, the one on the
+right wins.
+
+The `map` macro also gives you a convenient way to specify the default for a map:
+
+@example
+> @b{(defparameter m6 (map ('e 5) :default 0))}
+M6
+> @b{m6}
+##@{| (E 5) |@}/0
+@end example
+
+It is possible for a map to have @emph{no} default.  This case is distinct from a default of
+@code{nil} in two ways: the map prints with @code{/[no default]} on the end, and an error is
+signalled by @code{lookup} or @code{@@} when the key is not in the map:
+
+@example
+> @b{(defparameter m7 (empty-map :no-default? t))}
+M7
+> @b{m7}
+##@{| |@}/[no default]
+> @b{(@ m7 'a)}
+@i{error signalled} (use the debugger's "abort" command to return to the REPL)
+@end example
+
+There are some interesting and powerful operations to combine maps.  @code{map-difference-2}
+returns, as two values, the mappings in its first argument that are not in its second, and
+conversely:
+
+@example
+> @b{(map-difference-2 m3 m5)}
+##@{| (B 2) |@}/[no default]
+##@{| (B 3) (C 4) (D 42) |@}/[no default]
+@end example
+
+Here, the fact that the returned maps have no default tells you that the defaults of the arguments
+were equal.
+
+The functions @code{map-union} and @code{map-intersection} return a map whose domain is respectively
+the union or intersection of the domains of the arguments.  To compute the range value for each key
+that appears on both maps, they call a function supplied as their optional third argument; this
+function defaults to one that just returns its second argument, so the second map shadows the first
+one:
+
+@example
+> @b{(map-union m3 m4)}
+##@{| (A 1) (B 3) (C 4) |@}
+> @b{(defparameter m8 (map ('a (set 1)) ('b (set 2)) :default (set)))}
+M8
+> m8
+##@{| (A ##@{ 1 @}) (B ##@{ 2 @}) |@}/##@{ @}
+> @b{(defparameter m9 (map ('b (set "x")) ('c (set "y")) :default (set)))}
+M9
+> m9
+##@{| (B ##@{ "x "@}) (C ##@{" y" @}) |@}/##@{ @}
+> @b{(map-union m8 m9 #'union)}
+##@{| (A ##@{ 1 @}) (B ##@{ 2 "x "@}) (C ##@{ "y "@}) |@}/##@{ @}
+> @b{(map-intersection m8 m9 #'union)}
+##@{| (B ##@{ 2 "x" @}) |@}/##@{ @}
+@end example
+
+@node Seqs Tutorial
+@subsubsection Seqs
+Seq indexing is 0-origin, like indexing of CL sequences (@code{cl:elt} etc.).
+
+Seq creation can be done with @code{empty-seq} or the @code{seq} constructor macro:
+
+@example
+> @b{(empty-seq)}
+#[ ]
+> @b{(defparameter q1 (seq 1 2 'a))}
+Q1
+> q1
+#[ 1 2 A ]
+> @b{(defparameter q2 (seq "x" ($ q1) "y"))}
+Q2
+> q2
+#["x" 1 2 A "y"]
+@end example
+
+Seqs have operations to access, add, and remove elements at the ends:
+
+@example
+> @b{(first q1)}
+1
+T
+> @b{(last q1)}
+A
+T
+> @b{(with-first q1 3)}
+#[ 3 1 2 A ]
+> @b{(with-last q1 7)}
+#[ 1 2 A 7 ]
+> @b{(less-first q2)}
+#[ 1 2 A "y" ]
+> @b{(less-last q2)}
+#[ "x" 1 2 A ]
+@end example
+
+For indexing purposes, a seq is like a map whose keys are integers.  Indexing is done with @code{@@} (or
+@code{lookup}):
+
+@example
+> @b{(@ q1 2)}
+A
+T
+> @b{(@ q1 17)}
+NIL
+NIL
+@end example
+
+As you see, we again use a second value to indicate that the index was in bounds.  Like maps, seqs
+allow you to specify the default to be returned for an out-of-bounds index:
+
+@example
+> @b{(setq q2 (with-default q2 0))}
+#[ "x" 1 2 A "y" ]/0
+> @b{(@ q2 47)}
+0
+NIL
+@end example
+
+There are two different ways to get a new element into a seq: @code{with} updates an element at a
+specific index (it can also be used to append an element); @code{insert} inserts an element at the given
+index:
+
+@example
+> @b{(with q1 1 7)}
+#[ 1 7 A ]
+> @b{(insert q1 1 7)}
+#[ 1 7 2 A ]
+> @b{(with q1 3 42)}
+#[ 1 2 A 42 ]
+@end example
+
+If @code{with} is given an out-of-bounds index, it extends the sequence as needed by inserting copies of
+the default:
+
+@example
+> @b{(with q2 8 "yow!")}
+#[ "x" 1 2 A "y" 0 0 0 "yow!" ]/0
+@end example
+
+To delete the element at a given index, use @code{less}:
+
+@example
+> @b{(less q1 1)}
+#[ 1 A ]
+@end example
+
+Other interesting operations on seqs are @code{subseq} and @code{concat}:
+
+@example
+> @b{(defparameter q3 (concat q1 q2))}
+Q3
+> q3
+#[ 1 2 A "x" 1 2 A "y" ]
+> @b{(subseq q3 1 5)}
+#[ 2 A "x" 1 ]
+@end example
+
+Seqs also support the generic CL sequence operations @code{find}, @code{position}, etc.  (Be sure to call the
+versions of these functions whose names are in the @code{fset2:} package.)
+
+@node Bags Tutorial
+@subsubsection Bags
+A bag (sometimes called a multiset) is much like a set except that it associates with each element a
+natural number (nonnegative integer) called the @strong{multiplicity}, which represents the number
+of occurrences of the element in the bag.  So, for instance, if you start with an empty bag and add an
+element to it twice, the resulting bag will contain that element with multiplicity 2.  Removing the
+same element once leaves it in the bag with multiplicity 1.
+
+The basics should be familiar by now (once you get used to the print syntax, at least; the @code{#%}
+inclusions are for elements with multiplicity greater than 1):
+
+@example
+> @b{(empty-bag)}
+##@{% %@}
+> @b{(defparameter b1 (bag 1 2 1))}
+B1
+> b1
+##@{% #%(1 2) 2 %@}
+> @b{(with b1 3)}
+##@{% #%(1 2) 2 3 %@}
+> @b{(less b1 1)}
+##@{% 1 2 %@}
+> @b{(bag ($ b1) 2 3)}
+##@{% #%(1 2) #%(2 2) 3 %@}
+> @b{(defparameter b2 (bag 2 2 3))}
+B2
+> b2
+##@{% #%(2 2) 3 %@}
+> @b{(union b1 b2)}
+##@{% #%(1 2) #%(2 2) 3 %@}
+> @b{(intersection b1 b2)}
+##@{% 2 %@}
+> @b{(bag-sum b1 b2)}
+##@{% #%(1 2) #%(2 3) 3 %@}
+> @b{(bag-product b1 b2)}
+##@{% #%(2 2) %@}
+> @b{(size b1)}
+3
+> @b{(set-size b1)}
+2
+@end example
+
+@code{union} and @code{intersection} take the @code{max} and @code{min} of the multiplicities of
+each element, respectively; @code{bag-sum} and @code{bag-product} take their sum and product.  The
+standard operation @code{size} returns the total multiplicity; to get the number of unique elements,
+use @code{set-size}.
+
+@node Nested collections
+@subsection Nested collections
+FSet fully supports nesting of collections.  Sets of sets, maps keyed by seqs, @dots{} all these
+combinations Just Work™ with no further effort on your part.  Such types don't necessarily arise
+frequently during ordinary application programming, but they do show up in compiler and static
+analysis work.  The state table of an LALR parser generator, for instance, is basically a map keyed
+by sets of sequences (the LR(0) items); such a type can be manipulated quite directly and elegantly
+in FSet.
+
+@node Assignment and updating
+@subsection Assignment and updating
+FSet provides several macros which are handy for updating variables that hold collections.  (Their
+names all end in "f", following @code{setf}.) These might appear at first glance to be mutating
+operators, but of course, they're not; they perform a functional update, reassigning the result to
+the place holding the collection:
+
+@example
+> @b{(defparameter s (set 1 2))}
+S
+> s
+##@{ 1 2 @}
+> @b{(defparameter s1 s)}
+S1
+> s1
+##@{ 1 2 @}
+> @b{(includef s 3)}
+##@{ 1 2 3 @}
+> @b{s1}
+##@{ 1 2 @}
+> @b{(excludef s1 1)}
+##@{ 2 @}
+> @b{s}
+##@{ 1 2 3 @}
+@end example
+
+Some of these also work with maps, and there's a @code{setf} method for @code{@@} (or
+@code{lookup}).  The ability, mentioned above, to specify a default for the map is very handy here:
+
+@example
+> @b{(defparameter m2 (empty-map 0))}
+M2
+> m2
+##@{| |@}/0
+> @b{(incf (@ m2 'x))}
+1
+> @b{m2}
+##@{| (x 1) |@}/0
+> @b{(defparameter m3 (empty-map (empty-set)))}
+M3
+> m3
+##@{| |@}/##@{@}
+> @b{(includef (@ m3 'foo) "bar")}
+##@{ "bar" @}
+> @b{m3}
+##@{| (FOO ##@{ "bar" @}) |@}/##@{@}
+@end example
+
+This works to multiple levels too, e.g., a map from something to maps from something else to sets.

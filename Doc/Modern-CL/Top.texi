@@ -1,0 +1,131 @@
+@node Top
+@top Modern Common Lisp with FSet
+
+@syncodeindex fn cp
+@syncodeindex tp cp
+
+© 2026 Scott L. Burson
+
+This document is published under the Creative Commons
+@uref{https://creativecommons.org/licenses/by-sa/4.0/,CC BY-SA} license.
+
+@c ================================================================================
+
+@c `'href': HTML-style references that produce parentheticals in other formats.
+@ifhtml
+@macro href{text, reference}
+@link{\reference\, \text\}
+@end macro
+@end ifhtml
+
+@ifnothtml
+@macro href{text, reference}
+\text\ (@pxref{\reference\})
+@end macro
+@end ifnothtml
+
+@c ================================================================================
+
+@contents
+
+@include Introduction.texi
+
+@include Getting-Started.texi
+
+@include Conceptual-Underpinnings.texi
+
+@include Design.texi
+
+@include Data-Structures.texi
+
+@include API-Reference.texi
+
+@include Iterating.texi
+
+@include Recommendations.texi
+
+@node Index
+@unnumbered Index
+@printindex cp
+
+@ignore
+Introduction
+  Whom This Book is For
+  Why I Wrote FSet
+  Benefits of Functional Collections
+Getting Started
+  Tutorial
+  Examples
+  Using FSet
+  Misc-Extensions
+Conceptual Underpinnings
+  What is a Functional Datatype?
+  Is Lisp a Functional Language?
+  A Brief Introduction to Big-O
+Design of FSet
+  Design Goals
+  Divergences from CL
+  Comparison and Equality
+  Seqs and Strings
+  The @code{@@} Macro
+FSet Data Structures
+  Weight-Balanced trees
+  CHAMP trees
+  Comparison Functions
+  Generic Function @code{compare}
+  Generic Function @code{hash-value}
+  User-Defined Classes
+    @code{define-equality-slots}
+  Custom Compare and Hash Functions
+    Which Elements are Compared or Hashed
+    Strict Weak Orderings
+  Choosing a Data Structure
+  Dynamic Tuples
+FSet Collection Types
+  Sets
+    Union, Intersection, and Difference
+  Maps
+    Map Union, Intersection, and Difference
+  Bags
+    Two-Bag Operations
+      (these accept sets)
+  Seqs
+    Character Seqs
+  Binary Relations
+  Replay Sets
+  Replay Maps
+  Tuples
+  Complement Sets
+  [Future: Interval Sets and Maps]
+  [Future: Bounded Sets]
+Iterating over FSet Collections
+  The @code{do-} Macros
+  Higher-Order Functions
+    @code{image}
+    @code{filter}
+    @code{reduce}
+  Iterators
+    Stateful
+    Functional
+  GMap
+  Iterate
+  Others
+Transients
+Generic Function @code{convert}
+JSON Parsing and Printing
+Larger Examples
+Recommendations for Language Designers
+  Key Properties of FSet
+  Critiques of FSet
+    WB-trees are obsolete
+    Might have gotten carried away on @code{convert} methods
+    Some features are historical (e.g. WB-replay-*)
+  Critiques of Other Libraries
+    Google Guava
+
+Notes:
+() Should Left Preference be its own section?  Or just mentioned in the doc for each operation to
+which it applies?
+() Should there be a separate Performance section?
+@end ignore
+

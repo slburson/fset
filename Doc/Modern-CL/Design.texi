@@ -1,0 +1,384 @@
+@node The Design of FSet
+@chapter The Design of FSet
+
+The purpose of this chapter is to explain the major design decisions that went into FSet.  It's
+probably of greatest interest to experienced Common Lisp programmers who want to use the library,
+and to other language/library designers.
+
+My design desiderata for FSet were, in roughly decreasing order of importance:
+
+@itemize
+@item
+Elegant set-theoretic semantics
+
+@item
+Well integrated with Common Lisp
+
+@item
+The API is general, easy to use, and reasonably complete
+
+@item
+Good time performance, in both a time-complexity sense and a constant-factor sense
+
+@item
+Space overhead is reasonably small
+@end itemize
+
+Don't be daunted by the term ``set-theoretic''.  All I mean by it is that FSet collections are
+nestable: you can have sets of sets, maps keyed by seqs (FSet's sequences) or even sets of seqs,
+etc. etc., with no additional effort on your part.  While such types aren't often needed in
+application programming, they do show up sometimes in compiler work.
+
+The latter two properties drove the choice of data structures; see @ref{FSet Data Structures}.  The
+first three more concern the API.  In particular, the first two are somewhat in conflict, as I'll
+now explain.
+
+@c I feel this needs more intro/overview material before just diving into the divergences.
+
+@c Map defaults should be mentioned here somewhere; they also support DRY.
+
+@node Divergences from Common Lisp
+@section Divergences from Common Lisp
+There are two major ways in which FSet's collections differ from the ones built into CL.
+
+@c Rewrite in light of earlier discussion
+The first, of course, is the functional semantics.  This isn't a total departure, because lists are
+frequently used functionally.  But, of course, cons cells sometimes are used as mutable objects;
+arrays are usually used as mutable objects; the CL sequence functions, that abstract over lists and
+vectors, expect mutability; and hash tables are mutable objects.
+
+In @ref{Conceptual Underpinnings}, I explained what a functional datatype is, and pointed out that
+they can provide operations that can be conceptualized either as computing a new value for a
+collection and reassigning it to the variable holding it, or as a mutation to an unaliasable value.
+
+This means that FSet's update operations have to work differently from most CL builtins.  The
+clearest example has to do with the behavior of @code{setf}.  (I'll say more about @code{setf}
+@href{below, Quasi-Mutating Operators}; non-CL-programmers might want to read that first.)  If you
+have a CL vector @code{v}, you can set one of its elements using @code{setf} of @code{elt}:
+
+@example
+  (setf (elt v i) x)
+@end example
+
+If, instead, you have an FSet seq @code{s}, you can write an expression that looks superficially similar:
+
+@example
+  (setf (lookup s i) x)
+@end example
+
+However, it means something quite different.  In the @code{elt} case, if there are other variables
+directly or indirectly bound to @code{v}, they will also see the change: a mutable shared object has been
+modified.  The @code{lookup} case, however, is equivalent to
+
+@example
+  (setq s (with s i x))
+@end example
+
+where the FSet @code{with} operation returns an updated seq that now has @code{x} at index @code{i}.
+The change will not be visible anywhere except through variable @code{s}.
+
+I have occasionally heard people complain that this is against the spirit of the language, but it
+really isn't.  Consider this example:
+
+@example
+  (let* ((a nil)
+         (b a))
+    (push 'foo a)
+    b)
+@end example
+
+Every CL programmer knows, without even thinking about it, that the above evaluates to @code{nil}: the
+modification performed by @code{push} is visible only through @code{a}, not through @code{b}.  Lists are usually
+used functionally, and this, notwithstanding the @code{setq} implied by the @code{push}, is an example; there
+is no potentially shared list object being modified here.
+
+"But," some might say, "that's @code{push}, not @code{setf}." All right, here's another example:
+
+@example
+  (let* ((a 1)
+         (b a))
+    (setf (ldb (byte 2 1) a) 3)   ; a becomes 7
+    b)
+@end example
+
+Here there's a @code{setf} of an expression wrapping @code{a}, but its effect is still just to assign a new
+value to @code{a}; @code{b} is still 1.  Again, every CL programmer knows this without thinking about it;
+integers are not aliasing, mutable objects.
+
+So no matter how long you've been writing Common Lisp, learning FSet is not going to break your
+brain.
+
+The second major way in which FSet's design diverges somewhat from CL's has to do with semantic
+loading.  Lisp lists are semantically @emph{unloaded}.  A list can be used as a sequence; as a set, where order is
+unimportant and duplicates are not allowed; as a bag, where order is unimportant and duplicates
+@emph{are} allowed; as a map, in either alist or plist form; or in many other ways.  So, as a programmer
+writing code to do something with a list, you have to remember the intended semantics of this
+particular list.  Also, you have to remember what equivalence relation you intended to compare
+elements with.  Sometimes, the default of @code{eql} suffices, but often, you want to compare elements by
+their contents rather than their identity; in such cases, you have to pass in the equivalence
+relation every time you call @code{member}, @code{assoc}, @code{find}, etc.  But doing so violates
+the well-known ``DRY principle'' (Don't Repeat Yourself).
+
+In contrast, FSet collections are semantically @emph{loaded}: they carry their semantics, including the
+applicable equivalence relation, along with them, so you don't have to supply it at every call.  (CL
+hash tables are like this too, so again, it's not a complete departure.)
+
+This semantic loading makes code that uses FSet more elegant, and practically eliminates bugs that
+can occur when a list is not used consistently across the program.  But it did cause one design
+quandary.  I wanted to provide shadowed versions of Lisp builtins like @code{find}, @code{position},
+@code{count}, etc. that would work on FSet collections but would bounce to the CL builtins if passed a
+list.  The catch was, FSet has its own default notion of equality; defaulting to @code{eql} didn't make
+sense.
+
+I finally settled on this approach: While generic versions of a number of operations will be
+provided, it is critical for the user to understand that the purpose of this genericity is @strong{@emph{not}}
+so that you can write code that will actually be called on both Lisp sequences and the FSet types.
+Rather, the goal is more modest: to make familiar functionality accessible by familiar names, so
+that you can write FSet code without having to learn new names for @code{find} etc.
+
+One issue with this approach has to do with the Lisp names @code{first}, @code{rest}, @code{last},
+and @code{second} through @code{seventh}.  First, let's note the inconsistencies already in CL:
+
+@itemize
+@item
+These are not generic sequence operations, but work only on lists.
+
+@item
+@code{last} doesn't return the last element of a list, but rather the last @emph{cons} in the list.
+
+@end itemize
+
+For FSet @dfn{seqs} --- as the sequence type is called, to distinguish it from CL sequences --- I
+felt it was important to treat @code{first} and @code{last} symmetrically, since the implementation
+is symmetric.  Also, there is a whole structure of related operations operating on the ends of seqs;
+I have called these @code{with-first}, @code{with-last}, @code{less-first}, @code{less-last},
+@code{push-first}, @code{push-last}, @code{pop-first}, and @code{pop-last}, the first four being the
+functional update operations, and the last four being the modify macros that invoke the first four,
+respectively.  Because of the importance of these operations, I felt it would be acceptable to force
+some compromises on existing code.  So FSet exports a generic function @code{first} which includes a
+compatibility method for lists; here the impact on existing code is limited to the cost of the CLOS
+dispatch.  For @code{last}, however, I decided to make an @strong{incompatible} change:
+@code{fset2:last}, on a list, returns the last element rather than the last cons.  FSet also exports
+the functionality of @code{cl:last} as @code{lastcons} --- clearly a better name.
+
+FSet does not, however, export any version of @code{rest}, or of @code{second} through
+@code{seventh}.  For @code{rest}, I think @code{less-first} is better because it participates in the
+symmetric structure shown above.
+
+(From the perspective of FSet, with its symmetric functional sequences, it strikes me as a little
+unfortunate that the names that caught on as modern replacements for @code{car} and @code{cdr} were
+@code{first} and @code{rest} instead of, say, @code{head} and @code{tail}.  @code{first} and
+@code{rest}, it seems to me, are naturally applied to any sequence, where @code{head} and
+@code{tail} more specifically suggest the structure of a list.  So FSet exports @code{head} and
+@code{tail} as synonyms for @code{car} and @code{cdr}.)
+
+Another issue: I mentioned above that generic-function versions of @code{find-if} etc. are provided.  They
+are, but they are not completely compatible when invoked on FSet types (they @emph{are} completely
+compatible when invoked on Lisp sequences).  The primary differences are:
+
+@itemize
+@item
+The default for @code{:test} is @code{#'fset:equal?} rather than @code{#'eql}.  Yes, it's a little weird to key
+this off of the collection class.  But remember, our purpose is not true genericity, but merely
+mental convenience.  In that light, if you're invoking one of these on an FSet collection, it's
+fair to conclude that you're working within an FSet context, and FSet semantics should apply.
+
+@item
+The @code{:test-not} keyword is not supported (it's deprecated in the ANSI spec).
+
+@end itemize
+
+@node Comparison and Equality
+@section Comparison and Equality
+FSet has a default ordering relation, computed by the generic function @code{compare}.  It comes
+with methods to compare most of the builtin CL types (@code{null}, @code{real}, @code{complex},
+@code{character}, @code{symbol}, @code{string}, @code{vector}, @code{list}, @code{package},
+@code{pathname}, and @code{array}) along with FSet's own types.  The comparisons are used to build
+and search FSet's internal data structures, so they must obey certain mathematical rules; for more
+information on this, see @ref{Generic Function @code{compare}}.
+@code{}
+The semantics of @code{equal?}, which are a consequence of the behavior of @code{compare}, are, on
+the built-in CL types, almost identical to those of @code{cl:equal}.  The only difference is that
+for vectors that are not bit-vectors, @code{cl:equal} compares them by identity (@code{eq}), while
+@code{equal?} compares them by content.  (Both functions compare bit-vectors by content.)
+
+FSet collections are always compared by content, and it is intended that objects that are actually
+subject to mutation should be compared by identity.
+
+For more in-depth discussion on comparison by identity vs. comparison by content, have a look at
+Henry Baker's paper @uref{https://plover.com/~mjd/misc/hbaker-archive/ObjectIdentity.html,Equal
+Rights for Functional Objects}.  This blog post may also be of interest:
+@uref{https://scottlburson2.blogspot.com/2024/09/equality-and-comparison-in-fset.html,Equality and
+Comparison in FSet}.
+
+There is a big catch here, however.  Lisp lists, strings, and vectors are technically mutable, and
+not infrequently actually mutated.  However, defining @code{compare} to distinguish them by identity
+would run into two problems.  First, it would produce very surprising results semantically; given a
+map keyed by strings, for example, one would have to pass the correct instance of each key string to
+@code{lookup} in order to retrieve the value.  These types would function simply as opaque identities.
+This would not be useful behavior.  Second, the implementation would have very poor performance
+characteristics, as there would be no way to order instances of these types; @code{compare} would have to
+fall back to returning @code{:unequal} on any pair of them, forcing the implementation to store them in
+alists and compare them by @code{eql}.  Time complexity of @code{lookup} would balloon from logarithmic to
+linear.
+
+So FSet makes an assumption that is not unreasonable in practice, but that you @emph{must} keep in
+mind: once a list, string, or vector is placed in an FSet collection, FSet assumes it will not
+thereafter be mutated.  This assumption licenses FSet to compare these by content instead of by
+identity, giving natural semantics and decent performance.  (There is an exception, @href{discussed
+later, Which Elements are Compared or Hashed}.)
+
+FSet does not attempt to define @code{compare} on Lisp hash tables or closures.  I do not recommend
+placing these types in FSet collections.
+
+@node Seqs and Strings
+@section Seqs and Strings
+Along with using heterogeneous trees to save space, the seq implementation tries to save even more
+space by using strings, when possible, for the short leaf vectors.  This is possible when the
+contiguous sequence of up to 8 consecutive elements of the seq that happen to wind up in a
+particular leaf vector are all characters.  In Lisp implementations where @code{base-char} is
+distinct from @code{character}, FSet will even use @code{base-string}s when possible.  The upshot
+is:
+
+@itemize
+@item
+You can use seqs to hold character strings without worrying about space consumption.
+
+@item
+A seq can hold character strings interspersed with occasional non-characters quite efficiently;
+each non-character will force only one leaf vector to be a non-string.  (Similarly, a seq can
+hold strings of @code{base-char}s interspersed with the occasional @code{extended-char} quite
+efficiently.)
+
+@end itemize
+
+Since seqs have log-time concatenation and subsequence operations, they can actually be very useful
+for string manipulation.
+
+@node The @code{@@} Macro
+@section The @code{@@} Macro
+Common Lisp is, of course, a "Lisp-2", meaning a two-namespace Lisp in which a given name can have
+both a function binding and a value binding.  In a Lisp-1, like Scheme, it would be nice to set the
+FSet types up as objects that could be called as functions as well as having the various operations
+invoked on them (some object systems for other Lisps have supported this, such as that of
+@uref{http://mumble.net/~jar/tproject/,T}).  Then, instead of @code{(lookup m x)} where @code{m} is
+a map, you could write simply @code{(m x)}.  But this doesn't work in a Lisp-2, since the @code{car}
+of a form is evaluated in the function namespace; you'd have to write something like @code{(funcall
+m x)}, which isn't any more elegant.
+
+What I can do, however, is give you a shorter name to type than @code{funcall}.  Thus is born
+@code{@@}.  It is a macro that expands to code that tests whether its first argument is a Lisp
+function; if so, it funcalls it (with the supplied arguments); otherwise it calls @code{lookup} on
+it.  So you can use it when writing higher-order code to make it accept a map as well as a unary
+Lisp function.  (Also, a seq behaves as a map from index to element, and a set behaves as a map from
+value to boolean.)
+
+Whether you want to use @code{@@} generally, in place of @code{lookup}, is a matter of taste.  Both
+are @code{setf}-able; though doing @code{(setf (@@ m x) y)} works only if @code{m} is an FSet
+collection.  Remember, this doesn't modify the collection; it's equivalent to @code{(setf m (with m
+x y))}.
+
+@node Map and Seq Defaults
+@section Map and Seq Defaults
+
+FSet maps and seqs both allow you to specify the value that will be returned by a @code{lookup} when
+the key or index is outside the domain of the collection.  This is a handy feature that
+significantly improves the elegance of certain kinds of code: you specify the default once, when
+creating the collection, rather than every place you access it.  Contrast a Lisp alist, where every
+access would look like @code{(or (cdr (assoc @i{x} @i{alist})) @i{default})}, or even a CL
+hashtable, where you'd have to supply the default as the third argument to every call to
+@code{gethash}.
+
+For convenience, and consistency with CL, the default default --- the value used as a default if you
+don't specify one --- is good old @code{nil}.  In a few cases, however, such as @code{compose} of a
+map with a function, the presence of any default is annoying, because the function being composed
+with has to accept the default value and produce a default for the result map.  So FSet also allows
+maps and seqs to have @emph{no} default.  When this option is used, @code{lookup} on the collection,
+given a key or index outside its domain, will signal an error.  (In some cases, this may be
+desirable behavior anyway, as you may not be expecting the code to make such lookups.)
+
+@node Quasi-Mutating Operators
+@section Quasi-Mutating Operators
+
+@href{As mentioned, What Is a Functional Datatype?}, even though FSet's collections are functional,
+it nonetheless provides several operations that @emph{appear} at first glance to be mutating.  As I
+explained in that section, you can, if you like, employ the mental model that FSet's collections are
+mutable, but that binding and assignment do not cause aliasing.  This isn't actually how the FSet
+implementation works, but the semantics would be equivalent if it did.
+
+Common Lisp provides a general, extensible macro, @code{setf}, which takes an expression called a
+``place'' (in C/C++, the term would be ``lvalue expression'') and a second expression which is
+evaluated normally, and updates the place so it holds the value.  Exactly what this means depends on
+the place expression.
+
+There are, for my purposes, two kinds of place expressions: those that are directly assignable, and
+those that use what I'll call a ``functional accessor''.  Directly assignable places include
+variables (the most common example), as well as invocations of built-in accessors such as @code{car}
+or @code{aref}, slot accessors on user-defined classes, and function calls for which a @code{setf}
+function is also defined.  For such cases, CL has, or has been given, a procedure that writes a
+value into the location, however it is represented.
+
+Functional accessors, in contrast, take another place as an argument; a @code{setf} of a functional
+accessor expression then updates the inner place so that its value contains the value being stored.
+That is, the functional accessor specifies a computation, on the existing value of the inner place
+and the value being stored, to produce a new value of the inner place.
+
+CL has three @uref{https://www.lispworks.com/documentation/HyperSpec/Body/05_abb.htm, predefined
+functional accessors}: @code{ldb}, @code{mask-field}, and @code{getf}.  For example, @code{ldb} as a
+function extracts a byte from an integer; when used as a @code{setf} place, it arranges for a value
+to be stored back into such a byte.  So, @code{(setf (ldb (byte 6 4) w) 42)} is equivalent to
+@code{(setq w (dpb 42 (byte 6 4) w))}; that is, it updates @code{w} so that its byte of width 6 at
+position 4 contains 42.  (Nowadays most people would say ``bitfield'', but Lisp harks back to a time
+when ``byte'' did not necessarily imply 8 bits.)
+
+FSet defines two functional accessors, @code{lookup} and @href{@code{@@}, The @code{@@} Macro}.
+They take the first argument as the inner place expression, and effectively expand to a @code{setf}
+of that place:
+
+@example
+(setf (lookup place key) value)  ; or (setf (@@ place key) value)
+@end example
+is equivalent to
+@example
+(setf place (with place key value))
+@end example
+
+(Three-argument @code{with} performs a functional update on a map or seq, adding a map pair or
+replacing the previous value, or changing the value of a seq at an index.  I'm skipping over some
+details here having to do with avoiding repeated evaluation of subexpressions.)
+
+Functional accessor expressions can be nested.  Sometimes people use ``chained maps'', where the
+range values of an outer map are inner maps.  An FSet expression like
+
+@example
+(setf (@@ (@@ m k1) k2) value)
+@end example
+
+will have the effect of storing @code{value} under key @code{k2} of the inner map that's under key
+@code{k1} of the outer map.  Again, it will do this by constructing a new inner map and then a new
+outer map, and assigning the latter back to @code{m}.
+
+Thus, @code{setf} expansion descends recursively through functional accessors in the place
+expression until it reaches a directly assignable inner place.  Usually, that's a variable
+reference, but there are other possibilities.
+
+CL also has a concept called a ``modify macro'', that abstracts expressions of the form:
+@example
+(setf place (@i{operation} place args...))
+@end example
+
+Examples of predefined modify macros in CL are @code{incf} and @code{push}.  FSet defines several of
+these.  An example is @code{includef}:
+
+@example
+(includef s x)
+@end example
+is equivalent to
+@example
+(setf s (with s x))
+@end example
+
+(Two-argument @code{with} adds an element to a set or bag.)
+
+
+@c &&& @code{subseq} collision
