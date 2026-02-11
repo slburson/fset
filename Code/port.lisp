@@ -385,8 +385,14 @@ associative operation with an inverse.  All values MUST be fixnums; the
 result is a fixnum."
   ;; On implementations where we can reliably get fixnum addition and subtraction without
   ;; overflow checks at speed-3 safety-0, using them will give us better distributional properties.
+  ;; -- Oops, this doesn't quite fly on SBCL, not because it's wrong per se, but because of
+  ;; `sb-ext:restrict-compiler-policy', which lets people override my declarations.  Ironic.
+  ;; SBCL does provide another way to do it, which, however, discards the sign bit.  Oh well.
+  #+sbcl
+  `(locally (declare (optimize (speed 3) (safety 0)))  ; still desirable when possible
+     (logand most-positive-fixnum (+ . ,(mapcar (fn (x) `(the fixnum ,x)) args))))
   ;; On other implementations, we fall back to XOR.
-  #+(or sbcl ccl allegro lispworks)
+  #+(or ccl allegro lispworks)
   ;; To make SBCL happy, we have to build a binary tree with `the fixnum' at each level.
   (labels ((build (fn expr args)
 	     (if (null args) expr
@@ -404,7 +410,10 @@ result is a fixnum."
   "Returns the result of \"unmixing\" each of `to-unmix' from `hash'.  All
 values MUST be fixnums; the result is a fixnum."
   ;; As above.
-  #+(or sbcl ccl allegro lispworks)
+  #+sbcl
+  `(locally (declare (optimize (speed 3) (safety 0)))  ; still desirable when possible
+     (logand most-positive-fixnum (- (the fixnum ,hash) . ,(mapcar (fn (x) `(the fixnum ,x)) to-unmix))))
+  #+(or ccl allegro lispworks)
   (labels ((build (fn expr args)
 	     (if (null args) expr
 	       (build fn `(the fixnum (,fn ,expr (the fixnum ,(car args)))) (cdr args)))))
@@ -417,7 +426,10 @@ values MUST be fixnums; the result is a fixnum."
 (defmacro hash-multiply (ha hb)
   "Returns the product of `ha' and `hb' modulo 2^fixnum_length.  Both MUST be
 fixnums; the result is a fixnum."
-  #+(or sbcl allegro lispworks)
+  #+sbcl
+  `(locally (declare (optimize (speed 3) (safety 0)))
+     (logand most-positive-fixnum (* (the fixnum ,ha) (the fixnum ,hb))))
+  #+(or allegro lispworks)
   `(locally (declare (optimize (speed 3) (safety 0)))
      (the fixnum (* (the fixnum ,ha) (the fixnum ,hb))))
   #-(or sbcl allegro lispworks)
