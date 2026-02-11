@@ -14,6 +14,7 @@
   (:nicknames :com.ergy.fset :com.sympoiesis.fset)
   (:use :cl :new-let :lexical-contexts :rev-fun-bind :misc-extensions.define-class)
   (:import-from :gmap #:gmap #:alist #:constant #:index #:index-inc #:sum)
+  (:import-from :alexandria #:once-only)
   (:shadowing-import-from :new-let #:let #:cond)
   (:shadowing-import-from :mt19937 #:random #:*random-state*
 			   #:make-random-state #:make-random-object #:init-random-state)

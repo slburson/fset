@@ -1576,10 +1576,12 @@ the iteration order."
 	    :format-arguments (list ,(copy-tree op) ,(copy-tree type)))))
 
 (defmacro equal?-fn (cmp-fn)
-  `(lambda (a b) (eq (funcall ,cmp-fn a b) ':equal)))
+  `(lambda (a b) (or (gen eql a b) (eq (funcall ,cmp-fn a b) ':equal))))
 
 (defmacro equal?-cmp (a b cmp-fn)
-  `(eq (funcall ,cmp-fn ,a ,b) ':equal))
+  (once-only (a b)
+    `(or (gen eql ,a ,b)
+	 (eq (funcall ,cmp-fn ,a ,b) ':equal))))
 
 (defmacro less-than?-cmp (a b cmp-fn)
   `(eq (funcall ,cmp-fn ,a ,b) ':less))

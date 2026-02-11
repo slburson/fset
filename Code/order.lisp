@@ -149,7 +149,7 @@ This is the right choice for the vast majority of mutable classes."
 		      ((stringp b) 'string)
 		      ((vectorp b) 'vector)
 		      (t (type-of b)))))
-    (if (eq a-type b-type)
+    (if (equal a-type b-type)
 	;; If we get here, they haven't defined a compare method for their type.
 	;; This is the best we can do.
 	(if (eql a b) ':equal ':unequal)
@@ -331,8 +331,9 @@ This is the right choice for the vast majority of mutable classes."
        (b b (cdr b))
        (default ':equal))
       ((or (atom a) (atom b))
-       (let ((comp (funcall val-compare-fn a b)))
-	 (if (eq comp ':equal) default comp)))
+       (if (eql a b) default
+	 (let ((comp (funcall val-compare-fn a b)))
+	   (if (eq comp ':equal) default comp))))
     (when (eq a b)			; we could get lucky
       (return default))
     (let ((comp (funcall val-compare-fn (car a) (car b))))
@@ -344,7 +345,7 @@ This is the right choice for the vast majority of mutable classes."
 
 ;;; Packages (needed for symbols)
 
-(deflex +Package-Original-Name+ (make-hash-table)
+(deflex +Package-Original-Name+ (make-hash-table #+sbcl :synchronized #+sbcl t)
   "FSet uses this to protect itself from the effects of `rename-package',
 which could otherwise change the ordering of packages, and thus of symbols,
 and thus of types named by those symbols.")

@@ -478,11 +478,11 @@ fixnums; the result is a fixnum."
 ;;; smart enough to optimize the call unless we do the case breakdown for it like this.
 #+(or cmu scl)
 (defmacro length-nv (x)
-  (ext:once-only ((x x))
+  (once-only ((x x))
     `(if (null ,x) 0 (cl:length ,x))))
 #+sbcl
 (defmacro length-nv (x)
-  (sb-int:once-only ((x x))
+  (once-only ((x x))
     `(if (null ,x) 0 (cl:length ,x))))
 #-(or cmu scl sbcl)
 (defmacro length-nv (x)
