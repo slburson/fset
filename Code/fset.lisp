@@ -47,31 +47,32 @@
 
 (defgeneric size (collection)
   (:documentation
-    "Returns the number of members in a set, seq, or bag, or the number of
+    "Returns the number of elements in a set, seq, or bag, or the number of
 pairs in a map.  The size of a bag is the sum of the multiplicities."))
 
 (defgeneric set-size (bag)
   (:documentation
-    "Returns the number of unique members in the bag."))
+    "Returns the number of unique elements in the bag.  On a set, this is
+the same as `size'."))
 
 (defgeneric arb (collection)
   (:documentation
-    "Returns an arbitrary member or pair of a set, bag, or map.  Specifically,
-on a nonempty set, returns two values, an arbitrary member of the set and
-true; on a nonempty bag, returns an arbitrary member, its multiplicity,
-and true; on a nonempty map, returns an arbitrary domain member, its
+    "Returns an arbitrary element or pair of a set, bag, or map.  Specifically,
+on a nonempty set, returns two values, an arbitrary element of the set and
+true; on a nonempty bag, returns an arbitrary element, its multiplicity,
+and true; on a nonempty map, returns an arbitrary domain element, its
 associated value, and true.  On an empty set, bag, or map, returns false for
-all values.   Please note that \"arbitrary\" does not mean \"randomly selected\";
+all values.  Please note that \"arbitrary\" does not mean \"randomly selected\";
 it simply means that the sole postcondition is that the returned value or pair
-is a member of the collection."))
+is an element of the collection."))
 
 ;;; I've decided I prefer `contains?' because its argument order is more
 ;;; consistent -- I think all the other operations that take a collection and
-;;; a value which might be a member of the collection or its domain, take the
+;;; a value which might be an element of the collection or its domain, take the
 ;;; collection as the first argument.  (Well, except for those we inherit from
 ;;; CL, like `find'.)
 (defun member? (x collection)
-  "Returns true iff `x' is a member of the set or bag.  Stylistically, `contains?'
+  "Returns true iff `x' is an element of the set or bag.  Stylistically, `contains?'
 is preferred over `member?'."
   (contains? collection x))
 
@@ -95,7 +96,7 @@ of a seq is the set of valid indices.)"))
 (defgeneric range-contains? (collection x)
   (:documentation
     "Returns true iff the range of the map or seq contains `x'.  (The range
-of a seq is the set of members.)  Note that this requires a linear search."))
+of a seq is the set of elements.)  Note that this requires a linear search."))
 
 ;;; This used to take its arguments in the other order.
 (defgeneric multiplicity (bag x)
@@ -103,20 +104,20 @@ of a seq is the set of members.)  Note that this requires a linear search."))
 
 (defgeneric least (collection)
   (:documentation
-    "On a set, returns two values: the smallest member of the set and
-true; on a bag, returns three values: the smallest member of the bag, its
+    "On a set, returns two values: the smallest element of the set and
+true; on a bag, returns three values: the smallest element of the bag, its
 multiplicity, and true; on a map, also returns three values: the smallest key
-of the map, its value, and true.  If there is not a unique smallest member,
-chooses one of the smallest members arbitrarily.  Returns `nil' if the
+of the map, its value, and true.  If there is not a unique smallest element,
+chooses one of the smallest elements arbitrarily.  Returns `nil' if the
 collection is empty."))
 
 (defgeneric greatest (collection)
   (:documentation
-    "On a set, returns two values: the greatest member of the set and
-true; on a bag, returns three values: the greatest member of the bag, its
+    "On a set, returns two values: the greatest element of the set and
+true; on a bag, returns three values: the greatest element of the bag, its
 multiplicity, and true; on a map, also returns three values: the greatest key
-of the map, its value, and true.  If there is not a unique greatest member,
-chooses one of the greatest members arbitrarily.  Returns `nil' if the
+of the map, its value, and true.  If there is not a unique greatest element,
+chooses one of the greatest elements arbitrarily.  Returns `nil' if the
 collection is empty."))
 
 (defgeneric lookup (collection key)
@@ -129,8 +130,8 @@ If `collection' is a seq, takes `key' as an index and returns two values: if
 the index is in bounds, the corresponding element and true; otherwise, the
 seq's default and false.
 
-If `collection' is a set or bag that contains a member equal to `key', returns
-true and the member as two values, else false and `nil'; this is useful for
+If `collection' is a set or bag that contains an element equal to `key', returns
+true and the element as two values, else false and `nil'; this is useful for
 canonicalization."))
 (defgeneric fset2:lookup (collection key)
   (:documentation
@@ -144,12 +145,12 @@ the index is in bounds, the corresponding element and true; otherwise, the
 seq's default and false.  If the index is out of bounds and the seq has no
 default, signals an error of type `seq-bounds-error'.
 
-If `collection' is a set that contains a member equal to `key', returns true
-and the member as two values, else false and `nil'; this is useful for
+If `collection' is a set that contains an element equal to `key', returns true
+and the element as two values, else false and `nil'; this is useful for
 canonicalization.
 
-If `collection' is a bag that contains a member equal to `key', returns its
-multiplicity and the member as two values, else zero and `nil'."))
+If `collection' is a bag that contains an element equal to `key', returns its
+multiplicity and the element as two values, else zero and `nil'."))
 
 (defgeneric rank (collection value)
   (:documentation
@@ -160,7 +161,7 @@ of `value' in the ordering defined by `compare', and a true second value.
 If `collection' is a map whose domain contains `value', returns the rank of
 `value' in the domain of the map, and a true second value.  If `value' is
 not in the collection, the second value is false, and the first value is the
-rank of the greatest member of the collection less than `value' (if any;
+rank of the greatest element of the collection less than `value' (if any;
 otherwise -1).  Note that if there are values/keys that are unequal but
 equivalent to `value', an arbitrary order will be imposed on them for this
 purpose; but another collection that is `equal?' but not `eq' to this one
@@ -288,7 +289,7 @@ argument."))
 (defgeneric set-difference (set1 set2 &key)
   (:documentation
     "Returns the set difference of set1 and set2, i.e., the set containing
-every member of `set1' that is not in `set2'.
+every element of `set1' that is not in `set2'.
 
 If the collections are of different implementations or use different custom
 compare or hash functions, the returned collection will be like the first
@@ -322,17 +323,17 @@ actually constructing said intersection)."))
 (defgeneric subbag? (sub super)
   (:documentation
     "Returns true iff `sub' is a subbag of `super', that is, for every
-member of `sub', `super' contains the same value with at least the same
+element of `sub', `super' contains the same value with at least the same
 multiplicity."))
 
 (define-generics (filter fset2:filter) (fn collection)
   (:documentation
-    "Returns a new collection containing those members or pairs of `collection'
+    "Returns a new collection containing those elements or pairs of `collection'
 for which `fn' returns true.  If `collection' is a set, bag, or seq, `fn' is
 called with one argument; if a map, `fn' is called with two arguments, the key
 and the value (the map-default of the result is that of `collection').  As well
 as a Lisp function, `fn' can be a map, or a set (which is treated as mapping
-its members to true and everything else to false)."))
+its elements to true and everything else to false)."))
 
 (define-methods (filter fset2:filter) (fn (s sequence))
   (cl:remove-if-not fn s))
@@ -349,7 +350,7 @@ its members to true and everything else to false)."))
 (defgeneric filter-pairs (fn collection)
   (:documentation
     "Just like `filter' except that if invoked on a bag, `fn' (which must be a
-Lisp function) is called with two arguments for each pair, the member and the
+Lisp function) is called with two arguments for each pair, the element and the
 multiplicity."))
 
 (defmethod filter-pairs (fn (collection t))
@@ -358,8 +359,8 @@ multiplicity."))
 (defgeneric image (fn collection &key)
   (:documentation
     "Returns a new collection containing the result of applying `fn' to each
-member of `collection', which may be a set, bag, map, or seq.  In the bag case,
-the multiplicity of each member of the result is the sum of the multiplicities
+element of `collection', which may be a set, bag, map, or seq.  In the bag case,
+the multiplicity of each element of the result is the sum of the multiplicities
 of the values that `fn' maps to it.  In the map case, `fn' will be called with
 two arguments, the domain and range values, and is expected to return two
 values, which become the new domain and range values.  In the map and seq
@@ -372,13 +373,13 @@ map method takes `:key-compare-fn-name' and `:val-compare-fn-name'.
 If `collection' is a map or seq, the default of the result is the same.
 
 As well as a Lisp function, `fn' can be a map, or a set (which is treated as
-mapping its members to true and everything else to false)."))
+mapping its elements to true and everything else to false)."))
 
 (defgeneric fset2:image (fn collection &key)
   (:documentation
     "Returns a new collection containing the result of applying `fn' to each
-member of `collection', which may be a set, bag, or seq.  In the bag case,
-the multiplicity of each member of the result is the sum of the multiplicities
+element of `collection', which may be a set, bag, or seq.  In the bag case,
+the multiplicity of each element of the result is the sum of the multiplicities
 of the values that `fn' maps to it.  In the seq case, if the argument seq has
 a default, the default of the result will be the result of applying `fn' to it.
 
@@ -386,7 +387,7 @@ Except in the seq case, you may wish to specify the organization of the result,
 so the set and bag methods take keyword argument `:compare-fn-name'.
 
 As well as a Lisp function, `fn' can be a map, or a set (which is treated as
-mapping its members to true and everything else to false).
+mapping its elements to true and everything else to false).
 
 For imaging a map, see `compose' and `map-image'."))
 
@@ -563,16 +564,16 @@ not in `set'."))
 
 (defgeneric compose (map1 map2-or-fn &key)
   (:documentation
-    "Returns a new map with the same domain as `map1', which maps each member
+    "Returns a new map with the same domain as `map1', which maps each element
 of that domain to the result of applying first `map1' to it, then applying
 `map2-or-fn' to the result.  `map2-or-fn' can also be a sequence, which is
-treated as a map from indices to members."))
+treated as a map from indices to elements."))
 (defgeneric fset2:compose (map1 map2-or-fn &key)
   (:documentation
-    "Returns a new map with the same domain as `map1', which maps each member
+    "Returns a new map with the same domain as `map1', which maps each element
 of that domain to the result of applying first `map1' to it, then applying
 `map2-or-fn' to the result.  `map2-or-fn' can also be a sequence, which is
-treated as a map from indices to members.  If `map1' has a default, the value
+treated as a map from indices to elements.  If `map1' has a default, the value
 of `map2-or-fn' applied to that default becomes the default of the returned
 map."))
 
@@ -844,7 +845,7 @@ Notes:
 9. Optimized O(n) algorithm.
 10. Has keyword parameter `from-type'.  If it's the symbol `map-to-sets', the
     range elements must all be sets, and the result pairs each domain element
-    with each member of the corresponding range set.  Otherwise, the result pairs
+    with each element of the corresponding range set.  Otherwise, the result pairs
     each domain element with the corresponding range element directly.
 11. The relation must be a function (must have only one range value per domain
     value).
@@ -1858,7 +1859,7 @@ or hash function, as `s'.  `s' can also be a bag."))
   (let ((found? rank (WB-Set-Tree-Rank (contents s) x (compare-fn s))))
     (values rank found?)))
 
-(define-wb-set-method at-rank ((s wb-set) rank)
+(define-wb-set-method at-rank ((s wb-set) (rank fixnum))
   (let ((contents (contents s))
 	((size (WB-Set-Tree-Size contents))))
     (unless (and (>= rank 0) (< rank size))
@@ -1914,7 +1915,7 @@ or hash function, as `s'.  `s' can also be a bag."))
 (define-wb-set-method split-through ((s wb-set) value)
   (let ((new-contents (WB-Set-Tree-Split-Below (contents s) value (compare-fn s))))
     (make s (if (WB-Set-Tree-Contains? (contents s) value (compare-fn s))
-		(WB-Set-Tree-With new-contents value (compare-fn s))
+ 		(WB-Set-Tree-With new-contents value (compare-fn s))
 	      new-contents))))
 
 (define-wb-set-method split-below ((s wb-set) value)
@@ -2447,8 +2448,8 @@ comparison function as `compare-fn-name'."
   (declare (ignore y))
   (check-two-arguments y? 'contains? 'ch-set)
   (let ((hsorg (ch-set-org s)))
-    (ch-set-tree-contains? (ch-set-contents s) x (hash-set-org-hash-fn hsorg)
-			   (hash-set-org-compare-fn hsorg))))
+    (values (ch-set-tree-contains? (ch-set-contents s) x (hash-set-org-hash-fn hsorg)
+				   (hash-set-org-compare-fn hsorg)))))
 
 (define-methods (lookup fset2:lookup) ((s ch-set) key)
   (let ((hsorg (ch-set-org s)))
@@ -3164,7 +3165,7 @@ or hash function, as `b'.  `b' can also be a set."))
 
 (defun proper-subbag? (sub super)
   "Returns true iff `sub' is a proper subbag of `super', that is, for every
-member of `sub', `super' contains the same value with at least the same
+element of `sub', `super' contains the same value with at least the same
 multiplicity, but the two bags are not equal."
   (and (subbag? sub super)
        (< (size sub) (size super))))

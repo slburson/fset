@@ -316,8 +316,8 @@ forms -- but accessor names as functions for structure classes.  Arbitrary
 functions on the class may also be supplied.
 
 If the symbol `:eql' is supplied as the last accessor, then if the comparisons
-by the other supplied accessors all return `:equal' but `obj1' and `obj2' are
-not eql, the generated `compare' method returns `:unequal'.
+by the other supplied accessors all return `:equal' but the arguments are not
+eql, the generated `compare' method returns `:unequal'.
 
 Examples:
 

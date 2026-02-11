@@ -264,14 +264,6 @@
 	       (,body-fn))
 	   (,body-fn))))))
 
-#+sbcl
-(defmacro defglobal (name value &optional doc-string)
-  `(sb-ext:defglobal ,name ,value ,doc-string))
-
-#-sbcl
-(defmacro defglobal (name value &optional doc-string)
-  `(deflex ,name ,value ,doc-string))
-
 (defmacro define-atomic-series (name &optional doc-string)
   #+(and sbcl 64-bit)
   `(progn

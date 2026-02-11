@@ -85,8 +85,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
       (push i result))))
 
 
-;;; Although we tell people that the hash function must return a fixnum, we
-;;; have no way to enforce that, so just to be sure, we check the return value.
+;;; We allow hash functions to return bignums, and check for them here.
 ;;; A fixnum test is pretty cheap on most platforms.
 (defmacro hash-to-fixnum (val hash-fn)
   `(let ((h (funcall ,hash-fn ,val)))

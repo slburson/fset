@@ -128,7 +128,10 @@
 	   #:clear! #:include! #:exclude! #:lookup! #:default! #:clear-default!
 
            ;; named-readtable readtables
-           #:fset-readtable #:fset-rereading-readtable))
+           #:fset-readtable #:fset-rereading-readtable
+
+	   ;; Utility used internally; some clients might have use for it too
+	   #:define-atomic-series #:increment-atomic-series))
 
 ;;; Since we've shadowed `cl:count', we need to do this.
 (gmap:def-result-type-synonym fset:count cl:count)
@@ -233,8 +236,8 @@
 	   #:search #:mismatch
 	   #:convert #:iterator
 	   #:do-set #:do-bag #:do-bag-pairs #:do-map #:do-map-domain #:do-seq #:do-tuple
-	   #:adjoinf #:removef #:includef #:excludef
-	   #:unionf #:intersectf #:set-differencef #:map-unionf #:map-intersectf #:imagef #:updatef #:composef
+	   #:includef #:excludef #:unionf #:intersectf #:set-differencef
+	   #:map-unionf #:map-intersectf #:imagef #:updatef #:composef
 	   #:define-tuple-key #:get-tuple-key #:tuple-key #:tuple-key-name #:tuple-key-type #:tuple-key?
 	   #:tuple-merge
 	   #:fset-setup-readtable #:*fset-readtable*
@@ -276,7 +279,10 @@
 	   #:clear! #:include! #:exclude! #:lookup! #:default! #:clear-default!
 
            ;; named-readtable readtables
-           #:fset-readtable #:fset-rereading-readtable))
+           #:fset-readtable #:fset-rereading-readtable
+
+	   ;; Utility used internally; some clients might have use for it too
+	   #:define-atomic-series #:increment-atomic-series))
 
 ;;; Since we've shadowed `cl:count', we need to do this.
 (gmap:def-result-type-synonym fset2:count cl:count)
