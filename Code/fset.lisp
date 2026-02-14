@@ -628,9 +628,27 @@ element."))
   (:documentation
     "Returns a new sequence like `seq' but with `val' inserted at `idx' \(the seq
 is extended in either direction if needed prior to the insertion; previously
+uninitialized indices are filled with the seq's default\).
+
+[Deprecated; the name sounds too much like a mutating operation.  Use
+`inserted'.]"))
+
+(defgeneric inserted (seq idx val)
+  (:documentation
+    "Returns a new sequence like `seq' but with `val' inserted at `idx' \(the seq
+is extended in either direction if needed prior to the insertion; previously
 uninitialized indices are filled with the seq's default\)."))
 
 (defgeneric splice (seq idx subseq)
+  (:documentation
+    "Returns a new sequence like `seq' but with the elements of `subseq' inserted
+at `idx' \(the seq is extended in either direction if needed prior to the insertion;
+previously uninitialized indices are filled with the seq's default\).
+
+[Deprecated; the name sounds too much like a mutating operation.  Use
+`spliced'.]"))
+
+(defgeneric spliced (seq idx subseq)
   (:documentation
     "Returns a new sequence like `seq' but with the elements of `subseq' inserted
 at `idx' \(the seq is extended in either direction if needed prior to the insertion;
@@ -5141,6 +5159,10 @@ This is the default implementation of seqs in FSet."
 		 (seq-default s))))
 
 (define-wb-seq-method insert ((s wb-seq) idx val)
+  ;; Renamed -- "insert" sounds too much like a mutating operation.
+  (inserted s idx val))
+
+(define-wb-seq-method inserted ((s wb-seq) idx val)
   (let ((tree (wb-seq-contents s))
 	((size (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size tree))))
     (when (< idx 0)
@@ -5160,6 +5182,10 @@ This is the default implementation of seqs in FSet."
 		 (seq-default s))))
 
 (define-wb-seq-method splice ((s wb-seq) idx subseq)
+  ;; Renamed -- "splice" sounds too much like a mutating operation.
+  (spliced s idx subseq))
+
+(define-wb-seq-method spliced ((s wb-seq) idx subseq)
   (let ((tree (wb-seq-contents s))
 	((size (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size tree)))
 	(subseq-tree (wb-seq-contents (convert 'wb-seq subseq))))

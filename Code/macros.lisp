@@ -723,7 +723,7 @@ for a given comparison function."
 ;;; Iteration
 
 (defmacro do-set ((var set &optional value) &body body)
-  "For each member of `set', binds `var' to it and executes `body'.  When done,
+  "For each element of `set', binds `var' to it and executes `body'.  When done,
 returns `value'."
   `(block nil		; in case `body' contains `(return ...)'
      (let ((elt-fn #'(lambda (,var) . ,body))
@@ -735,7 +735,7 @@ returns `value'."
 
 (defmacro do-bag-pairs ((value-var mult-var bag &optional value)
 			&body body)
-  "For each member of `bag', binds `value-var' and `mult-var' to the member and
+  "For each element of `bag', binds `value-var' and `mult-var' to the element and
 its multiplicity respectively, and executes `body'.  When done, returns `value'."
   `(block nil
      (let ((elt-fn #'(lambda (,value-var ,mult-var) . ,body))
@@ -745,8 +745,8 @@ its multiplicity respectively, and executes `body'.  When done, returns `value'.
 
 (defmacro do-bag ((value-var bag &optional value)
 		  &body body)
-  "For each member of `bag', binds `value-var' to it and and executes `body' a
-number of times equal to the member's multiplicity.  When done, returns `value'."
+  "For each element of `bag', binds `value-var' to it and and executes `body' a
+number of times equal to the element's multiplicity.  When done, returns `value'."
   (let ((mult-var (gensymx #:mult-))
 	(idx-var (gensymx #:idx-)))
     `(block nil
