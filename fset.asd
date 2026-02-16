@@ -41,6 +41,7 @@ See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
 	     (:file "bounded-sets")
 	     (:file "transients")
 	     (:file "testing")
+	     (:file "testing-1")
 	     (:file "post")
 	     #+swank
 	     (:file "swank")

@@ -13,6 +13,9 @@ Reference: Adams, Stephen.  "Implementing Sets Efficiently In a Functional
 Language", CSTR 92-10, Dept. of Electronics and Computer Science, University
 of Southampton, 1992.
 
+Also: https://www.cambridge.org/core/journals/journal-of-functional-programming/article/balancing-weightbalanced-trees/7281C4DE7E56B74F2D13F06E31DCBC5B
+And: https://arxiv.org/abs/1602.02120v4
+
 We introduce two substantial complications into Adams' nice clean code.
 
 First, we store the lowest one to three levels or so of the tree (as
@@ -1115,7 +1118,7 @@ that.  This, however, doesn't cons."
 (defun WB-Set-Tree-Concat (value left right cmp-fn)
   "Corresponds to Adams' `concat3'.  Assumes that (all values in `left') <=
 `value' <= (all values in `right'); returns a new tree containing all values.
-This does more rebalancing than `WB-Set-Tree-Build-Node', which otherwise
+This does less rebalancing than `WB-Set-Tree-Build-Node', which otherwise
 has the same contract.  `value' may be an `Equivalent-Set'."
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Set-Tree left right))

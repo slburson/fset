@@ -142,9 +142,6 @@ or `:unequal', this function returns the same hash value."))
        (result 0 (hash-mix result (hash-multiply mult (hash-value-fixnum (elt x i))))))
       ((= i len) result)))
 
-(defmethod hash-value ((x class))
-  (class-hash-value x))
-
 (defmethod hash-value ((x package))
   ;; I have verified on SBCL, ABCL, and CLASP that hash values follow the package when `rename-package'
   ;; is used on it.  On CCL, Allegro, and LispWorks, it looks like all packages have the same `sxhash',
