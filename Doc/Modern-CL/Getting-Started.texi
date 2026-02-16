@@ -34,9 +34,9 @@ just use an explicit @code{fset2:} prefix on FSet symbols.  (The older @code{fse
 provided for compatibility with codebases that have been using it, but I don't recommend it for new
 code.)
 
-This is clearly desirable for FSet-heavy code (see the
-@code{defpackage :fset2-user} form in @code{defs.lisp} for an example of how to do this, including a list of
-symbols you will need to @code{shadowing-import} from either @code{fset2} or @code{cl}). 
+This is clearly desirable for FSet-heavy code (see the @code{defpackage :fset2-user} form in
+@code{defs.lisp} for an example of how to do this, including a list of symbols you will need to
+@code{shadowing-import} from either @code{fset2} or @code{cl}).
 
 @node Importing FSet Symbols
 @subsection Importing FSet Symbols
@@ -46,12 +46,14 @@ symbols you will need to @code{shadowing-import} from either @code{fset2} or @co
 There's yet another choice to make, once you've decided to import FSet symbols: do you want all of
 them, most of them, or just the ones you're actually using?
 
-If you want the full FSet experience, add @code{:fset2} to the @code{:use} clause of your
-@code{defpackage} form, as in this example, and copy the @code{:shadowing-import-from} clause:
+If you want the full FSet experience, and you're starting a new project, the easiest way is to add
+@code{:fset2} to the @code{:use} clause of your @code{defpackage} form, as in this example, and copy
+the @code{:shadowing-import-from} clause:
 
 @example
 (defpackage :my-package
-  (:use :cl :fset2 :misc-extensions.gmap :misc-extensions.mvlet)
+  (:use :cl :fset2
+        :misc-extensions.gmap :misc-extensions.mvlet)  ; explained in next section
   (:shadowing-import-from :fset2
 			  ;; Shadowed type/constructor names
 			  #:set #:map
@@ -69,10 +71,22 @@ If you want the full FSet experience, add @code{:fset2} to the @code{:use} claus
 			  #:search #:mismatch))
 @end example
 
-(I'll explain the @code{misc-extensions} packages in the next section.)
+However, there's a downside to @code{:use}, causing many people to avoid it.  Because it imports all
+external symbols of the specified packages, it can cause name conflicts with your code.  This is
+especially true if you're adding FSet to an existing codebase, but even in a new one, there is a
+possibility that I might add new exports to package @code{fset2} at some point in the future that
+would cause a conflict.  I don't think the odds of such a conflict are large, but the risk exists:
+you could upgrade FSet one day and have something break for this reason.
 
-Here is a description of each of the symbols shadowing-imported in this example, to help you
-understand the consequences of importing it and to decide whether you want to.
+Because of that, the generally recommended approach is to use an @code{:import-from} clause instead,
+to import only the symbols you are using or think you are likely to use --- or even the full export
+list as it stands at the moment.  The downside of @emph{that} is that the list may get quite long;
+package @code{fset2}, as of this writing, exports 326 symbols.  Still, you may prefer this approach,
+to protect yourself against future exports.
+
+The next question is whether you want all the above shadowing-imports, which are shadowing builtin
+CL symbols.  Here is a description of each of these symbols, to help you understand the consequences
+of importing it and to decide whether you want to.
 
 @table @asis
 @item @code{set}
@@ -96,10 +110,12 @@ may as well import it anyway.
 
 @item @code{first}, @code{last}
 These are generic functions that return the first or last element of a sequence, which can be a Lisp
-sequence or an FSet seq.  These differ from the CL builtins in two ways: the latter accept only
-lists, and @code{cl:last} returns not the last @emph{element} of its argument, but rather the last
-@emph{cons} (the cons whose @code{car} is the last element).  @xref{Divergences from Common Lisp}
-for further discussion.
+sequence or an FSet seq.  These differ from the CL builtins in two ways: they work on more types
+than lists, and @code{last} returns the last @emph{element} of its argument, unlike @code{cl:last},
+which returns the last @emph{cons} (the cons whose @code{car} is the last element).
+@xref{Divergences from Common Lisp} for further discussion.  I recommend importing them, though if
+you have any existing calls to CL @code{last}. you'll have to either change them to @code{lastcons}
+(which is a better name anyway; FSet exports this) or add an explicit @code{cl:} qualifier.
 
 @item @code{subseq}, @code{reverse}
 @itemx @code{sort}, @code{stable-sort}
@@ -113,16 +129,15 @@ for further discussion.
 @itemx @code{search}, @code{mismatch}
 These are now generic functions that accept both CL sequences and FSet seqs, with compatibility
 methods on CL sequences that simply forward the call to the original CL versions.  There is little
-reason not to prefer these; I recommend importing them..
+reason not to prefer these; I recommend importing them.
+
+--- Well, there is one minor catch.  If your code does @code{(setf (subseq @dots{}) @dots{})}
+anywhere, you will need to add an explicit @code{cl:} qualifier to the @code{subseq}; otherwise the
+expression will cause a runtime error.  FSet does not define a setf expander for
+@code{fset2:subseq}, and it would be unsafe for it to do so, as its behavior as a @code{setf} place
+would not match that of @code{cl:subseq}.  But this is such a rare usage that you're unlikely to
+encounter this problem.
 @end table
-
-@c &&& This stuff goes somewhere else...
-
-They also have methods on seqs; @code{find} etc., @code{count}
-etc., and @code{remove} etc. have methods on sets, bags, and maps as well.  When called on an FSet
-collection, the default for @code{:test} is @code{equal?}; the @code{:test-not} keyword is not
-supported; and the @code{:start}, @code{:end}, and @code{:from-end} keywords are supported only on
-seqs, not on sets, bags, or maps.  On a map, only the domain elements are examined.
 
 Here are some Lisp sequence operations for which FSet does @emph{not} export a symbol with the same
 name.  I have omitted mutating operations, for which FSet of course has no equivalent.
@@ -139,8 +154,6 @@ The FSet operation (which applies to all FSet collections, not just seqs) is @co
 Use FSet sets.
 @end table
 
-@c &&& (end of stuff to go somewhere else)
-
 @node Misc-Extensions
 @subsection Misc-Extensions
 
@@ -153,9 +166,9 @@ I use @code{mvlet}, @code{mvlet*}, and @code{fn} elsewhere in this book, so you'
 about them below.  The rest of the section can be skipped on first reading.
 @c &&& Maybe cut the other topics?
 
-@defmac nvlet (binding-clause@dots{}) declaration@dots{} form@dots{}
-@defmacx nvlet* (binding-clause@dots{}) declaration@dots{} form@dots{}
-@defmacx nlet (binding-clause@dots{}) declaration@dots{} form@dots{}
+@defmac nvlet (binding-clause@dots{}) declaration@dots{} @r{&body} form@dots{}
+@defmacx nvlet* (binding-clause@dots{}) declaration@dots{} @r{&body} form@dots{}
+@defmacx nlet (binding-clause@dots{}) declaration@dots{} @r{&body} form@dots{}
 
 For writing code in a mostly-functional style, Common Lisp's multiple-value feature is extremely
 useful (I make heavy use of it both internally within FSet and in the API).  But the most important
@@ -275,27 +288,27 @@ One catch, though, is that if you inadvertently write @code{#'(fn ...)}, you wil
 probably-unintelligible compiler error.  Just delete the @code{#'}.
 @end defmac
 
-@defmac deflex var [val [doc]]
-@defmacx deflex-reinit var [val [doc]]
+@defmac deflex var @r{&optional} val doc
+Declares @code{var} as a global lexical (non-special) variable, and if @code{val} is supplied and
+@code{var} is not already bound, initializes it to @code{val}.  @code{doc}, if supplied, is taken as
+a documentation string.  Locally binding the same name creates a new lexical variable, with no
+effect on the global one.
+@end defmac
 
-Declares @code{var} as a global lexical variable, and if @code{val} is supplied and @code{var} is
-not already bound, initializes it to @code{val}.  @code{doc}, if supplied, is taken as a
-documentation string.  Locally binding the same name creates a new lexical variable, with no effect
-on the global one.
-
-Macro @code{deflex-reinit} is the same except that it reinitializes the variable even if it's
-already bound, like @code{cl:defparameter}.
+@defmac deflex-reinit var val  @r{&optional} doc
+Declares @code{var} as a global lexical (non-special) variable and initializes it to @code{val}.
+@code{doc}, if supplied, is taken as a documentation string.  Locally binding the same name creates
+a new lexical variable, with no effect on the global one.
 @end defmac
 
 @defmac isetq var val@dots{}
-
 Some implementations, notably CMUCL and SBCL, issue a rather verbose warning if you use @code{setq}
 to set a previously undeclared global variable in the REPL.  I find this annoying.  I could use
 @code{defvar} or @code{defparameter} instead, but they return the name of the variable, not its
 value, so if I want the value printed, I have to enter the name at the next prompt.  Besides, using
 one of those declares the variable special, so I have to be careful to put @code{*earmuffs*} on my
 variable names.  The other Lisps I've used for many years have quietly accepted @code{setq} of a new
-variable, without declaring it special.
+variable in the REPL, without declaring it special.
 
 So I wrote a macro @code{isetq} (``interactive @code{setq}'').  It uses the same technique as
 @code{deflex} to make the variable being assigned to into a global lexical, so I don't need to use
@@ -305,9 +318,9 @@ earmuffs to prevent name collisions with local variables in my code.
 @end defmac
 
 @c Maybe don't mention rflet and rmacrolet here???
-@defmac rlabels form &body function-binding-clause@dots{}
-@defmacx rflet form &body function-binding-clause@dots{}
-@defmacx rmacrolet form &bodyfunction-binding-clause@dots{}
+@defmac rlabels form @r{&body} function-binding-clause@dots{}
+@defmacx rflet form @r{&body} function-binding-clause@dots{}
+@defmacx rmacrolet form @r{&body} function-binding-clause@dots{}
 
 It's not uncommon to use @code{labels} to define a set of several mutually-recursive functions,
 whose code can fill a screen or two, then have the body of the @code{labels} kick off the recursion

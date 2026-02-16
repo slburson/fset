@@ -172,7 +172,7 @@ collections can be used to easily implement ``undo'' functionality; all that's n
 the past states one might want to return to.
 
 @item @strong{Cleaner interfaces}:
-Functional collections can be returned from instances with no concern that the client might modify
+Functional collections can be returned from interfaces with no concern that the client might modify
 them, breaking the module that owns them; defensive copying against this possibility is not required
 either.
 
@@ -182,3 +182,8 @@ constructed, you can call the function in question any number of times, without 
 that you would have to reset.
 @end itemize
 
+My strong opinion is that functional collections are the best @emph{default} choice for the vast
+majority of programming tasks: the kind everyone should be using except in the very few cases in
+which performance concerns dictate a different choice.  Furthermore, language and library designers
+should support the movement toward functional collections by providing high-quality implementations.
+FSet is my contribution to this effort.

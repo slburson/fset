@@ -200,6 +200,22 @@ Returns true iff @var{s1} and @var{s2} have no elements in common.  @href{Normal
 on Time Complexity}, where @i{n} is the minimum of the two sizes.
 @end deffn
 
+@anchor{Macro do-set}
+@defmac do-set @r{(@var{var} @var{set} &optional @var{value}) &body} body
+For each element of @var{set}, binds @var{var} to it and executes @var{body}.  When done,
+returns @var{value} if supplied, otherwise @code{nil}.
+@end defmac
+
+@anchor{iterator (set)}
+@deffn Method {iterator (set)} @ s @r{&key}
+Returns a @href{stateful iterator, Stateful Iterators} over the set.
+@end deffn
+
+@anchor{fun-iterator (set)}
+@deffn Method {fun-iterator (set)} @ s @r{&key}
+Returns a @href{functional iterator, Functional Iterators} over the set.
+@end deffn
+
 @deffn Method {filter (function set)} @ pred s
 @deffnx Method {filter (symbol set)} @ pred s
 @deffnx Method {filter (map set)} @ pred s
@@ -257,8 +273,8 @@ function, is called on it, and then @var{test} is called on @var{item} and the r
 true, @code{find} returns the element.  If no match is found, @code{find} returns @code{nil}.
 @var{test} defaults to @code{equal?}, not @code{eql}.
 
-As a special case, if @var{test} is @code{equal?}, @var{key} is not supplied, and the set's
-comparison function is @code{compare}, this does an O(log @i{n}) lookup.
+Normally O(@i{n}), but as a special case, if @var{test} is @code{equal?}, @var{key} is not supplied,
+and the set's comparison function is @code{compare}, this does an O(log @i{n}) lookup.
 @end deffn
 
 @deffn Method {find-if (t set)} @ pred s @r{&key} key
@@ -280,8 +296,9 @@ identity function, is called on it, and then @var{test} is called on @var{item} 
 it returns true, the element is counted.  Returns the count.  @var{test} defaults to @code{equal?},
 not @code{eql}.
 
-As a special case, if @var{test} is @code{equal?}, @var{key} is not supplied, and the set's
-comparison function is @code{compare}, this does an O(log @i{n}) lookup to return 1 or 0.
+Normally O(@i{n}), but as a special case, if @var{test} is @code{equal?}, @var{key} is not supplied,
+and the set's comparison function is @code{compare}, this does an O(log @i{n}) lookup to return 1 or
+0.
 @end deffn
 
 @deffn Method {count-if (t set)} @ pred s @r{&key} key
@@ -363,7 +380,8 @@ The abstract class for FSet functional maps.
 
 @defun empty-map @r{&key} @r{(@var{default} nil)} no-default?
 Constructor function.  Returns an empty map of the default implementation.  If @var{default} is
-supplied, that will be the map's default; if @var{no-default?} is true, the map will have no default.
+supplied, that will be the map's @href{default, Map and Seq Defaults}; if @var{no-default?} is true,
+the map will have no default.
 @end defun
 
 @defmac map @r{&rest} subforms
@@ -523,6 +541,7 @@ implementation (WB or CHAMP), and using @var{m}'s value ordering as its ordering
 @i{n}).
 @end deffn
 
+@anchor{map-union}
 @deffn Method {map-union (map map)} @ m1 m2 @r{&optional} val-fn
 Returns a map containing all the keys of @var{m1} and @var{m2}, where the value for each key
 contained in only one map is the value from that map, and the value for each key contained in both
@@ -571,18 +590,20 @@ if the defaults are equal, in which case neither returned map has a default.
 @end deffn
 
 @deffn Method {restrict (map set)} @ m s
-@end deffn
 Returns a map containing only those pairs of @var{m} whose keys are also in @var{s}.
 @end deffn
 
 @deffn Method {restrict-not (map set)} @ m s
-@end deffn
 Returns a map containing only those pairs of @var{m} whose keys are @emph{not} also in @var{s}.
 @end deffn
 
 
 
 @c map-image
+
+@c --------------------------------------------------------------------------------
+@node Convenience Methods on CL Types
+@section Convenience Methods on CL Types
 
 @c --------------------------------------------------------------------------------
 @node Error Types

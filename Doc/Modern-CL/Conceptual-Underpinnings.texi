@@ -30,7 +30,7 @@ start with some simple examples in C++ and Java.  The first could be in either l
 Simple, right?  Everyone knows that incrementing @code{a} doesn't affect @code{b}.  This is because
 the type @code{int} has an @dfn{immediate} implementation: there is no way that @code{b} could be an
 @emph{alias} of @code{a}, because the assignment copies the value itself, not a pointer to the
-value.  We say that @code{int} has @dfn{value semantics} or that it is a @dfn{value type}.
+value.  We say that @code{int} has @dfn{value semantics}.
 
 Now consider this, in Java:
 
@@ -41,8 +41,7 @@ Now consider this, in Java:
 @end example
 
 Here we see a case where assignment creates an alias to a mutable object, so that mutations to the
-object are visible through the alias.  This example demonstrates @dfn{reference semantics}; we say
-that @code{int[]} (``array of int'') is a @dfn{reference type}.
+object are visible through the alias.  This example demonstrates @dfn{reference semantics}.
 
 Interestingly, to have reference semantics, a type must be aliasing (meaning that assignment creates
 an alias) @emph{and} mutable.  C++, for instancee, has collection types that are mutable but not

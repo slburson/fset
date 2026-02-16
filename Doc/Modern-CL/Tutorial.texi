@@ -526,6 +526,25 @@ analysis work.  The state table of an LALR parser generator, for instance, is ba
 by sets of sequences (the LR(0) items); such a type can be manipulated quite directly and elegantly
 in FSet.
 
+Here's a hypothetical example of where such nesting might come in handy.  Say you're organizing a
+huge dinner party with over 200 guests, to be held in a large ballroom with many circular tables.
+You have some data about each guest --- their personality, their profession, their interests, their
+tastes --- and a model that tells you how compatible two people are based on that information.  You
+want to organize them into tables such that the people at each table are all fairly compatible, but
+also to have enough variety at each table to keep the conversation interesting.
+
+So you have some code that can take a set of people and assign a score, and you are going to do some
+search to try to make it so all the tables score fairly high (no point in going for the absolute
+optimum, since your scoring model isn't perfect anyway).  To do that, you're going to want to keep
+track of the score for each set that you construct, and the natural way to do that is with a map
+whose keys are the sets.
+
+Admittedly, this isn't exactly @emph{difficult} to do with Common Lisp's builtin types.  You could
+keep the sets as lists, each sorted in a canonical order so there's only one possible list
+representation for each set, and use a CL hash table with @code{equal} as its test function.  But
+with FSet, you don't even have to think about it; just build the sets and put them in the map.  FSet
+handles the rest.
+
 @node Assignment and updating
 @subsection Assignment and updating
 FSet provides several macros which are handy for updating variables that hold collections.  (Their

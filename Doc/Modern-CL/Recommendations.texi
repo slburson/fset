@@ -1,3 +1,115 @@
 @node Recommendations for Language Designers
 @chapter Recommendations for Language Designers
 
+@node Features of FSet
+@section Features of FSet
+
+@c space efficiency (heterogeneous WB-trees; sets are not maps)
+@c operation naming
+@c map and seq defaults
+@c quasi-mutating operators
+@c replay types
+@c binary relations
+@c left preference
+
+@node Critiques of FSet
+@section Critiques of FSet
+
+@c WB-trees are obsolete
+@c Might have gotten carried away on @code{convert} methods
+@c Some features are historical (e.g. WB-replay-*)
+@c Iterators should have been structs
+@c Bag operations should be pair-oriented by default, maybe?
+@c Map constructor macro has too many parens
+
+@node Critiques of Other Libraries
+@section Critiques of Other Libraries
+
+@node Clojure
+@subsection Clojure
+
+@c https://clojure.org/reference/data_structures
+@c ``Because collections support the seq function, all of the sequence functions can be used with
+@c any collection.''
+
+@c PersistentList: singly-linked list with length cached in head
+
+@c PersistentVector: trie from high-order end of index (not RRB?!); good indexing, but poor
+@c insertion/concatenation
+@c OIC, the RRB vector is not in clojure.core
+
+@c ArrayMap retains key order, but lookup is linear
+
+@c No quasi-mutating operations (Clojure lacks local assignment, though it does have mutable
+@c objects)
+
+@c No @code{map-union} etc. (probably unique to FSet)
+
+@node Haskell
+@subsection Haskell
+
+@c Man, they have a lot of operations!  I thought I had gone overboard!
+@c Maps use @code{insert} and @code{delete}
+@c Maps have a bunch of interesting update ops like @code{adjust} (similar to my @code{update})
+@c    --- they also have an @code{update}
+@c Map @code{lookup} returns a @code{Maybe}, but @code{!} errors on missing key; there's also
+@c   @code{findWithDefault}
+@c Map @code{unionWith} is like map union, but applies the combining function to every matching
+@c   pair and doesn't assume idempotence
+@c Map @code{differenceWith} has a discard option, but @code{intersectionWith} doesn't
+@c Map @code{mergeWithKey} is closer to my map union, but passes common subtrees to a supplied
+@c   function (!!); it's now deprecated, because doing this could break things
+@c @code{mapWithKey} is @code{map-image}; amusing they use ``map'' in both senses
+@c Ah, look!  @code{restrictKeys} and @code{withoutKeys}!
+@c @code{partition} on maps --- good idea
+@c left preference on union and intersection!
+
+@node Scala
+@subsection Scala
+
+@c No quasi-mutating operators
+@c No map defaults; @code{getOrElse}; oh, but there's a @code{PartialFunction} concept that handles
+@c   the partial/total distinction
+@c @code{apply} method to let you treat a map as a function
+@c @code{get} returns @code{Option[Value]}; @code{apply} throws exception on out-of-domain key
+@c @code{+} and @code{-} for @code{with} and @code{less}
+@c @code{++} is map union, though you can't supply @code{val-fn}
+
+@node Google Guava
+@subsection Google Guava
+
+Google's Guava library for Java includes some immutable collection classes.  These make for a good
+example of why I avoid the term ``immutable'', because these collections are @emph{only} immutable:
+there are constructors so you can create them, but there are no sublinear-time functional update
+operations to make new ones out of existing ones.  So they're not intended for use in functional
+algorithms.  They do have some software-engineering advantages over Java's standard stateful
+collections, such as being good things to pass across interfaces, but though I agree that that's
+valuable, to me it's only one of several desirable qualities of functional collections.
+
+@node Python
+@subsection Python
+
+Python's built-in types include @code{frozenset} , which is immutable in the same sense as the Guava
+collections.  It has union and intersection indicated by @code{|} and @code{&}, which seems a bit
+terse to me (there are also methods called @code{union} and @code{intersection}).  Curiously, it
+defines the comparison operators (@code{<} etc.) as subset/superset tests, which of course imposes a
+partial order rather than a total order, so sorting a list of sets by this ordering doesn't work.
+Frozensets are intended for use as set elements or map keys, so some nesting is supported.
+
+I see no sign of an immutable map class in the base library.
+
+However, there is a library called Pyrsistent that seems popular and provides functional sets, maps,
+bags (!), and sequences.  It has something called ``evolvers'' which appear to be what Clojure and
+FSet call ``transients''.  They support the standard mutation protocols, so you can pass one to
+legacy code that expects a mutable collection and mutates it, and then obtain a persistent copy on
+return --- a cute feature.  Their functional-record class @code{PRecord} has some interesting
+features, including typed fields and general invariants.
+
+The @code{transform} method seems to be a quasi-mutating operator, though I don't yet understand how
+it works.
+
+Oh, @code{PVector}, their sequence class, has the same problem as Clojure's base vectors:
+linear-time insertion, deletion, and concatenation.  The @code{PMap} implementation is just a hash
+table implemented on top of that; seems like it wouldn't perform as well as CHAMP (but hey, this is
+Python anyway).  And @code{PSet} is built on top of @code{PMap}.
+

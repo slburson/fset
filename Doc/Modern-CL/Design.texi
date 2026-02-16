@@ -294,8 +294,8 @@ don't specify one --- is good old @code{nil}.  In a few cases, however, such as 
 map with a function, the presence of any default is annoying, because the function being composed
 with has to accept the default value and produce a default for the result map.  So FSet also allows
 maps and seqs to have @emph{no} default.  When this option is used, @code{lookup} on the collection,
-given a key or index outside its domain, will signal an error.  (In some cases, this may be
-desirable behavior anyway, as you may not be expecting the code to make such lookups.)
+given a key or index outside its domain, will signal an error.  You can use this as a convenient
+defensive programming mechanism in cases where you don't expect out-of-domain lookups.
 
 @node Quasi-Mutating Operators
 @section Quasi-Mutating Operators
@@ -311,7 +311,7 @@ Common Lisp provides a general, extensible macro, @code{setf}, which takes an ex
 evaluated normally, and updates the place so it holds the value.  Exactly what this means depends on
 the place expression.
 
-There are, for my purposes, two kinds of place expressions: those that are directly assignable, and
+There are, for our  purposes, two kinds of place expressions: those that are directly assignable, and
 those that use what I'll call a ``functional accessor''.  Directly assignable places include
 variables (the most common example), as well as invocations of built-in accessors such as @code{car}
 or @code{aref}, slot accessors on user-defined classes, and function calls for which a @code{setf}
@@ -353,10 +353,19 @@ range values of an outer map are inner maps.  An FSet expression like
 @example
 (setf (@@ (@@ m k1) k2) value)
 @end example
-
 will have the effect of storing @code{value} under key @code{k2} of the inner map that's under key
 @code{k1} of the outer map.  Again, it will do this by constructing a new inner map and then a new
-outer map, and assigning the latter back to @code{m}.
+outer map, and assigning the latter back to @code{m}.  (By the way, you can arrange for the inner
+maps to be created automatically as needed, by giving the outer map a default which is the empty
+map, as in:
+
+@example
+(let ((m (empty-map :default (empty-map))))
+  ...)
+@end example
+
+Then you can write the above @code{setf} expression without having to explicitly handle the case
+where the outer map doesn't yet have an entry for @code{k1}.)
 
 Thus, @code{setf} expansion descends recursively through functional accessors in the place
 expression until it reaches a directly assignable inner place.  Usually, that's a variable

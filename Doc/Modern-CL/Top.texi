@@ -115,17 +115,42 @@ Generic Function @code{convert}
 JSON Parsing and Printing
 Larger Examples
 Recommendations for Language Designers
-  Key Properties of FSet
+  Features of FSet
   Critiques of FSet
-    WB-trees are obsolete
-    Might have gotten carried away on @code{convert} methods
-    Some features are historical (e.g. WB-replay-*)
   Critiques of Other Libraries
+    Clojure
+    Haskell
+    Scala
+    C++
     Google Guava
+    Pyrsistent
+    https://github.com/orium/rpds, https://github.com/victorcolombo/prust, https://docs.rs/im/latest/im/
+    Immer
 
 Notes:
 () Should Left Preference be its own section?  Or just mentioned in the doc for each operation to
-which it applies?
+which it applies?  --- The latter.
 () Should there be a separate Performance section?
+
+Operations named by verbs:
+- lookup (but not a verb of modification) (1)
+- split-{from,above,through,below} (can also be read as an adjective) (3)
+- partition  (4)
+- filter  (4)
+- reduce (CL)  (1)
+- restrict{,-not}  (4)
+- compose (1)
+- insert  --> inserted  (9)
+- splice  --> spliced  (9)
+- concat (but 'cl:concatenate' is a function)  (7)
+- convert (not a verb of modification) (2)
+- reverse (CL)  (2)
+- sort (CL)  (4)
+- sort-and-group  (4)
+- find etc.; count etc. (CL; not verbs of modification)  (1)
+- remove (CL; cf. 'delete')  (3)
+- substitute (CL; cf. 'nsubstitute')  (3)
+- update  (7)
+
 @end ignore
 
