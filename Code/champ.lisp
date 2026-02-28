@@ -38,6 +38,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
   (defconstant champ-node-radix (ash 1 champ-hash-bits-per-level))
   (defconstant champ-hash-level-mask (1- champ-node-radix)))
 (deftype champ-bit-index () `(integer 0 (,champ-node-radix)))
+(deftype champ-entry/subnode-mask () `(integer 0 (,(ash 1 champ-node-radix))))
 ;;; These have the same bounds but are logically different types.
 (deftype champ-entry-index () `(integer 0 (,champ-node-radix)))
 (deftype champ-subnode-index () `(integer 0 (,champ-node-radix)))
@@ -59,7 +60,7 @@ The two-tree algorithms (`compare', `union', etc.) take considerable advantage o
 (declaim (inline least-1-bit))
 (defun least-1-bit (n)
   (declare (optimize (speed 3) (safety 0))
-	   (fixnum n))
+	   (type champ-entry/subnode-mask n))
   ;; Suggested by Stas Boukarev for SBCL.
   #+sbcl
   (the champ-bit-index (logcount (ldb (byte 64 0) (lognor n (- n)))))
@@ -699,7 +700,9 @@ if it changed, if `transient-id' is supplied."
 		  (when tree
 		    (if (consp tree)
 			(do-wb-set-tree-members (,value-var (cdr tree))
-			  (,body-fn ,value-var))
+			  (,body-fn ,value-var)
+			  ;; Without this `nil', SBCL on ARM64 gives "Return type not fixed values" note.
+			  nil)
 		      (progn
 			(dotimes (i (logcount (ch-set-node-entry-mask tree)))
 			  (,body-fn (svref tree (+ i ch-set-node-header-size))))
@@ -2257,7 +2260,9 @@ if it changed, if `transient-id' is supplied."
 		  (when tree
 		    (if (consp tree)
 			(do-wb-map-tree-pairs (,key-var ,value-var (cdr tree))
-			  (,body-fn ,key-var ,value-var))
+			  (,body-fn ,key-var ,value-var)
+			  ;; Without this `nil', SBCL on ARM64 gives "Return type not fixed values" note.
+			  nil)
 		      (let ((len (the fixnum (length (the simple-vector tree)))))
 			(dotimes (i (logcount (ch-map-node-entry-mask tree)))
 			  (let ((idx (+ (* 2 i) ch-map-node-header-size)))

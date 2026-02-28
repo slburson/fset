@@ -5873,7 +5873,8 @@ different seq implementations; it is not for public use.  `vec-fn' and
 	     start1 end1 start2 end2))
     (flet ((apply-key (x)
 	     (muffle-notes  ; `split-cases' will cause unreachable code, as intended.
-	       (if key (funcall key x) x))))
+	       ;; `values' quiets SBCL/ARM64 note "Return type not fixed values".
+	       (if key (values (funcall key x)) x))))
       (if (or (<= end1 start1) (<= end2 start2))
 	      0
 	(if (not from-end)
