@@ -2343,12 +2343,9 @@ present, its count is incremented by `count').  `value' may be an `Equivalent-Ba
 	      (let ((nonnull? value count
 		      (Equivalent-Bag-Difference node-val node-count value count cmp-fn)))
 		(if nonnull?
-		    (if (Equivalent-Node? value)
-			(Make-WB-Bag-Tree-Node value count
-					       (WB-Bag-Tree-Node-Left tree)
-					       (WB-Bag-Tree-Node-Right tree))
-		      (WB-Bag-Tree-Concat value count (WB-Bag-Tree-Node-Left tree) (WB-Bag-Tree-Node-Right tree)
-					  cmp-fn))
+		    (Make-WB-Bag-Tree-Node value count
+					   (WB-Bag-Tree-Node-Left tree)
+					   (WB-Bag-Tree-Node-Right tree))
 		  (WB-Bag-Tree-Join (WB-Bag-Tree-Node-Left tree) (WB-Bag-Tree-Node-Right tree) cmp-fn))))
 	     ((:less)
 	      (let ((left (WB-Bag-Tree-Node-Left tree))

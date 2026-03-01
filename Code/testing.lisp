@@ -2520,7 +2520,7 @@
       (test (handler-case (progn (contains? (wb-set 1) 1 nil) nil)
               (simple-program-error () t)))
       (test (let ((val mult val? (arb (bag))))
-	      (and (null val) (null mult) (not val?))))
+	      (and (null val) (zerop mult) (not val?))))
       (test (let ((b (bag 1 4 8))
 		  ((val mult val? (arb b))))
 	      (and val? (contains? b val) (= mult 1))))
@@ -2866,3 +2866,7 @@
 	    (frob5 (make-frob 1.0 2)))
 	(test (eql ':unequal (compare-slots frob4 frob5 'a 'b)))
 	(test (eql ':unequal (compare-slots frob4 frob5 'b 'a)))))))
+
+;;; Outlined so SBCL constant propagation doesn't do the test at compile time.
+(defun hash-mix-func (a b)
+  (hash-mix a b))

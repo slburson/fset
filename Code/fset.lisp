@@ -3574,7 +3574,7 @@ different bag implementations; it is not for public use.  `elt-fn' and
 	     (:predicate ch-bag?)
 	     (:print-function print-ch-bag)
 	     (:copier nil))
-  (contents nil :read-only t)  ; a `ch-map-tree'
+  (contents nil :read-only t)
   (org nil :type hash-set-org :read-only t))
 
 (defparameter +empty-ch-bag+ (make-ch-bag nil +fset-default-hash-set-org+))
@@ -3681,7 +3681,7 @@ different bag implementations; it is not for public use.  `elt-fn' and
   (ch-bag-tree-total-count (ch-bag-contents b)))
 
 (defmethod set-size ((b ch-bag))
-  (ch-map-tree-size (ch-bag-contents b)))
+  (ch-bag-tree-size (ch-bag-contents b)))
 
 (defmethod multiplicity ((b ch-bag) x)
   (let ((hsorg (ch-bag-org b))
@@ -3693,15 +3693,15 @@ different bag implementations; it is not for public use.  `elt-fn' and
   (assert (and (integerp multiplicity) (not (minusp multiplicity))))
   (if (zerop multiplicity) b
     (let ((hsorg (ch-bag-org b)))
-      (make-ch-bag (ch-map-tree-with (ch-bag-contents b) value multiplicity
-				     (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg) nil nil)
+      (make-ch-bag (ch-bag-tree-with (ch-bag-contents b) value multiplicity
+				     (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg))
 		   (ch-bag-org b)))))
 
 (defmethod less ((b ch-bag) value &optional (multiplicity 1))
   (assert (and (integerp multiplicity) (not (minusp multiplicity))))
   (if (zerop multiplicity) b
     (let ((hsorg (ch-bag-org b)))
-      (make-ch-bag (ch-map-tree-less (ch-bag-contents b) value (hash-set-org-hash-fn hsorg) 
+      (make-ch-bag (ch-bag-tree-less (ch-bag-contents b) value (hash-set-org-hash-fn hsorg) 
 				     (hash-set-org-compare-fn hsorg) multiplicity)
 		   hsorg))))
 

@@ -1503,8 +1503,6 @@ before `isubnode'."
   ;; This slot is used in two different ways.  For maps, it is a lazily populated cache of
   ;; the hashes of the values.  For bags, it is the total count (multiplicity).
   (value-hash nil :type (or null integer)))
-(defmacro ch-map-node-bag-count (x)
-  `(ch-map-node-value-hash ,x))
 (defconstant ch-map-node-header-size 5)
 ;;; Near (0, 0), we want this to be 8, to allow 4 entries.
 ;;; As the sum approaches 32 we want it to go to 0.
@@ -1774,14 +1772,15 @@ if it changed, if `transient-id' is supplied."
 					      (+ ch-map-node-header-size (* 2 champ-node-radix) 1))
 			  min-len))
 	       ((n (make-array new-len)))))))
-	(assert (>= idx hdr+entries))
 	(when transient-id
 	  (setf (svref n hdr+entries) transient-id))
 	(dotimes (i hdr+entries)
 	  (setf (svref n i) (svref node i)))
 	(dotimes (i n-subnodes)
 	  (setf (svref n (- new-len i 1)) (svref node (- len i 1))))
-	(setf (svref n (+ idx (- new-len len))) val)
+	(if (>= idx hdr+entries)
+	    (setf (svref n (+ idx (- new-len len))) val)
+	  (setf (svref n idx) val))
 	n))))
 
 (defun ch-map-node-update-2 (transient-id node idx val-0 val-1)
@@ -1928,7 +1927,7 @@ if it changed, if `transient-id' is supplied."
 					      (hash-unmix (cdar node) (hash-to-fixnum ex-value val-hash-fn)))))
 			 (if (= 1 (wb-map-tree-size new-wb-tree))
 			     (let ((k v (wb-map-tree-arb-pair new-wb-tree))
-				   (new-entry-mask (ash 1 (logcount (logand hash-shifted champ-hash-level-mask)))))
+				   (new-entry-mask (ash 1 (logand hash-shifted champ-hash-level-mask))))
 			       (values (make-ch-map-node transient-id new-entry-mask 0 1 key-hash value-hash k v)
 				       ex-value t))
 			   (values (cons (cons (caar node) value-hash) new-wb-tree)
@@ -3209,4 +3208,372 @@ before `isubnode'."
 		    path))
 	    (nreverse path))))))
 
-    
+
+;;; ================================================================================
+;;; Bags
+
+;;; Bags reuse a lot of the map internals: the nodes are the same, except that the
+;;; `value-hash' slot is repurposed as `bag-count' (the total count of all values
+;;; at and under the node).  The API uses "multiplicity", but internally we use "count";
+;;; so where the map code speaks of "key" and "value", the bag code uses "value" and "count".
+;;; Collision nodes are just a single cons since there's no need to store the map value hash.
+
+(defmacro ch-bag-node-value-hash (n)
+  `(ch-map-node-key-hash ,n))
+
+(defmacro ch-map-node-bag-count (n)
+  `(ch-map-node-value-hash ,n))
+
+(declaim (ftype (function (ch-map-tree) fixnum) ch-bag-tree-value-hash))
+(defun ch-bag-tree-value-hash (tree)
+  (declare (optimize (speed 3) (safety 0)))
+  (cond ((null tree) 0)
+	((consp tree) (car tree))
+	(t (ch-map-node-key-hash tree))))
+
+(declaim (ftype (function (ch-map-tree) fixnum) ch-bag-tree-size))
+(defun ch-bag-tree-size (tree)
+  (declare (optimize (speed 3) (safety 0)))
+  (cond ((null tree) 0)
+	((consp tree)
+	 (wb-bag-tree-size (cdr tree)))
+	(t (ch-map-node-size tree))))
+
+(defun ch-bag-tree-total-count (tree)
+  (cond ((null tree) 0)
+	((consp tree)
+	 (wb-bag-tree-total-count (cdr tree)))
+	(t (ch-map-node-bag-count tree))))
+
+(defun ch-bag-tree-with (tree value count hash-fn compare-fn &optional transient-id (depth 0) replace?)
+  "Second value is true iff the tree changed; the result can be eq to `tree', even
+if it changed, if `transient-id' is supplied."
+  (declare (optimize (speed 1) (safety 2) (debug 3))
+	   (type function hash-fn compare-fn)
+	   (type (integer 0 (64)) depth))
+  (let ((value-hash (hash-to-fixnum value hash-fn)))
+    (declare (fixnum value-hash))
+    (rlabels (rec tree (ash value-hash (- (* champ-hash-bits-per-level depth))) depth)
+      (rec (node hash-shifted depth)
+	(declare (fixnum hash-shifted)
+		 (type (integer 0 (64)) depth))
+	(let ((hash-bits (logand hash-shifted champ-hash-level-mask)))
+	  (if (null node)
+	      (values (make-ch-map-node transient-id (ash 1 hash-bits) 0 1 value-hash count value count) t)
+	    (if (consp node)
+		;; Collision node.
+		(let ((wb-hash (the fixnum (car node)))
+		      ((wb-hash-shifted (ash wb-hash (* (- champ-hash-bits-per-level) depth)))))
+		  (if (= hash-shifted wb-hash-shifted)
+		      ;; Update the collision node.
+		      (let ((prev-count (wb-bag-tree-multiplicity (cdr node) value compare-fn))
+			    ((new-wb-tree (wb-bag-tree-with (if replace? (wb-bag-tree-less (cdr node) value compare-fn
+											   prev-count)
+							      (cdr node))
+							    value compare-fn (if replace? (gen + count prev-count)
+									     count)))))
+			(values (cons (car node) new-wb-tree) t))
+		    (let ((hash-bits (logand hash-shifted champ-hash-level-mask))
+			  (wb-hash-bits (logand wb-hash-shifted champ-hash-level-mask))
+			  (value-hash (hash-mix wb-hash value-hash))
+			  (size (1+ (wb-bag-tree-size (cdr node)))))
+		      (values (if (= hash-bits wb-hash-bits)
+				  (make-ch-map-node transient-id 0 (ash 1 hash-bits) size value-hash count
+						    (rec node (ash hash-shifted (- champ-hash-bits-per-level))
+							 (1+ depth)))
+				(make-ch-map-node transient-id (ash 1 hash-bits) (ash 1 wb-hash-bits)
+						  size value-hash count value count node))
+			      t))))
+	      ;; Normal case.
+	      (let ((entry-mask (ch-map-node-entry-mask node))
+		    ((entry-idx (+ ch-map-node-header-size (* 2 (1-bits-below hash-bits entry-mask)))))
+		    (subnode-mask (ch-map-node-subnode-mask node))
+		    ((subnode-idx (- (length node) 1 (1-bits-below hash-bits subnode-mask)))))
+		(if (logbitp hash-bits entry-mask)
+		    ;; Entry found
+		    (let ((ex-value (svref node entry-idx))
+			  (ex-count (svref node (1+ entry-idx))))
+		      (if (equal?-cmp value ex-value compare-fn)
+			  (let ((n (ch-map-node-update transient-id node (1+ entry-idx) (gen + ex-count count))))
+			    (when replace?
+			      (setf (svref n entry-idx) value))
+			    (setf (ch-map-node-bag-count n) (gen + (ch-map-node-bag-count n) count))
+			    (values n t))
+			;; Entry with different value found: make a subnode
+			(let ((hash-shifted (ash hash-shifted (- champ-hash-bits-per-level)))
+			      (ex-value-hash (hash-to-fixnum ex-value hash-fn))
+			      ((ex-value-hash-shifted (ash ex-value-hash (* (- champ-hash-bits-per-level) (1+ depth))))
+			       ((n2 (if (= hash-shifted ex-value-hash-shifted)
+					;; Collision!  Fall back to WB-tree.
+					(cons value-hash
+					      (wb-bag-tree-with (wb-bag-tree-with nil ex-value compare-fn ex-count)
+								value compare-fn count))
+				      ;; Turn the entry into a subnode and recur.
+				      (rec (make-ch-map-node transient-id (ash 1 (logand ex-value-hash-shifted
+											 champ-hash-level-mask))
+							     0 1 ex-value-hash ex-count ex-value ex-count)
+					   hash-shifted (1+ depth))))
+				((n (ch-map-node-rem-2-ins-1 transient-id node entry-idx subnode-idx n2))))))
+			  (logandc2f (ch-map-node-entry-mask n) (ash 1 hash-bits))
+			  (logiorf (ch-map-node-subnode-mask n) (ash 1 hash-bits))
+			  (incf (ch-map-node-size n))
+			  (unless (consp n2)
+			    (hash-mixf (ch-bag-node-value-hash n) value-hash))
+			  (setf (ch-map-node-bag-count n) (gen + (ch-map-node-bag-count n) count))
+			  (values n t))))
+		  ;; No entry found: check for subnode
+		  (if (logbitp hash-bits subnode-mask)
+		      ;; Subnode found
+		      (let ((subnode (svref node subnode-idx))
+			    ((old-subnode-size (ch-bag-tree-size subnode))
+			     (old-subnode-hash (ch-bag-tree-value-hash subnode))
+			     (new-subnode changed? (rec subnode (ash hash-shifted (- champ-hash-bits-per-level))
+							(1+ depth)))))
+			(if (not changed?)
+			    (values node nil)
+			  ;; New subnode
+			  (let ((n (ch-map-node-update transient-id node subnode-idx new-subnode)))
+			    ;; If only a count was updated, the subnode won't have changed size.
+			    (setf (ch-map-node-size n)
+				  (the fixnum (+ (ch-map-node-size n) (- (ch-bag-tree-size new-subnode)
+									 old-subnode-size))))
+			    (hash-mixf (ch-bag-node-value-hash n) (hash-unmix (ch-bag-tree-value-hash new-subnode)
+									      old-subnode-hash))
+			    (setf (ch-map-node-bag-count n) (gen + (ch-map-node-bag-count n) count))
+			    (values n t))))
+		    ;; Neither entry nor subnode found: make new entry
+		    (let ((n (ch-map-node-insert-2 transient-id node entry-idx value count)))
+		      (logiorf (ch-map-node-entry-mask n) (ash 1 hash-bits))
+		      (incf (ch-map-node-size n))
+		      (hash-mixf (ch-bag-node-value-hash n) value-hash)
+		      (setf (ch-map-node-bag-count n) (gen + (ch-map-node-bag-count n) count))
+		      (values n t))))))))))))
+
+(defun ch-bag-tree-less (tree value count hash-fn compare-fn &optional transient-id (depth 0))
+  "Second value is true iff the tree changed; the result can be eq to `tree', even
+if it changed, if `transient-id' is supplied."
+  (declare (optimize (speed 1) (safety 2) (debug 3))
+	   (type function hash-fn compare-fn)
+	   (type (integer 0 (64)) depth))
+  (let ((value-hash (hash-to-fixnum value hash-fn)))
+    (declare (fixnum value-hash))
+    (rlabels (rec tree (ash value-hash (- (* champ-hash-bits-per-level depth))) depth)
+      (rec (node hash-shifted depth)
+	(declare (fixnum hash-shifted)
+		 (type (integer 0 (64)) depth))
+	(and node
+	     (if (consp node)
+		 ;; Collision node.
+		 (if (/= (the fixnum (car node)) value-hash)
+		     (values node nil)
+		   (let ((new-wb-tree (wb-bag-tree-less (cdr node) value compare-fn count)))
+		     (if (eq new-wb-tree (cdr node))
+			 (values node nil)
+		       (if (= 1 (wb-bag-tree-size new-wb-tree))  ; (`new-wb-tree' can't be empty)
+			   ;; Removing next-to-last distinct value: turn remaining into entry.
+			   (let ((rem-val rem-count (wb-bag-tree-arb-pair new-wb-tree))
+				 (hash-bits (logand hash-shifted champ-hash-level-mask)))
+			     (values (make-ch-map-node transient-id (ash 1 hash-bits) 0 1
+						       value-hash rem-count rem-val rem-count)
+				     t))
+			 (values (cons (car node) new-wb-tree) t)))))
+	       ;; Normal node.
+	       (let ((hash-bits (logand hash-shifted champ-hash-level-mask))
+		     (entry-mask (ch-map-node-entry-mask node))
+		     ((entry-raw-idx (1-bits-below hash-bits entry-mask))
+		      ((entry-idx (+ ch-map-node-header-size (* 2 entry-raw-idx)))))
+		     (subnode-mask (ch-map-node-subnode-mask node)))
+		 (if (logbitp hash-bits entry-mask)
+		     ;; Entry found.
+		     (let ((ex-value (svref node entry-idx))
+			   (ex-count (svref node (1+ entry-idx))))
+		       (if (not (equal?-cmp value ex-value compare-fn))
+			   (values node nil)
+			 (if (gen > ex-count count)
+			     ;; Decrease count.
+			     (let ((n (ch-map-node-update transient-id node (1+ entry-idx) (gen - ex-count count))))
+			       (setf (ch-map-node-bag-count n) (gen - (ch-map-node-bag-count n) count))
+			       (values n t))
+			   ;; Remove entry entirely.
+			   (if (and (= (logcount entry-mask) 1) (= 0 subnode-mask))
+			       (progn (assert (= depth 0))
+				      (values nil t))
+			     (let ((n (ch-map-node-remove-2 transient-id node entry-idx)))
+			       (logandc2f (ch-map-node-entry-mask n) (ash 1 hash-bits))
+			       (decf (ch-map-node-size n))
+			       (hash-unmixf (ch-bag-node-value-hash n) value-hash)
+			       (setf (ch-map-node-bag-count n)
+				     (gen - (ch-map-node-bag-count n) ex-count))
+			       (values n t))))))
+		   ;; No entry found: check for subnode.
+		   (let ((subnode-raw-idx (1-bits-below hash-bits subnode-mask))
+			 ((subnode-idx (- (the fixnum (length node)) 1 subnode-raw-idx))))
+		     (declare (fixnum subnode-raw-idx subnode-idx))
+		     (if (not (logbitp hash-bits subnode-mask))
+			 (values node nil)
+		       (let ((subnode (svref node subnode-idx))
+			     ((old-subnode-size (ch-bag-tree-size subnode))
+			      (old-subnode-hash (ch-bag-tree-value-hash subnode))
+			      (old-subnode-total-count (ch-bag-tree-total-count subnode))
+			      (new-subnode changed?
+				(rec subnode (ash hash-shifted (- champ-hash-bits-per-level)) (1+ depth)))))
+			 (if (not changed?)
+			     (values node nil)
+			   (let ((n (cond ((consp new-subnode)
+					   (ch-map-node-update transient-id node subnode-idx new-subnode))
+					  ((and (= 1 (logcount (ch-map-node-entry-mask new-subnode)))
+						(= 0 (ch-map-node-subnode-mask new-subnode)))
+					   ;; New subnode contains only a single entry: pull it up into this node.
+					   (let ((new-entry-idx
+						   (+ ch-map-node-header-size
+						      (* 2 (1-bits-below hash-bits entry-mask))))
+						 (v c (ch-map-node-entry new-subnode 0))
+						 ((n (ch-map-node-ins-2-rem-1 transient-id node new-entry-idx v c
+									      subnode-idx))))
+					     (logiorf (ch-map-node-entry-mask n) (ash 1 hash-bits))
+					     (logandc2f (ch-map-node-subnode-mask n) (ash 1 hash-bits))
+					     n))
+					  ((let ((only-subnode))
+					     (and (= 0 (ch-map-node-entry-mask new-subnode))
+						  (= 1 (logcount (ch-map-node-subnode-mask new-subnode)))
+						  (consp (setq only-subnode (ch-map-node-subnode new-subnode 0)))))
+					   ;; New subnode contains only a collision node: pull it up into this node.
+					   (ch-map-node-update transient-id node subnode-idx only-subnode))
+					  (t (ch-map-node-update transient-id node subnode-idx new-subnode)))))
+			     (incf (ch-map-node-size n)
+				   (- (ch-bag-tree-size new-subnode) old-subnode-size))
+			     (hash-mixf (ch-bag-node-value-hash n)
+					(hash-unmix (ch-bag-tree-value-hash new-subnode) old-subnode-hash))
+			     (setf (ch-map-node-bag-count n)
+				   (gen - (ch-map-node-bag-count n)
+					(gen - old-subnode-total-count
+					     (ch-bag-tree-total-count new-subnode))))
+			     (values n t))))))))))))))
+
+(defun ch-bag-tree-index-pair (tree index)
+  (declare (optimize (speed 1) (safety 0) (debug 3)))
+  (rlabels (rec tree index)
+    (rec (tree index)
+      (declare (fixnum index))
+      (if (consp tree)
+	  (wb-bag-tree-rank-pair (cdr tree) index)
+	(let ((len (length (the simple-vector tree)))
+	      (entry-mask (ch-map-node-entry-mask tree))
+	      ((n-entries (logcount entry-mask))))
+	  (if (< index n-entries)
+	      (let ((idx (+ ch-map-node-header-size (* 2 index))))
+		(values (svref tree idx) (svref tree (1+ idx))))
+	    (let ((subnode-mask (ch-map-node-subnode-mask tree)))
+	      (decf index n-entries)
+	      (dotimes (i (logcount subnode-mask))
+		(let ((subnode (svref tree (- len i 1)))
+		      ((subnode-size (ch-bag-tree-size subnode))))
+		  (when (< index subnode-size)
+		    (return (rec subnode index)))
+		  (decf index subnode-size))))))))))
+
+
+;;; --------------------------------
+;;; Iteration primitives
+
+(defmacro do-ch-bag-tree-pairs ((val-var count-var tree-form &optional value-form)
+				&body body)
+  (let ((body-fn (gensymx #:body-))
+	(recur-fn (gensymx #:recur-)))
+    `(block nil
+       (labels ((,body-fn (,val-var ,count-var)
+		  . ,body)
+		(,recur-fn (tree)
+		  (when tree
+		    (if (consp tree)
+			(do-wb-bag-tree-pairs (,val-var ,count-var (cdr tree))
+			  (,body-fn ,val-var ,count-var))
+		      (let ((len (the fixnum (length (the simple-vector tree)))))
+			(dotimes (i (logcount (ch-map-node-entry-mask tree)))
+			  (let ((idx (+ (* 2 i) ch-map-node-header-size)))
+			    (,body-fn (svref tree idx) (svref tree (1+ idx)))))
+			(dotimes (i (logcount (ch-map-node-subnode-mask tree)))
+			  (,recur-fn (svref tree (- len 1 i)))))))))
+	 (declare (inline ,body-fn))
+	 (,recur-fn ,tree-form))
+       ,value-form)))
+
+(defun ch-bag-tree-verify (tree hash-fn)
+  (declare (optimize (debug 3)))
+  (or (null tree)
+      (rlabels (rec tree 0 0)
+	(rec (node depth partial-hash)
+	  (macrolet ((test (form)
+		       `(or ,form
+			    (progn
+			      (cerror "Ignore and proceed."
+				      "Verification check failed at ~:A: ~S" (path depth partial-hash) ',form)
+			      t))))
+	    (let ((entry-mask (ch-map-node-entry-mask node))
+		  (subnode-mask (ch-map-node-subnode-mask node)))
+	      (and (test (= 0 (logand entry-mask subnode-mask)))
+		   (test (= 0 (ash entry-mask (- champ-node-radix))))
+		   (test (= 0 (ash subnode-mask (- champ-node-radix))))
+		   (test (>= (length node)
+			     (+ ch-map-node-header-size (* 2 (logcount entry-mask)) (logcount subnode-mask))))
+		   ;; Check that unless root, this node does not contain only an entry ...
+		   (test (not (and (> depth 0) (= 1 (logcount entry-mask)) (= 0 subnode-mask))))
+		   ;; ... or only a collision subnode
+		   (test (not (and (> depth 0) (= 0 entry-mask) (= 1 (logcount subnode-mask))
+				   (consp (svref node (1- (length node)))))))
+		   (let ((size (logcount entry-mask))
+			 (node-value-hash 0)
+			 (node-total-count 0))
+		     (and
+		       ;; Check entry value hashes
+		       (gmap :and (fn (entry-idx hash-bits)
+				    (let ((value (svref node (+ ch-map-node-header-size (* 2 entry-idx))))
+					  ((value-hash (hash-to-fixnum value hash-fn)))
+					  (count (svref node (+ ch-map-node-header-size (1+ (* 2 entry-idx))))))
+				      (hash-mixf node-value-hash value-hash)
+				      (setq node-total-count (gen + node-total-count count))
+				      (test (= (ldb (byte (* champ-hash-bits-per-level (1+ depth)) 0)
+						    value-hash)
+					       (new-partial-hash hash-bits depth partial-hash)))))
+			     (:arg index 0)
+			     (:arg list (bit-indices entry-mask)))
+		       ;; Verify subnodes
+		       (gmap :and (fn (subnode-idx hash-bits)
+				    (let ((subnode (svref node (- (length node) 1 subnode-idx))))
+				      (if (consp subnode)
+					  (let ((value-hash (hash-to-fixnum (wb-bag-tree-arb-pair (cdr subnode))
+									    hash-fn)))
+					    (test (> (wb-bag-tree-size (cdr subnode)) 1))
+					    (do-wb-bag-tree-pairs (v c (cdr subnode))
+					      (declare (ignore c))
+					      (let ((vh (hash-to-fixnum v hash-fn)))
+						(test (= vh value-hash))))
+					    (hash-mixf node-value-hash value-hash)
+					    (incf size (wb-bag-tree-size (cdr subnode)))
+					    (setq node-total-count
+						  (gen + node-total-count (wb-bag-tree-total-count (cdr subnode))))
+					    (test (= (car subnode) value-hash)))
+					(and (rec subnode (1+ depth) (new-partial-hash hash-bits depth partial-hash))
+					     (progn
+					       (incf size (ch-map-node-size subnode))
+					       (hash-mixf node-value-hash (ch-bag-node-value-hash subnode))
+					       (gen incf node-total-count (ch-map-node-bag-count subnode))
+					       t)))))
+			     (:arg index 0)
+			     (:arg list (bit-indices subnode-mask)))
+		       ;; Finally, check size, hash, and total count
+		       (test (= (ch-map-node-size node) size))
+		       (test (= (ch-bag-node-value-hash node) node-value-hash))
+		       (test (gen = (ch-map-node-bag-count node) node-total-count))))))))
+	(new-partial-hash (hash-bits depth partial-hash)
+	  (dpb hash-bits (byte champ-hash-bits-per-level (* champ-hash-bits-per-level depth))
+	       partial-hash))
+	(path (depth partial-hash)
+	  (let ((path nil))
+	    (dotimes (i depth)
+	      (push (ldb (byte champ-hash-bits-per-level (* i champ-hash-bits-per-level))
+			 partial-hash)
+		    path))
+	    (nreverse path))))))
+
+

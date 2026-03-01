@@ -339,6 +339,31 @@
 
 ;;; ----------------
 
+;;; Resurrect ZetaLisp's `defsubst', because even today, Allegro doesn't inline user functions.
+;;; Check the other impls too.
+;;; Note: the compiler macro isn't _exactly_ equivalent to inlining.  If the expansion references
+;;; a function that's locally shadowed, the reference will be captured; with an inline, it wouldn't
+;;; (or at least, shouldn't!).  Similarly, wrapping the `defsubst' in a `let' won't work either.
+(defmacro defsubst (name params &body body)
+  ;; These restrictions could be loosened with more work, but I think this will suffice for now.
+  (assert (every (fn (p) (and (symbolp p) (or (string= (symbol-name p) "")   ; lol, but we should check
+					      (not (eql (char (symbol-name p) 0) #\&)))))
+		 params))
+  `(progn
+     #-allegro
+     (declaim (inline ,name))   ; I think this needs to precede the `defun'
+     (defun ,name ,params . ,body)
+     #+allegro
+     (define-compiler-macro ,name ,params
+       ,(let ((vars (mapcar (fn (p) (gensym (concatenate 'string (symbol-name p) "-"))) params)))
+	  ;; This one really exercised my backquote-fu.  There might be a way to get rid of that
+	  ;; explicit `list', but I haven't found it.
+	  ``(let ,(list ,@(mapcar (fn (v p) ``(,',v ,,p)) vars params))
+	      (symbol-macrolet ,',(mapcar (fn (p v) `(,p ,v)) params vars)
+		. ,',body))))))
+
+;;; ----------------
+
 #-lispworks
 (declaim (inline base-char-p))
 #-lispworks
