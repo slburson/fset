@@ -75,7 +75,8 @@
 	   #:lastcons #:head #:tail
 	   #:with-first #:less-first #:push-first #:pop-first
 	   #:with-last #:less-last #:push-last #:pop-last #:appendf #:prependf #:insertf #:splicef
-	   #:insert #:splice #:subseq #:concat #:reverse #:sort #:stable-sort #:sort-and-group
+	   #:inserted #:insert #:spliced #:splice #:subseq #:concat #:reverse
+	   #:sort #:stable-sort #:sort-and-group
 	   #:find #:find-if #:find-if-not
 	   #:count #:count-if #:count-if-not
 	   #:position #:position-if #:position-if-not
@@ -228,7 +229,8 @@
 	   #:lastcons #:head #:tail
 	   #:with-first #:less-first #:push-first #:pop-first
 	   #:with-last #:less-last #:push-last #:pop-last #:appendf #:prependf #:insertf #:splicef
-	   #:insert #:splice #:subseq #:concat #:reverse #:sort #:stable-sort #:sort-and-group
+	   #:inserted #:insert #:spliced #:splice #:subseq #:concat #:reverse
+	   #:sort #:stable-sort #:sort-and-group
 	   #:find #:find-if #:find-if-not
 	   #:count #:count-if #:count-if-not
 	   #:position #:position-if #:position-if-not

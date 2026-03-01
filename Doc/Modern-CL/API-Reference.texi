@@ -1,0 +1,889 @@
+@node FSet API Reference
+@chapter FSet API Reference
+
+@c &&& I haven't mentioned compatibility methods for lists.  Should they go in here, or somewhere else?
+
+This chapter documents the FSet 2 API.  All symbols should be accessed via package @code{fset2}.
+
+All FSet classes are structure classes.  Each has a predicate, whose name is that of the class
+followed by a question mark, e.g., @code{set?}.
+
+Most FSet abstract types have two implementations (with a possibility of more in the future).  There
+are generic constructor functions and macros, which do not specify an implementation, and do not
+accept custom comparison or hashing functions; they are recommended for situations in which these
+details are unimportant.  Implementation-specific constructors are also provided that do accept
+these customizations.
+
+In most cases, operations that require a single collection take it as the first argument.  (CL is
+itself inconsistent about this; the collection is more commonly the second argument
+(e.g. @code{member}, @code{assoc}), but then there's @code{aref}.)  The exceptions are the
+higher-order operators @code{image} (or @code{map-image}), @code{filter}, and @code{reduce}, which
+all take the function to call first, to be consistent with one another and with CL's @code{mapcar},
+@code{remove-if-not}, and @code{reduce} respectively; and most of the shadowed CL sequence
+operations --- @code{find} @href{Shadowed CL sequence operations, etc.} (obviously, I couldn't
+change the argument orders of these, if the shadowed versions are to be compatible).
+
+This chapter uses the notation [@i{a} .. @i{b}) for an integer interval inclusive of @i{a} and
+exclusive of @i{b}.
+
+@deftp {Data type} collection
+The root class of the FSet functional collections hierarchy.
+@end deftp
+
+@c ================================================================================
+@node Notes on Time Complexity
+@section Notes on Time Complexity
+
+Most lookup operations, and most ``point update'' operations (which update a single element or
+pair), have O(log @i{n}) time complexity.  In these cases, @i{n} refers to the size of the
+collection.
+
+FSet has several operations, such as @code{union} on sets, that combine two collections.  These
+operations are normally O(@i{n}), but there are two exceptions.  On one hand, if the collections are
+not of the same type and organization, more generic methods are invoked that are O(@i{n} log @i{n}).
+On the other, under some circumstances they can take O(log @i{n}) time.  The latter occurs if they
+are @dfn{historically related}: one is the result of making a small number of point updates on the
+6other, or they are both the result of making such updates on a common ancestor.  Under such
+circumstances, their internal trees will be largely shared; the implementations detect and exploit
+this sharing to elide most of the work.
+
+Also, even when these operations do take O(@i{n}) time, there's the question of exactly what @i{n}
+corresponds to.  For many of these operations, in the worst case, it's the sum of the two sizes, but
+in typical cases it's often closer to the minimum of the two.  For some operations, notably
+intersection (including map and bag intersection and bag product), it's the minimum even in the
+worst case.  For asymmetrical operations like set-difference, it's the size of the left operand.
+
+Since seqs are implemented as WB-trees, indexing takes O(log @i{n}) time.  This seems to contrast
+poorly with the O(1) time you would get with a Lisp vector.  However, it applies only when you're
+doing true random access into the seq, which is a relatively rare case in practice.  More common is
+to iterate over the seq or a subrange of it; using @href{Macro do-seq, @code{do-seq}} or the
+@href{Stateful Iterators, stateful} or @href{Functional Iterators, functional iterators}, there is a
+logarithmic setup time, but after that the iteration takes amortized constant time per element.
+
+@c ================================================================================
+@node Sets
+@section Sets
+
+A set is an unordered collection of values without duplicates, called its elements or members, with
+efficient operations to add or remove a value and to test whether the set contains a value.  Adding
+a value to a set that already contains it, or removing one from a set that does not contain it,
+results in the same set.
+
+Although sets are conceptually unordered, FSet imposes an order for its own purposes.  The WB
+implementation allows you to @href{Custom Comparison and Hash Functions, control} this ordering.
+
+The default implementation of sets is currently CHAMP (@code{ch-set}).  The WB implementation
+(@code{wb-set}) is also available.
+
+@deftp {Data type} set
+The abstract class for FSet functional sets.
+@end deftp
+
+@defun empty-set
+Constructor function.  Returns an empty set of the default implementation.
+@end defun
+
+@defmac set @r{&rest} subforms
+Constructor macro.  Constructs a set of the default implementation according to the supplied
+argument subforms.  Each argument subform can be an expression, whose value will be an element of
+the result set; or a list of the form @code{($ @var{expression})}, in which case the expression must
+evaluate to a set, all of whose elements become elements of the result set.
+@end defmac
+
+@deftp {Data type} ch-set
+Functional sets implemented using CHAMP trees.  These print as:
+
+@example
+##@{ @i{e0} @i{e1} ... @}[@i{compare-fn}]
+@end example
+
+The comparison function is printed only if it is not @code{compare}.
+@end deftp
+
+@deftp {Data type} wb-set
+Functional sets implemented using WB-trees.  These print as:
+
+@example
+#@{ @i{e0} @i{e1} ... @}[@i{compare-fn}]
+@end example
+
+The comparison function is printed only if it is not @code{compare}.
+@end deftp
+
+@defun empty-ch-set @r{&key} compare-fn-name
+@defunx empty-wb-set @r{&key} compare-fn-name
+Constructor function.  Returns an empty wb-set.  By default, it will be ordered by @code{compare}.
+To use a custom ordering, supply the comparison function name (a symbol) as @code{compare-fn-name};
+for @code{ch-set}, a hash function must have been defined for it using @href{define-hash-function,
+@code{define-hash-function}}.
+@end defun
+
+@defmac ch-set @r{&rest} subforms
+@defmacx wb-set @r{&rest} subforms
+Constructor macro.  Constructs a @code{ch-set} or @code{wb-set} according to the supplied argument
+subforms.  Each argument subform can be an expression, whose value will be an element of the result
+set; or a list of the form @code{($ @var{expression})}, in which case the expression must evaluate
+to a set, all of whose elements become elements of the result set.
+@end defmac
+
+@defmac ch-custom-set compare-fn-name @r{&rest} subforms
+@defmacx wb-custom-set compare-fn-name @r{&rest} subforms
+Constructor macro.  Constructs a @code{ch-set} or @code{wb-set} with a custom organization,
+according to the supplied argument subforms.  @code{compare-fn-name} must be a symbol naming the
+desired comparison function; for @code{ch-custom-set}, a hash function must have been defined for it
+using @href{define-hash-function, @code{define-hash-function}}.  Each of @code{args} can be an
+expression, whose value will be an element of the result set; or a list of the form @code{($
+@var{expression})}, in which case the expression must evaluate to a set, all of whose elements become
+elements of the result set.
+@end defmac
+
+@c --------------------------------------------------------------------------------
+@node Set Operations
+@subsection Set Operations
+
+@deffn Method  {empty? (set)} @ s
+Returns true iff the set is empty.  O(1).
+@end deffn
+
+@deffn Method {size (set)} @ s
+@deffnx Method {set-size (set)} @ s
+Returns the number of elements in the set.  O(1).
+@end deffn
+
+@deffn Method {arb (set)} @ s
+Returns an arbitrary element of the set.  Specifically, on a nonempty set, returns two values: an
+arbitrary element and true; on an empty set, returns two false values.  Please note that
+``arbitrary'' does not mean ``randomly selected''; it simply means that the sole postcondition is
+that the returned value is an element of the set --- FSet can pick any convenient element.  O(1).
+@end deffn
+
+@deffn Method {contains? (set t)} @ s x
+Returns true iff @var{x} is an element of @var{s}.  O(log @i{n}).
+@end deffn
+
+@deffn Method {lookup (set t)} @ s x
+If @var{s} contains an element equal to @var{x}, according to its comparison function, returns two
+values, true and the element found; else false and @code{nil}.  (This is useful for canonicalizing
+instances.)  O(log @i{n}).
+@end deffn
+
+@deffn Method {with (set t)} @ s x
+Returns a set, of the same class and organization as @var{s}, that contains all elements of @var{s}
+and also @var{x}.  If @var{s} already contained a value equal to @var{x}, according to its
+comparison function, returns @var{s} itself.  (This is so you can find out whether the element was
+added simply by calling @code{eq} on @var{s} and the result.)
+
+@defmac includef place x
+A @href{Quasi-Mutating Operators, modify macro} that expands to @code{with}.  If @var{place} holds a
+set, updates it so the set now contains @var{x}.
+@end defmac
+@end deffn
+
+@deffn Method {less (set t)} @ s x
+Returns a set, of the same class and organization as @var{s}, that contains all elements of @var{s}
+except @var{x}.  If @var{s} did not contain a value equal to @var{x}, according to its comparison
+function, returns @var{s} itself.  (This is so you can find out whether the element was removed
+simply by calling @code{eq} on @var{s} and the result.)
+
+@defmac excludef place x
+A @href{Quasi-Mutating Operators, modify macro} that expands to @code{less}.  If @var{place} holds a
+set, updates it so the set does not contain @var{x}.
+@end defmac
+@end deffn
+
+@deffn Method {index (set t)} @ s x
+If @var{s} contains @var{x}, returns the index of @var{x} within the ordering of @var{s}; otherwise
+@code{nil}.  O(log @i{n}).
+@end deffn
+
+@deffn Method {at-index (set fixnum)} @ s idx
+Returns the element at index @var{idx} within the ordering of @var{s}.  (On a @code{wb-set}, this is
+the same as @code{at-rank}.)  @var{rank} must be in [0 .. size(s)); otherwise, signals an error of
+type @code{simple-type-error}.  O(log @i{n}).
+@end deffn
+
+@anchor{union}
+@deffn Method {union (set set)} @ s1 s2 @r{&key}
+Returns a set of the same type and organization as @var{s1}, that contains all elements that are in
+either @var{s1} or @var{s2}.  Implements @href{Left Preference, left preference}: for any pair of
+equal objects in the two sets, the result contains the instance that was in @var{s1}.  @href{Notes
+on Time Complexity, Normally O(@i{n})}.
+@end deffn
+
+@anchor{intersection}
+@deffn Method {intersection (set set)} @ s1 s2 @r{&key}
+Returns a set of the same type and organization as @var{s1}, that contains all elements that are in
+both @var{s1} and @var{s2}.  Implements @href{Left Preference, left preference}: for any pair of
+equal objects in the two sets, the result contains the instance that was in @var{s1}.  @href{Notes
+on Time Complexity, Normally O(@i{n})}.
+@end deffn
+
+@deffn Method {set-difference (set set)} @ s1 s2
+Returns a set of the same type and organization as @var{s1}, that contains all elements that are in
+@var{s1} and not in @var{s2}.  @href{Notes on Time Complexity, Normally O(@i{n})}.
+@end deffn
+
+@deffn Method {set-difference-2 (set set)} @ s1 s2
+Returns, as two values: () a set of the same type and organization as @var{s1}, that contains all
+elements that are in @var{s1} and not in @var{s2}, and () a set of the same type and organization as
+@var{s2}, that contains all elements that are in @var{s2} and not in @var{s1}.  @href{Notes on Time
+Complexity, Normally O(@i{n})}.
+@end deffn
+
+@deffn Method {subset? (set set)} @ s1 s2
+Returns true iff every element of @var{s1} is also in @var{s2}.  @href{Notes on Time Complexity,
+Normally O(@i{n})}.
+@end deffn
+
+@defun proper-subset? set1 set2
+Returns true iff every element of @var{s1} is also in @var{s2}, and @var{s1} is smaller than
+@var{s2}.  @href{Notes on Time Complexity, Normally O(@i{n})}.
+@end defun
+
+@deffn Method {disjoint? (set set)} @ s1 s2
+Returns true iff @var{s1} and @var{s2} have no elements in common.  @href{Notes on Time Complexity,
+Normally O(@i{n})}.
+@end deffn
+
+@anchor{Macro do-set}
+@defmac do-set @r{(@var{var} @var{set} &optional @var{value}) &body} body
+For each element of @var{set}, binds @var{var} to it and executes @var{body}.  When done,
+returns @var{value} if supplied, otherwise @code{nil}.
+@end defmac
+
+@anchor{iterator (set)}
+@deffn Method {iterator (set)} @ s @r{&key}
+Returns a @href{Stateful Iterators, stateful iterator} over the set.
+@end deffn
+
+@anchor{fun-iterator (set)}
+@deffn Method {fun-iterator (set)} @ s @r{&key}
+Returns a @href{Functional Iterators, functional iterator} over the set.
+@end deffn
+
+@deffn Method {filter (function set)} @ pred s
+@deffnx Method {filter (symbol set)} @ pred s
+@deffnx Method {filter (map set)} @ pred s
+@c Document (set set) and (bag set) too?
+Returns a new set, of the same type and organization as @var{s}, containing only those elements that
+satisfy @var{pred}.  @var{pred} must be a function, an fbound symbol, or a boolean-valued map.
+O(@i{n} ⋅ tc(@var{pred})) + O(@i{r} log @i{r}), where tc(@var{pred}) is the time complexity of
+@var{pred} and @i{r} is the size of the result.
+@end deffn
+
+@deffn Method {partition (function set)} @ pred s
+@deffnx Method {partition (symbol set)} @ pred s
+@deffnx Method {partition (map set)} @ pred s
+Equivalent to @code{(values (filter pred s) (filter (complement pred) s))} when @var{pred} is a
+function.  Returns two values: first, a new set, of the same type and organization as @var{s},
+containing only those elements that satisfy @var{pred}; second, a similar set containing only those
+elements that do @emph{not} satisfy @var{pred}.  @var{pred} must be a function, an fbound symbol, or
+a boolean-valued map.  O(@i{n} ⋅ tc(@var{pred})) + O(@i{r} log @i{r}), where tc(@var{pred}) is the
+time complexity of @var{pred} and @i{r} is the size of the result.
+@end deffn
+
+@deffn Method {image (function set)} @ fn s @r{&key} compare-fn-name
+@deffnx Method {image (symbol set)} @ fn s @r{&key} compare-fn-name
+@deffnx Method {image (map set)} @ fn s @r{&key} compare-fn-name
+Returns a set containing the values of @var{fn} applied to all the elements of @var{s}.  Since the
+result is a set, its elements will not necessarily correspond one-to-one to those of @var{s}; it
+will impose its own ordering, and will be smaller than @var{s} if @var{fn} returns the same value on
+two or more elements of @var{s}.  The result will be of the same type as @var{s}.
+@var{compare-fn-name}, if supplied, will control its organization; otherwise, that will also be the
+same as for @var{s}.  @var{fn} must be a function, an fbound symbol, or a map.  O(@i{n} ⋅
+tc(@var{fn})) + O(@i{r} log @i{r}), where tc(@var{fn}) is the time complexity of @var{fn} and @i{r}
+is the size of the result.
+
+@defmac imagef place fn
+A @href{Quasi-Mutating Operators, modify macro} that expands to @code{image}.  If @var{place} holds a
+set, updates it so the place now contains the image of the set under @var{fn}.
+@end defmac
+@end deffn
+
+@deffn Method {reduce (function set)} @ fn s @r{&key} key @r{(@var{initial-value} nil)}
+@deffnx Method {reduce (function set)} @ fn s @r{&key} key @r{(@var{initial-value} nil)}
+Calls @var{fn} repeatedly with two arguments, a state variable and the next element of @var{s},
+storing the result of each call back into the state variable, and finally returning that value.  If
+@var{initial-value} is supplied, it is used as the initial value of the state variable.  Otherwise:
+if @var{s} is of size 2 or larger, the initial value is computed by calling @var{fn} on the first
+two elements, then proceeding with the third; if @var{s} is a singleton, the result is its sole
+element; if @var{s} is empty, the result is obtained by calling @var{fn} with no arguments.  (Time
+complexity depends on the behavior of @var{fn}.)
+@end deffn
+
+@deffn Method {find (t set)} @ item s @r{&key} key test
+Scans linearly through @var{s} to find an element that matches @var{item} according to @var{key} and
+@var{test}.  For each element of @var{s}, @var{key}, a function that defaults to the identity
+function, is called on it, and then @var{test} is called on @var{item} and the result; if it returns
+true, @code{find} returns the element.  If no match is found, @code{find} returns @code{nil}.
+@var{test} defaults to @code{equal?}, not @code{eql}.
+
+Normally O(@i{n}), but as a special case, if @var{test} is @code{equal?}, @var{key} is not supplied,
+and the set's comparison function is @code{compare}, this does an O(log @i{n}) lookup.
+@end deffn
+
+@deffn Method {find-if (t set)} @ pred s @r{&key} key
+Scans linearly through @var{s} to find an element for which the result of calling @var{key} on it
+satisfies @var{pred}.  @var{key} and @var{pred} must be functions or fbound symbols.  @var{key}
+defaults to the identity function.  Returns the element found, or @code{nil} if none.
+@end deffn
+
+@deffn Method {find-if-not (t set)} @ pred s @r{&key} key
+Scans linearly through @var{s} to find an element for which the result of calling @var{key} on it
+does not satisfy @var{pred}.  @var{key} and @var{pred} must be functions or fbound symbols.
+@var{key} defaults to the identity function.  Returns the element found, or @code{nil} if none.
+@end deffn
+
+@deffn Method {count (t set)} @ item s @r{&key} key test
+Scans linearly through @var{s}, counting the number of elements that match @var{item} according to
+@var{key} and @var{test}.  For each element of @var{s}, @var{key} is called on it, and then
+@var{test} is called on @var{item} and the result; if it returns true, the element is counted.
+Returns the count.  @var{key} and @var{test} must be functions or fbound symbols.  @var{key} defaults
+to the identity function; @var{test} defaults to @code{equal?}, not @code{eql}.
+
+Normally O(@i{n}), but as a special case, if @var{test} is @code{equal?}, @var{key} is not supplied,
+and the set's comparison function is @code{compare}, this does an O(log @i{n}) lookup to return 1 or
+0.
+@end deffn
+
+@deffn Method {count-if (t set)} @ pred s @r{&key} key
+Scans linearly through @var{s} to count the elements for which the result of calling @var{key} on
+them satisfies @var{pred}.  Returns the count.  @var{pred} and @var{key} must be functions or fbound
+symbols.  @var{key} defaults to the identity function.
+@end deffn
+
+@deffn Method {count-if-not (t set)} @ pred s @r{&key} key
+Scans linearly through @var{s} to count the elements for which the result of calling @var{key} on
+them does not satisfy @var{pred}.  Returns the count.  @var{pred} and @var{key} must be functions or
+fbound symbols.  @var{key} defaults to the identity function.
+@end deffn
+
+
+@c --------------------------------------------------------------------------------
+@node WB-Set Operations
+@subsection WB-Set Operations
+
+These operations make use of the ordering of the set, as determined by its comparison function.
+They are not defined on CHAMP sets.
+
+@deffn Method {rank (wb-set t)} @ s x
+[@code{wb-set} only.]  If @var{s} contains @var{x}, returns the rank of @var{x} in the ordering
+defined by the comparison function of @var{s}, and a true second value. If @var{x} is not in the set,
+the second value is false, and the first value is the rank that @var{x} would have if it were added.
+Note that if there are values that are unequal but equivalent to @var{x}, an arbitrary order will be
+imposed on them for this purpose; but another collection that is @code{equal?} but not @code{eq} to
+this one will in general order them differently.  O(log @i{n}).
+@end deffn
+
+@deffn Method {at-rank (wb-set fixnum)} @ s rank
+[@code{wb-set} only.]  Returns the element whose rank is @var{rank}.  @var{rank} must be in [0
+.. size(@var{m})).  Note that if there are values that are unequal but equivalent in @var{s}, an
+arbitrary order will be imposed on them for this purpose; but another collection that is
+@code{equal?} but not @code{eq} to this one will in general order them differently.  O(log @i{n}).
+@end deffn
+
+@deffn Method {least (wb-set)} @ s
+[@code{wb-set} only.]  If @var{s} is nonempty, returns the element at rank 0 and a true second
+value; otherwise, @code{nil} and false.
+@end deffn
+
+@deffn Method {greatest (wb-set)} @ s
+[@code{wb-set} only.]  If @var{s} is nonempty, returns the element with the largest rank and a true
+second value; otherwise, @code{nil} and false.
+@end deffn
+
+@deffn Method {split-from (wb-set t)} @ s x
+[@code{wb-set} only.]  Returns the subset of @var{s} with elements greater than or equal to @var{x}.
+O(log @i{n}).
+@end deffn
+
+@deffn Method {split-above (wb-set t)} @ s x
+[@code{wb-set} only.]  Returns the subset of @var{s} with elements strictly greater than @var{x}.
+O(log @i{n}) in general; O(1) if @var{x} is the result of @code{(arb @var{s})}.
+@end deffn
+
+@deffn Method {split-through (wb-set t)} @ s x
+[@code{wb-set} only.]  Returns the subset of @var{s} with elements less than or equal to @var{x}.
+O(log @i{n}).
+@end deffn
+
+@deffn Method {split-below (wb-set t)} @ s x
+[@code{wb-set} only.]  Returns the subset of @var{s} with elements strictly less than @var{x}.
+O(log @i{n}) in general; O(1) if @var{x} is the result of @code{(arb @var{s})}.
+@end deffn
+
+
+@c ================================================================================
+@node Maps
+@section Maps
+
+A map is an unordered collection of keys without duplicates, each key having an associated value;
+with efficient operations to add a key/value pair, remove a key with its value, and to retrieve the
+value for a key.  Adding a key/value pair to a map that already contains it, or removing a key from
+a map that does not contain it, result in the same map.
+
+Although maps are conceptually unordered, FSet imposes an order for its own purposes.  The WB
+implementation allows you to @href{Custom Comparison and Hash Functions, control} this ordering.
+
+The default implementation of maps is currently CHAMP (@code{ch-map}).  The WB implementation
+(@code{wb-map}) is also available.
+
+@deftp {Data type} map
+The abstract class for FSet functional maps.
+@end deftp
+
+@defun empty-map @r{&key} @r{(@var{default} nil)} no-default?
+Constructor function.  Returns an empty map of the default implementation.  If @var{default} is
+supplied, that will be the map's @href{Map and Seq Defaults, default}; if @var{no-default?} is true,
+the map will have no default.
+@end defun
+
+@defmac map @r{&rest} subforms
+Constructor macro.  Constructs a map of the default implementation according to the supplied
+argument subforms.  Each argument subform can be a list of the form @code{(@var{key-expr}
+@var{value-expr})}, denoting a mapping from the value of @var{key-expr} to the value of
+@var{value-expr}; or a list of the form @code{($ @var{expression})}, in which case the expression
+must evaluate to a map, denoting all its mappings; or the symbol @code{:default}, followed by a
+form; or the symbol @code{:no-default}.  If @code{:default} is supplied, the map's @href{Map and Seq
+Defaults, default} is the value of the subsequent form; if @code{:no-default} is supplied, the map
+has no default; if neither, the map's default is @code{nil}.
+
+As a convenience, if a subform is @code{($ @var{expression})} and the expression evaluates to
+@code{nil}, it will be treated as an empty map.  The result is constructed from the denoted mappings
+in left-to-right order; so if a given key is supplied by more than one argument subform, its
+associated value will be given by the rightmost such subform.
+@end defmac
+
+@deftp {Data type} ch-map
+Functional maps implemented using CHAMP trees.  These print as:
+
+@example
+##@{| (@i{k0 v0}) (@i{k1 v1}) ... @}[@i{key-compare-fn};@i{val-compare-fn}]
+@end example
+
+The comparison functions are printed only if they are not @code{compare}.
+@end deftp
+
+@deftp {Data type} wb-map
+Functional maps implemented using WB-trees.  These print as:
+
+@example
+#@{| (@i{k0 v0}) (@i{k1 v1}) ... @}[@i{key-compare-fn};@i{val-compare-fn}]
+@end example
+
+The comparison functions are printed only if they are not @code{compare}.
+@end deftp
+
+@defmac ch-map @r{&rest} subforms
+@defmacx wb-map @r{&rest} subforms
+Constructor macro.  Constructs a @code{ch-map} or @code{wb-map} according to the supplied argument
+subforms.  Each argument subform can be a list of the form @code{(@var{key-expr} @var{value-expr})},
+denoting a mapping from the value of @var{key-expr} to the value of @var{value-expr}; or a list of
+the form @code{($ @var{expression})}, in which case the expression must evaluate to a map, denoting
+all its mappings; or the symbol @code{:default}, followed by a form; or the symbol
+@code{:no-default}.  If @code{:default} is supplied, the map's @href{Map and Seq Defaults, default}
+is the value of the subsequent form; if @code{:no-default} is supplied, the map has no default; if
+neither, the map's default is @code{nil}.
+
+As a convenience, if a subform is @code{($ @var{expression})} and the expression evaluates to
+@code{nil}, it will be treated as an empty map.  The result is constructed from the denoted mappings
+in left-to-right order; so if a given key is supplied by more than one argument subform, its
+associated value will be given by the rightmost such subform.
+@end defmac
+
+@defmac ch-custom-map key-compare-fn-name val-compare-fn-name @r{&rest} subforms
+@defmacx wb-custom-map key-compare-fn-name val-compare-fn-name @r{&rest} subforms
+Constructor macro.  Constructs a @code{ch-map} or @code{wb-map} with a custom organization according
+to the supplied argument subforms.  @var{key-compare-fn-name} and @var{val-compare-fn-name} must be
+symbols naming the comparison functions to be used for keys and values respectively (you can use
+@code{nil} as a synonym of @code{compare}).  For @code{ch-custom-map}, a hash function must have
+been defined for it using @href{define-hash-function, @code{define-hash-function}}.  (The value
+comparison is used for detecting redundant @code{with} operations, and a few other things, such as
+@code{range} and @code{map-difference-2}.)
+
+Each argument subform can be a list of the form @code{(@var{key-expr} @var{value-expr})}, denoting a
+mapping from the value of @var{key-expr} to the value of @var{value-expr}; or a list of the form
+@code{($ @var{expression})}, in which case the expression must evaluate to a map, denoting all its
+mappings; or the symbol @code{:default}, followed by a form; or the symbol @code{:no-default}.  If
+@code{:default} is supplied, the map's @href{Map and Seq Defaults, default} is the value of the
+subsequent form; if @code{:no-default} is supplied, the map has no default; if neither, the map's
+default is @code{nil}.
+
+As a convenience, if a subform is @code{($ @var{expression})} and the expression evaluates to
+@code{nil}, it will be treated as an empty map.  The result is constructed from the denoted mappings
+in left-to-right order; so if a given key is supplied by more than one argument subform, its
+associated value will be given by the rightmost such subform.
+@end defmac
+
+@c --------------------------------------------------------------------------------
+@node Map Operations
+@subsection Map Operations
+
+@deffn Method  {empty? (map)} @ m
+Returns true iff the map is empty.  O(1).
+@end deffn
+
+@deffn Method {size (map)} @ m
+Returns the number of key-value pairs in the map.  O(1).
+@end deffn
+
+@deffn Method {arb (map)} @ m
+Returns an arbitrary pair of the map.  Specifically, on a nonempty map, returns three values: an
+arbitrary key, its associated value, and true; on an empty map, returns three false values.  Please
+note that ``arbitrary'' does not mean ``randomly selected''; it simply means that the sole
+postcondition is that the map contains the pair returned --- FSet can pick any convenient pair.
+O(1).
+@end deffn
+
+@deffn Method {contains? (map t)} @ m k @r{&optional} v
+If @var{v} is not supplied, returns true iff the domain of @var{m} contains @var{k}.  If @var{v} is
+supplied, returns true iff @var{m} maps @var{k} to @var{v}.  O(log @i{n}).
+@end deffn
+
+@deffn Method {domain-contains? (map t)} @ m k
+Returns true iff the domain of @var{m} contains @var{k}.  (This is now redundant with two-argument
+@code{contains?}, and is mildly deprecated.  For most of FSet's history, @code{contains?} on a map
+required three arguments; so it was all but useless, and you had to use @code{domain-contains?}
+instead.  Fortunately, I finally came to my senses and fixed @code{contains?} to accept two
+arguments.)  O(log @i{n}).
+@end deffn
+
+@deffn Method {range-contains? (map t)} @ m v
+Returns true iff the range of @var{m} contains @var{v}, that is, if any key is mapped to @var{v}.
+O(@i{n}).
+@end deffn
+
+@deffn Method {lookup (map t)} @ m k
+If @var{m} contains a key equal to @var{k}, according to its key comparison function, returns three
+values: the corresponding value, true, and the key found; otherwise, the map's @href{Map and Seq
+Defaults, default}, false, and @code{nil}.  If the key is not found and the map has no default,
+signals an error of type @code{map-domain-error}.  O(log @i{n}).
+@end deffn
+
+@deffn Method {with (map t)} @ m k v
+Returns a map, of the same class and organization as @var{m}, that contains all pairs of @var{m}
+whose key is not equal to @var{k} (according to its key comparison function), and also maps @var{k}
+to @var{v}.  If @var{m} already contained a key equal to @var{k}, and the corresponding value is
+equal to @var{v} according to its value comparison function, returns @var{m} itself.  (This is so
+you can find out whether the pair was added or updated simply by calling @code{eq} on @var{m} and
+the result.)
+
+@defmac includef place k v
+A @href{Quasi-Mutating Operators, modify macro} that expands to @code{with}.  If @var{place} holds a
+map, updates it so the map now maps @var{k} to @var{v}.
+@end defmac
+@end deffn
+
+@deffn Method {less (map t)} @ m k
+Returns a map, of the same class and organization as @var{m}, that contains all pairs of @var{m}
+whose key is not equal to @var{k}.  If @var{m} did not contain a key equal to @var{k}, according to
+its comparison function, returns @var{m} itself.  (This is so you can find out whether the pair was
+removed simply by calling @code{eq} on @var{} and the result.)
+
+@defmac excludef place k
+A @href{Quasi-Mutating Operators, modify macro} that expands to @code{less}.  If @var{place} holds a
+map, updates it so the set does not contain a key @var{k}.
+@end defmac
+@end deffn
+
+@deffn Method {index (map t)} @ m k
+If @var{m} contains key @var{k}, returns the index of @var{k} within the ordering of @var{m}; otherwise
+@code{nil}.  O(log @i{n}).
+@end deffn
+
+@deffn Method {at-index (map fixnum)} @ m idx
+Returns the pair at index @var{idx} within the ordering of @var{m}.  (On a @code{wb-m}, this is
+the same as @code{at-rank}.)  @var{rank} must be in [0 .. size(s)); otherwise, signals an error of
+type @code{simple-type-error}.  O(log @i{n}).
+@end deffn
+
+@deffn Method {domain (map)} @ m
+Returns the domain (set of keys) of @var{m}, as a set of the same implementation (WB or CHAMP), and
+using @var{m}'s key ordering as its ordering.  O(@i{n}), but with a relatively small constant
+factor.
+@end deffn
+
+@deffn Method {range (map)} @ m
+Returns the range of @var{m} (the set of values to which any key is mapped), as a set of the same
+implementation (WB or CHAMP), and using @var{m}'s value ordering as its ordering.  O(@i{n} log
+@i{n}).
+@end deffn
+
+@anchor{map-union}
+@deffn Method {map-union (map map)} @ m1 m2 @r{&optional} val-fn
+Returns a map containing all the keys of @var{m1} and @var{m2}, where the value for each key
+contained in only one map is the value from that map, and the value for each key contained in both
+maps is the result of calling @var{val-fn} on the value from @var{m1} and the value from @var{m2}.
+@var{val-fn} defaults to simply returning its second argument, so the entries in @var{m2} simply
+shadow those in @var{m1}.  The @href{Map and Seq Defaults, default} for the new map is: if both maps
+have defaults, the result of calling @var{val-fn} on those defaults; if only one map has a default,
+that default; otherwise none.
+
+@code{map-union} assumes that @var{val-fn} is idempotent, i.e., if the two values passed to
+@var{val-fn} are equal, @var{val-fn} must return the same value; it often elides calls to @var{val-fn}
+on that basis.
+
+If @var{val-fn} returns the symbol @code{:no-value} as a second value, the result will contain no
+pair with the corresponding key.
+
+Implements @href{Left Preference, left preference}: for any pair of equal keys in the two maps, the
+result contains the instance that was in @var{m1}; the associated value, if the two values are
+equal, is also that in @var{m1}.
+
+@href{Notes on Time Complexity, Normally O(@i{n})}.
+@end deffn
+
+@anchor{map-intersection}
+@deffn Method {map-intersection (map map)} @ m1 m2 @r{&optional} val-fn
+Returns a map containing all the keys that are in the domains of both @var{m1} and @var{m2}, where
+the value for each key is the result of calling @var{val-fn} on the value from @var{m1} and the
+value from @var{m2}.  @var{val-fn} defaults to simply returning its second argument, so the entries
+in @var{m2} simply shadow those in @var{m1}.  The @href{Map and Seq Defaults, default} for the new
+map is the result of calling @var{val-fn} on the defaults for the two maps, if they both have
+defaults; else none.
+
+@code{map-intersection} assumes that @var{val-fn} is idempotent, i.e., if the two values passed to
+@var{val-fn} are equal, @var{val-fn} must return the same value; it often elides calls to @var{val-fn}
+on that basis.
+
+If @var{val-fn} returns @code{:no-value} as a second value, the result will contain no pair with the
+corresponding key.
+
+Implements @href{Left Preference, left preference}: for any pair of equal keys in the two maps, the
+result contains the instance that was in @var{m1}; the associated value, if the two values are
+equal, is also that in @var{m1}.
+
+@href{Notes on Time Complexity, Normally O(@i{n})}.
+@end deffn
+
+@deffn Method {map-difference-2 (map map)} @ m1 m2
+Returns, as two values: a map containing all the pairs that are in @var{m1} but not @var{m2}, and
+one containing all the pairs that are in @var{m2} but not @var{m1}.
+
+The default for each returned map is that of its corresponding argument, if it has a default, except
+if the defaults are equal, in which case neither returned map has a default.
+
+@href{Notes on Time Complexity, Normally O(@i{n})}.
+@end deffn
+
+@deffn Method {restrict (map set)} @ m s
+Returns a map containing only those pairs of @var{m} whose keys are also in @var{s}.
+@end deffn
+
+@deffn Method {restrict-not (map set)} @ m s
+Returns a map containing only those pairs of @var{m} whose keys are @emph{not} also in @var{s}.
+@end deffn
+
+@deffn Method {filter (function map)} @ pred m
+@deffnx Method {filter (symbol map)} @ pred m
+Returns a new map, of the same type and organization as @var{m}, containing only those pairs that
+satisfy @var{pred}.  @var{pred} may be specified as a function or an fbound symbol.  O(@i{n}
+⋅ tc(@var{pred})) + O(@i{r} log @i{r}), where tc(@var{pred}) is the time complexity of @var{pred}
+and @i{r} is the size of the result.
+@end deffn
+
+@deffn Method {map-image (function map)} @ f m @r{&key} key-compare-fn-name val-compare-fn-name default no-default?
+@deffnx Method {map-image (symbol map)} @ f m @r{&key} key-compare-fn-name val-compare-fn-name default no-default?
+Returns a map containing the result of applying @var{fn} to each pair of @var{m}.  That is, @var{fn}
+is called with both the domain and range values as arguments; it is expected to return two values,
+which become the new domain and range values.  @var{fn} may be specified as a function or an fbound
+symbol.  @var{key-compare-fn-name} and @var{val-compare-fn-name}, if supplied, control the
+organization of the result; the default for each is the corresponding property of @var{m}.  The
+default of the returned map is @code{nil} unless a different default is specified by @var{default},
+or @var{no-default?} is true.
+
+See also @code{compose}, below.
+
+@defmac map-imagef place fn
+A @href{Quasi-Mutating Operators, modify macro} that expands to @code{map-image}.  If @var{place}
+holds a map, updates it so the place now contains the image of the map under @var{fn}.
+@end defmac
+@end deffn
+
+@deffn Method {compose (map map)} @ m1 m2
+@deffnx Method {compose (map function)} @ m1 f2
+@deffnx Method {compose (map symbol)} @ m1 f2
+@deffnx Method {compose (map seq)} @ m1 s2
+Composes a map with another map, a function (possibly specified as an fbound symbol), or a seq
+(considered as a map from indices to elements).  That is, for each pair in @var{m1}, the result maps
+its key to the result of invoking @var{m2}, @var{f2}, or @var{s2} to its value.  If @var{m1} has a
+default, the value of invoking the second argument on that default becomes the default of the
+returned map.
+
+In the (map map) and (map seq) cases, takes O(@i{m} log @i{n}) time, where @i{m} is the size of
+@var{m1} and @i{n} is the size of @var{m2} or @var{s2}.  In the function cases, it obviously depends
+on the behavior of the function; it will be called @i{m} times.
+@end deffn
+
+@deffn Method {find (t map)} @ item m @r{&key} key test
+Scans linearly through the keys of @var{m} to find an element that matches @var{item} according to
+@var{key} and @var{test}.  For each element of @var{s}, @var{key}, a function that defaults to the
+identity function, is called on it, and then @var{test} is called on @var{item} and the result; if
+it returns true, @code{find} returns two values, the element and its associated value.  If no match
+is found, @code{find} returns two @code{nil} values.  @var{test} defaults to @code{equal?}, not
+@code{eql}.
+
+Normally O(@i{n}), but as a special case, if @var{test} is @code{equal?}, @var{key} is not supplied,
+and the map's key comparison function is @code{compare}, this does an O(log @i{n}) lookup.
+@end deffn
+
+@deffn Method {find-if (t map)} @ pred m @r{&key} key
+Scans linearly through the keys of @var{m} to find one for which the result of calling @var{key} on it
+satisfies @var{pred}.  @var{key} and @var{pred} must be functions or fbound symbols.  @var{key}
+defaults to the identity function.  Returns two values, the key found and its associated value, or
+two @code{nil} values if none.
+@end deffn
+
+@deffn Method {find-if-not (t map)} @ pred m @r{&key} key
+Scans linearly through the keys of @var{m} to find one for which the result of calling @var{key} on
+it does not satisfy @var{pred}.  @var{key} and @var{pred} must be functions or fbound symbols.
+@var{key} defaults to the identity function.  Returns two values, the key found and its associated
+value, or two @code{nil} values if none.
+@end deffn
+
+@deffn Method {count (t map)} @ item m @r{&key} key test
+Scans linearly through the keys of @var{m}, counting the number that match @var{item} according to
+@var{key} and @var{test}.  For each key of @var{m}, @var{key} is called on it, and then @var{test}
+is called on @var{item} and the result; if it returns true, the key is counted.  Returns the count.
+@var{key} and @var{test} must be functions or fbound symbols.  @var{key} defaults to the identity
+function; @var{test} defaults to @code{equal?}, not @code{eql}.
+
+Normally O(@i{n}), but as a special case, if @var{test} is @code{equal?}, @var{key} is not supplied,
+and the map's key comparison function is @code{compare}, this does an O(log @i{n}) lookup to return
+1 or 0.
+@end deffn
+
+@deffn Method {count-if (t map)} @ pred m @r{&key} key
+Scans linearly through the keys of @var{m} to count those for which the result of calling @var{key} on
+them satisfies @var{pred}.  Returns the count.  @var{pred} and @var{key} must be functions or fbound
+symbols.  @var{key} defaults to the identity function.
+@end deffn
+
+@deffn Method {count-if-not (t map)} @ pred m @r{&key} key
+Scans linearly through the keys of @var{m} to count those for which the result of calling @var{key} on
+them does not satisfy @var{pred}.  Returns the count.  @var{pred} and @var{key} must be functions or
+fbound symbols.  @var{key} defaults to the identity function.
+@end deffn
+
+@c --------------------------------------------------------------------------------
+@node WB-Map Operations
+@subsection WB-Map Operations
+
+These operations make use of the ordering of the map, as determined by its key comparison function.
+They are not defined on CHAMP maps.
+
+@deffn Method {rank (wb-map t)} @ m x
+[@code{wb-map} only.]  If @var{m} contains key @var{x}, returns the rank of @var{x} in the ordering
+defined by the key comparison function of @var{m}, and a true second value. If @var{x} is not in the
+map, the second value is false, and the first value is the rank that @var{x} would have if it were
+added.  Note that if there are keys that are unequal but equivalent to @var{x}, an arbitrary order
+will be imposed on them for this purpose; but another collection that is @code{equal?} but not
+@code{eq} to this one will in general order them differently.  O(log @i{n}).
+@end deffn
+
+@deffn Method {at-rank (wb-map fixnum)} @ m rank
+[@code{wb-map} only.]  Returns the pair whose rank is @var{rank}.  @var{rank} must be in [0
+.. size(@var{m})).  Note that if there are keys that are unequal but equivalent in @var{m}, an
+arbitrary order will be imposed on them for this purpose; but another collection that is
+@code{equal?} but not @code{eq} to this one will in general order them differently.  O(log @i{n}).
+@end deffn
+
+@deffn Method {least (wb-map)} @ m
+[@code{wb-map} only.]  If @var{m} is nonempty, returns the pair at rank 0 and a true third value;
+otherwise, @code{nil}, @code{nil}, and false.
+@end deffn
+
+@deffn Method {greatest (wb-map)} @ m
+[@code{wb-map} only.]  If @var{m} is nonempty, returns the pair with the largest rank and a true
+third value; otherwise, @code{nil}, @code{nil}, and false.
+@end deffn
+
+@deffn Method {split-from (wb-map t)} @ m x
+[@code{wb-map} only.]  Returns the submap of @var{m} with keys greater than or equal to @var{x}.
+O(log @i{n}).
+@end deffn
+
+@deffn Method {split-above (wb-map t)} @ m x
+[@code{wb-map} only.]  Returns the submap of @var{m} with keys strictly greater than @var{x}.
+O(log @i{n}) in general; O(1) if @var{x} is the first value of @code{(arb @var{m})}.
+@end deffn
+
+@deffn Method {split-through (wb-map t)} @ m x
+[@code{wb-map} only.]  Returns the submap of @var{m} with keys less than or equal to @var{x}.
+O(log @i{n}).
+@end deffn
+
+@deffn Method {split-below (wb-map t)} @ m x
+[@code{wb-map} only.]  Returns the submap of @var{m} with keys strictly less than @var{x}.
+O(log @i{n}) in general; O(1) if @var{x} is the result of @code{(arb @var{m})}.
+@end deffn
+
+
+@c ================================================================================
+@node Bags
+@section Bags
+
+@cindex Multiplicity
+A bag, also called a multiset, is an unordered collection of values that permits duplicates.  Each
+element of the bag has an associated @dfn{multiplicity} (sometimes called ``count''), which is a
+positive integer specifying the number of instances of the element in the bag.  As with a set, there
+are efficient operations to add a specified number of instances of value, to remove a specified
+number of instances, to test whether the bag contains a value, and to retrieve the multiplicity of a
+value.  Adding a value to a bag that already contains it adds the specified number of instances to
+its multiplicity; removing subtracts the number of instances removed, but once all instances are
+removed, further removals have no effect (multiplicities are never negative).
+
+Although bags are conceptually unordered, FSet imposes an order for its own purposes.  The WB
+implementation allows you to @href{Custom Comparison and Hash Functions, control} this ordering.
+
+@anchor{bag-union}
+@anchor{bag-intersection}
+@anchor{bag-sum}
+@anchor{bag-product}
+
+
+@c ================================================================================
+@node Seqs
+@section Seqs
+
+@anchor{Macro do-seq}
+
+
+
+@c ================================================================================
+@node Convenience Methods on CL Types
+@section Convenience Methods on CL Types
+
+@deffn Method {compose (function function)} @ f1 f2
+@deffnx Method {compose (function symbol)} @ f1 f2
+@deffnx Method {compose (symbol function)} @ f1 f2
+@deffnx Method {compose (symbol symbol)} @ f1 f2
+Returns the composition of @var{f1} with @var{f2}.  @code{multiple-value-call} is used to pass all
+values returned by @var{f1} as arguments to @var{f2}.
+@end deffn
+
+@c ================================================================================
+@node Error Types
+@section Error Types
+
+There are not many cases in which FSet signals an error; most operations that can fail return a
+success flag as an additional value instead.  But there are a few error cases.
+
+@deftp Condition lookup-error @r{(error)}
+An abstract superclass for errors signalled by @code{lookup} methods.
+@end deftp
+
+@deftp Condition map-domain-error @r{(lookup-error)} map key
+The condition signalled when @code{lookup} is called on a map and a key that is not in the map, and
+the map has no @href{Map and Seq Defaults, default}.
+@end deftp
+
+@deftp Condition seq-bounds-error @r{(lookup-error)} seq index
+The condition signalled when @code{lookup} is called on a seq and an index that is out of bounds for
+the seq, and the seq has no @href{Map and Seq Defaults, default}.
+@end deftp
+
+@deftp Condition empty-seq-error @r{(lookup-error)} seq
+The condition signalled when @code{first} or @code{last} is called on an empty seq, and the seq has
+no @href{Map and Seq Defaults, default}.
+@end deftp

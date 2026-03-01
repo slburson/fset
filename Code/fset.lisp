@@ -522,15 +522,15 @@ returned map has a default."))
 ;;; that (a) we can't call `fn' to get the new default because we don't have a domain
 ;;; value corresponding to the range value, and (b) `fn' can't be a map, set, or bag.
 ;;; `compose' is probably much more useful.
-(defgeneric map-image (fn collection
+(defgeneric map-image (fn map
 			&key key-compare-fn-name val-compare-fn-name
 			default no-default?)
   (:documentation
-    "Returns a new map containing the result of applying `fn' to each pair of
-`collection'.  That is, `fn' is called with both the domain and range values
-as arguments; it is expected to return two values, which become the new domain
-and range values.  The default of the returned map is `nil' unless a different
-default is specified by `:default', or `:no-default?' is true.
+    "Returns a map containing the result of applying `fn' to each pair of `map'.
+That is, `fn' is called with both the domain and range values as arguments;
+it is expected to return two values, which become the new domain and range
+values.  The default of the returned map is `nil' unless a different default
+is specified by `default', or `no-default?' is true.
 
 See also `compose', which may fit your needs better."))
 
@@ -628,9 +628,27 @@ element."))
   (:documentation
     "Returns a new sequence like `seq' but with `val' inserted at `idx' \(the seq
 is extended in either direction if needed prior to the insertion; previously
+uninitialized indices are filled with the seq's default\).
+
+[Deprecated; the name sounds too much like a mutating operation.  Use
+`inserted'.]"))
+
+(defgeneric inserted (seq idx val)
+  (:documentation
+    "Returns a new sequence like `seq' but with `val' inserted at `idx' \(the seq
+is extended in either direction if needed prior to the insertion; previously
 uninitialized indices are filled with the seq's default\)."))
 
 (defgeneric splice (seq idx subseq)
+  (:documentation
+    "Returns a new sequence like `seq' but with the elements of `subseq' inserted
+at `idx' \(the seq is extended in either direction if needed prior to the insertion;
+previously uninitialized indices are filled with the seq's default\).
+
+[Deprecated; the name sounds too much like a mutating operation.  Use
+`spliced'.]"))
+
+(defgeneric spliced (seq idx subseq)
   (:documentation
     "Returns a new sequence like `seq' but with the elements of `subseq' inserted
 at `idx' \(the seq is extended in either direction if needed prior to the insertion;
@@ -5307,6 +5325,10 @@ This is the default implementation of seqs in FSet."
 		 (seq-default s))))
 
 (define-wb-seq-method insert ((s wb-seq) idx val)
+  ;; Renamed -- "insert" sounds too much like a mutating operation.
+  (inserted s idx val))
+
+(define-wb-seq-method inserted ((s wb-seq) idx val)
   (let ((tree (wb-seq-contents s))
 	((size (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size tree))))
     (when (< idx 0)
@@ -5326,6 +5348,10 @@ This is the default implementation of seqs in FSet."
 		 (seq-default s))))
 
 (define-wb-seq-method splice ((s wb-seq) idx subseq)
+  ;; Renamed -- "splice" sounds too much like a mutating operation.
+  (spliced s idx subseq))
+
+(define-wb-seq-method spliced ((s wb-seq) idx subseq)
   (let ((tree (wb-seq-contents s))
 	((size (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size tree)))
 	(subseq-tree (wb-seq-contents (convert 'wb-seq subseq))))
@@ -6013,7 +6039,8 @@ different seq implementations; it is not for public use.  `vec-fn' and
 	     start1 end1 start2 end2))
     (flet ((apply-key (x)
 	     (muffle-notes  ; `split-cases' will cause unreachable code, as intended.
-	       (if key (funcall key x) x))))
+	       ;; `values' quiets SBCL/ARM64 note "Return type not fixed values".
+	       (if key (values (funcall key x)) x))))
       (if (or (<= end1 start1) (<= end2 start2))
 	      0
 	(if (not from-end)

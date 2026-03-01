@@ -20,9 +20,12 @@
 ;;; so `defmethod', `typep', etc. will work without package prefixes.
 (dolist (sym '(set map wb-map ch-map seq wb-seq replay-map wb-replay-map ch-replay-map))
   (let ((fset2-sym (intern (string sym) :fset2)))
-    (setf (find-class fset2-sym) (find-class sym))
-    ;; Needed in CCL for `typep' to work.
-    #+ccl (setf (ccl::info-type-kind fset2-sym) ':instance)))
+    ;; Calling `(setf find-class)' isn't sufficient, in CCL and LispWorks, to make `typep' work.
+    ;; This is arguably a bug, but the spec isn't clear.  Anyway, eval'ing `deftype' seems safe.
+    #+(or ccl lispworks)
+    (eval `(deftype ,fset2-sym () ',sym))
+    ;; Needed for `defmethod' on all impls.
+    (setf (find-class fset2-sym) (find-class sym))))
 
 
 ;;; Moved here from `order.lisp' because its expansion depends on stuff after that file.

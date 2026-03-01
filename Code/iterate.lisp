@@ -98,7 +98,7 @@ corresponding multiplicity."
 		       to to downto downto above above below below
 		       by step with-index with-index)
   "Elements of a seq.  The index range can be specified with `from'/`upfrom'
-or `downfrom', and/or `to', `downto', `above', or `below', stepped by `by'."
+or `downfrom', and/or `to', `downto', `above', or `below', stepped by `step'."
   (top-level-check)
   (check-sequence-keywords from upfrom downfrom to downto above below t)
   (let ((start end from-end?

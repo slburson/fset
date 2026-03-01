@@ -13,6 +13,9 @@ Reference: Adams, Stephen.  "Implementing Sets Efficiently In a Functional
 Language", CSTR 92-10, Dept. of Electronics and Computer Science, University
 of Southampton, 1992.
 
+Also: https://www.cambridge.org/core/journals/journal-of-functional-programming/article/balancing-weightbalanced-trees/7281C4DE7E56B74F2D13F06E31DCBC5B
+And: https://arxiv.org/abs/1602.02120v4
+
 We introduce two substantial complications into Adams' nice clean code.
 
 First, we store the lowest one to three levels or so of the tree (as
@@ -1115,7 +1118,7 @@ that.  This, however, doesn't cons."
 (defun WB-Set-Tree-Concat (value left right cmp-fn)
   "Corresponds to Adams' `concat3'.  Assumes that (all values in `left') <=
 `value' <= (all values in `right'); returns a new tree containing all values.
-This does more rebalancing than `WB-Set-Tree-Build-Node', which otherwise
+This does less rebalancing than `WB-Set-Tree-Build-Node', which otherwise
 has the same contract.  `value' may be an `Equivalent-Set'."
   (declare (optimize (speed 3) (safety 0))
 	   (type WB-Set-Tree left right))
@@ -6345,7 +6348,7 @@ returned as the third value."
   (declare (ignorable str ch))
   #-FSet-Ext-Strings 'base-char
   #+FSet-Ext-Strings (if (and (or (null str) (typep str 'base-string))
-			      (typep ch 'base-char))
+			      (base-char-p ch))
 			 'base-char
 		       'character))
 
@@ -6356,6 +6359,11 @@ returned as the third value."
   #+FSet-Ext-Strings (if (and (typep str1 'base-string) (typep str2 'base-string))
 			 'base-string
 		       'string))
+
+;;; Workaround for https://gitlab.com/embeddable-common-lisp/ecl/-/issues/812
+;;; Do not inline!
+#+ecl
+(defun base-char-p-ecl (x) (typep x 'base-char))
 
 (declaim (inline string-subrange-element-type))
 (defun string-subrange-element-type (str start end &optional (prev-type 'base-char))
@@ -6369,7 +6377,8 @@ returned as the third value."
     (if (typep str 'simple-base-string)
 	'base-char
       (dotimes (i (- end start) 'base-char)
-	(unless (typep (schar str (+ i start)) 'base-char)
+	(unless #-ecl (base-char-p (schar str (+ i start)))
+		#+ecl (base-char-p-ecl (schar str (+ i start)))
 	  (return-from string-subrange-element-type 'character))))))
 
 (declaim (inline vector-subrange-element-type))
@@ -6384,7 +6393,7 @@ returned as the third value."
 	  (cond ((not (characterp e))
 		 (return-from vector-subrange-element-type 't))
 		#+FSet-Ext-Strings
-		((and (eq result 'base-char) (not (typep e 'base-char)))
+		((and (eq result 'base-char) (not (base-char-p e)))
 		 (setq result 'character)))))
       result)))
 
@@ -6688,7 +6697,7 @@ on `vec', which it assumes is simple.  Returns a string or base-string if
 possible."
   (declare (optimize (speed 3) (safety 0))
 	   (type simple-vector vec)
-	   (type fixnum start end))
+	   (type fixnum start end idx))
   (let ((len (- end start))
 	(elt-type (if (not (characterp val)) 't
 		    (vector-subrange-element-type vec start end (character-type val)))))
@@ -6870,14 +6879,14 @@ of the result are all characters, returns a string instead."
   (let ((len (length vec))
 	((elt-type (if (not (typep val 'character))
 		       't
-		     (let ((vec-elt-type (if (typep val 'base-char) 'base-char 'character)))
+		     (let ((vec-elt-type (if (base-char-p val) 'base-char 'character)))
 		       (dotimes (i len)
 			 (unless (= i idx)
 			   (let ((e (svref vec i)))
 			     (unless (characterp e)
 			       (setq vec-elt-type 't)
 			       (return))
-			     (when (and (eq vec-elt-type 'base-char) (not (typep e 'base-char)))
+			     (when (and (eq vec-elt-type 'base-char) (not (base-char-p e)))
 			       (setq vec-elt-type 'character)))))
 		       vec-elt-type)))))
     (declare (fixnum len))
@@ -7097,7 +7106,7 @@ of the result are all characters, returns a string instead."
 			    (dotimes (i (length (the simple-string tree)))
 			      (let ((c (schar tree i)))
 				;; The usual check is suppressed at safety 0.
-				(unless (typep c 'base-char)
+				(unless (base-char-p c)
 				  (error 'type-error :datum c :expected-type 'base-char))
 				(setf (schar result idx) c))
 			      (incf idx)))))
@@ -7142,7 +7151,7 @@ of the result are all characters, returns a string instead."
 		  (car stack))))
 	   (declare (type fixnum ipiece))
 	   (let ((piece-len (if (< ipiece remainder) (1+ piece-len) piece-len))
-		 ((piece (cond ((gmap (:result and) (fn (x _y) (typep x 'base-char))
+		 ((piece (cond ((gmap (:result and) (fn (x _y) (base-char-p x))
 				      (:arg list lst)
 				      (:arg index 0 piece-len))
 				(let ((str (make-string piece-len :element-type 'base-char)))
@@ -7273,7 +7282,7 @@ of the result are all characters, returns a string instead."
 	   (let ((piece-len (if (< ipiece remainder) (1+ piece-len) piece-len)))
 	     (dotimes (i piece-len)
 	       (setf (svref tmp-piece i) (funcall it ':get)))
-	     (let (((piece (cond ((gmap (:result and) (fn (x _y) (typep x 'base-char))
+	     (let (((piece (cond ((gmap (:result and) (fn (x _y) (base-char-p x))
 					(:arg simple-vector tmp-piece)
 					(:arg index 0 piece-len))
 				  (let ((str (make-string piece-len :element-type 'base-char)))
@@ -8032,7 +8041,7 @@ may or may not be an HT tree."
 		    (walk (WB-Seq-Tree-Node-Right tree)))))))
     (walk-leaf (leaf)
       (let ((correct-type (reduce (fn (str-type c)
-				    (cond ((and (eq str-type 'base-string) (typep c 'base-char))
+				    (cond ((and (eq str-type 'base-string) (base-char-p c))
 					   'base-string)
 					  ((and (member str-type '(base-string string))
 						(typep c 'character))

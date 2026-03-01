@@ -1,0 +1,290 @@
+@node Iterating over FSet Collections
+@chapter Iterating over FSet Collections
+
+FSet provides a plethora of ways to iterate over a collection once you have created it:
+
+@itemize
+@item procedural macros (@code{do-*})
+@item the higher-order operators @code{image}, @code{filter}, and @code{reduce}
+@item iterators, both stateful and functional
+@item the @code{at-index} operation
+@item the versatile GMap macro (described below)
+@item the popular Iterate macro
+@item there's even a third-party library, CL-Transducers, with  FSet support
+@end itemize
+
+Every collection has an iteration order that reflects how the elements or pairs are stored
+internally.  For the CHAMP collections, this order is arbitrary; it's based on the hash values of
+the elements or keys, so while it is actually deterministic --- two collections with the same
+elements and hash function will have the same iteration order --- it will appear random at first
+glance.  For the WB collections, it's determined by their comparison function.  The default
+comparison function, @code{compare}, imposes an ordering that's designed more for performance than
+for usefulness to clients, but you can @href{Custom Comparison and Hash Functions, override} it.
+Also, there are ``replay'' collections that keep track of the order in which elements or keys were
+added, and use that order for iteration.  In any case, all of the different ways to iterate over a
+given collection will use the same ordering.
+@c &&& hrefs to replay sets/maps
+
+If performance is a concern, the procedural macros are the fastest way, but they can't always be
+used (for example, you can't use two instances of them to iterate over two collections in parallel).
+The stateful iterators are the next fastest; the functional iterators are third.  All of these take
+amortized constant time per element.  GMap uses the procedural iterators when possible, else the
+stateful iterators, so for the cases that fit naturally into its structure, you won't be able to
+improve on it by writing the iteration some other way.  Iterate uses the stateful iterators.
+
+@c ================================================================================
+@node Procedural Iteration Macros
+@section Procedural Iteration Macros
+
+The macros @href{Macro do-set, @code{do-set}},
+
+@c ================================================================================
+@node Stateful Iterators
+@section Stateful Iterators
+
+FSet's stateful iterators are objects implemented as closures; you invoke operations on them with
+@code{funcall}, passing a keyword symbol to specify the operation.  They are stateful in that each
+@code{:get} call advances the iterator, so the next call will return the next element; in this, they
+behave like streams.  To obtain a stateful iterator, call @code{iterator} on the collection.  The
+operations on them are:
+
+@itemize
+@item @code{:get} returns the next element or pair of the collection, if any
+@item @code{:more?} returns true if there are more elements remaining
+@item @code{:done?} returns true if there are @emph{not} more elements remaining (for convenience)
+@end itemize
+
+@c &&& example of creating, calling
+
+Specifically, on a set iterator or a non-pair bag iterator, @code{:get} returns two values.  If the
+iterator is not exhausted (there are more elements remaining), it returns the next element and a
+true second value; if it is exhausted, it returns @code{nil} and false.  On a map iterator, a pair
+bag iterator, or a binary relation iterator, it returns three values: if not exhausted, the domain
+element, the range element or multiplicity, and true; if exhausted, two @code{nil}s and false.
+
+So there are actually three ways to detect exhaustion: @code{:more?} or @code{:done?}, which return
+booleans with opposite senses, or just call @code{:get} until the second or third value is false.
+Use whichever is most convenient.
+
+FSet provides stateful iterators on these classes: @href{iterator (set), @code{set}}, @code{map},
+@code{bag}, @code{seq}, @code{replay-set}, @code{replay-map}, and @code{2-relation}.  For
+convenience, it also provides @code{iterator} methods on these CL builtin types: @code{list},
+@code{vector}, @code{string}, and @code{sequence}.
+
+The stateful iterators are not thread-safe.
+
+@c ================================================================================
+@node Functional Iterators
+@section Functional Iterators
+
+Where using a stateful iterator is like reading from a stream --- you just issue @code{:get} calls
+to read the successive elements --- using a functional iterator is like walking down a list: there's
+a @code{:first} operation which is like @code{car}, and a @code{:rest} operation which is like
+@code{cdr}.  You have to use @code{:rest} explicitly at each step to get the next instance of the
+iterator, just as you would have to use @code{cdr} to get the next cons of the list.  And as with
+lists, the functional iterators are persistent: calling @code{:rest} on an iterator instance doesn't
+invalidate it; you can stash it away, so you can restart the iteration at that point anytime.
+
+FSet's functional iterators are not quite as efficient as the stateful ones, since each @code{:rest}
+operation has to cons a new instance, so they're not used by default.  But they have occasional uses;
+for instance, in parsing, when you want to be able to backtrack easily.  Also, they're thread-safe.
+
+To obtain a functional iterator, call @code{fun-iterator} on the collection.  Functional iterators
+are also implemented as closures, with these operations:
+
+@itemize
+@item @code{:first} returns the element or pair addressed by this iterator instance
+@item @code{:rest} returns the next iterator instance
+@item @code{:more?} returns true if there are more elements remaining
+@item @code{:empty?} returns true if there are no more elements remaining
+@end itemize
+
+@c &&& example of creating, calling
+
+Specifically, on a set iterator or a non-pair bag iterator, @code{:first} returns two values.  If
+the iterator is not exhausted (there are more elements remaining), it returns the next element and a
+true second value; if it is exhausted, it returns @code{nil} and false.  On a map iterator, a pair
+bag iterator, or a binary relation iterator, it returns three values: if not exhausted, the domain
+element, the range element or multiplicity, and true; if exhausted, two @code{nil}s and false.
+
+So there are actually three ways to detect exhaustion: @code{:more?} or @code{:empty?}, which return
+booleans with opposite senses, or just call @code{:first} until the second or third value is false.
+Use whichever is most convenient.
+
+FSet provides functional iterators on these classes: @href{fun-iterator (set), @code{set}},
+@code{map}, @code{bag}, @code{seq}, @code{replay-set}, @code{replay-map}, and @code{2-relation}.
+For convenience, it also provides @code{fun-iterator} methods on these CL builtin types: @code{list},
+@code{vector}, @code{string}, and @code{sequence}.
+
+@c ================================================================================
+@node The @code{at-index} Operation
+@section The @code{at-index} Operation
+
+FSet collections provide an @code{at-index} operation that returns the element or pair at the
+supplied index, which must be in [0 .. size).  This operation takes O(log @i{n}) time, so using it
+repeatedly is not the most efficient way to iterate the whole collection, but if you need to be able
+to back up or skip forward arbitrarily, it will be the most convenient.
+
+@c ================================================================================
+@node GMap
+@section GMap
+
+@c ================================================================================
+@node Iterate
+@section Iterate
+
+Iterate support is provided by a separate ASDF system, FSet/Iterate, so as not to pull in Iterate as
+a dependency if you're not using it.
+
+There are two symbol collisions between packages @code{fset/iterate} and @code{iterate} that you
+will need to deal with.  One is relatively straightforward: @code{fset/iterate} exports a different
+version of @code{unioning}; see the description below.
+
+The other has to do with the symbol @code{with}.  Astonishingly, though both FSet and Iterate export
+a symbol @code{with}, they do not conflict in practice.  Iterate doesn't fdefine @code{with}, but
+uses it as a clause head, part of its syntax.  Since it would never make sense to call
+@code{fset:with} without doing something with its return value, an @code{fset:with} call will never
+appear at top level within the body of an @code{iter} form, so @code{iter} could never mistake it
+for a clause head.  That means you actually can write something like this:
+
+@example
+    (iter ... (with foo = (with some-set new-element)) ... )
+@end example
+
+although, to keep your fellow developers' heads from exploding, you might be better advised to
+package-qualify the two occurrences of @code{with}.
+
+[But see @uref{https://gitlab.common-lisp.net/iterate/iterate/-/issues/27, this Iterate issue}.  As
+of this writing, reloading Iterate could make this stop working; also, that page has an Iterate
+patch you might need for it to work in all cases.]
+
+With that in mind, I recommend adding the following to any packages in which you want to use FSet's
+Iterate support:
+
+@example
+  (:shadowing-import-from :fset #:with)
+  (:shadowing-import-from :fset/iterate #:unioning)
+@end example
+
+Here are the clauses and accumulators defined by FSet/Iterate:
+
+@deffn {Iterate clause} {for @var{var} in-set @var{set}}
+Yields the elements of @var{set}.
+@end deffn
+
+@deffn {Iterate clause} {for @var{var} in-bag @var{bag}}
+Yields the elements of @var{bag}.  Elements with multiplicities greater than 1 will be repeated that
+many times.
+@end deffn
+
+@deffn {Iterate clause} {for (@var{var} @var{count}) in-bag @var{bag}}
+Yields the pairs of @var{bag}, binding @var{var} to each element and @var{count} to its
+multiplicity.
+@end deffn
+
+@deffn {Iterate clause} {for (@var{key} @var{value}) in-map @var{map}}
+Yields the pairs of @var{map}, binding @var{key} to each key and @var{value} to its value.
+@end deffn
+
+@deffn {Iterate clause} {for @var{var} in-seq @var{seq}} @ @r{&optional} @r{from} from @r{upfrom} upfrom @
+        @r{downfrom} downfrom @r{to} to @r{downto} downto @r{above} above @r{below} below @
+        @r{by} step @r{with-index} with-index
+Yields the elements of @var{seq}.  The index range can be specified with @var{from}/@var{uptrom} or
+@var{downfrom}, and/or @var{to}, @var{downto}, @var{above}, or @var{below}.  @var{step}, if
+supplied, gives the index step.
+@end deffn
+
+@deffn {Iterate clause} {for @var{var} in-collection @var{coll}}
+Yields the elements of @var{coll}, which can be any collection which has an @code{iterator} method
+conforming to the FSet @href{Stateful Iterators, stateful iterator protocol}.
+@end deffn
+
+FSet's Iterate support also includes several accumulators for constructing new collections:
+
+@deffn {Iterate accumulator} {collect-set @var{expr}} @ @r{&optional initial-value} init-val @r{into} var-spec
+Collects values into a set.  By default, this is a @code{ch-set} organized by @code{compare}; supply
+@var{init-val} to construct a different kind of set.
+@end deffn
+
+@deffn {Iterate accumulator} {collect-bag @var{expr}} @ @r{&optional initial-value} init-val @r{into} var-spec
+Collects values into a bag.  By default, this is a @code{ch-bag} organized by @code{compare}; supply
+@var{init-val} to construct a different kind of bag.
+@end deffn
+
+@deffn {Iterate accumulator} {collect-bag @var{expr} count @var{count-expr}} @ @r{&optional initial-value} init-val @r{into} var-spec
+Collects value/count pairs into a bag; that is, on each execution, adds @var{count-expr} instances
+of @var{expr} to the bag.  By default, this is a @code{ch-bag} organized by @code{compare}; supply
+@var{init-val} to construct a different kind of bag.
+@end deffn
+
+@deffn {Iterate accumulator} {collect-seq @var{expr}} @ @r{&optional into} var-spec
+Collects values into a seq.
+@end deffn
+
+@deffn {Iterate accumulator} {collect-map (@var{key} @var{value})} @ @r{&optional initial-value} init-val @r{into} var-spec
+Collects key/value pairs into a map.  By default, this is a @code{ch-map} organized by
+@code{compare}; supply @var{init-val} to construct a different kind of map.  If a key is supplied
+more than once, the @emph{last} value supplied for it is retained.
+@end deffn
+
+@deffn {Iterate accumulator} {collect-map-to-sets (@var{key} @var{value})} @ @r{&optional initial-value} init-val @r{into} var-spec
+Collects key/value pairs into a map, collecting the values supplied for each key into a set; that
+is, the result is a map whose range values are sets.  By default, the map is a @code{ch-map}
+organized by @code{compare}, and the sets are @code{ch-set}s organized by @code{compare}; supply
+@var{init-val} to construct a different kind of map (the map's default must be a set).
+@end deffn
+
+@deffn {Iterate accumulator} {unioning @var{expr}} @ @r{&optional initial-value} init-val @r{into} var-spec
+Unions sets into a result set.  If @var{init-val} is provided, the result will be of the same type
+and organization; otherwise, it will be of the same type and organization as the first set received,
+unless the iteration terminates without executing this clause at all, in which case the result will
+be the empty @code{ch-set}.
+
+(My recommendation is for @code{fset/iterate:unioning} to shadow @code{iter:unioning} as described
+above; but it's up to you whether to accept it.  Since you're using FSet, you probably want to avoid
+unioning lists, which takes quadratic time.  However, FSet's version doesn't support the @code{at}
+keyword, nor does it normally offer the ordering guarantee that @code{iter:unioning} does, although
+you can get that effect by supplying @code{initial-value (replay-set)} and binding @code{expr} to
+replay sets.)
+@end deffn
+@c Mention bags?  The doc string does, but this operation on bags doesn't seem that likely to be
+@c useful.  @code{bag-summing} would be likelier; I guess I should write it.
+
+@deffn {Iterate accumulator} {intersecting @var{expr}} @ @r{&optional initial-value} init-val @r{into} var-spec
+Intersects sets into a result set.  If @var{init-val} is provided, the result will be of the same
+type and organization; otherwise, it will be of the same type and organization as the first set
+received, unless the iteration terminates without executing this clause at all, in which case the
+result will be the full set built on @code{ch-set}. @c &&& Ref to @code{full-set}
+@end deffn
+
+@deffn {Iterate accumulator} {concating @var{expr}} @ @r{&optional into} var-spec
+Concatenates successive seqs into a result seq.
+@end deffn
+
+@deffn {Iterate accumulator} {map-unioning @var{expr}} @ @r{&optional combining-with} val-fn @r{initial-value} init-val @r{into} var-spec
+Map-unions maps into a result map (@pxref{map-union}).  If @var{val-fn} is provided, it is used to
+combine values corresponding to the same key; the default is to overwrite the value from the earlier
+map with the later value.  If @var{init-val} is provided, the result will be of the same type and
+organization; otherwise, it will be of the same type and organization as the first set received,
+unless the iteration terminates without executing this clause at all, in which case the result will
+be the empty @code{ch-map}.
+@end deffn
+
+@deffn {Iterate accumulator} {map-intersecting @var{expr}} @ @r{&optional combining-with} val-fn @r{into} var-spec
+Map-intersects maps into a result map (@pxref{map-intersection}).  If @var{val-fn} is provided, it
+is used to combine values corresponding to the same key; the default is to overwrite the value from
+the earlier map with the later value.  The result will be of the same type and organization as the
+first set received, unless the iteration terminates without executing this clause at all, in which
+case the result will be @code{nil}.
+
+[Discussion: in the case of intersecting zero maps, there's nothing reasonable this could return,
+since there's no such thing as a ``full map''.  (There is a full binary relation, but it's not a
+function.)  So it may as well just return @code{nil}.  For the same reason, there's no point in it
+accepting an initial value; if you want to change organizations, just @code{convert} the result.]
+@end deffn
+
+@c ================================================================================
+@node CL-Transducers
+@section CL-Transducers
+
+@c &&& write me

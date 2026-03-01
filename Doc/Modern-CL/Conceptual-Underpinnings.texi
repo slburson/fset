@@ -1,0 +1,207 @@
+@node Conceptual Underpinnings
+@chapter Conceptual Underpinnings
+
+This chapter makes some observations about types in programming languages that, frankly, I think all
+programmers should be familiar with.  I encourage everyone to read it.
+
+@node What Is a Functional Datatype?
+@section What Is a Functional Datatype?
+
+You may have noticed that I refer to FSet collections as ``functional'' rather than ``immutable''.
+There is more to functional semantics than mere immutability: functional collections also support
+``functional update'' operations: operations that take a collection and return a new collection that
+is different in some specified way.  Some ``immutable'' collections libraries do not provide these.
+
+Functional collections are therefore also @dfn{persistent}, in the
+@uref{https://en.wikipedia.org/wiki/Persistent_data_structure, data-structure sense}: since
+performing a functional update returns a new collection, the collection in its previous state still
+exists and can be operated on further if desired.  (The term ``persistent'' is also used for data
+written to nonvolatile storage; this meaning is not intended here.)
+
+To develop an exact definition of functional collections, or functional datatypes in general, let me
+start with some simple examples in C++ and Java.  The first could be in either language:
+
+@example
+    int a = 3;
+    int b = a;
+    ++a;     // b is unchanged
+@end example
+
+Simple, right?  Everyone knows that incrementing @code{a} doesn't affect @code{b}.  This is because
+the type @code{int} has an @dfn{immediate} implementation: there is no way that @code{b} could be an
+@emph{alias} of @code{a}, because the assignment copies the value itself, not a pointer to the
+value.  We say that @code{int} has @dfn{value semantics}.
+
+Now consider this, in Java:
+
+@example
+    int[] a = @{ 3 @};
+    int[] b = a;
+    a[0] = 4;    // b is also affected
+@end example
+
+Here we see a case where assignment creates an alias to a mutable object, so that mutations to the
+object are visible through the alias.  This example demonstrates @dfn{reference semantics}.
+
+Interestingly, to have reference semantics, a type must be aliasing (meaning that assignment creates
+an alias) @emph{and} mutable.  C++, for instancee, has collection types that are mutable but not
+aliasing:
+
+@example
+    std::vector<int> a@{3@};
+    std::vector<int> b = a;
+    a[0] = 4;   // b is unchanged!
+@end example
+
+Why is @code{b} not an alias of @code{a}?  Because @code{std::vector} redefines assignment to copy
+the contents.  So even though the implementation is @dfn{pointer-mediated} --- as opposed to
+immediate, like @code{int} --- the class arranges for assignment not to create an alias.  (Of
+course, this being C++, you could create an alias using an explicit reference or pointer, but let's
+leave that aside.  And yes, C++ pedants, I am overlooking the distinction between initialization and
+assignment, which doesn't matter for this discussion.)
+
+Curiously enough, the result is that (in the absence of explicit references or pointers) the
+standard C++ collections have value semantics despite being mutable!  I said above that the Java
+@code{int[]} example shows a case where assignment creates an alias to a mutable object.  Here we
+see that both aspects are required: the type must be aliasing @emph{and} mutable to have reference
+semantics; otherwise, it has value semantics.
+
+Let's have another look at that first example:
+
+@example
+    int a = 3;
+    int b = a;
+    ++a;     // b is unchanged
+@end example
+
+How do we want to describe the action performed by the third statement?  The usual way is to say
+that @code{++a} is an abbreviation for @code{a = a + 1}; and that's valid.  But interestingly, it's
+equally valid to consider @code{int} to be a mutable but unaliasing type, like @code{std::vector}.
+We could just as well say that the increment operation is mutating @code{a} in place; in fact,
+that's often how we think about it, and it's also very likely to be how it's implemented at the
+machine-instruction level.  We see, then, that if a type is unaliasing, the mutable/immutable
+distinction no longer has the force we expect: it no longer determines whether the type has
+reference or value semantics.
+
+So the first requirement for a @dfn{functional} datatype is simply that it have value semantics.
+@c &&& My intention here is to define a functional datatype as one appropriate for functional
+@c programming.  Value semantics is necessary, but it also needs an efficiently persistent
+@c implementation and (if immutable) well-chosen functional update operators.  I should explain the
+@c term ``functional update'' here too.  (Or call these ``delta operators''??)
+
+Okay, back to Common Lisp and FSet.  Collections have to have pointer-mediated implementations
+because they're of arbitrary size, and Common Lisp gives us no way to redefine assignment.  So
+aliasing is forced on us.  (This is true of most languages.)  To get value semantics, then, the FSet
+types must be immutable.  As we will see, though, FSet provides operations that superficially
+resemble mutations; in practice, you can mentally pretend that FSet types are mutable but
+unaliasing, like @code{std::vector}, although that's not how they're actually implemented --- the
+apparently mutating operations are constructing a new representation and assigning it back to the
+variable holding the collection.
+
+If that sounds odd to you as a CL programmer, let me assure you that it is not.  Consider this
+example:
+
+@example
+    (let* ((a (list 4))
+          (b a))
+      (push a 3))   ; b is unchanged
+@end example
+
+Here the @code{push} form expands to @code{(setq a (cons 3 a))}, which obviously doesn't touch
+@code{b}.  Although Lisp lists are technically a reference type, since cons cells can be mutated, in
+practice they are rarely mutated once they are fully constructed.  (By ``fully constructed'' I'm
+referring to the fact that lists are often built backwards and then reversed in place with
+@code{nreverse}; usually, once that reversal is done, the list is fully constructed.)  So Lisp lists
+are almost always used as a functional type, and the language supports this usage fairly well.
+
+@node Is Lisp a Functional Language?
+@section Is Lisp a Functional Language?
+
+@c &&& Fill this out, or remove it.
+Lisp is often referred to as one of the earliest functional languages, but the way the term
+``functional'' is used has shifted over time.
+
+@node A Brief Introduction to Big-O
+@section A Brief Introduction to Big-O
+
+This book uses ``Big-O'' notation to characterize the time complexity of operations.  While it's
+likely most readers are familiar with it, a few may not be; I thought I should go over the basics.
+You should definitely skip this section if you have studied the topic.
+
+Time complexity --- more accurately, @emph{asymptotic} time complexity --- is a way to characterize
+how the worst-case running time of an algorithm grows with the size of its input, as that input gets
+arbitrarily large.  It is not the only important measure of performance!  If you have two
+implementations of an algorithm, one of which always takes 100 times longer than the other ---
+perhaps it is running on a very slow interpreter --- these two implementations nonetheless have the
+same time complexity.  Time complexity abstracts away from these constant-factor differences to
+focus on the dependence of running time on input size.
+
+Imagine, for example, that there is some function we want to compute on collections of some kind,
+and that we have two algorithms to do it.  One of these works by performing some simple operation on
+every pair of elements of the input.  If the collection is of size @i{n}, there are @i{n}@sup{2}
+such pairs; so the time taken by this algorithm must grow proportionally.  The other algorithm,
+let's suppose, performs a more complex operation on every element by itself; let's suppose for the
+moment that this more complex operation takes time independent of the size of the collection; so the
+time taken by the algorithm is proportional to the size of the input.
+
+Even if the first algorithm is faster for small inputs --- even if it's @emph{much} faster --- the
+fact that its running time grows as the square of the size of the input means that there @emph{must}
+exist an input large enough that the second algorithm will beat the first on that input; and as the
+input gets larger yet, the second algorithm's advantage will only grow.
+
+We say that the first algorithm has quadratic or O(@i{n}@sup{2} time complexity, and the second has
+linear or O(@i{n}) time complexity.  Some commonly encountered complexity classes --- including the
+ones used in this book --- are, in increasing order:
+
+@table @asis
+@item constant, O(1)
+The running time is independent of the size of the input.
+
+@item logarithmic, O(log @i{n})
+The running time is proportional to the logarithm of the size of the input.  Note that the base of
+the logarithm doesn't matter, because logarithms of different bases are related by a constant
+factor, and time complexity abstracts away constant factors.
+
+It is common for algorithms to have logarithmic time complexity when they involve splitting the
+input into roughly-equally-sized partitions, selecting one of those, and repeating until the current
+partition picks out a single element.  A familiar example is binary search on a sorted vector, which
+maintains a range of indices within which the value being searched for must lie if present; at each
+iteration, it compares the item at the center of that range against the search key, and based on the
+result of that comparison, discards the top or bottom half of the range.  Finding a path through an
+ordered binary tree similarly discards half the remaining tree at each step.
+
+@item linear, O(@i{n})
+The running time grows at the same rate as the size of the input.  Algorithms that perform an
+operation on every element of the input must have at least linear time complexity.
+
+@item linearithmic, O(@i{n} log @i{n})
+The running time grows as the size of the input times its logarithm, that is, slightly faster than
+linearly.  Algorithms that perform an operation on every element of the input, where the time for
+that operation is logarithmic in the size, will have this time complexity.  Many sorting algorithms
+are in this class.
+
+@item quadratic, O(@i{n}@sup{2})
+The running time grows as the square of the size of the input.
+@end table
+
+@emph{Most} of the time, in practice, constant-time operations are very fast --- they could require
+as little as one machine instruction --- and logarithmic-time operations are fast enough not to
+worry about.  Linear time is generally acceptable for bulk operations, and linearithmic (O(@i{n} log
+@i{n})) time isn't much worse --- again, the difference is rarely worth worrying about.  And these
+tend to be the best time complexities possible for many bulk operations (e.g. sorting), anyway.
+Quadratic time has the potential to be a problem, though in practice, people do live with quadratic
+or even cubic (O(@i{n}@sup{3})) algorithms when nothing better is available.  Beyond that are all
+the higher-order polynomials, and then exponential time (O(@i{k}@sup{@i{n}}) for some constant
+@i{k}) --- these are considered increasingly intractable.
+
+Again, time complexity is not all there is to performance; there are situations where
+constant-factor differences are more important.  But usually, time complexity is the first
+consideration, because when programs are put to actual use, there tend to be at least a few users
+who run them on very large inputs.
+
+One more point, about the word ``asymptotic''.  This refers to the time taken by the algorithm as
+the input size grows @emph{without bound}.  So it's not something you can measure, because all
+measurements must be made with specific, finite inputs.  It can be arrived at only by analysis of
+the algorithm in question.  The most that measurements can tell you is how the algorithm performs on
+a certain range of input sizes.
+

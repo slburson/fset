@@ -1,0 +1,168 @@
+@settitle Modern Common Lisp with FSet (DRAFT)
+
+@node Top
+@top Modern Common Lisp with FSet (DRAFT)
+
+@syncodeindex fn cp
+@syncodeindex tp cp
+
+© 2026 Scott L. Burson
+
+This document is published under the Creative Commons
+@uref{https://creativecommons.org/licenses/by-sa/4.0/,CC BY-SA} license.
+
+@c ================================================================================
+
+@c `'href': HTML-style references that produce parentheticals in other formats.
+@ifhtml
+@macro href{reference, text}
+@link{\reference\, \text\}
+@end macro
+@end ifhtml
+
+@ifnothtml
+@macro href{text, reference}
+\text\ (@pxref{\reference\})
+@end macro
+@end ifnothtml
+
+@c ``cref'': A reference to a code object name.
+@macro cref{name}
+@href{\name\, @code{\name\}}
+@end macro
+
+@c ``InLine Comment'' (comment text is brace-delimited rather than newline-delimited)
+@macro ilc{stuff}
+@end macro
+
+@c ================================================================================
+
+@contents
+
+@include Introduction.texi
+
+@include Getting-Started.texi
+
+@include Conceptual-Underpinnings.texi
+
+@include Design.texi
+
+@include Data-Structures.texi
+
+@include API-Reference.texi
+
+@include Iterating.texi
+
+@include Recommendations.texi
+
+@node Index
+@unnumbered Index
+@printindex cp
+
+@ignore
+Introduction
+  Whom This Book is For
+  Why I Wrote FSet
+  Benefits of Functional Collections
+Getting Started
+  Tutorial
+  Examples
+  Using FSet
+  Misc-Extensions
+Conceptual Underpinnings  ; ``Foundations''?
+  What is a Functional Datatype?
+  Is Lisp a Functional Language?
+  A Brief Introduction to Big-O
+Design of FSet
+  Design Goals
+  Divergences from CL
+  Comparison and Equality
+  Seqs and Strings
+  The @code{@@} Macro
+FSet Data Structures
+  Weight-Balanced trees
+  CHAMP trees
+  Comparison Functions
+  Generic Function @code{compare}
+  Generic Function @code{hash-value}
+  User-Defined Classes
+    @code{define-equality-slots}
+    Left Preference
+  Custom Compare and Hash Functions
+    Which Elements are Compared or Hashed
+    Strict Weak Orderings
+  Choosing a Data Structure
+  Dynamic Tuples
+FSet Collection Types
+  Sets
+    Union, Intersection, and Difference
+  Maps
+    Map Union, Intersection, and Difference
+  Bags
+    Two-Bag Operations
+      (these accept sets)
+  Seqs
+    Character Seqs
+  Binary Relations
+  Replay Sets
+  Replay Maps
+  Tuples
+  Complement Sets
+  [Future: Interval Sets and Maps]
+  [Future: Bounded Sets]
+Iterating over FSet Collections
+  The @code{do-} Macros
+  Higher-Order Functions
+    @code{image}
+    @code{filter}
+    @code{reduce}
+  Iterators
+    Stateful
+    Functional
+  GMap
+  Iterate
+  Others
+Transients
+Generic Function @code{convert}
+JSON Parsing and Printing
+Larger Examples
+Recommendations for Language Designers
+  Features of FSet
+  Critiques of FSet
+  Critiques of Other Libraries
+    Clojure
+    Haskell
+    Scala
+    C++
+    Google Guava
+    Pyrsistent
+    https://github.com/orium/rpds, https://github.com/victorcolombo/prust, https://docs.rs/im/latest/im/
+    Immer
+
+Notes:
+() Should Left Preference be its own section?  Or just mentioned in the doc for each operation to
+which it applies?  --- The latter.
+() Should there be a separate Performance section?
+
+Operations named by verbs:
+- lookup (but not a verb of modification) (1)
+- split-{from,above,through,below} (can also be read as an adjective) (3)
+- partition  (4)
+- filter  (4)
+- reduce (CL)  (1)
+- restrict{,-not}  (4)
+- compose (1)
+- insert  --> inserted  (9)
+- splice  --> spliced  (9)
+- concat (but 'cl:concatenate' is a function)  (7)
+- convert (not a verb of modification) (2)
+- reverse (CL)  (2)
+- sort (CL)  (4)
+- sort-and-group  (4)
+- find etc.; count etc. (CL; not verbs of modification)  (1)
+- remove (CL; cf. 'delete')  (3)
+- substitute (CL; cf. 'nsubstitute')  (3)
+- update  (7)
+
+@end ignore
+

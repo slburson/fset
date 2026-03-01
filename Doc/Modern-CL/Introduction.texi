@@ -1,0 +1,189 @@
+@node Introduction and Obligatory Hype
+@chapter Introduction and Obligatory Hype
+
+@node Whom This Book is For
+@section Whom This Book is For
+
+This book has two intended audiences.  The larger one is Common Lisp programmers, or people who at
+least have been learning the language, who want to explore the benefits of modern functional collections.  
+
+There's a second audience, however, I also hope to reach, consisting not of people who expect to use
+Common Lisp or FSet, but rather designers of other languages and/or libraries for those languages.
+I refer such readers to the chapters @ref{Conceptual Underpinnings} and @ref{Recommendations for
+Language Designers}; the other chapters will still be worth reading, I think, but of less
+importance.
+
+For those who may want to actually use FSet, though, this book does assume some basic proficiency in
+Common Lisp; I don't recommend it as a first text for those learning the language.  You will need to
+know, at the very least:
+
+@itemize
+@item how to run your chosen CL implementation and interact with its REPL
+@item what to do when an error brings up the debugger
+@item how to write Lisp functions (simple ones, at least) that operate on lists
+@item the difference between a function and a macro (``Functions compute; macros translate.'' ---
+David A. Moon)
+@end itemize
+
+For a fuller understanding, these topics will also be helpful:
+
+@itemize
+@item how to define classes with @code{defclass} or @code{deftype}
+@item how CLOS generic functions work, including how to define methods with @code{defmethod}
+@end itemize
+
+@node Why I Wrote FSet
+@section Why I Wrote FSet
+
+It has now been over four decades since the publication of @emph{Common Lisp: the Language}.  In
+that time, many new languages have been created and have seen significant use; of these, some have
+already started to fade from popularity.  Somehow, Common Lisp (CL) has managed to maintain a
+relatively small but nonetheless devoted following --- which is growing.
+
+What accounts for CL's tenacity? The question has been discussed @i{ad nauseam} online, but let me
+summarize my own view:
+
+@itemize
+@item
+Its metaprogramming facilities --- which make it easy to extend the language --- are almost
+unmatched, except by other members of the Lisp family.
+
+@item
+REPL-based development, with its usually immediate turnaround from editing to testing to debugging,
+makes for a productive and pleasurable developer experience.
+
+@item
+CL's design largely avoids sacrificing elegance for performance, yet it was designed to be
+efficiently implementable.  The result is expressiveness and convenience similar to that of
+interpreted languages like Python, but with far better performance, approaching and occasionally
+exceeding that of low-level languages like C++.
+@end itemize
+
+Also, the language specification has not changed since the publication of the ANSI standard in 1994.
+This may seem to be a disadvantage --- no one would argue that ANSI CL is a perfect language! ---
+but two factors conspire to make it otherwise.  First, the stability of the language makes code
+written in it remarkably long-lived.  With most languages, downloading a 30-year-old program and
+trying to run it is an exercise in frustration.  Language evolution, changes in CPU word length, new
+libraries obsoleting old ones --- there are many ways software can ``rot''.  But in CL, 30-year-old
+code usually runs without modification.
+
+And second, CL is so malleable, because of its metaprogramming facilities, that most evolutions that
+would require changing the specification of a more conventional language can be accomplished in CL
+simply by writing a library.  This fact greatly alleviates the pressure that would otherwise be present
+to update the language.
+
+That observation brings me to FSet.
+
+Lisp, as you probably know, was invented around a very simple yet general data structure, the
+externally-chained singly-linked list.  External (aka ``non-intrusive'') chaining means that the
+nodes of the list are distinct objects from the elements, so that an object can be an element of
+many different lists.  Thus, lists, in this sense, were perhaps the first arbitrary-sized
+collections; arrays already existed, of course, but they were of fixed size.  They were also among
+the first heterogeneously-typed collections, in that the elements did not all have to be of the same
+type; they could be symbols, numbers, or, recursively, other lists.
+
+And, lists were among the first functional collections.  By "functional" I mean that collections are
+not modified in place; operations we might normally think of as modifying an existing collection
+instead produce a new one with the requested change applied.  (I'll say more about this property
+below.)  @c &&& Note ref?
+
+So it is not too strong to say that Lisp was invented to support the writing of programs on
+functional collections.  Yet for Lisp to become a practical programming language, this vision had to
+yield to certain realities.  Although lists are very general, many kinds of code are hard to write
+efficiently using only lists, and especially using them only functionally.  Even as early as
+LISP-1.5, Lisp abandoned purity: it had operators to mutate cons cells (as Lisp calls its list
+nodes) and also had mutable arrays.  By the late 1970s, when Lisp was being used as the systems
+language for the Lisp Machines, it also had mutable user-defined objects, hash tables, @i{etc.}
+These changes were necessary: the design of absolutely pure functional languages would remain a
+research topic for some time yet.  Even the design of functional data structures did not bear much
+practical fruit until the 1990s and early 2000s.
+
+Common Lisp's built-in data structures thus make it possible to write code in a functional style, up
+to a point.  You can only use lists.  You must avoid mutating them.  Many list operations have poor
+time complexity.  Indexing takes linear (O(@i{n})) time, as does appending two lists.  Set union and
+intersection take quadratic (O(@i{n}@sup{2})) time.  And so on.  For many purposes, arrays or hash
+tables would be better, but these are mutable types that make poor choices for functional
+algorithms; while you @emph{could} use them functionally, you'd have to copy them frequently, which
+would take linear time.
+
+So in practice, quite a lot of CL code has been written procedurally, using mutable objects of
+various kinds.  While I'm not suggesting that the procedural style is always inappropriate ---
+programs change state as well as computing values --- the benefits of judicious use of the functional
+style are becoming well known.  These include greater clarity, easier debugging, better isolation of
+modules, and simpler thread-safety.
+
+In the decades since CL was designed, researchers have come up with data structures appropriate for
+functional collections, and more recent languages utilize them.  Rich Hickey's Clojure has probably
+done the most to popularize functional collections, but they are also available in Scala and other
+languages --- even, by now, including Python.
+
+So FSet has a dual mission: first, to bring Common Lisp up to date, by giving it a much richer
+ensemble of functional collection data structures, to greatly expand the space of algorithms that
+can be written in an elegant functional style and still run efficiently; and second, as with Clojure,
+to support and encourage the use of functional collections for general programming.
+
+Any collections library has strengths and weaknesses; none is good at everything.  FSet seeks,
+however, to have no @emph{fatal} weaknesses that make it terrible for some uses; it tries to do
+everything reasonably well, at the possible expense of being the best at any one thing.  This means,
+in roughly decreasing order of priority:
+
+@itemize
+@item
+Every operation has acceptable time complexity.
+
+@item
+The interfaces are general, easy to use, and include all commonly desired functionality.
+
+@item
+The implementation is well integrated with Common Lisp.
+@item
+Every operation is reasonably fast in a constant-factor sense, considering that updates are
+functional (and thus inevitably more expensive than imperative updates).
+
+@item
+Space overhead is reasonably small.
+@end itemize
+
+@node Benefits of Functional Collections
+@section Benefits of Functional Collections
+
+The case for using functional collections is much better known now than it was in 2007, when I first
+released FSet.  Rich Hickey made his first release of Clojure the same year; his design also
+embraced functional collections, and its popularity has done much to make programmers aware of their
+advantages.  Those include:
+
+@itemize
+@item @strong{Clearer, more elegant code}:
+Code written in a functional style is often easier to understand than code involving shared state,
+because to understand what a given expression does, you only need to know what operation it's
+performing and what the argument values are.  The data flow is all made explicit; no other state of
+the program is relevant.
+
+@item @strong{Concurrency safety}:
+Reading from functional collections is thread-safe without locking, as is iteration.  Iteration is
+also safe from concurrent updates in the same thread.  While read-update-write operations still
+require synchronization, Software Transactional Memory can be used instead of locking, potentially
+improving parallelism.
+
+@item @strong{Persistence}:
+The term ``persistent'', in this context, refers to data structures that can efficiently retain
+their past states; it has nothing to do with the use of nonvolatile storage.  Persistent functional
+collections can be used to easily implement ``undo'' functionality; all that's needed is to retain
+the past states one might want to return to.
+
+@item @strong{Cleaner interfaces}:
+Functional collections can be returned from interfaces with no concern that the client might modify
+them, breaking the module that owns them; defensive copying against this possibility is not required
+either.
+
+@item @strong{Easier testing}:
+Functional code is generally easier to test and debug, because once you have appropriate arguments
+constructed, you can call the function in question any number of times, without it altering state
+that you would have to reset.
+@end itemize
+
+My strong opinion is that functional collections are the best @emph{default} choice for the vast
+majority of programming tasks: the kind everyone should be using except in the very few cases in
+which performance concerns dictate a different choice.  Furthermore, language and library designers
+should support the movement toward functional collections by providing high-quality implementations.
+FSet is my contribution to this effort.

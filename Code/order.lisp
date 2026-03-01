@@ -187,7 +187,7 @@ This is the right choice for the vast majority of mutable classes."
 (define-cross-type-compare-methods identity-equality-mixin)
 (define-cross-type-compare-methods identity-ordering-mixin)
 
-;;; Override these two.  (Allegro warns about this; ignore it.)
+;;; Override these two.  (Allegro and LispWorks warn about this; ignore it.)
 (defmethod compare ((obj1 identity-ordering-mixin) (obj2 identity-equality-mixin))
   (compare-slots obj1 obj2 'serial-number))
 

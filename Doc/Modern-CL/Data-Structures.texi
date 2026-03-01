@@ -1,0 +1,589 @@
+@node FSet Data Structures
+@chapter FSet Data Structures
+
+There's a lot of detail in this chapter that you don't need to know when you're just getting started
+with FSet.  So I'm giving you an advance TL;DR:
+
+@itemize
+@item
+Most FSet types have two implementations, one called ``WB'' and the other ``CHAMP''.  CHAMP has
+better performance and is used by default, but there are sometimes reasons to use WB.
+
+@item
+FSet organizes most of its collections using generic functions @code{compare} and @code{hash-value}.
+It is possible to use your own comparison and hashing functions, but it's rarely necessary.
+
+@item
+When you come to the point of wanting to place instances of user-defined classes in FSet
+collections, you will have to give FSet some information about how to compare and hash them.  At
+that point,  you should read, at least, @ref{User-Defined Classes}.
+@end itemize
+
+Advanced users, along with language and library designers, will probably find this chapter worth
+reading closely; others might want to skip ahead, at this point, to the next chapter.
+
+Most FSet collections are implemented in two ways.  The original data structure I used was
+weight-balanced binary trees; this is an ordering-based implementation.  More recently, I have added
+a hash-based data structure called CHAMP, which has better performance in most scenarios; the CHAMP
+implementations are now the default for sets, maps, and bags.
+
+Both of these data structures are trees, that are functionally ``updated'' by path copying: given a
+point in the tree at which an update is to be applied, that node or leaf and all the nodes above it,
+up to and including the root, are copied, with the necessary change being applied to the copy.  As
+such, operations on them have the same time complexities.
+
+@c ================================================================================
+@node Weight-Balanced Trees
+@section Weight-Balanced Trees
+
+Weight-balanced trees (@dfn{WB-trees}) were the subject of a 1992 paper by Stephen Adams [&&& ref].
+The details of the balancing strategy are not important here; what matters is that these are ordered
+binary trees.  FSet's implementation of them is heterogeneous, in the sense that the leaves of the
+tree, instead of holding a single element or key/value pair each, are vectors holding several of
+these.  The length of these vectors is bounded by a constant.  The result is that the lowest two or
+three levels of the tree are gathered into these vectors, saving the space that would otherwise be
+taken by their tree nodes, with little or no impact on time performance.
+
+FSet has WB-tree implementations of sets, maps, bags, and seqs.  Point updates --- inserting an
+element or pair, removing one, updating the value associated with a map key, etc. --- take O(log
+@i{n}) time.  On seqs, subsequence and concatenation also take O(log @i{n}) time.  Operatiions that
+combine two trees in some way --- @code{union}, @code{intersection}, etc. --- take O(@i{n}) time in
+general, though under certain specific circumstances this can be reduced to O(log @i{n}).
+
+For sets, maps, and bags --- the @dfn{setlike} types --- FSet explicitly provides for the case where
+two elements or keys are incomparable, meaning that they're not equal, but the comparison function
+does not place them in an order.  (This situation arises rarely, but it does occur, so FSet provides
+for it.)  As long as the sets of incomparable values remain small, the performance impact is minor;
+though if they were to grow unboundedly, operations that normally take logarithmic time would take
+linear time, and those that normally take linear time would take quadratic time.  The time
+complexities given in this book assume that these sets remain of bounded size.
+
+@c ================================================================================
+@node CHAMP Trees
+@section CHAMP Trees
+
+CHAMP (Compressed Hash-Array Mapped Prefix-tree) is the subject of a 2017
+@uref{https://michael.steindorfer.name/publications/phd-thesis-efficient-immutable-collections.pdf,
+Ph.D. dissertation} by Michael Steindorfer.  It's an evolution of the Hash Array-Mapped Trie (HAMT)
+invented by Phil Bagwell in 2001 [&&& ref; see Steindorfer].
+
+CHAMP, like HAMT, is hash-based, rather than ordering-based.  FSet's CHAMP collections are
+significantly faster than the WB-tree collections at simple operations such as element/key updates
+and lookups, and several times faster at operations that combine two collections in some way:
+equality testing, union, intersection, etc.  However, CHAMP is appropriate only for setlike types;
+there's no CHAMP alternative to the WB-tree seqs.
+
+One downside is that the order in which CHAMP yields elements during iteration is a rather complex
+function of their hash values.  This ordering will appear random --- it isn't actually random, but
+it won't make any sense from the application's perspective.
+
+In the event of a hash collision, where two unequal values nonetheless have the same hash value,
+FSet's CHAMP implementation stores the collision sets as WB-trees within the CHAMP tree.  This keeps
+the time complexities of operations down (e.g., insertion remains logarithmic) even when collision
+sets grow unboundedly, provided the comparison function can order most pairs of values.  This design
+choice reduces the pressure on the hash function to return unique values, which in turn can have
+performance benefits.  For example, if the keys of a CHAMP map are long FSet seqs, the time taken to
+hash an entire seq may become problematic.  FSet avoids this problem by hashing only a bounded
+number of elements; this makes collisions more likely, as some subsets of the keys may have those
+elements in common, but the time complexities are unaffected nonetheless, because of this WB-tree
+fallback feature.
+
+@c ================================================================================
+@node Comparison and Hash Functions
+@section Comparison and Hash Functions
+
+The WB-tree collections require an ordering on their elements or keys; the CHAMP collections require
+at least an equality predicate (and since they can fall back to WB-trees for collision sets, they
+may need an ordering as well).
+
+An FSet comparison function must accept two arguments A and B and return one of these four symbols:
+
+@itemize
+@item @code{:equal} if A and B are equal
+@item @code{:less} if A precedes B in the desired ordering
+@item @code{:greater} if A follows B in the desired ordering
+@item @code{:unequal} if A and B are incomparable
+@end itemize
+
+A hash function's contract is simpler: it accepts an object and returns an integer.  (This integer
+is not required to be a nonnegative fixnum; any integer is permitted.)  When a hash function is used
+together with a comparison function, it must be the case that if the hash function returns distinct
+values on two objects, the comparison function must not return @code{:equal} on them.
+
+@c --------------------------------------------------------------------------------
+@node Which Elements are Compared or Hashed
+@subsection Which Elements are Compared or Hashed
+
+All elements of a set or bag are candidates for comparison or hashing, as are all keys of a map.
+Range values of a map are not normally compared or hashed, but they are if the map as a whole is
+compared or hashed, respectively; this is the case in which the provided @code{val-compare-fn} and
+@code{val-hash-fn} come into play.
+
+Seq elements are not normally compared or hashed, but again, they are if the seq as a whole is
+compared or hashed.  In this case, if you don't want the containing collection to simply use
+@code{compare} or @code{hash-value}, you must give it a compare and/or hash function that compares
+the seqs in whatever way you want.
+
+I said in the previous chapter that FSet requires that a list, string, or vector used in an FSet
+collection will not subsequently be modified.  This is not quite right; objects that are @emph{not}
+compared or hashed, according to the above rules, may still be mutated.  For example, you could have
+a seq of vectors, or a map whose range values are vectors, and you could mutate those vectors, as
+long as the seq or map is not itself compared or hashed.
+
+@c ================================================================================
+@node Generic Function @code{compare}
+@section Generic Function @code{compare}
+@findex compare
+
+FSet provides a default ordering using the generic function @code{compare}.  Having a default
+ordering, implemented as a generic function, is a great convenience: it makes code more elegant by
+removing the need to specify, whenever you create a collection, what ordering to use for it.
+Instead, the ordering is associated with the type of the objects in the collection.  While FSet now
+has a facility for specifying custom comparison (and hash) functions for specific collections ---
+more on which below --- I don't think you will need to use it very often.
+
+FSet predefines @code{compare} methods on the most commonly used built-in Common Lisp types:
+@code{null}, @code{real}, @code{complex}, @code{character}, @code{symbol}, @code{string},
+@code{list}, @code{vector}, @code{array}, @code{sequence}, @code{class}, @code{pathname}, and
+@code{package}.
+
+FSet also defines ``cross-type'' methods that order values of different types, so that either all
+values of one type will compare less than those of another, or all greater.  (The type ordering is
+arbitrary.)  So FSet itself places no restrictions on what combinations of types can appear in a set
+or bag, or as the keys of a map.  In particular, the value @code{nil} is allowed.
+
+@strong{Important note}: @code{compare} compares lists, strings, vectors, and arrays by
+@emph{content} even though they are mutable.  (I discussed why in @ref{Comparison and Equality}.)
+This means that once you use such an object in an FSet collection in such a way that it's subject to
+comparison or hashing, @strong{you must not mutate it}.  You have been warned!
+
+In most cases, comparison of collections --- strings, vectors, arrays, and other sequence types your
+implementation may support; and FSet collections themselves --- starts by comparing the sizes of the
+two collections, and if they're different, considering the smaller collection as less than the
+larger one, independent of their contents.  Thus, all two-character strings compare less than all
+three-character strings, etc.  This approach improves performance over the more familiar
+lexicographic (dictionary-style) comparison, in which length comes into play only when the shorter
+string is an initial substring (prefix) of the longer one.  However, it does make the ordering less
+natural for human perusal.  (Lists are compared lexicographically, though, because finding the
+length of a list takes O(@i{n}) time.)
+
+@code{compare} of course follows the FSet comparison function protocol, mentioned above.  There are
+two predefined @code{compare} methods that can return @code{:unequal} on non-collection values:
+
+@c Texinfo has `@defmethod', but it's for single dispatch, putting the dispatch class before the
+@c method name.
+@deffn Method compare (@var{a} real) (@var{b} real)
+This method returns @code{:unequal} when the arguments are of equal value, but are not equal
+according to @code{eql}.  This happens when one is a rational (including integers) and the other is
+a float, or they are both floats but of different precisions --- they are numerically equal, but not
+indistinguishable.
+@end deffn
+
+@deffn Method compare symbol symbol
+@deffnx Method compare package package
+Normally, symbols are compared by first comparing the names of their symbol-packages, and then if
+those are equal, comparing their symbol-names.  However, not all symbols have a symbol-package; it's
+possible to have distinct (non-@code{eq}) symbols with no symbol-package and with the same
+symbol-name.  (Yes, I've seen this in macro expansions.)  In such a case, this method returns
+@code{:unequal}.
+
+There's an even gnarlier case, caused by the existence of the @code{rename-package} function in CL:
+you can rename a package, perhaps to get it out of the way after it gets screwed up somehow.  If
+FSet always used the @emph{current} name of the package for comparison purposes, renaming it would
+be very dangerous, as it could change the orderings of symbols in existing collections, breaking a
+key invariant and rendering the collections unusable.  To protect itself against this, FSet
+squirrels away the original name of each package, and uses that for comparison purposes.  But this
+could result in two distinct packages having the same original name.  In such a case, the packages
+compare @code{:unequal}, and two symbols in those packages that have the same name also compare
+@code{:unequal}.
+
+(If you didn't follow that, don't worry about it.  The point is, FSet does the right thing.)
+@end deffn
+
+Once generated, @code{:unequal} can be propagated by collection comparisons: if two collections
+would be equal except that an element of one compares @code{:unequal} to the corresponding element
+of the other, then the collections compare @code{:unequal} also.  More on this below.
+
+@defun equal? a b
+@code{equal?} is the FSet generalization of @code{cl:equal}.  All it does is to call @code{compare}
+on its argumens, and return true if the result is @code{:equal}.  @code{equal?} behaves identically
+to @code{cl:equal} on the built-in CL types, with one exception: on vectors other than bit-vectors,
+@code{cl:equal} compares them by identity (@code{eq}), but @code{equal?} compares the contents.  (On
+bit-vectors, both compare the contents.)
+@end defun
+
+@code{compare} makes no effort to detect circularities in the structures it is comparing.  Putting
+cyclic structures in FSet collections is not supported.
+
+@c ================================================================================
+@node Generic Function @code{hash-value}
+@section Generic Function @code{hash-value}
+@findex hash-value
+
+Similarly to @code{compare}, FSet has a default hash function for use by the CHAMP collections,
+@code{hash-value}.  FSet predefines @code{hash-value} methods on the same built-in Common Lisp types
+as for @code{compare}: @code{null}, @code{real}, @code{complex}, @code{character}, @code{symbol},
+@code{string}, @code{list}, @code{vector}, @code{array}, @code{sequence}, @code{class},
+@code{pathname}, and @code{package}.
+
+The @code{hash-value} method on strings currently just calls @code{sxhash}, which in most Lisp
+implementations hashes the entire string, taking time linear in its length.  I expect most
+implementations have optimized this process well in a constant-factor sense, so it's unlikely to be
+a problem unless your strings are huge.  But if they are, you might want to use a bounded-length
+string hash (see below).
+
+The @code{hash-value} methods on lists, vectors, and arrays do bounded hashing, as do those on the
+WB collections.  Hash values on CHAMP collections are cached.
+
+Like @code{compare}, @code{hash-value} makes no attempt to detect circularities in the structures it
+is hashing.
+
+@c ================================================================================
+@node User-Defined Classes
+@section User-Defined Classes
+
+When you define your own classes and want to use them as set or bag elements or map keys, you need
+to tell FSet how to compare and hash them.
+
+There are two major cases, depending on whether you want your class to have value semantics or
+reference semantics: whether it is a pure value or a mutable object.
+
+@c --------------------------------------------------------------------------------
+@node Value Types
+@subsection Value Types
+
+In the case of a pure value, all you need to do is to tell FSet which of its slots define its value.
+This is usually all of them, but in some cases you may have ``metadata'' slots that carry
+information associated with the value, but are not part of that value.  FSet provides a convenient
+macro for supplying this information:
+
+@defmac define-equality-slots class @r{&rest} slots/accessors
+A handy macro for specifying which slots of the class determine whether instances are equal.
+Generates methods on @code{compare} and @code{hash-value}.  These methods call each of
+@code{slots/accessors} on the object(s); the results are recursively compared or hashed, using
+@code{compare} or @code{hash-value} respectively.  Comparison uses the slots or accessors in the
+order provided.
+
+For best performance (at least on SBCL), it is recommended to supply slot names as symbols for
+standard classes --- these will turn into @code{slot-value} forms --- but accessor names as
+functions for structure classes.  Arbitrary functions on the class may also be supplied.
+
+(A deprecated feature, mentioned for completeness: if the symbol @code{:eql} is supplied as the last
+accessor, then if the comparisons by the other supplied accessors all return @code{:equal} but the
+arguments are not eql, the generated @code{compare} method returns @code{:unequal}.)
+
+Examples:
+
+@example
+(defstruct point x y)
+(define-equality-slots point #'x #'y)
+
+(defclass part () ((part-number ...) ...))
+(define-equality-slots part 'part-number)
+@end example
+@end defmac
+
+@findex define-class
+If you're using @href{Succinct Class Definitions With @code{define-class}, @code{define-class}} to
+define your value type, there's another way: just include @code{:equality} in the slot options for
+each equality slot.
+
+@c --------------------------------------------------------------------------------
+@node Reference Types
+@subsection Reference Types
+
+@findex define-atomic-series
+@findex increment-atomic-series
+@findex defstruct
+For a mutable reference type, I strongly recommend that you distinguish instances by identity rather
+than by content.  If it's a structure type --- defined by @code{defstruct} --- I recommend adding an
+explicit @code{id} slot and supplying that to @code{define-equality-slots}.  For convenience in
+doing this, FSet exports @code{define-atomic-series} and @code{increment-atomic-series}.  Here's an
+example of their use:
+
+@example
+(define-atomic-series next-frob-id)
+
+(defstruct (frob
+	     (:constructor make-frob (size color location
+				      &aux (id (increment-atomic-series next-frob-id)))))
+  id
+  size
+  color
+  location)
+
+(define-equality-slots frob #'frob-id)
+@end example
+
+Every time @code{make-frob} is called, the @code{id} of the result will be initialized to the next
+integer in the series.
+
+@tindex identity-equality-mixin
+@findex defclass
+If your mutable reference type is a standard class --- defined by @code{defclass} --- it's even
+easier: just include @code{identity-equality-mixin} as a superclass; FSet handles the rest.
+
+@c --------------------------------------------------------------------------------
+@node Left Preference
+@subsection Left Preference
+
+FSet has several operations that combine two collections into a third: @cref{union},
+@cref{intersection}, @cref{map-union}, @cref{map-intersection}, @cref{bag-union},
+@cref{bag-intersection}, @cref{bag-sum}, and @cref{bag-product}.  All of these implement @dfn{left
+preference}: for any case where equal elements or map keys appear in both collections, the result
+will use the one from the left operand.  This also applies to equal values associated with a given
+map key.
+
+The motivation for FSet offering this guarantee has to do with the fact that if you're using
+@code{define-equality-slots} for your class, there's no requirement that you include all the slots
+of the class.  But if you don't, the non-equality slots function as metadata: they're not part of
+the values represented, but they get carried around with those values anyway.
+
+Thus, if you were, for instance, unioning two sets of instances of such a class, and you had some
+instances that had been decorated with metadata and some that had been newly constructed, you would
+probably want the union to retain the ones with the metadata and discard the new ones, in cases
+where there was overlap.  Left preference gives you a way to do that.
+
+I must add that I don't necessarily recommend doing things this way.  It's probably cleaner to take
+the equality slots, pull them out into a new class --- so that class can have the property that all
+of its slots are equality slots --- and then use a separate map to relate instances of that smaller
+class to the metadata you want to associate with them.  Then you won't have to worry about which
+instances of the class are which; they'll be equivalent.  But FSet lets you do it either way.
+
+@c ================================================================================
+@node Custom Comparison and Hash Functions
+@section Custom Comparison and Hash Functions
+
+@cindex Organization of a collection
+I firmly believe that associating comparison and hashing functions with each type, by defining
+methods for that type on @code{compare} and (for CHAMP) @code{hash-value}, suffices for the vast
+majority of use cases.  But there are occasional situations when it might be preferable, when
+creating a collection, to supply alternative comparison and (when relevant) hashing functions for it
+to use.  I refer to the comparison and hashing functions used by a collection as the
+@dfn{organization} of the collection.
+
+@itemize
+@item 
+In extremely performance-sensitive situations, when the time required for the actual comparison or
+hash computation is very small, it is possible for the generic function dispatch time to become
+relatively significant.  The extreme case would be a WB-set of fixnums; comparing two fixnums takes
+just a few instructions.  The WB-tree collections, on a lookup, call the comparison function several
+times (the number of calls is slightly more than log@sub{2} of the size of the set), so the generic
+function dispatch can makes a noticeable difference for them.  (In contrast, lookup on a CHAMP
+collection calls the hash function once, and the comparison function either once or, in many cases,
+not at all.)  In such cases, you may wish to provide a custom comparison function.
+
+@item
+Sometimes you want to maintain a collection in a specific order as it gets updated.  A common
+example is a dictionary of words, which you want to keep in lexicographic order instead of always
+putting shorter words before longer ones, as @code{compare} does.  The WB-tree collections with a
+custom comparison function will do this for you.
+@end itemize
+
+As mentioned above, complete hashing of a large object, such as a deeply nested s-expression, takes
+time linear in the size of the object.  The time cost could be significant, but unless the
+structures tend to differ only at the ends or leaves, there might be little benefit to hashing the
+whole thing; a bounded hash that restricts the number of elements considered might work just as
+well, in the sense of preventing hash collisions, yet be much cheaper to compute.
+
+If you're defining a comparison function and hash function to use with CHAMP collections, there are
+two requirements:
+
+@itemize
+@item
+They must be mutually consistent: for any pair of objects on which the comparison function returns
+@code{:equal} or @code{:unequal}, the hash function must return the same value on both objects.
+
+@item
+You must tell FSet to use the hash function together with the comparison function by calling
+@code{define-hash-function}.  This is because the API functions and macros to create a collection
+with a custom organization always take only the comparison function name; the hash function is
+implicit.
+@end itemize
+
+@anchor{define-hash-function}
+@defmac define-hash-function compare-fn-name hash-fn-name
+Establishes that hash-based collections that are created using the named comparison function should
+use the specified hashing function also.
+@end defmac
+
+Once you've written a custom comparison function, and for CHAMP, associated a custom hashing
+function with it, you can supply the comparison function's name to various constructor functions and
+macros; for details, see @ref{FSet API Reference}.  For sets and bags, a single comparison
+function is required; for maps and binary relations, two are needed, one for keys (domain elements)
+and the other for values (range elements).  In all cases, they are specified as function
+@emph{names}, i.e., symbols, rather than CL function objects; this is so they can be printed out in
+a reasonable way.
+
+FSet assumes that any two objects that are @code{eql} also compare @code{:equal}.  Be sure not to
+use @code{eq} to compare characters or numbers.
+
+As mentioned above, all elements of a set or bag are candidates for comparison or hashing, as are
+all keys of a map.  So you need to make sure that any custom compare or hash functions you supply
+for a collection can accept all its elements or keys.
+
+If a comparison function ever returns @code{:unequal}, then it must, as the first thing it does,
+call @code{fset2:unwrap-equivalent-node} on each parameter and substitute the result for the
+original value of the parameter.  For instance:
+
+@example
+(defun my-compare (a b)
+  (let ((a (fset2:unwrap-equivalent-node a))
+	(b (fset2:unwrap-equivalent-node b)))
+    ...))
+@end example
+
+@c --------------------------------------------------------------------------------
+@node Strict Weak Orderings
+@subsection Strict Weak Orderings
+
+Some FSet collections rely on a comparison function to order their elements.  In mathematical terms,
+this function must compute a
+@uref{https://en.wikipedia.org/wiki/Weak_ordering#Strict_weak_orderings, @dfn{strict weak
+ordering}}.  FSet's provided methods on @code{compare} satisfy this requirement, and the methods
+added by @code{define-equality-slots} do so also, so as long as you confine yourself to those, as I
+expect most users will, you don't need to understand this section.  But if you want to write a
+completely custom comparison function for use with the WB collections, you should make sure it has
+the following properties:
+
+@table @asis
+@item Irreflexivity
+For our purposes, this just means that the function returns @code{:equal} (not @code{:less} or
+@code{:greater}) on equal arguments.
+@item asymmetry
+If the function returns @code{:less} on the pair 〈A, B〉, then it returns @code{:greater} on 〈B, A〉,
+and conversely.
+@item transitivity of inequality
+If the function returns @code{:less} on 〈A, B〉, and @code{:less} on 〈B, C〉, then it also returns
+@code{:less} on 〈A, C〉; and similarly for @code{:greater}.
+@item commutativity of equality
+If the function returns @code{:equal} on 〈A, B〉, then it also returns @code{:equal} on 〈B, A〉.
+@item transitivity of equality
+If the function returns @code{:equal} on 〈A, B〉, and @code{:equal} on 〈B, C〉, then it also
+returns @code{:equal} on 〈A, C〉.
+@item commutativity of incomparability
+If the function returns @code{:unequal} on 〈A, B〉, then it also returns @code{:unequal} on 〈B, A〉.
+@item transitivity of incomparability
+If the function returns @code{:unequal} on 〈A, B〉, and either @code{:equal} or @code{:unequal} on
+〈B, C〉, then it returns @code{:unequal} on 〈A, C〉.
+@end table
+
+Satisfying these requirements is fairly straightforward if you follow this plan.  Assuming that the
+values you're comparing are represented by objects of the same class, you compare their slot values
+in some order you choose.  For each comparison, if the result is @code{:less} or @code{:greater},
+return that; if it's @code{:equal} or @code{:unequal}, proceed to the next slot if there is one.
+Once you've compared all the slots, if any slot value comparison returned @code{:unequal}, return
+@code{:unequal}; otherwise, return @code{:equal}.
+
+In many cases you will be able to know that no individual slot value comparison can return
+@code{:unequal} --- for example, if you're comparing integers or strings --- so you won't need to
+handle that case.
+
+FSet exports a macro, @code{compare-slots}, that will do the above comparison for you in the case
+where there's a fixed list of slots to compare.  If that's not the case --- for example, if you've
+got a non-FSet collection class that you would like to nest inside FSet collections --- you'll have
+to code the comparison yourself.
+
+@defmac compare-slots obj1 obj2 @r{&rest} accessors...
+A handy macro for writing the bodies of @code{compare} methods and comparison functions for user
+classes.  Returns the result of comparing the two objects by comparing the results of calling each
+of @code{accessors}, in order, on the objects.  Despite the name, an accessor can actually be any
+function on the class in question; it can also be a symbol, which will be used to access the slot
+via @code{slot-value}.  For example, if class @code{frob} has accessor @code{frob-color} and slot
+@code{id}:
+
+@example
+(defmethod compare ((f1 frob) (f2 frob))
+  (compare-slots f1 f2 #'frob-color 'id))
+@end example
+
+At least on SBCL, it will be fastest to use slot names (e.g. @code{'id}) on standard classes, but
+accessor functions (e.g. @code{#'frob-color}) on structure classes.  If you're writing a function
+instead of a method, declaring the type of the parameters can also help.
+
+By default, the values of a given accessor on the two objects will be compared with @code{compare}.
+To override this, you have two choices depending on whether the function you want to call obeys the
+FSet comparison protocol (returning @code{:equal}, @code{:less}, @code{:greater}, or
+@code{:unequal}) or is just a boolean predicate \(like @code{cl:<}\).  In the first case, supply the
+accessor as a list @code{(:compare-fn @i{acc} @i{compare-fn})} where @code{@i{acc}} is the accessor
+and @code{@i{compare-fn}} is the name of the function to use; in the second case, use
+@code{:less-fn} instead of @code{:compare-fn}.  For example:
+
+@example
+(defmethod compare ((f1 frob) (f2 frob))
+  (compare-slots f1 f2 (:compare-fn #'frob-color #'compare-colors)
+                         (:less-fn 'id #'<)))
+@end example
+
+If the symbol @code{:eql} is supplied as the last accessor, then if the comparisons
+by the other supplied accessors all return @code{:equal} but @code{obj1} and @code{obj2} are
+not eql, this returns @code{:unequal}.
+@end defmac
+
+In the case where there is not a fixed list of slots to compare, such as when comparing collections
+of some kind, you will have to code it yourself.  For examples, see the @code{compare} methods in
+the FSet source tree, file @code{Code/order.lisp}.
+
+@c ================================================================================
+@node Choosing a Data Structure
+@section Choosing a Data Structure
+
+This discussion applies to the ``setlike'' types: sets, maps, and bags --- the ones for which FSet
+gives you a choice between WB or CHAMP.
+
+For most applications, CHAMP performs better, which is why I've made it the default in FSet 2.
+However, there are still reasons to use the WB implementations in some cases:
+
+@table @asis
+@item Controlling the ordering
+You might want to maintain a collection in a particular order --- for example, as mentioned above,
+you might want to keep a map whose keys are strings in lexicographic order.  This might be just for
+convenience while viewing the collection in the debugger or printing it out, or maybe you
+specifically want to iterate over it in that order.
+
+@item Using order-related operations
+Closely related to the above is the fact that the WB collections support some operations that depend
+on the ordering, operations CHAMP doesn't support.  These include @code{least}, @code{greatest},
+@code{rank}, @code{at-rank}, @code{split-from}, @code{split-above}, @code{split-through}, and
+@code{split-below}.
+
+@item Better locality
+For extremely large collections, it is possible that the WB collections could give better
+performance, in a situation where the elements or keys being added or looked up tend to cluster so
+that those referenced closely together in time also tend to be close together in the ordering.  For
+instance, if you have a map indexed by long strings, and operations on the map often come in groups
+whose keys share a common prefix, there is a possibility that it would be better as a WB-map.  This
+is because ordered trees tend to group items together in memory that are close together in the
+ordering; this is especially true if the Lisp implementation uses a compacting garbage collector.  A
+CHAMP map is likely to scatter such keys across the memory used by the map, resulting in more cache
+misses and TLB faults.  If you think you might be in a situation where this effect could matter, I
+recommend making some timing measurements.
+@end table
+
+These FSet functions are sometimes useful for compare-functions for WB-collections:
+
+@deffn {Generic Function} compare-lexicographically a b @r{&key}
+@deffnx Method {compare-lexicographically (string string)} @ @r{&key}
+@deffnx Method {compare-lexicographically (list list)} @r{&key} @ @r{(@var{val-compare-fn} #'compare)}
+@deffnx Method {compare-lexicographically (vector vector)} @ @r{&key} @r{(@var{val-compare-fn} #'compare)}
+@deffnx Method {compare-lexicographically (seq seq)} @ @r{&key} @r{(@var{val-compare-fn} #'compare)}
+A generic function with methods to compare strings, lists, or vectors lexicographically.  In the
+case of lists and vectors, you can optionally supply a function to compare the individual values
+(elements) with.
+@end deffn
+
+@defun compare-strings-lexicographically a b
+@defunx compare-lists-lexicographically a b @r{&optional} @r{(@var{val-compare-fn} #'compare)}
+@defunx compare-vectors-lexicographically a b @r{&optional} @r{(@var{val-compare-fn} #'compare)}
+@defunx compare-seqs-lexicographically a b @r{&optional} @r{(@var{val-compare-fn} #'compare)}
+Non-generic functions to compare strings. lists. or vectors lexicographically.  Use when you know
+the type and you want to avoid the generic function dispatch overhead (which is, however, only
+rarely noticeable).  In the case of lists and vectors, you can optionally supply a function to
+compare the individual values (elements) with.
+@end defun
+
+@c ================================================================================
+@node Dynamic Tuples
+@section Dynamic Tuples
+
+@c &&& write me
