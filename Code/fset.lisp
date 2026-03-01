@@ -522,15 +522,15 @@ returned map has a default."))
 ;;; that (a) we can't call `fn' to get the new default because we don't have a domain
 ;;; value corresponding to the range value, and (b) `fn' can't be a map, set, or bag.
 ;;; `compose' is probably much more useful.
-(defgeneric map-image (fn collection
+(defgeneric map-image (fn map
 			&key key-compare-fn-name val-compare-fn-name
 			default no-default?)
   (:documentation
-    "Returns a new map containing the result of applying `fn' to each pair of
-`collection'.  That is, `fn' is called with both the domain and range values
-as arguments; it is expected to return two values, which become the new domain
-and range values.  The default of the returned map is `nil' unless a different
-default is specified by `:default', or `:no-default?' is true.
+    "Returns a map containing the result of applying `fn' to each pair of `map'.
+That is, `fn' is called with both the domain and range values as arguments;
+it is expected to return two values, which become the new domain and range
+values.  The default of the returned map is `nil' unless a different default
+is specified by `default', or `no-default?' is true.
 
 See also `compose', which may fit your needs better."))
 

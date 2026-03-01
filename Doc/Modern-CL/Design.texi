@@ -12,10 +12,10 @@ My design desiderata for FSet were, in roughly decreasing order of importance:
 Elegant set-theoretic semantics
 
 @item
-Well integrated with Common Lisp
+Good integration with Common Lisp
 
 @item
-The API is general, easy to use, and reasonably complete
+An API that is general, easy to use, and reasonably complete
 
 @item
 Good time performance, in both a time-complexity sense and a constant-factor sense
@@ -53,7 +53,7 @@ collection and reassigning it to the variable holding it, or as a mutation to an
 
 This means that FSet's update operations have to work differently from most CL builtins.  The
 clearest example has to do with the behavior of @code{setf}.  (I'll say more about @code{setf}
-@href{below, Quasi-Mutating Operators}; non-CL-programmers might want to read that first.)  If you
+@href{Quasi-Mutating Operators, below}; non-CL-programmers might want to read that first.)  If you
 have a CL vector @code{v}, you can set one of its elements using @code{setf} of @code{elt}:
 
 @example
@@ -225,8 +225,8 @@ linear.
 So FSet makes an assumption that is not unreasonable in practice, but that you @emph{must} keep in
 mind: once a list, string, or vector is placed in an FSet collection, FSet assumes it will not
 thereafter be mutated.  This assumption licenses FSet to compare these by content instead of by
-identity, giving natural semantics and decent performance.  (There is an exception, @href{discussed
-later, Which Elements are Compared or Hashed}.)
+identity, giving natural semantics and decent performance.  (There is an exception, @href{Which
+Elements are Compared or Hashed, discussed later}.)
 
 FSet does not attempt to define @code{compare} on Lisp hash tables or closures.  I do not recommend
 placing these types in FSet collections.
@@ -300,7 +300,7 @@ defensive programming mechanism in cases where you don't expect out-of-domain lo
 @node Quasi-Mutating Operators
 @section Quasi-Mutating Operators
 
-@href{As mentioned, What Is a Functional Datatype?}, even though FSet's collections are functional,
+@href{What Is a Functional Datatype?, As mentioned}, even though FSet's collections are functional,
 it nonetheless provides several operations that @emph{appear} at first glance to be mutating.  As I
 explained in that section, you can, if you like, employ the mental model that FSet's collections are
 mutable, but that binding and assignment do not cause aliasing.  This isn't actually how the FSet
@@ -331,7 +331,7 @@ to be stored back into such a byte.  So, @code{(setf (ldb (byte 6 4) w) 42)} is 
 position 4 contains 42.  (Nowadays most people would say ``bitfield'', but Lisp harks back to a time
 when ``byte'' did not necessarily imply 8 bits.)
 
-FSet defines two functional accessors, @code{lookup} and @href{@code{@@}, The @code{@@} Macro}.
+FSet defines two functional accessors, @code{lookup} and @href{The @code{@@} Macro, @code{@@}}.
 They take the first argument as the inner place expression, and effectively expand to a @code{setf}
 of that place:
 

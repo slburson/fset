@@ -8,7 +8,7 @@ FSet provides a plethora of ways to iterate over a collection once you have crea
 @item the higher-order operators @code{image}, @code{filter}, and @code{reduce}
 @item iterators, both stateful and functional
 @item the @code{at-index} operation
-@item the versatile GMap macro
+@item the versatile GMap macro (described below)
 @item the popular Iterate macro
 @item there's even a third-party library, CL-Transducers, with  FSet support
 @end itemize
@@ -19,7 +19,7 @@ the elements or keys, so while it is actually deterministic --- two collections 
 elements and hash function will have the same iteration order --- it will appear random at first
 glance.  For the WB collections, it's determined by their comparison function.  The default
 comparison function, @code{compare}, imposes an ordering that's designed more for performance than
-for usefulness to clients, but you can @href{override, Custom Comparison and Hash Functions} it.
+for usefulness to clients, but you can @href{Custom Comparison and Hash Functions, override} it.
 Also, there are ``replay'' collections that keep track of the order in which elements or keys were
 added, and use that order for iteration.  In any case, all of the different ways to iterate over a
 given collection will use the same ordering.
@@ -36,7 +36,7 @@ improve on it by writing the iteration some other way.  Iterate uses the statefu
 @node Procedural Iteration Macros
 @section Procedural Iteration Macros
 
-The macros @href{@code{do-set}, Macro do-set},
+The macros @href{Macro do-set, @code{do-set}},
 
 @c ================================================================================
 @node Stateful Iterators
@@ -54,6 +54,8 @@ operations on them are:
 @item @code{:done?} returns true if there are @emph{not} more elements remaining (for convenience)
 @end itemize
 
+@c &&& example of creating, calling
+
 Specifically, on a set iterator or a non-pair bag iterator, @code{:get} returns two values.  If the
 iterator is not exhausted (there are more elements remaining), it returns the next element and a
 true second value; if it is exhausted, it returns @code{nil} and false.  On a map iterator, a pair
@@ -64,7 +66,7 @@ So there are actually three ways to detect exhaustion: @code{:more?} or @code{:d
 booleans with opposite senses, or just call @code{:get} until the second or third value is false.
 Use whichever is most convenient.
 
-FSet provides stateful iterators on these classes: @href{@code{set}, iterator (set)}, @code{map},
+FSet provides stateful iterators on these classes: @href{iterator (set), @code{set}}, @code{map},
 @code{bag}, @code{seq}, @code{replay-set}, @code{replay-map}, and @code{2-relation}.  For
 convenience, it also provides @code{iterator} methods on these CL builtin types: @code{list},
 @code{vector}, @code{string}, and @code{sequence}.
@@ -87,7 +89,8 @@ FSet's functional iterators are not quite as efficient as the stateful ones, sin
 operation has to cons a new instance, so they're not used by default.  But they have occasional uses;
 for instance, in parsing, when you want to be able to backtrack easily.  Also, they're thread-safe.
 
-Functional iterators are also implemented as closures, with these operations:
+To obtain a functional iterator, call @code{fun-iterator} on the collection.  Functional iterators
+are also implemented as closures, with these operations:
 
 @itemize
 @item @code{:first} returns the element or pair addressed by this iterator instance
@@ -95,6 +98,8 @@ Functional iterators are also implemented as closures, with these operations:
 @item @code{:more?} returns true if there are more elements remaining
 @item @code{:empty?} returns true if there are no more elements remaining
 @end itemize
+
+@c &&& example of creating, calling
 
 Specifically, on a set iterator or a non-pair bag iterator, @code{:first} returns two values.  If
 the iterator is not exhausted (there are more elements remaining), it returns the next element and a
@@ -106,9 +111,9 @@ So there are actually three ways to detect exhaustion: @code{:more?} or @code{:e
 booleans with opposite senses, or just call @code{:first} until the second or third value is false.
 Use whichever is most convenient.
 
-FSet provides functional iterators on these classes: @href{@code{set}, fun-iterator (set)},
+FSet provides functional iterators on these classes: @href{fun-iterator (set), @code{set}},
 @code{map}, @code{bag}, @code{seq}, @code{replay-set}, @code{replay-map}, and @code{2-relation}.
-For convenience, it also provides @code{iterator} methods on these CL builtin types: @code{list},
+For convenience, it also provides @code{fun-iterator} methods on these CL builtin types: @code{list},
 @code{vector}, @code{string}, and @code{sequence}.
 
 @c ================================================================================
@@ -191,7 +196,7 @@ supplied, gives the index step.
 
 @deffn {Iterate clause} {for @var{var} in-collection @var{coll}}
 Yields the elements of @var{coll}, which can be any collection which has an @code{iterator} method
-conforming to the FSet @href{stateful iterator protocol, Stateful Iterators}.
+conforming to the FSet @href{Stateful Iterators, stateful iterator protocol}.
 @end deffn
 
 FSet's Iterate support also includes several accumulators for constructing new collections:

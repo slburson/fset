@@ -284,7 +284,7 @@ Examples:
 @end defmac
 
 @findex define-class
-If you're using @href{@code{define-class}, Succinct Class Definitions With @code{define-class}} to
+If you're using @href{Succinct Class Definitions With @code{define-class}, @code{define-class}} to
 define your value type, there's another way: just include @code{:equality} in the slot options for
 each equality slot.
 
@@ -322,6 +322,33 @@ integer in the series.
 @findex defclass
 If your mutable reference type is a standard class --- defined by @code{defclass} --- it's even
 easier: just include @code{identity-equality-mixin} as a superclass; FSet handles the rest.
+
+@c --------------------------------------------------------------------------------
+@node Left Preference
+@subsection Left Preference
+
+FSet has several operations that combine two collections into a third: @cref{union},
+@cref{intersection}, @cref{map-union}, @cref{map-intersection}, @cref{bag-union},
+@cref{bag-intersection}, @cref{bag-sum}, and @cref{bag-product}.  All of these implement @dfn{left
+preference}: for any case where equal elements or map keys appear in both collections, the result
+will use the one from the left operand.  This also applies to equal values associated with a given
+map key.
+
+The motivation for FSet offering this guarantee has to do with the fact that if you're using
+@code{define-equality-slots} for your class, there's no requirement that you include all the slots
+of the class.  But if you don't, the non-equality slots function as metadata: they're not part of
+the values represented, but they get carried around with those values anyway.
+
+Thus, if you were, for instance, unioning two sets of instances of such a class, and you had some
+instances that had been decorated with metadata and some that had been newly constructed, you would
+probably want the union to retain the ones with the metadata and discard the new ones, in cases
+where there was overlap.  Left preference gives you a way to do that.
+
+I must add that I don't necessarily recommend doing things this way.  It's probably cleaner to take
+the equality slots, pull them out into a new class --- so that class can have the property that all
+of its slots are equality slots --- and then use a separate map to relate instances of that smaller
+class to the metadata you want to associate with them.  Then you won't have to worry about which
+instances of the class are which; they'll be equivalent.  But FSet lets you do it either way.
 
 @c ================================================================================
 @node Custom Comparison and Hash Functions
@@ -374,6 +401,7 @@ with a custom organization always take only the comparison function name; the ha
 implicit.
 @end itemize
 
+@anchor{define-hash-function}
 @defmac define-hash-function compare-fn-name hash-fn-name
 Establishes that hash-based collections that are created using the named comparison function should
 use the specified hashing function also.

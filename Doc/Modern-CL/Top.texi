@@ -1,5 +1,7 @@
+@settitle Modern Common Lisp with FSet (DRAFT)
+
 @node Top
-@top Modern Common Lisp with FSet
+@top Modern Common Lisp with FSet (DRAFT)
 
 @syncodeindex fn cp
 @syncodeindex tp cp
@@ -13,7 +15,7 @@ This document is published under the Creative Commons
 
 @c `'href': HTML-style references that produce parentheticals in other formats.
 @ifhtml
-@macro href{text, reference}
+@macro href{reference, text}
 @link{\reference\, \text\}
 @end macro
 @end ifhtml
@@ -23,6 +25,15 @@ This document is published under the Creative Commons
 \text\ (@pxref{\reference\})
 @end macro
 @end ifnothtml
+
+@c ``cref'': A reference to a code object name.
+@macro cref{name}
+@href{\name\, @code{\name\}}
+@end macro
+
+@c ``InLine Comment'' (comment text is brace-delimited rather than newline-delimited)
+@macro ilc{stuff}
+@end macro
 
 @c ================================================================================
 
@@ -58,7 +69,7 @@ Getting Started
   Examples
   Using FSet
   Misc-Extensions
-Conceptual Underpinnings
+Conceptual Underpinnings  ; ``Foundations''?
   What is a Functional Datatype?
   Is Lisp a Functional Language?
   A Brief Introduction to Big-O
@@ -76,6 +87,7 @@ FSet Data Structures
   Generic Function @code{hash-value}
   User-Defined Classes
     @code{define-equality-slots}
+    Left Preference
   Custom Compare and Hash Functions
     Which Elements are Compared or Hashed
     Strict Weak Orderings

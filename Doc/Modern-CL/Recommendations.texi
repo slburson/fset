@@ -12,6 +12,7 @@
 @c binary relations
 @c left preference
 
+@c ================================================================================
 @node Critiques of FSet
 @section Critiques of FSet
 
@@ -21,10 +22,44 @@
 @c Iterators should have been structs
 @c Bag operations should be pair-oriented by default, maybe?
 @c Map constructor macro has too many parens
+@c All strict --- I haven't begun to explore laziness
+@c No compiler optimizers to reduce materialization of intermediate collections (could be added)
 
+@c ================================================================================
+@node History of Functional Collections
+@section History of Functional Collections
+
+While I haven't done a thorough historical survey, I have looked a little bit into the question of
+what languages first had functional collections, and how they worked.
+
+Lists in Lisp programs can be, and often are, used functionally, though even early Lisps had
+mutating operators (then called @code{rplaca} (``replace @code{car}'') and @code{rplacd} (``replace
+@code{cdr}''); in CL they are called @code{(setf car)} and @code{(setf cdr)}).  So with that caveat,
+I think Lisp has to be considered as among the first.
+
+But the earliest language I am aware of that had resizable collections with language-enforced
+functional semantics was APL (1962).  Its collections were restricted to be arrays of numbers; assignment
+of an array in one variable to another variable copied the contents, preventing aliasing.
+
+Another early language with functional collections was SETL (1969).  This was, to my knowledge, the
+first language with collection semantics influenced by set theory.  SETL strongly influenced a
+little-known proprietary language called Refine that I worked in a lot between 1987 and 2003;
+Refine, in turn, strongly influenced the design of FSet.  In particular, the operator names
+@code{with} and @code{less} come to FSet from SETL via Refine.
+
+(@uref{https://en.wikipedia.org/wiki/SETL, Wikipedia's SETL page} tells me that SETL influenced
+another language called ABC, which Guido van Rossum has referred to as ``Python's predecessor''.
+Alas, while ABC's collections had value semantics, Python's built-in collections have reference
+semantics.  An opportunity lost, I'd call that.)
+
+@c ================================================================================
 @node Critiques of Other Libraries
 @section Critiques of Other Libraries
 
+Here I take a look at some functional collections packages for other popular languages, from an FSet
+perspective.
+
+@c --------------------------------------------------------------------------------
 @node Clojure
 @subsection Clojure
 
@@ -36,15 +71,66 @@
 
 @c PersistentVector: trie from high-order end of index (not RRB?!); good indexing, but poor
 @c insertion/concatenation
-@c OIC, the RRB vector is not in clojure.core
+@c RRB vector was added later
 
 @c ArrayMap retains key order, but lookup is linear
 
 @c No quasi-mutating operations (Clojure lacks local assignment, though it does have mutable
 @c objects)
 
-@c No @code{map-union} etc. (probably unique to FSet)
+@c No @code{map-union} etc.
 
+@c --------------------------------------------------------------------------------
+@node Scheme (R6RS)
+@subsection Scheme (R6RS)
+
+R6RS Scheme has mutable hash tables and ... that seems to be it.
+
+Well, wait: there's a little more to be said.  Strings are immutable.  Functional point update
+operations are not provided, presumably out of time complexity concerns, but @code{string-append}
+and @code{substring} are provided, and there are functions to convert to and from lists of
+characters; I guess the idea is that fine-grained string construction will be done using lists and
+then converted.  Amusingly, there's @code{string-copy}, though it's hard to see why one would ever
+use it.
+
+@c &&& Rewrite --- @code{mutable-pairs} means the caveat still applies.
+Pairs, and therefore lists, are also immutable, so the caveat about lists not really being a
+functional type in Lisp doesn't apply to Scheme.  Bravo for that --- though since the type is called
+``pair'' and the predicate is @code{pair?}, I think the constructor should have been @code{pair}
+rather than @code{cons}.  I see there's a @code{mutable-pairs} library that brings in
+@code{set-car!} and @code{set-cdr!}, but it operates on the same pair type, except that some pairs
+are extra-immutable (like ``extra-virgin''?) by virtue of being in quoted structure.  Another way to
+do it would have been for pairs and conses to be distinct types, with pairs immutable, and a second
+set of list operations that work on cons lists.
+
+Like CL, Scheme has a ``deep equality'' predicate @code{equal?} (not to be confused with FSet's
+@code{equal?}).  Like CL's @code{equal}, this compares vectors by content, even though they're
+mutable.
+
+@node Racket
+@subsection Racket
+
+I see that Racket agrees with me on one of the above points: immutable and mutable conses are
+distinct types, the latter being constructed with @code{mcons}, accessed with @code{mcar}, etc.
+(They didn't name the immutable constructor @code{pair}, though.  I guess @code{cons} is too
+embedded in Lisp culture.)
+
+Racket also has both immutable and mutable strings, vectors, and hash tables.  Interesting!  But of
+its immutable types, only hash tables have any functional update operators; the others are merely
+protected from mutation.  Racket also has an equality predicate, @code{equal-always?}, that compares
+immutable objects of the same type by content, and mutable ones by identity, as I have argued one
+should.  However, its use is not encouraged; the name is too long for frequent use, and the manual
+@uref{https://docs.racket-lang.org/reference/Equality.html, says} ``@code{equal?} is preferred for
+most uses''.  But @code{equal?} compares mutable objects by content.
+
+Well, Racket is a Scheme dialect; they can't change the behavior of @code{equal?}.
+
+I think what Racket shows is that there's more to well-designed functional collections than mere
+immutability.  In order to provide good support for functional programming, all the relevant data
+structures need to be designed for that purpose.  For instance, Racket could add a functional
+insertion operation on vectors and strings; but of course it would be O(@i{n}).
+
+@c --------------------------------------------------------------------------------
 @node Haskell
 @subsection Haskell
 
@@ -64,6 +150,7 @@
 @c @code{partition} on maps --- good idea
 @c left preference on union and intersection!
 
+@c --------------------------------------------------------------------------------
 @node Scala
 @subsection Scala
 
@@ -75,6 +162,7 @@
 @c @code{+} and @code{-} for @code{with} and @code{less}
 @c @code{++} is map union, though you can't supply @code{val-fn}
 
+@c --------------------------------------------------------------------------------
 @node Google Guava
 @subsection Google Guava
 
@@ -86,6 +174,7 @@ algorithms.  They do have some software-engineering advantages over Java's stand
 collections, such as being good things to pass across interfaces, but though I agree that that's
 valuable, to me it's only one of several desirable qualities of functional collections.
 
+@c --------------------------------------------------------------------------------
 @node Python
 @subsection Python
 
@@ -96,7 +185,10 @@ defines the comparison operators (@code{<} etc.) as subset/superset tests, which
 partial order rather than a total order, so sorting a list of sets by this ordering doesn't work.
 Frozensets are intended for use as set elements or map keys, so some nesting is supported.
 
-I see no sign of an immutable map class in the base library.
+Python's strings and tuples are also immutable.  Clearly attention was paid to preventing the
+possibility of mutating a set element or map key --- good to see.
+
+I see no sign of an immutable map class in the base library (there's no @code{frozendict}).
 
 However, there is a library called Pyrsistent that seems popular and provides functional sets, maps,
 bags (!), and sequences.  It has something called ``evolvers'' which appear to be what Clojure and
@@ -113,3 +205,9 @@ linear-time insertion, deletion, and concatenation.  The @code{PMap} implementat
 table implemented on top of that; seems like it wouldn't perform as well as CHAMP (but hey, this is
 Python anyway).  And @code{PSet} is built on top of @code{PMap}.
 
+@c --------------------------------------------------------------------------------
+@node C++
+@subsection C++
+
+As I @href{What Is a Functional Datatype?, discussed previously}, strange as it may sound, the
+collections in the C++ standard library actually have functional semantics.

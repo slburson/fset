@@ -96,7 +96,7 @@ preferable anyway. @code{fset2:set} names both a type and a constructor macro fo
 
 @item @code{map}
 This one is a little harder, because @code{cl:map} has perfectly legitimate uses, though it's rarer
-than @code{mapcar}. Personally, I never use it because I use @href{my GMap macro, GMap}
+than @code{mapcar}. Personally, I never use it because I use @href{GMap, my GMap macro}
 instead, but others might miss it. (FSet has a similar operation called @code{image}.) Again,
 @code{fset2:map} names both a type and a constructor macro.
 
@@ -117,6 +117,7 @@ which returns the last @emph{cons} (the cons whose @code{car} is the last elemen
 you have any existing calls to CL @code{last}. you'll have to either change them to @code{lastcons}
 (which is a better name anyway; FSet exports this) or add an explicit @code{cl:} qualifier.
 
+@anchor{Shadowed CL sequence operations}
 @item @code{subseq}, @code{reverse}
 @itemx @code{sort}, @code{stable-sort}
 @itemx @code{reduce}

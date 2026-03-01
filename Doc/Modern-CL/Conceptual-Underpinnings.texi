@@ -76,14 +76,18 @@ Let's have another look at that first example:
 
 How do we want to describe the action performed by the third statement?  The usual way is to say
 that @code{++a} is an abbreviation for @code{a = a + 1}; and that's valid.  But interestingly, it's
-equally valid to conider @code{int} to be a mutable but unaliasing type, like @code{std::vector}.
+equally valid to consider @code{int} to be a mutable but unaliasing type, like @code{std::vector}.
 We could just as well say that the increment operation is mutating @code{a} in place; in fact,
 that's often how we think about it, and it's also very likely to be how it's implemented at the
 machine-instruction level.  We see, then, that if a type is unaliasing, the mutable/immutable
 distinction no longer has the force we expect: it no longer determines whether the type has
 reference or value semantics.
 
-I define a @dfn{functional} datatype simply as one with value semantics.
+So the first requirement for a @dfn{functional} datatype is simply that it have value semantics.
+@c &&& My intention here is to define a functional datatype as one appropriate for functional
+@c programming.  Value semantics is necessary, but it also needs an efficiently persistent
+@c implementation and (if immutable) well-chosen functional update operators.  I should explain the
+@c term ``functional update'' here too.  (Or call these ``delta operators''??)
 
 Okay, back to Common Lisp and FSet.  Collections have to have pointer-mediated implementations
 because they're of arbitrary size, and Common Lisp gives us no way to redefine assignment.  So

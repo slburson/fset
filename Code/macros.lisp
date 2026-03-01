@@ -548,6 +548,13 @@ this macro directly, to keep the `hash-value' and `compare' methods consistent."
 (defun ximage (coll fn)
   (image fn coll))
 
+(define-modify-macro map-imagef (fn)
+  map-ximage)
+
+(declaim (inline map-ximage))
+(defun map-ximage (coll fn)
+  (image fn coll))
+
 (define-modify-macro updatef (fn &rest keys)
   xupdate)
 
