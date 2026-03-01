@@ -6693,7 +6693,7 @@ on `vec', which it assumes is simple.  Returns a string or base-string if
 possible."
   (declare (optimize (speed 3) (safety 0))
 	   (type simple-vector vec)
-	   (type fixnum start end))
+	   (type fixnum start end idx))
   (let ((len (- end start))
 	(elt-type (if (not (characterp val)) 't
 		    (vector-subrange-element-type vec start end (character-type val)))))
