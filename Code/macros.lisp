@@ -1076,6 +1076,40 @@ comparison function in the result, supply `compare-fn-name`."
 	  ((,proto-var (empty-wb-bag ,compare-fn-name))
 	   ((,cf-var (tree-set-org-compare-fn (wb-bag-org ,proto-var))))))))
 
+(gmap:def-gmap-arg-type ch-bag (bag)
+  "Yields each element of `bag', as many times as its multiplicity."
+  ;; &&& I haven't written an internal non-pair ch-bag iterator.  OTOH, there's a driver.
+  `((the function (iterator ,bag))
+    #'(lambda (it) (funcall it ':done?))
+    #'(lambda (it) (funcall it ':get))
+    nil nil nil
+    (do-bag ,bag)))
+
+(gmap:def-gmap-arg-type ch-bag-pairs (bag)
+  "Yields each element of `bag' and its multiplicity as two values."
+  `((make-ch-bag-tree-pair-iterator-internal (ch-bag-contents ,bag))
+    #'ch-bag-tree-pair-iterator-done?
+    (:values 2 #'ch-bag-tree-pair-iterator-get)
+    nil nil nil
+    (do-ch-bag-tree-pairs (ch-bag-contents ,bag))))
+
+(gmap:def-result-type ch-bag (&key filterp compare-fn-name)
+  "Returns a ch-bag of the values, optionally filtered by `filterp'.  To use a
+non-default comparison function in the result, supply `compare-fn-name`."
+  `((make-transient (empty-ch-bag ,compare-fn-name))
+    #'include!
+    #'make-persistent
+    ,filterp))
+
+(gmap:def-result-type ch-bag-pairs (&key filterp compare-fn-name)
+  "Consumes two values from the mapped function; returns a ch-bag of the pairs.
+Note that `filterp', if supplied, must take two arguments.  To use a non-default
+comparison function in the result, supply `compare-fn-name`."
+  `((make-transient (empty-ch-bag ,compare-fn-name))
+    (:consume 2 #'include!)
+    #'make-persistent
+    ,filterp))
+
 (gmap:def-gmap-res-type bag-sum (&key filterp)
   "Returns the bag-sum of the values, optionally filtered by `filterp'."
   `((empty-bag) #'bag-sum nil ,filterp))
@@ -1713,6 +1747,22 @@ the iteration order."
        (if (or (eq ,tsorg1-var ,tsorg2-var)
 	       (eq (tree-set-org-compare-fn ,tsorg1-var) (tree-set-org-compare-fn ,tsorg2-var)))
 	   (let ((,tsorg-var ,tsorg1-var))
+	     ,then)
+	 ,else))))
+
+(defmacro if-same-ch-bag-orgs ((s1 s2 hsorg-var) then else)
+  (let ((s1-var (gensymx #:s1-))
+	(s2-var (gensymx #:s2-))
+	(hsorg1-var (gensymx #:hsorg1-))
+	(hsorg2-var (gensymx #:hsorg2-)))
+    `(let ((,s1-var ,s1)
+	   (,s2-var ,s2)
+	   ((,hsorg1-var (ch-bag-org ,s1-var))
+	    (,hsorg2-var (ch-bag-org ,s2-var))))
+       (if (or (eq ,hsorg1-var ,hsorg2-var)
+	       (and (eq (hash-set-org-hash-fn ,hsorg1-var) (hash-set-org-hash-fn ,hsorg2-var))
+		    (eq (hash-set-org-compare-fn ,hsorg1-var) (hash-set-org-compare-fn ,hsorg2-var))))
+	   (let ((,hsorg-var ,hsorg1-var))
 	     ,then)
 	 ,else))))
 

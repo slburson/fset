@@ -110,7 +110,8 @@
       (Test-Tuple-Operations i))
     (test-champ-sets n-iterations)
     (test-champ-transient-internals)
-    (test-champ-maps n-iterations))
+    (test-champ-maps n-iterations)
+    (test-champ-bags n-iterations))
   (format t "passed~%"))
 
 
@@ -2531,8 +2532,6 @@
 	      (and pr? (equal? val (lookup m key)))))
       (test (contains? (set 1 2 1) 1))
       (test (contains? (bag 1 2 1) 2))
-      (test (handler-case (progn (contains? (bag 1) 1 nil) nil)
-              (simple-program-error () t)))
       (test (domain-contains? (map ('x 0) ('y 1)) 'y))
       (test (domain-contains? (ch-map ('x 0) ('y 1)) 'y))
       (test (domain-contains? (seq 'a 'e 'g 'x) 3))

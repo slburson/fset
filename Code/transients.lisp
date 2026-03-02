@@ -57,6 +57,13 @@ not content."
 	     (:copier nil))
   "The abstract class for FSet transient sets.  It is a structure class.")
 
+(defstruct (transient-bag
+	     (:include transient-collection)
+	     (:constructor nil)
+	     (:predicate transient-bag?)
+	     (:copier nil))
+  "The abstract class for FSet transient bags.  It is a structure class.")
+
 (defstruct (transient-map
 	     (:include transient-collection)
 	     (:constructor nil)
@@ -230,7 +237,91 @@ associate the key with the value passed to `setf'."))
 
 
 ;;; ================
-;;; Ch-Map Transients
+;;; CH-Bag Transients
+
+(defstruct (transient-ch-bag
+	     (:include transient-bag)
+	     (:constructor make-transient-ch-bag (serial-no id contents org &optional lock))
+	     (:predicate transient-ch-bag?)
+	     (:copier raw-copy-transient-ch-bag))
+  (contents nil)
+  (org nil :type hash-set-org :read-only t))
+
+(defmethod make-transient ((s ch-bag) &key synchronized?)
+  (let ((serial-no (get-next-transient-id)))
+    (make-transient-ch-bag serial-no serial-no (ch-bag-contents s) (ch-bag-org s)
+			   (and synchronized? (make-lock "transient lock")))))
+
+(defmethod make-persistent ((tb transient-ch-bag) &key copy?)
+  (with-lock-maybe ((transient-lock tb))
+    (if copy?
+	(make-ch-bag (ch-bag-compact-tree (transient-ch-bag-contents tb)) (transient-ch-bag-org tb))
+      (progn
+	(setf (transient-id tb) nil)
+	(make-ch-bag (transient-ch-bag-contents tb) (transient-ch-bag-org tb))))))
+
+(defmethod empty? ((tb transient-ch-bag))
+  (with-lock-maybe ((transient-lock tb))
+    (null (transient-ch-bag-contents tb))))
+
+(defmethod size ((tb transient-ch-bag))
+  (with-lock-maybe ((transient-lock tb))
+    (ch-bag-tree-total-count (transient-ch-bag-contents tb))))
+
+(defmethod set-size ((tb transient-ch-bag))
+  (with-lock-maybe ((transient-lock tb))
+    (ch-bag-tree-size (transient-ch-bag-contents tb))))
+
+(defmethod arb ((tb transient-ch-bag))
+  (with-lock-maybe ((transient-lock tb))
+    (let ((tree (transient-ch-bag-contents tb)))
+      (if tree (let ((x n (ch-map-tree-arb-pair tree)))
+		 (values x n t))
+	(values nil nil nil)))))
+
+(define-methods (lookup fset2:lookup) ((tb transient-ch-bag) key)
+  (with-lock-maybe ((transient-lock tb))
+    (let ((hsorg (transient-ch-bag-org tb))
+	  ((found? count key-found
+	     (ch-map-tree-lookup (transient-ch-bag-contents tb) key
+				 (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg)))))
+      (if found? (values count key-found)
+	(values 0 nil)))))
+
+(defmethod contains? ((tb transient-ch-bag) value &optional (multiplicity 1))
+  (with-lock-maybe ((transient-lock tb))
+    (let ((hsorg (transient-ch-bag-org tb))
+	  ((val? val (ch-map-tree-lookup (transient-ch-bag-contents tb) value
+					 (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg)))))
+      (and val? (>= val multiplicity)))))
+
+(defmethod clear! ((tb transient-ch-bag))
+  (with-lock-maybe ((transient-lock tb))
+    (setf (transient-ch-bag-contents tb) nil)))
+
+(defmethod include! ((tb transient-ch-bag) value &optional (multiplicity 1))
+  (with-lock-maybe ((transient-lock tb))
+    (allocate-transient-id-if-needed tb)
+    (let ((hsorg (transient-ch-bag-org tb)))
+      (setf (transient-ch-bag-contents tb)
+	    (ch-bag-tree-with (transient-ch-bag-contents tb) value multiplicity
+			      (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg)
+			      (transient-id tb)))))
+  tb)
+
+(defmethod exclude! ((tb transient-ch-bag) value &optional (multiplicity 1))
+  (with-lock-maybe ((transient-lock tb))
+    (allocate-transient-id-if-needed tb)
+    (let ((hsorg (transient-ch-bag-org tb)))
+      (setf (transient-ch-bag-contents tb)
+	    (ch-bag-tree-less (transient-ch-bag-contents tb) value multiplicity
+			      (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg)
+			      (transient-id tb)))))
+  tb)
+
+
+;;; ================
+;;; CH-Map Transients
 
 (defstruct (transient-ch-map
 	     (:include transient-map)
