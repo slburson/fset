@@ -2191,6 +2191,7 @@ multiplicity."
 		(values (car pr) (cdr pr)))
 	    (values val (WB-Bag-Tree-Node-Count tree))))))))
 
+(declaim (ftype (function (WB-Bag-Tree t function) integer) WB-Bag-Tree-Multiplicity))
 (defun WB-Bag-Tree-Multiplicity (tree value cmp-fn)
   "Returns the multiplicity of `value' in `tree', or 0 if `value' does not
 appear in `tree'.  As a second value, returns the value found, if any."

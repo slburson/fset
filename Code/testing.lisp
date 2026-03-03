@@ -707,10 +707,20 @@
       (test (equal? (union (set 1) (bag 2 2)) (bag 1 2 2)))
       (test (equal? (union (set 2) (bag 2 2)) (bag 2 2)))
 
+      (test (equal? (union (ch-set) (ch-bag)) (ch-bag)))
+      (test (equal? (union (ch-set 1) (ch-bag 2)) (ch-bag 1 2)))
+      (test (equal? (union (ch-set 1) (ch-bag 2 2)) (ch-bag 1 2 2)))
+      (test (equal? (union (ch-set 2) (ch-bag 2 2)) (ch-bag 2 2)))
+
       (test (equal? (union (bag) (set)) (bag)))
       (test (equal? (union (bag 1) (set 2)) (bag 1 2)))
       (test (equal? (union (bag 1 1) (set 2)) (bag 1 1 2)))
       (test (equal? (union (bag 1 1) (set 1 3)) (bag 1 1 3)))
+
+      (test (equal? (union (ch-bag) (ch-set)) (ch-bag)))
+      (test (equal? (union (ch-bag 1) (ch-set 2)) (ch-bag 1 2)))
+      (test (equal? (union (ch-bag 1 1) (ch-set 2)) (ch-bag 1 1 2)))
+      (test (equal? (union (ch-bag 1 1) (ch-set 1 3)) (ch-bag 1 1 3)))
 
       (test (equal? (bag-sum (set) (bag)) (bag)))
       (test (equal? (bag-sum (set 1) (bag 2)) (bag 1 2)))
@@ -718,11 +728,23 @@
       (test (equal? (bag-sum (set 1) (bag 1 1 2)) (bag 1 1 1 2)))
       (test (equal? (bag-sum (set 3) (bag 1 1 2)) (bag 1 1 2 3)))
 
+      (test (equal? (bag-sum (ch-set) (ch-bag)) (ch-bag)))
+      (test (equal? (bag-sum (ch-set 1) (ch-bag 2)) (ch-bag 1 2)))
+      (test (equal? (bag-sum (ch-set 1) (ch-bag 1 2)) (ch-bag 1 1 2)))
+      (test (equal? (bag-sum (ch-set 1) (ch-bag 1 1 2)) (ch-bag 1 1 1 2)))
+      (test (equal? (bag-sum (ch-set 3) (ch-bag 1 1 2)) (ch-bag 1 1 2 3)))
+
       (test (equal? (bag-sum (bag) (set)) (bag)))
       (test (equal? (bag-sum (bag 2) (set 1)) (bag 1 2)))
       (test (equal? (bag-sum (bag 1 2) (set 1)) (bag 1 1 2)))
       (test (equal? (bag-sum (bag 1 1 2) (set 1)) (bag 1 1 1 2)))
       (test (equal? (bag-sum (bag 1 1 2) (set 3)) (bag 1 1 2 3)))
+
+      (test (equal? (bag-sum (ch-bag) (ch-set)) (ch-bag)))
+      (test (equal? (bag-sum (ch-bag 2) (ch-set 1)) (ch-bag 1 2)))
+      (test (equal? (bag-sum (ch-bag 1 2) (ch-set 1)) (ch-bag 1 1 2)))
+      (test (equal? (bag-sum (ch-bag 1 1 2) (ch-set 1)) (ch-bag 1 1 1 2)))
+      (test (equal? (bag-sum (ch-bag 1 1 2) (ch-set 3)) (ch-bag 1 1 2 3)))
 
       (test (equal? (intersection (set) (bag)) (set)))
       (test (equal? (intersection (set 1) (bag 2)) (set)))
