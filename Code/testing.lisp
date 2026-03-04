@@ -752,6 +752,12 @@
       (test (equal? (intersection (set 1) (bag 1 1 2)) (set 1)))
       (test (equal? (intersection (set 3) (bag 1 1 2)) (set)))
 
+      (test (equal? (intersection (ch-set) (ch-bag)) (ch-set)))
+      (test (equal? (intersection (ch-set 1) (ch-bag 2)) (ch-set)))
+      (test (equal? (intersection (ch-set 1) (ch-bag 1 2)) (ch-set 1)))
+      (test (equal? (intersection (ch-set 1) (ch-bag 1 1 2)) (ch-set 1)))
+      (test (equal? (intersection (ch-set 3) (ch-bag 1 1 2)) (ch-set)))
+
       (test (equal? (bag-product (set) (bag)) (bag)))
       (test (equal? (bag-product (set 1) (bag)) (bag)))
       (test (equal? (bag-product (set) (bag 2)) (bag)))
@@ -759,6 +765,14 @@
       (test (equal? (bag-product (set 1) (bag 1)) (bag 1)))
       (test (equal? (bag-product (set 1) (bag 1 1 2)) (bag 1 1)))
       (test (equal? (bag-product (set 2) (bag 1 1 2)) (bag 2)))
+
+      (test (equal? (bag-product (ch-set) (ch-bag)) (ch-bag)))
+      (test (equal? (bag-product (ch-set 1) (ch-bag)) (ch-bag)))
+      (test (equal? (bag-product (ch-set) (ch-bag 2)) (ch-bag)))
+      (test (equal? (bag-product (ch-set 1) (ch-bag 2)) (ch-bag)))
+      (test (equal? (bag-product (ch-set 1) (ch-bag 1)) (ch-bag 1)))
+      (test (equal? (bag-product (ch-set 1) (ch-bag 1 1 2)) (ch-bag 1 1)))
+      (test (equal? (bag-product (ch-set 2) (ch-bag 1 1 2)) (ch-bag 2)))
 
       (test (equal? (bag-product (bag) (set)) (bag)))
       (test (equal? (bag-product (bag) (set 1)) (bag)))
@@ -768,6 +782,14 @@
       (test (equal? (bag-product (bag 1 1 2) (set 1)) (bag 1 1)))
       (test (equal? (bag-product (bag 1 1 2) (set 2)) (bag 2)))
 
+      (test (equal? (bag-product (ch-bag) (ch-set)) (ch-bag)))
+      (test (equal? (bag-product (ch-bag) (ch-set 1)) (ch-bag)))
+      (test (equal? (bag-product (ch-bag 2) (ch-set)) (ch-bag)))
+      (test (equal? (bag-product (ch-bag 2) (ch-set 1)) (ch-bag)))
+      (test (equal? (bag-product (ch-bag 1) (ch-set 1)) (ch-bag 1)))
+      (test (equal? (bag-product (ch-bag 1 1 2) (ch-set 1)) (ch-bag 1 1)))
+      (test (equal? (bag-product (ch-bag 1 1 2) (ch-set 2)) (ch-bag 2)))
+
       (test (equal? (bag-difference (set) (bag)) (bag)))
       (test (equal? (bag-difference (set) (bag 1)) (bag)))
       (test (equal? (bag-difference (set 1) (bag)) (bag 1)))
@@ -776,6 +798,14 @@
       (test (equal? (bag-difference (set 1) (bag 2)) (bag 1)))
       (test (equal? (bag-difference (set 1 3) (bag 1 2)) (bag 3)))
 
+      (test (equal? (bag-difference (ch-set) (ch-bag)) (ch-bag)))
+      (test (equal? (bag-difference (ch-set) (ch-bag 1)) (ch-bag)))
+      (test (equal? (bag-difference (ch-set 1) (ch-bag)) (ch-bag 1)))
+      (test (equal? (bag-difference (ch-set 1) (ch-bag 1)) (ch-bag)))
+      (test (equal? (bag-difference (ch-set 1) (ch-bag 1 1)) (ch-bag)))
+      (test (equal? (bag-difference (ch-set 1) (ch-bag 2)) (ch-bag 1)))
+      (test (equal? (bag-difference (ch-set 1 3) (ch-bag 1 2)) (ch-bag 3)))
+
       (test (equal? (bag-difference (bag) (set)) (bag)))
       (test (equal? (bag-difference (bag 1) (set)) (bag 1)))
       (test (equal? (bag-difference (bag) (set 1)) (bag)))
@@ -783,6 +813,14 @@
       (test (equal? (bag-difference (bag 1 1) (set 1)) (bag 1)))
       (test (equal? (bag-difference (bag 1 2) (set 1)) (bag 2)))
       (test (equal? (bag-difference (bag 1 1 1 2) (set 1 3)) (bag 1 1 2)))
+
+      (test (equal? (bag-difference (ch-bag) (ch-set)) (ch-bag)))
+      (test (equal? (bag-difference (ch-bag 1) (ch-set)) (ch-bag 1)))
+      (test (equal? (bag-difference (ch-bag) (ch-set 1)) (ch-bag)))
+      (test (equal? (bag-difference (ch-bag 1) (ch-set 1)) (ch-bag)))
+      (test (equal? (bag-difference (ch-bag 1 1) (ch-set 1)) (ch-bag 1)))
+      (test (equal? (bag-difference (ch-bag 1 2) (ch-set 1)) (ch-bag 2)))
+      (test (equal? (bag-difference (ch-bag 1 1 1 2) (ch-set 1 3)) (ch-bag 1 1 2)))
 
       (test (subbag? (set) (bag)))
       (test (subbag? (set) (bag 1)))

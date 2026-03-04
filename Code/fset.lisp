@@ -504,6 +504,12 @@ it may elide calls to `val-fn' on that basis.
 If `val-fn' returns `:no-value' as a second value, the result will contain
 no pair with the corresponding key."))
 
+(defgeneric map-difference (map1 map2)
+  (:documentation
+    "Returns a map containing all the pairs that are in `map1' but not `map2'.
+The default is that of `map1', if any, unless it's equal to that of `map2',
+in which case it has no default."))
+
 (defgeneric map-difference-2 (map1 map2)
   (:documentation
     "Returns, as two values: a map containing all the pairs that are in `map1'
@@ -3758,6 +3764,81 @@ different bag implementations; it is not for public use.  `elt-fn' and
 		     (ch-bag-org b))
       (call-next-method))))
 
+(defmethod intersection ((b1 ch-bag) (b2 ch-bag) &key)
+  (if-same-ch-bag-orgs (b1 b2 hsorg)
+      (make-ch-bag (ch-bag-tree-intersection (ch-bag-contents b1) (ch-bag-contents b2)
+					     (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg))
+		   hsorg)
+    (call-next-method)))
+
+(defmethod intersection ((b ch-bag) (s ch-set) &key)
+  (let ((scmp (compare-fn s))
+	(bcmp (compare-fn b)))
+    (if (eq scmp bcmp)
+	(make-ch-set (ch-set-tree-intersection (ch-bag-tree-to-set-tree (ch-bag-contents b)) (ch-set-contents s)
+					       (hash-set-org-hash-fn (ch-bag-org b)) bcmp)
+		     (ch-set-org s))
+      (call-next-method))))
+
+(defmethod intersection ((s ch-set) (b ch-bag) &key)
+  (let ((scmp (compare-fn s))
+	(bcmp (compare-fn b)))
+    (if (eq scmp bcmp)
+	(make-ch-set (ch-set-tree-intersection (ch-set-contents s) (ch-bag-tree-to-set-tree (ch-bag-contents b))
+					       (hash-set-org-hash-fn (ch-bag-org b)) bcmp)
+		     (ch-set-org s))
+      (call-next-method))))
+
+(defmethod bag-product ((b1 ch-bag) (b2 ch-bag))
+  (if-same-ch-bag-orgs (b1 b2 hsorg)
+      (make-ch-bag (ch-bag-tree-product (ch-bag-contents b1) (ch-bag-contents b2)
+					(hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg))
+		   hsorg)
+    (call-next-method)))
+
+(defmethod bag-product ((b ch-bag) (s ch-set))
+  (let ((bcmp (compare-fn b))
+	(scmp (compare-fn s)))
+    (if (eq scmp bcmp)
+	(make-ch-bag (ch-bag-tree-product (ch-bag-contents b) (ch-set-tree-to-bag-tree (ch-set-contents s))
+					  (hash-set-org-hash-fn (ch-bag-org b)) bcmp)
+		     (ch-bag-org b))
+      (call-next-method))))
+
+(defmethod bag-product ((s ch-set) (b ch-bag))
+  (let ((scmp (compare-fn s))
+	(bcmp (compare-fn b)))
+    (if (eq scmp bcmp)
+	(make-ch-bag (ch-bag-tree-product (ch-set-tree-to-bag-tree (ch-set-contents s)) (ch-bag-contents b)
+					  (hash-set-org-hash-fn (ch-bag-org b)) bcmp)
+		     (ch-bag-org b))
+      (call-next-method))))
+
+(defmethod bag-difference ((b1 ch-bag) (b2 ch-bag))
+  (if-same-ch-bag-orgs (b1 b2 hsorg)
+      (make-ch-bag (ch-bag-tree-diff (ch-bag-contents b1) (ch-bag-contents b2)
+				     (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg))
+		   hsorg)
+    (call-next-method)))
+
+(defmethod bag-difference ((b ch-bag) (s ch-set))
+  (let ((scmp (compare-fn s))
+	(bcmp (compare-fn b)))
+    (if (eq scmp bcmp)
+	(make-ch-bag (ch-bag-tree-diff (ch-bag-contents b) (ch-set-tree-to-bag-tree (ch-set-contents s))
+				       (hash-set-org-hash-fn (ch-bag-org b)) bcmp)
+		     (ch-bag-org b))
+      (call-next-method))))
+
+(defmethod bag-difference ((s ch-set) (b ch-bag))
+  (let ((scmp (compare-fn s))
+	(bcmp (compare-fn b)))
+    (if (eq scmp bcmp)
+	(make-ch-bag (ch-bag-tree-diff (ch-set-tree-to-bag-tree (ch-set-contents s)) (ch-bag-contents b)
+				       (hash-set-org-hash-fn (ch-bag-org b)) bcmp)
+		     (ch-bag-org b))
+      (call-next-method))))
+
 (defmethod compare ((s1 ch-bag) (s2 ch-bag))
   (if-same-ch-bag-orgs (s1 s2 hsorg)
       (ch-bag-tree-compare (ch-bag-contents s1) (ch-bag-contents s2)
@@ -4391,6 +4472,38 @@ symbols."))
 		   tmorg (map-intersection-default m1 m2 val-fn))
     (call-next-method)))
 
+;;; Added after FSet 2 came out, so there's no FSet 1 version.
+(defmethod map-difference ((m1 map) (m2 map))
+  "Fallback method for mixed implementations."
+  (with-default (generic-map-difference m1 m2) (map-difference-default m1 m2)))
+
+(defun generic-map-difference (m1 m2)
+  (let ((result1 (empty-map-like m1))
+	(vcf1 (val-compare-fn m1))
+	(m2d (with-default m2 nil)))
+    (do-map (k v1 m1)
+      (let ((v2 v2? (lookup m2d k)))
+	(unless (and v2? (equal?-cmp v1 v2 vcf1))
+	  (setf (lookup result1 k) v1))))
+    result1))
+
+(defun map-difference-default (m1 m2)
+  (let ((dflt1 (map-default m1))
+	(dflt2 (map-default m2)))
+    (if (eq dflt1 'no-default) 'no-default
+      (if (eq dflt2 'no-default) dflt1
+	(if (equal?-cmp dflt1 dflt2 (val-compare-fn m1))
+	    'no-default
+	  dflt1)))))
+
+(defmethod map-difference ((m1 wb-map) (m2 wb-map))
+  (if-same-wb-map-orgs (m1 m2 tmorg)
+      (make-wb-map (WB-Map-Tree-Diff (wb-map-contents m1) (wb-map-contents m2)
+				     (tree-map-org-key-compare-fn tmorg)
+				     (tree-map-org-val-compare-fn tmorg))
+		   tmorg (map-difference-default m1 m2))
+    (call-next-method)))
+
 (defmethod map-difference-2 ((m1 map) (m2 map))
   "Fallback method for mixed implementations."
   (let ((result1 result2 (generic-map-difference-2 m1 m2)))
@@ -4421,18 +4534,7 @@ symbols."))
     (values result1 result2)))
 
 (defun map-difference-2-defaults (m1 m2)
-  (let ((dflt1 (map-default m1))
-	(dflt2 (map-default m2)))
-    (values (if (eq dflt1 'no-default) 'no-default
-	      (if (eq dflt2 'no-default) dflt1
-		(if (equal?-cmp dflt1 dflt2 (val-compare-fn m1))
-		    'no-default
-		  dflt1)))
-	    (if (eq dflt2 'no-default) 'no-default
-	      (if (eq dflt1 'no-default) dflt2
-		(if (equal?-cmp dflt1 dflt2 (val-compare-fn m2))
-		    'no-default
-		  dflt2))))))
+  (values (map-difference-default m1 m2) (map-difference-default m2 m1)))
 
 (defmethod map-difference-2 ((m1 wb-map) (m2 wb-map))
   (if-same-wb-map-orgs (m1 m2 tmorg)
@@ -5051,6 +5153,14 @@ The map's default is `nil' unless a different default is supplied, or
 					     (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)
 					     (hash-map-org-val-hash-fn hmorg) (hash-map-org-val-compare-fn hmorg))
 		   hmorg (map-intersection-default m1 m2 val-fn))
+    (call-next-method)))
+
+(defmethod map-difference ((m1 ch-map) (m2 ch-map))
+  (if-same-ch-map-orgs (m1 m2 hmorg)
+      (make-ch-map (ch-map-tree-diff (ch-map-contents m1) (ch-map-contents m2)
+				     (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)
+				     (hash-map-org-val-hash-fn hmorg) (hash-map-org-val-compare-fn hmorg))
+		   hmorg (map-difference-default m1 m2))
     (call-next-method)))
 
 (defmethod map-difference-2 ((m1 ch-map) (m2 ch-map))

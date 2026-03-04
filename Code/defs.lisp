@@ -223,7 +223,7 @@
 	   #:seq-bounds-error #:seq-bounds-error-seq #:seq-bounds-error-index
 	   #:tuple-key-unbound-error #:tuple-key-unbound-error-tuple #:tuple-key-unbound-error-key
 	   #:empty-seq-error #:empty-seq-error-seq #:non-char-seq-error #:non-char-seq-error-seq
-	   #:map-union #:map-intersection #:map-difference-2 #:map-image
+	   #:map-union #:map-intersection #:map-difference #:map-difference-2 #:map-image
 	   #:restrict #:restrict-not #:compose
 	   #:first #:last
 	   #:lastcons #:head #:tail
