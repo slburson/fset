@@ -275,25 +275,22 @@ associate the key with the value passed to `setf'."))
 (defmethod arb ((tb transient-ch-bag))
   (with-lock-maybe ((transient-lock tb))
     (let ((tree (transient-ch-bag-contents tb)))
-      (if tree (let ((x n (ch-map-tree-arb-pair tree)))
+      (if tree (let ((x n (ch-bag-tree-arb-pair tree)))
 		 (values x n t))
 	(values nil nil nil)))))
 
 (define-methods (lookup fset2:lookup) ((tb transient-ch-bag) key)
   (with-lock-maybe ((transient-lock tb))
-    (let ((hsorg (transient-ch-bag-org tb))
-	  ((found? count key-found
-	     (ch-map-tree-lookup (transient-ch-bag-contents tb) key
-				 (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg)))))
-      (if found? (values count key-found)
-	(values 0 nil)))))
+    (let ((hsorg (transient-ch-bag-org tb)))
+      (ch-bag-tree-multiplicity (transient-ch-bag-contents tb) key
+				(hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg)))))
 
 (defmethod contains? ((tb transient-ch-bag) value &optional (multiplicity 1))
   (with-lock-maybe ((transient-lock tb))
     (let ((hsorg (transient-ch-bag-org tb))
-	  ((val? val (ch-map-tree-lookup (transient-ch-bag-contents tb) value
-					 (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg)))))
-      (and val? (>= val multiplicity)))))
+	  ((count (ch-bag-tree-multiplicity (transient-ch-bag-contents tb) value
+					    (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg)))))
+      (>= count multiplicity))))
 
 (defmethod clear! ((tb transient-ch-bag))
   (with-lock-maybe ((transient-lock tb))

@@ -883,7 +883,8 @@ between equal trees."
 	   (type function cmp-fn))
   (cond ((eq tree1 tree2) t)		; historically-related-set optimization
 	((null tree1) t)
-	((and (simple-vector-p tree1) (or (null tree2) (simple-vector-p tree2)))
+	((null tree2) nil)
+	((and (simple-vector-p tree1) (simple-vector-p tree2))
 	 (Vector-Set-Subset? tree1 tree2 lo hi cmp-fn))
 	((simple-vector-p tree1)
 	 (let ((val2 (WB-Set-Tree-Node-Value tree2)))
@@ -2791,8 +2792,9 @@ between equal trees."
 	   (type WB-Bag-Tree tree1 tree2)
 	   (type function cmp-fn))
   (cond ((null tree1) t)
+	((null tree2) nil)
 	((eq tree1 tree2) t)		; historically-related-tree optimization
-	((and (consp tree1) (or (null tree2) (consp tree2)))
+	((and (consp tree1) (consp tree2))
 	 (Vector-Pair-Bag-Subbag? tree1 tree2 lo hi cmp-fn))
 	((consp tree1)
 	 (let ((val2 (WB-Bag-Tree-Node-Value tree2))

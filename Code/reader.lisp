@@ -270,6 +270,18 @@ given by the value of `expression2'.  That is, the multiplicity of each element
 of the result bag is the sum of its multiplicities as supplied by each of the
 argument subforms."
   (expand-bag-constructor-form 'bag 'empty-bag args))
+(defmacro fset2:bag (&rest args)
+  "Constructs a bag of the default implementation according to the supplied
+argument subforms.  Each argument subform can be an expression, whose value
+will be added to the bag with multiplicity 1; or a list of the form
+\($ `expression'), in which case the expression must evaluate to a bag (or a
+set), which is bag-summed into the result; or a list of the form
+\(% `expression1' `expression2') (called a \"multi-arg\"), which indicates that
+the value of `expression1' is bag-summed into the result with multiplicity
+given by the value of `expression2'.  That is, the multiplicity of each element
+of the result bag is the sum of its multiplicities as supplied by each of the
+argument subforms."
+  (expand-bag-constructor-form 'fset2:bag 'fset2:empty-bag args))
 
 (defmacro wb-bag (&rest args)
   "Constructs a wb-bag according to the supplied argument subforms.  Each

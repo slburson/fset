@@ -2737,7 +2737,7 @@ trees.  This is the default implementation of bags in FSet."
 
 (declaim (inline empty-bag))
 (defun empty-bag ()
-  "Returns an empty bag of the default implementation and type."
+  "Returns an empty bag of the default implementation and organization."
   +empty-wb-bag+)
 ;;; `fset2:empty-bag' is below
 
@@ -3210,19 +3210,13 @@ multiplicity, but the two bags are not equal."
       (WB-Bag-Tree-Disjoint? (wb-bag-contents b1) (wb-bag-contents b2) (tree-set-org-compare-fn tsorg))
     (call-next-method)))
 
-(defmethod disjoint? ((b wb-bag) (s wb-set))
+(defmethod disjoint? ((b bag) (s set))
   (bag-set-disjoint? b s))
 
-(defmethod disjoint? ((b wb-bag) (s ch-set))
-  (bag-set-disjoint? b s))
-
-(defmethod disjoint? ((s wb-set) (b wb-bag))
-  (bag-set-disjoint? b s))
-(defmethod disjoint? ((s ch-set) (b wb-bag))
+(defmethod disjoint? ((s set) (b bag))
   (bag-set-disjoint? b s))
 
 (defun bag-set-disjoint? (b s)
-  ;; Too lazy to write the WB hedge algorithm.  Maybe l8r.
   (if (< (size s) (set-size b))
       (do-set (x s t)
 	(when (contains? b x)
@@ -3588,7 +3582,7 @@ different bag implementations; it is not for public use.  `elt-fn' and
 
 (declaim (inline fset2:empty-bag))
 (defun fset2:empty-bag ()
-  "Returns an empty bag of the default implementation and type."
+  "Returns an empty bag of the default implementation and organization."
   +empty-ch-bag+)
 
 (declaim (inline empty-ch-bag fset2:empty-ch-bag))
@@ -3839,25 +3833,38 @@ different bag implementations; it is not for public use.  `elt-fn' and
 		     (ch-bag-org b))
       (call-next-method))))
 
-(defmethod compare ((s1 ch-bag) (s2 ch-bag))
-  (if-same-ch-bag-orgs (s1 s2 hsorg)
-      (ch-bag-tree-compare (ch-bag-contents s1) (ch-bag-contents s2)
+(defmethod subbag? ((b1 ch-bag) (b2 ch-bag))
+  (if-same-ch-bag-orgs (b1 b2 hsorg)
+      (ch-bag-tree-subbag? (ch-bag-contents b1) (ch-bag-contents b2)
+			   (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg))
+    (call-next-method)))
+
+(defmethod disjoint? ((b1 ch-bag) (b2 ch-bag))
+  (if-same-ch-bag-orgs (b1 b2 hsorg)
+      (ch-bag-tree-disjoint? (ch-bag-contents b1) (ch-bag-contents b2)
+			     (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg))
+    (call-next-method)))
+
+(defmethod compare ((b1 ch-bag) (b2 ch-bag))
+  (if-same-ch-bag-orgs (b1 b2 hsorg)
+      (ch-bag-tree-compare (ch-bag-contents b1) (ch-bag-contents b2)
 			   (hash-set-org-compare-fn hsorg))
     ;; See `define-wb-set-method compare' above.
-    (let ((s1-cfn-name (hash-set-org-compare-fn-name (ch-bag-org s1)))
-	  (s2-cfn-name (hash-set-org-compare-fn-name (ch-bag-org s2)))
-	  ((name-comp (compare s1-cfn-name s2-cfn-name))))
+    (let ((b1-cfn-name (hash-set-org-compare-fn-name (ch-bag-org b1)))
+	  (b2-cfn-name (hash-set-org-compare-fn-name (ch-bag-org b2)))
+	  ((name-comp (compare b1-cfn-name b2-cfn-name))))
       (ecase name-comp
 	((:less :greater)
 	  name-comp)
 	(:equal
-	  (compare (convert 'ch-bag s1 :compare-fn-name s1-cfn-name)
-		   (convert 'ch-bag s2 :compare-fn-name s1-cfn-name)))
+	  (compare (convert 'ch-bag b1 :compare-fn-name b1-cfn-name)
+		   (convert 'ch-bag b2 :compare-fn-name b1-cfn-name)))
 	(:unequal
 	  (error "Can't compare ch-bags with uninterned compare-fn-names with same symbol-name"))))))
 
 (defmethod hash-value ((s ch-bag))
-  (ch-bag-tree-hash-value (ch-bag-contents s)))
+  (let ((tree (ch-bag-contents s)))
+    (hash-mix (ch-bag-tree-hash-value tree) (ch-bag-tree-total-count tree))))
 
 (defmethod internal-do-bag-pairs ((b ch-bag) elt-fn value-fn)
   (declare (optimize (speed 3) (safety 0))
@@ -3903,11 +3910,11 @@ different bag implementations; it is not for public use.  `elt-fn' and
   (gmap (:result wb-bag-pairs :compare-fn-name compare-fn-name)
 	nil (:arg ch-bag-pairs b)))
 
-(defmethod convert ((to-type (eql 'ch-bag)) (b bag) &key compare-fn-name)
+(define-convert-methods (ch-bag fset2:bag) ((b bag) &key compare-fn-name)
   (gmap (:result ch-bag-pairs :compare-fn-name compare-fn-name)
 	nil (:arg wb-bag-pairs b)))
 
-(defmethod convert ((to-type (eql 'ch-bag)) (l list) &key pairs? from-type compare-fn-name)
+(define-convert-methods (ch-bag fset2:bag) ((l list) &key pairs? from-type compare-fn-name)
   (if (or pairs? (eq from-type 'alist))
       (gmap (:result ch-bag-pairs :compare-fn-name compare-fn-name)
 	    (fn (c)
@@ -3921,7 +3928,7 @@ different bag implementations; it is not for public use.  `elt-fn' and
     (gmap (:result ch-bag :compare-fn-name compare-fn-name)
 	  nil (:arg list l))))
 
-(defmethod convert ((to-type (eql 'ch-bag)) (s sequence) &key pairs? compare-fn-name)
+(define-convert-methods (ch-bag fset2:bag) ((s sequence) &key pairs? compare-fn-name)
   (if pairs?
       (gmap (:result ch-bag-pairs :compare-fn-name compare-fn-name)
 	    (fn (c)
@@ -3936,11 +3943,15 @@ different bag implementations; it is not for public use.  `elt-fn' and
 	  nil (:arg sequence s))))
 
 
-
 (defun print-ch-bag (bag stream level)
   (print-bag bag stream level "##{%" (let ((cfn-name (hash-set-org-compare-fn-name (ch-bag-org bag))))
 				       (if (eq cfn-name 'compare) " %}"
 					 (format nil " %}[~S]" cfn-name)))))
+
+(defmethod make-load-form ((b ch-bag) &optional environment)
+  (declare (ignore environment))
+  `(convert 'ch-bag ',(convert 'alist b) :pairs? t
+					 :compare-fn-name ',(hash-set-org-compare-fn-name (ch-bag-org b))))
 
 
 ;;; ================================================================================
