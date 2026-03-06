@@ -438,8 +438,8 @@
       (test (less-than? (set 'a 3 'c) (set 'a 3.0 'd)))
       (test (less-than? (wb-set 8 12) (wb-custom-set 'erapmoc 0 2))) ; because "compare" < "erapmoc"
       (test (less-than? (ch-set 8 12) (ch-custom-set 'erapmoc 0 2)))
-      (test (less-than? (ch-set 8 12) (wb-custom-set 'erapmoc 0 2))) ; because "ch-..." < "wb-..."
-      (test (less-than? (ch-custom-set 'erapmoc 0 2) (wb-set 8 12)))
+      (test (greater-than? (ch-set 8 12) (wb-custom-set 'erapmoc 0 2))) ; see `define-cross-type-compare-methods'
+      (test (greater-than? (ch-custom-set 'erapmoc 0 2) (wb-set 8 12)))
       (test (less-than? (set 1) (bag 1)))
       (test (equal (convert 'list
 			    (eval '(bag 1 ($ (bag 3 3)) (% "x" 3) 4

@@ -115,6 +115,8 @@ reordered key vectors.  This is the default implementation of tuples in FSet."
   ;; If nonnull, the cumulative `hash-value' of the keys and values.
   (hash-value nil :type (or null fixnum)))
 
+(define-cross-type-compare-methods dyn-tuple)
+
 
 (defstruct (tuple-key
 	    (:constructor make-tuple-key (name default number &optional type))

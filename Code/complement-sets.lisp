@@ -25,6 +25,8 @@ its intersection with an ordinary set, and the difference of it and another
 complement set."
   (complement nil :read-only t))
 
+(define-cross-type-compare-methods complement-set)
+
 (defgeneric complement (set)
   (:documentation
     "Returns the complement of the set."))

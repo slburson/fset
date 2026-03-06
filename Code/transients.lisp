@@ -279,7 +279,7 @@ associate the key with the value passed to `setf'."))
 		 (values x n t))
 	(values nil nil nil)))))
 
-(define-methods (lookup fset2:lookup) ((tb transient-ch-bag) key)
+(define-methods (lookup fset2:lookup multiplicity) ((tb transient-ch-bag) key)
   (with-lock-maybe ((transient-lock tb))
     (let ((hsorg (transient-ch-bag-org tb)))
       (ch-bag-tree-multiplicity (transient-ch-bag-contents tb) key

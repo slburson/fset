@@ -1733,6 +1733,8 @@ when printing instances."
 trees."
   (contents nil :read-only t))
 
+(define-cross-type-compare-methods wb-set)
+
 ;;; For WB-sets, the space overhead of carrying around the comparison function in every instance
 ;;; of this wrapper class, plus the time required to initialize it, is measurable -- for a singleton
 ;;; set, space increases from 4 to 5 words, and a micro-benchmark that does nothing but create
@@ -2400,6 +2402,8 @@ for the possibility of different set implementations; it is not for public use.
   (contents nil :read-only t)
   (org nil :type hash-set-org :read-only t))
 
+(define-cross-type-compare-methods ch-set)
+
 (defparameter +empty-ch-set+ (make-ch-set nil +fset-default-hash-set-org+))
 
 (declaim (inline fset2:empty-set))
@@ -2732,6 +2736,8 @@ comparison function as `compare-fn-name'."
 trees.  This is the default implementation of bags in FSet."
   (contents nil :read-only t)
   (org nil :type tree-set-org :read-only t))
+
+(define-cross-type-compare-methods wb-bag)
 
 (defparameter +empty-wb-bag+ (make-wb-bag nil +fset-default-tree-set-org+))
 
@@ -3578,6 +3584,8 @@ different bag implementations; it is not for public use.  `elt-fn' and
   (contents nil :read-only t)
   (org nil :type hash-set-org :read-only t))
 
+(define-cross-type-compare-methods ch-bag)
+
 (defparameter +empty-ch-bag+ (make-ch-bag nil +fset-default-hash-set-org+))
 
 (declaim (inline fset2:empty-bag))
@@ -3981,6 +3989,8 @@ different bag implementations; it is not for public use.  `elt-fn' and
 the default implementation of maps in FSet."
   (contents nil :read-only t)
   (org nil :type tree-map-org :read-only t))
+
+(define-cross-type-compare-methods wb-map)
 
 (defparameter +empty-wb-map+ (make-wb-map nil +fset-default-tree-map-org+ nil))
 
@@ -4910,6 +4920,8 @@ to `compare'."
   (contents nil :read-only t)
   (org nil :type hash-map-org :read-only t))
 
+(define-cross-type-compare-methods ch-map)
+
 (defparameter +empty-ch-map+ (make-ch-map nil +fset-default-hash-map-org+ nil))
 
 (defparameter +empty-ch-map/no-default+ (make-ch-map nil +fset-default-hash-map-org+ 'no-default))
@@ -5417,6 +5429,8 @@ The map's default is `nil' unless a different default is supplied, or
 confusion with `cl:sequence') represented as weight-balanced binary trees.
 This is the default implementation of seqs in FSet."
   (contents nil :read-only t))
+
+(define-cross-type-compare-methods wb-seq)
 
 ;;; A slotless subclass used for method dispatching.  In this case, `contents'
 ;;; is always a `WB-HT-Seq-Tree'.

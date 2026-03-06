@@ -113,6 +113,8 @@ constructed."
   (map1 nil) ; a cache, so we leave it mutable
   (org nil :type tree-map-org :read-only t))
 
+(define-cross-type-compare-methods wb-2-relation)
+
 (defparameter +empty-wb-2-relation+ (make-wb-2-relation 0 nil nil +fset-default-tree-map-org+))
 
 (declaim (inline empty-wb-2-relation fset2:empty-wb-2-relation))
@@ -777,6 +779,8 @@ constructed."
   (map0 nil :read-only t)
   (map1 nil) ; a cache, so we leave it mutable
   (org nil :type hash-map-org :read-only t))
+
+(define-cross-type-compare-methods ch-2-relation)
 
 (defparameter +empty-ch-2-relation+ (make-ch-2-relation 0 nil nil +fset-default-hash-map-org+))
 
@@ -1549,6 +1553,7 @@ are in list form."
   indices
   (org nil :type tree-list-relation-org :read-only t))
 
+(define-cross-type-compare-methods wb-list-relation)
 
 (defun empty-list-relation (&optional arity)
   "We allow the arity to be temporarily unspecified; it will be taken from
@@ -1980,6 +1985,7 @@ are in list form."
   indices
   (org nil :type hash-list-relation-org :read-only t))
 
+(define-cross-type-compare-methods ch-list-relation)
 
 (defun empty-ch-list-relation (&optional arity compare-fn-name)
   "We allow the arity to be temporarily unspecified; it will be taken from
@@ -2339,6 +2345,8 @@ Indices are returned as internal ch-map trees."
 	     (:print-function print-wb-assertion-db)
 	     (:copier nil))
   (list-rels nil :read-only t))
+
+(define-cross-type-compare-methods wb-assertion-db)
 
 (defun empty-assertion-db ()
   (empty-wb-assertion-db))

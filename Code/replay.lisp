@@ -67,6 +67,8 @@ sets are printed as \"#{= ... }\"."
   (contents nil :read-only t)
   (org nil :type tree-set-org :read-only t))
 
+(define-cross-type-compare-methods wb-replay-set)
+
 (defparameter +empty-wb-replay-set+ (make-wb-replay-set nil nil +fset-default-tree-set-org+))
 
 (declaim (inline empty-wb-replay-set fset2:empty-wb-replay-set))
@@ -314,6 +316,8 @@ order; if you just want to compare the contents, convert them to ordinary sets f
 sets are printed as \"#{= ... }\"."
   (contents nil :read-only t)
   (org nil :type hash-set-org :read-only t))
+
+(define-cross-type-compare-methods ch-replay-set)
 
 (defparameter +empty-ch-replay-set+ (make-ch-replay-set nil nil +fset-default-hash-set-org+))
 
@@ -637,6 +641,8 @@ iteration order; if you just want to compare the contents, convert them to ordin
 first.  Replay maps are printed as \"#{=| ... |}\"."
   (contents nil :read-only t)
   (org nil :type tree-map-org :read-only t))
+
+(define-cross-type-compare-methods wb-replay-map)
 
 (defparameter +empty-wb-replay-map+ (make-wb-replay-map nil nil +fset-default-tree-map-org+ nil))
 
@@ -969,6 +975,8 @@ iteration order; if you just want to compare the contents, convert them to ordin
 first.  Replay maps are printed as \"##{=| ... |}\"."
   (contents nil :read-only t)
   (org nil :type hash-map-org :read-only t))
+
+(define-cross-type-compare-methods ch-replay-map)
 
 (defparameter +empty-ch-replay-map+ (make-ch-replay-map nil nil +fset-default-hash-map-org+ nil))
 
