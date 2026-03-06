@@ -35,10 +35,12 @@
     (setq *loop-end-used?* t)
     (return-driver-code :next (list test setqs) :variable var)))
 
-;;; I don't know what I was thinking, calling this `in-iterator', since it doesn't take
-;;; an iterator, but rather a collection on which `iterator' will be called.
+;;; Not the best name, since it doesn't take an existing iterator, but rather
+;;; a collection on which `iterator' will be called.
 (defclause-driver (for var in-iterator x)
-  "Elements of any FSet iterator.  Deprecated; use `in-collection'."
+  "Elements or pairs of any iterable collection.  Calls `fset:iterator' on `x'
+to get an iterator, and iterates over whatever that returns.   Deprecated;
+use `in-collection'."
   (top-level-check)
   (let ((iter-var (make-var-and-binding 'iter `(iterator ,x)))
 	((setqs (do-dsetq var `(funcall ,iter-var ':get)))
@@ -47,8 +49,9 @@
     (return-driver-code :next (list test setqs) :variable var)))
 
 (defclause-driver (for var in-collection x)
-  "Elements or pairs of any collection.  There must be an `fset:iterator' method
-on it which returns an object that conforms to the FSet iterator protocol."
+  "Elements or pairs of an FSet set, seq, or bag, or pairs of a map.  May be
+used with any collection for which there is an `fset:iterator' method which
+returns an object that conforms to the FSet iterator protocol."
   (top-level-check)
   (let ((iter-var (make-var-and-binding 'iter `(iterator ,x)))
 	((setqs (do-dsetq var `(funcall ,iter-var ':get)))
@@ -142,23 +145,23 @@ or `downfrom', and/or `to', `downto', `above', or `below', stepped by `step'."
 ;;; ================ Accumulators ================
 
 (defclause (collect-set expr &optional initial-value init-val into var-spec)
-  "Collects values into a set, by default a `wb-set' ordered by `compare'.
+  "Collects values into a set, by default a `ch-set' ordered by `compare'.
 Use `initial-value' to construct a different kind of set."
-  (simple-fset-collect expr (or init-val '(wb-set)) var-spec 'with))
+  (simple-fset-collect expr (or init-val '(ch-set)) var-spec 'with))
 
 (defclause (collect-bag expr &optional initial-value init-val into var-spec)
-  "Collects values into a bag, by default a `wb-bag' ordered by `compare'.
+  "Collects values into a bag, by default a `ch-bag' ordered by `compare'.
 Use `initial-value' to construct a different kind of bag."
-  (simple-fset-collect expr (or init-val '(wb-bag)) var-spec 'with))
+  (simple-fset-collect expr (or init-val '(ch-bag)) var-spec 'with))
 
 (defclause (collect-bag val-expr count count-expr &optional initial-value init-val into var-spec)
-  "Collects value/count pairs into a bag, by default a `wb-bag' ordered by
+  "Collects value/count pairs into a bag, by default a `ch-bag' ordered by
 `compare'.  Use `initial-value' to construct a different kind of bag."
   (local-binding-check init-val)
   (let ((var-spec (or var-spec *result-var*))
 	((var (extract-var var-spec))
 	 ((op-expr `(with ,var ,(walk-expr val-expr) ,(walk-expr count-expr))))))
-    (make-accum-var-binding var-spec (or init-val '(wb-bag)) nil :type nil)
+    (make-accum-var-binding var-spec (or init-val '(ch-bag)) nil :type nil)
     (return-code :body `((setq ,var ,op-expr)))))
 
 ;;; There's only one kind of seq, and I don't expect that to change soon.
@@ -175,7 +178,7 @@ Use `initial-value' to construct a different kind of bag."
     (return-code :body `((setq ,var ,op-expr)))))
 
 (defclause (collect-map key*val &optional initial-value init-val into var-spec)
-  "Collects key/value pairs into a map, by default a `wb-map' ordered by
+  "Collects key/value pairs into a map, by default a `ch-map' ordered by
 `compare'.  Use `initial-value' to construct a different kind of map.
 `key*val' must be a list of two expressions, for key and value."
   (unless (and (listp key*val) (= (length key*val) 2))
@@ -184,14 +187,14 @@ Use `initial-value' to construct a different kind of bag."
   (let ((var-spec (or var-spec *result-var*))
 	((var (extract-var var-spec))
 	 ((op-expr `(with ,var ,(walk-expr (first key*val)) ,(walk-expr (second key*val)))))))
-    (make-accum-var-binding var-spec (or init-val '(wb-map)) nil :type nil)
+    (make-accum-var-binding var-spec (or init-val '(ch-map)) nil :type nil)
     (return-code :body `((setq ,var ,op-expr)))))
 
 (defclause (collect-map-to-sets key*val &optional initial-value init-val into var-spec)
   "Collects key/value pairs into a map, collecting values for each key into a
 set.  `key*val' must be a list of two expressions, for key and value.  By
-default, the result is a `wb-map' ordered by `compare', and the value sets are
-`wb-sets' ordered by `compare'.  Use `initial-value' to construct a different
+default, the result is a `ch-map' ordered by `compare', and the value sets are
+`ch-sets' ordered by `compare'.  Use `initial-value' to construct a different
 kind of map; the map's default must be a set \(or bag\)."
   (unless (and (listp key*val) (= (length key*val) 2))
     (clause-error "~A should be a list of two expressions" key*val))
@@ -201,7 +204,7 @@ kind of map; the map's default must be a set \(or bag\)."
 	((var (extract-var var-spec))
 	 ((op-expr `(let ((,key-var ,(walk-expr (first key*val))))
 		      (with ,var ,key-var (with (lookup ,var ,key-var) ,(walk-expr (second key*val)))))))))
-    (make-accum-var-binding var-spec (or init-val '(wb-map :default (wb-set))) nil :type nil)
+    (make-accum-var-binding var-spec (or init-val '(ch-map :default (ch-set))) nil :type nil)
     (return-code :body `((setq ,var ,op-expr)))))
 
 ;;; Shadows `iter:unioning'.  Since you're using FSet, you probably don't want CL's
