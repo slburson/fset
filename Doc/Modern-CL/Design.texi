@@ -37,6 +37,8 @@ now explain.
 
 @c Map defaults should be mentioned here somewhere; they also support DRY.
 
+
+@c ================================================================================
 @node Divergences from Common Lisp
 @section Divergences from Common Lisp
 There are two major ways in which FSet's collections differ from the ones built into CL.
@@ -185,18 +187,20 @@ fair to conclude that you're working within an FSet context, and FSet semantics 
 
 @item
 The @code{:test-not} keyword is not supported (it's deprecated in the ANSI spec).
-
 @end itemize
 
+
+@c ================================================================================
 @node Comparison and Equality
 @section Comparison and Equality
+
 FSet has a default ordering relation, computed by the generic function @code{compare}.  It comes
 with methods to compare most of the builtin CL types (@code{null}, @code{real}, @code{complex},
 @code{character}, @code{symbol}, @code{string}, @code{vector}, @code{list}, @code{package},
 @code{pathname}, and @code{array}) along with FSet's own types.  The comparisons are used to build
-and search FSet's internal data structures, so they must obey certain mathematical rules; for more
-information on this, see @ref{Generic Function @code{compare}}.
-@code{}
+and search FSet's internal data structures, so they must obey @href{Strict Weak Orderings, certain
+mathematical rules}.
+
 The semantics of @code{equal?}, which are a consequence of the behavior of @code{compare}, are, on
 the built-in CL types, almost identical to those of @code{cl:equal}.  The only difference is that
 for vectors that are not bit-vectors, @code{cl:equal} compares them by identity (@code{eq}), while
@@ -228,9 +232,42 @@ thereafter be mutated.  This assumption licenses FSet to compare these by conten
 identity, giving natural semantics and decent performance.  (There is an exception, @href{Which
 Elements are Compared or Hashed, discussed later}.)
 
-FSet does not attempt to define @code{compare} on Lisp hash tables or closures.  I do not recommend
-placing these types in FSet collections.
+FSet does not attempt to define @code{compare} on Lisp hash tables or function objects.  I do not
+recommend placing these types in FSet collections.
 
+@c --------------------------------------------------------------------------------
+@node Mixed-Type Collections
+@subsection Mixed-Type Collections
+
+@code{compare} allows you to use instances of different classes as elements of a set or bag, or keys
+of a map.  This works by ordering the classes: for any two distinct classes C1 and C2, either all
+instances of C1 will compare as less than all instances of C2, or conversely.
+
+In particular, this means that a list and a vector, or a list and an FSet seq, or a seq and a
+vector, are never equal according to @code{equal?}, even if they have the same elements in the same
+order.  Similarly, two FSet collections of the same abstract type but different implementations,
+such as @code{ch-set} and @code{wb-set}, are never considered equal, even if they have the same
+contents.  In fact, even two @code{wb-set}s with different ordering relations, or two @code{ch-set}s
+with different hash functions, cannot be equal.  This is in contrast to collections in Clojure, for
+instance, which are compared abstractly: a list and a seq with the same elements in the same order
+are equal.
+
+There are two reasons for this choice.  One is consistency with @code{cl:equal}, as noted above.
+But the stronger reason is that FSet collections are nestable @emph{and} also have an ordered
+implementation.  Consider: if you have a set of sets, for example, then FSet has to be able to
+compare two of the inner sets.  If they use the same ordering relation, this is straightforward: we
+consider them as sequences and order them first by size and then lexicographically.  But if they use
+different ordering relations, we have to pick one of those --- not arbitrarily, but in some
+consistent way --- and convert the other collection into this ordering before doing the comparison.
+It's much too much work to be doing behind the scenes where the user isn't aware of it.
+
+In a hashing-only design, where we only need to know whether two collections are equal or unequal,
+abstract comparison would be simpler: two sets of equal size could be compared just by iterating
+over one set and checking that the other contains every element.  This is how Clojure and, indeed,
+Java do it.  It's the need for ordering that throws a wrench into the works.
+
+
+@c ================================================================================
 @node Seqs and Strings
 @section Seqs and Strings
 Along with using heterogeneous trees to save space, the seq implementation tries to save even more
@@ -255,8 +292,11 @@ efficiently.)
 Since seqs have log-time concatenation and subsequence operations, they can actually be very useful
 for string manipulation.
 
+
+@c ================================================================================
 @node The @code{@@} Macro
 @section The @code{@@} Macro
+
 Common Lisp is, of course, a "Lisp-2", meaning a two-namespace Lisp in which a given name can have
 both a function binding and a value binding.  In a Lisp-1, like Scheme, it would be nice to set the
 FSet types up as objects that could be called as functions as well as having the various operations
@@ -278,6 +318,17 @@ are @code{setf}-able; though doing @code{(setf (@@ m x) y)} works only if @code{
 collection.  Remember, this doesn't modify the collection; it's equivalent to @code{(setf m (with m
 x y))}.
 
+@cindex Emacs
+If you use Emacs for editing, you might find that it doesn't treat @code{@@} as a symbol, which can
+occasionally be annoying.  Adding this line to your init file (@code{~/.emacs} or
+@code{~/.emacs.d/init.el}) should cure the problem:
+
+@example
+(modify-syntax-entry ?@ "_" lisp-mode-syntax-table)
+@end example
+
+
+@c ================================================================================
 @node Map and Seq Defaults
 @section Map and Seq Defaults
 
@@ -297,6 +348,11 @@ maps and seqs to have @emph{no} default.  When this option is used, @code{lookup
 given a key or index outside its domain, will signal an error.  You can use this as a convenient
 defensive programming mechanism in cases where you don't expect out-of-domain lookups.
 
+When a map or seq is printed that has a default other than @code{nil}, the default is printed at the
+end, separated by a slash; when it has no default, the string @code{/[no default]} is appended.
+
+
+@c ================================================================================
 @node Quasi-Mutating Operators
 @section Quasi-Mutating Operators
 

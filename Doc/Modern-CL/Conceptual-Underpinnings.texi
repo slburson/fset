@@ -124,9 +124,9 @@ Lisp is often referred to as one of the earliest functional languages, but the w
 @node A Brief Introduction to Big-O
 @section A Brief Introduction to Big-O
 
-This book uses ``Big-O'' notation to characterize the time complexity of operations.  While it's
-likely most readers are familiar with it, a few may not be; I thought I should go over the basics.
-You should definitely skip this section if you have studied the topic.
+This book uses ``Big-O'' notation to characterize the time complexity of operations.  While most
+readers are probably familiar with it, a few may not be; I thought I should go over the basics.  You
+should definitely skip this section if you have studied the topic.
 
 Time complexity --- more accurately, @emph{asymptotic} time complexity --- is a way to characterize
 how the worst-case running time of an algorithm grows with the size of its input, as that input gets
@@ -149,7 +149,7 @@ fact that its running time grows as the square of the size of the input means th
 exist an input large enough that the second algorithm will beat the first on that input; and as the
 input gets larger yet, the second algorithm's advantage will only grow.
 
-We say that the first algorithm has quadratic or O(@i{n}@sup{2} time complexity, and the second has
+We say that the first algorithm has quadratic or O(@i{n}@sup{2}) time complexity, and the second has
 linear or O(@i{n}) time complexity.  Some commonly encountered complexity classes --- including the
 ones used in this book --- are, in increasing order:
 

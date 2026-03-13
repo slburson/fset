@@ -44,11 +44,12 @@ these.  The length of these vectors is bounded by a constant.  The result is tha
 three levels of the tree are gathered into these vectors, saving the space that would otherwise be
 taken by their tree nodes, with little or no impact on time performance.
 
-FSet has WB-tree implementations of sets, maps, bags, and seqs.  Point updates --- inserting an
-element or pair, removing one, updating the value associated with a map key, etc. --- take O(log
-@i{n}) time.  On seqs, subsequence and concatenation also take O(log @i{n}) time.  Operatiions that
-combine two trees in some way --- @code{union}, @code{intersection}, etc. --- take O(@i{n}) time in
-general, though under certain specific circumstances this can be reduced to O(log @i{n}).
+FSet has WB-tree implementations of sets, maps, bags, and seqs, named @code{wb-set}, @code{wb-map},
+@code{wb-bag}, and @code{wb-seq} respectively.  Point updates --- inserting an element or pair,
+removing one, updating the value associated with a map key, etc. --- take O(log @i{n}) time.  On
+seqs, subsequence and concatenation also take O(log @i{n}) time.  Operatiions that combine two trees
+in some way --- @code{union}, @code{intersection}, etc. --- take O(@i{n}) time in general, though
+under certain specific circumstances this can be reduced to O(log @i{n}).
 
 For sets, maps, and bags --- the @dfn{setlike} types --- FSet explicitly provides for the case where
 two elements or keys are incomparable, meaning that they're not equal, but the comparison function
@@ -73,6 +74,12 @@ and lookups, and several times faster at operations that combine two collections
 equality testing, union, intersection, etc.  However, CHAMP is appropriate only for setlike types;
 there's no CHAMP alternative to the WB-tree seqs.
 
+So FSet has CHAMP implementations of sets, maps, and bags, named @code{ch-set}, @code{ch-map}, and
+@code{ch-bag} respectively.  As with the WB-tree types, point updates take O(log @i{n}) time, but
+the constant factors are smaller.  The combining operations --- @code{union}, @code{intersection},
+etc. --- are @emph{much} faster on CHAMP; a factor of 4 seems to be typical, and I've seen it go as
+high as 10.
+
 One downside is that the order in which CHAMP yields elements during iteration is a rather complex
 function of their hash values.  This ordering will appear random --- it isn't actually random, but
 it won't make any sense from the application's perspective.
@@ -87,6 +94,45 @@ hash an entire seq may become problematic.  FSet avoids this problem by hashing 
 number of elements; this makes collisions more likely, as some subsets of the keys may have those
 elements in common, but the time complexities are unaffected nonetheless, because of this WB-tree
 fallback feature.
+
+@c --------------------------------------------------------------------------------
+@node A Note on HAMT and Time Complexity
+@subsection A Note on HAMT and Time Complexity
+
+You will see, in documentation of HAMT-based collections such as Clojure's, claims that lookups and
+point updates take ``effectively constant'' time.  You'll also see notations like ``O(log@sub{32}
+@i{n})''.  To my surprise, I have sometimes seen these locutions even in peer-reviewed papers.
+
+This is all marketing, not computer science.  They're trying to get you not to be put off by the
+fact that not only are lookups and point updates on functional types slower than with traditional
+mutable hash tables, but they get somewhat slower yet as the collections get large, which hash table
+operations do not.  I agree with their goal --- for the vast majority of applications, the
+difference is of no consequence, and you shouldn't worry about it --- but not with the way they're
+trying to make the point.
+
+For one thing, they never define ``effectively'', but sometimes they say it loudly and bang the
+table a bit, hoping you'll overlook the absence of a definition: ``@strong{@emph{effectively}}
+constant''.  For another, @href{A Brief Introduction to Big-O, as I have explained}, the base of the
+logarithm in a Big-O expression doesn't matter, because logarithms of different bases are related by
+a constant factor, and time complexity abstracts away constant factors.  So writing ``O(log@sub{32}
+@i{n})'' is an abuse of the notation; it's the same as O(log @i{n}).
+
+In my view, the way to make the point --- that the performance costs of well-implemented functional
+collections are usually not worth worrying about --- is twofold.  First, we shouldn't forget that
+time @emph{complexity} is not all there is to time performance: there are also constant-factor
+differences, which can be quite substantial.  Fully characterizing the performance of an
+implementation of an algorithm requires mentioning both.  The mistake is to try to cram both pieces
+of information into the Big-O expression, which is specifically designed to isolate one of them and
+ignore the other.
+
+And second, we should point out that logarithmic time isn't actually all that different from
+constant time.  A logarithmic-time operation takes only twice as long on a 10@sup{6}-element
+collection as on a 10@sup{3}-element collection, and only four times as long on a 10@sup{12}-element
+collection.  So yes, it does slow down a little as the collection grows, but for most use cases this
+isn't a problem at all.  In particular, the gap between constant time and logarithmic time is far
+smaller than that between logarithmic time and linear time.  I'm not going to gaslight you by saying
+that there is ``effectively'' no difference between constant and logarithmic, but I will say that it
+is only in extreme circumstances that the difference matters.
 
 @c ================================================================================
 @node Comparison and Hash Functions
@@ -170,17 +216,15 @@ length of a list takes O(@i{n}) time.)
 @code{compare} of course follows the FSet comparison function protocol, mentioned above.  There are
 two predefined @code{compare} methods that can return @code{:unequal} on non-collection values:
 
-@c Texinfo has `@defmethod', but it's for single dispatch, putting the dispatch class before the
-@c method name.
-@deffn Method compare (@var{a} real) (@var{b} real)
+@deffn Method {compare (real real)} @ a b
 This method returns @code{:unequal} when the arguments are of equal value, but are not equal
 according to @code{eql}.  This happens when one is a rational (including integers) and the other is
 a float, or they are both floats but of different precisions --- they are numerically equal, but not
 indistinguishable.
 @end deffn
 
-@deffn Method compare symbol symbol
-@deffnx Method compare package package
+@deffn Method {compare (symbol symbol)} @ a b
+@deffnx Method {compare (package package)} @ a b
 Normally, symbols are compared by first comparing the names of their symbol-packages, and then if
 those are equal, comparing their symbol-names.  However, not all symbols have a symbol-package; it's
 possible to have distinct (non-@code{eq}) symbols with no symbol-package and with the same
@@ -196,8 +240,6 @@ squirrels away the original name of each package, and uses that for comparison p
 could result in two distinct packages having the same original name.  In such a case, the packages
 compare @code{:unequal}, and two symbols in those packages that have the same name also compare
 @code{:unequal}.
-
-(If you didn't follow that, don't worry about it.  The point is, FSet does the right thing.)
 @end deffn
 
 Once generated, @code{:unequal} can be propagated by collection comparisons: if two collections
@@ -214,6 +256,39 @@ bit-vectors, both compare the contents.)
 
 @code{compare} makes no effort to detect circularities in the structures it is comparing.  Putting
 cyclic structures in FSet collections is not supported.
+
+@c --------------------------------------------------------------------------------
+@node Cross-Type Comparisons
+@subsection Cross-Type Comparisons
+
+As @href{Mixed-Type Collections, mentioned previously}, @code{compare} allows you to use instances
+of different classes as elements of a set or bag, or keys of a map.  Instances of different classes
+are compared by class @emph{first}.  There are two ways this comparison can be performed:
+
+@itemize
+@item
+For supported Common Lisp built-in types and most of FSet's own types, there are methods on
+@code{compare} that match each pair of types and return a predetermined value, either @code{:less}
+or @code{:greater}.
+
+@item
+For other types, there is a catch-all method that compares classes by their names.
+@end itemize
+
+If you know you are going to be making a lot of mixed-type collections, and some of the types
+involved are user-defined, you can use the following macro to make comparing them faster:
+
+@defmac define-cross-type-compare-methods class-name
+Generates cross-type methods on @code{compare} for the specified class, against all classes on which
+this has previously been done.  FSet invokes this on the @href{Generic Function @code{compare},
+supported CL types} and most of its own types.
+
+This macro is intended to be invoked at the top level of a source file.  You should make sure that
+calls to this macro are always compiled in the same order; if you don't, you could possibly get a
+``master type ordering out of sync'' error, at which point you should delete all your fasls, restart
+your Lisp session, and recompile.
+@end defmac
+
 
 @c ================================================================================
 @node Generic Function @code{hash-value}
@@ -243,10 +318,12 @@ is hashing.
 @section User-Defined Classes
 
 When you define your own classes and want to use them as set or bag elements or map keys, you need
-to tell FSet how to compare and hash them.
+to tell FSet how to compare and hash them.  FSet provides some convenience features to make this
+usually very easy.  The case where you'll need to do more work is when the class is itself some kind
+of collection; I'll return to this below.
 
-There are two major cases, depending on whether you want your class to have value semantics or
-reference semantics: whether it is a pure value or a mutable object.
+For a non-collection class, there are two major cases, depending on whether you want your class to
+have value semantics or reference semantics: whether it is a pure value or a mutable object.
 
 @c --------------------------------------------------------------------------------
 @node Value Types
@@ -359,8 +436,8 @@ I firmly believe that associating comparison and hashing functions with each typ
 methods for that type on @code{compare} and (for CHAMP) @code{hash-value}, suffices for the vast
 majority of use cases.  But there are occasional situations when it might be preferable, when
 creating a collection, to supply alternative comparison and (when relevant) hashing functions for it
-to use.  I refer to the comparison and hashing functions used by a collection as the
-@dfn{organization} of the collection.
+to use.  (I refer to the comparison and hashing functions used by a collection as the
+@dfn{organization} of the collection.)
 
 @itemize
 @item 
@@ -369,9 +446,9 @@ hash computation is very small, it is possible for the generic function dispatch
 relatively significant.  The extreme case would be a WB-set of fixnums; comparing two fixnums takes
 just a few instructions.  The WB-tree collections, on a lookup, call the comparison function several
 times (the number of calls is slightly more than log@sub{2} of the size of the set), so the generic
-function dispatch can makes a noticeable difference for them.  (In contrast, lookup on a CHAMP
-collection calls the hash function once, and the comparison function either once or, in many cases,
-not at all.)  In such cases, you may wish to provide a custom comparison function.
+function dispatch can make a noticeable difference for them.  (In contrast, lookup on a CHAMP
+collection calls the hash function once, and the comparison function at most once.)  In such cases,
+you may wish to provide a custom comparison function.
 
 @item
 Sometimes you want to maintain a collection in a specific order as it gets updated.  A common
@@ -482,7 +559,7 @@ handle that case.
 FSet exports a macro, @code{compare-slots}, that will do the above comparison for you in the case
 where there's a fixed list of slots to compare.  If that's not the case --- for example, if you've
 got a non-FSet collection class that you would like to nest inside FSet collections --- you'll have
-to code the comparison yourself.
+to code the comparison yourself; see @href{Non-FSet Collections, the next section}.
 
 @defmac compare-slots obj1 obj2 @r{&rest} accessors...
 A handy macro for writing the bodies of @code{compare} methods and comparison functions for user
@@ -520,9 +597,38 @@ by the other supplied accessors all return @code{:equal} but @code{obj1} and @co
 not eql, this returns @code{:unequal}.
 @end defmac
 
-In the case where there is not a fixed list of slots to compare, such as when comparing collections
-of some kind, you will have to code it yourself.  For examples, see the @code{compare} methods in
-the FSet source tree, file @code{Code/order.lisp}.
+@c --------------------------------------------------------------------------------
+@node Non-FSet Collections
+@subsection Non-FSet Collections
+
+If you are using a collection class that is neither built in to Common Lisp nor part of FSet, and
+you want to use instances of the class in such a way that FSet will need to compare or hash them
+(@pxref{Which Elements are Compared or Hashed}), you have a bit more work to do.
+
+First, you need to decide whether to treat them as @href{Value Types, value types} or
+@href{Reference Types, reference types}.  If they are mutable, I recommend treating them as
+reference types if (a) you can find a way to do that and (b) doing so makes sense, given the way you
+want to use them; but it's possible that you'll want to treat them the same way @href{Comparison and
+Equality, FSet treats CL lists and vectors}: by assuming that they won't be mutated once they're
+placed in an FSet collection, so that you can compare and hash them by content.  If you make that
+assumption, don't forget to stick to it!
+
+You have another choice as well: whether to implement the comparison and hashing by adding methods
+to @code{compare} and @code{hash-value}, or by defining custom comparison and hash functions to be
+used with the collections that @emph{contain} instances of this class.  I recommend the former, as
+it's more convenient and the generic function dispatch overhead is unlikely to be significant, but
+it's up to you.
+
+Either way, you'll need to understand @href{Strict Weak Orderings, the previous section}.  For
+examples, see the @code{compare} methods in the FSet source tree, file @code{Code/order.lisp}.
+
+There are two further choices to be made about the hash function: whether to do bounded hashing, and
+whether to cache the result.  For collections that can get large, I recommend doing at least one of
+them.  Bounded hashing keeps the hashing time from getting out of hand; as mentioned above, FSet can
+live with the risk of a higher hash collision rate because it falls back to using WB-trees for the
+collision sets.  Caching takes a different approach; the initial hash computation can be expensive,
+but it only needs to be done once per collection instance.  Which of these is better for a given
+collection class will depend on the details of how the class is to be used.
 
 @c ================================================================================
 @node Choosing a Data Structure
@@ -581,6 +687,140 @@ the type and you want to avoid the generic function dispatch overhead (which is,
 rarely noticeable).  In the case of lists and vectors, you can optionally supply a function to
 compare the individual values (elements) with.
 @end defun
+
+
+@c ================================================================================
+@node Transients
+@section Transients
+
+I've shamelessly copied the idea of transients from Rich Hickey's Clojure.  The basic idea is that when we're
+originally populating a collection, we don't need the updates to be implemented functionally,
+because we know we're holding the only reference to the collection; the updates can be performed by
+mutation much of the time, as long as it's done in such a way that the resulting tree still has the
+correct structure.  Once it's fully populated, we convert it back to a persistent collection (the
+usual kind in FSet), and then we can pass it around without worrying about it being further mutated
+underneath us.
+
+Transients are available only for the CHAMP collections: @code{ch-set}, @code{ch-map},
+@code{ch-bag}, @code{ch-2-relation}, @code{ch-replay-set}, and @code{ch-replay-map}.  Transients
+have a very narrow API, with only a few operations supported: adding a single element or pair,
+removing a single element or map key, retrieving a single element, testing membership, and the like.
+Iterating over a transient is unsupported or at least discouraged (more on this below).  Operations
+that combine two collections, such as @code{union}, are definitely not supported.  You see that
+transients are useful primarily for the specific scenario of populating a new collection, and little
+else --- but of course, populating a new collection is very common.
+
+Transients are mutable objects.  Instead of the usual FSet functional update operations ---
+@code{with}, @code{less}, etc. --- you update them using operations such as @code{include!},
+@code{exclude!}, and @code{(setf lookup!)}.  @code{include!} and @code{exclude!} correspond to
+@code{with} and @code{less}, or perhaps more clearly, to @code{includef} and @code{excludef}, which
+expand to @code{with} and @code{less} respectively.  Be sure you understand the semantic
+differences:
+
+@example
+FSET2> (defparameter *psa* (set))
+*PSA*
+FSET2> (defparameter *psb* *psa*)
+*PSB*
+FSET2> (includef *psa* 'foo)
+##@{ FOO @}
+FSET2> *psb*
+##@{ @}                                              ; still empty
+FSET2> (defparameter *tsa* (make-transient *psa*))
+*TSA*
+FSET2> (defparameter *tsb* *tsa*)
+*TSB*
+FSET2> (include! *tsa* 'bar)
+#<TRANSIENT-CH-SET 334>                            ; transients don't print their contents
+FSET2> (contains? *tsb* 'bar)
+T
+BAR
+FSET2> *psa*
+##@{ FOO @}                                          ; original persistent is unchanged
+@end example
+
+Since transients are mutable objects, they are therefore distinguished by identity, following FSet
+recommended practice.  A transient is only ever @code{equal?} to itself, independent of its contents.
+Transients are assigned a unique serial number when created, which is used for printing, as in the
+example above.
+
+When accessing a transient map, you can use @code{lookup} or @code{@@} as usual, but to add or update
+a key/value pair, you must use @code{setf} with @code{lookup!}, or else 3-argument @code{include!}:
+
+@example
+FSET2> (defparameter *tm* (make-transient (map)))
+*TM*
+FSET2> (setf (lookup! *tm* 'foo) 3)
+3
+FSET2> (@@ *tm* 'foo)
+3
+T
+FOO
+FSET2> (lookup! *tm* 'foo)
+3
+T
+FOO
+FSET2> (include! *tm* 'bar 7)
+#<TRANSIENT-CH-MAP 335>
+FSET2> (@@ *tm* 'bar)
+7
+T
+BAR
+@end example
+
+As you see, you can use @code{lookup!} for accessing, too, if you find it more consistent, but
+that's a little odd since the transient map won't be modified in that case.  It's your choice.
+
+If you forget and try to use @code{with}, @code{less}, @code{includef}, @code{excludef}, @code{(setf
+(@@ ...) ...)} or @code{(setf (lookup ...) ...)} with a transient, you will get a runtime error.
+
+You might have noticed, in the above examples, that to create a transient collection, you must first
+create a persistent one.  This is partly to make it easy to tell FSet what type of transient to
+create, but it's also because the persistent collection doesn't actually have to be empty; if it
+isn't, the transient will be initialized with its contents.
+
+This doesn't, however, mean that you can make any persistent update go faster by making a transient
+from the persistent, applying a single update, and making it back into a persistent; that would
+actually be a little slower than doing a normal functional update.  The performance benefits of
+transients accrue when nodes in the internal tree are updated multiple times via a single transient.
+So you won't see much benefit from making an already-populated persistent into a transient unless
+the number of updates you do to the transient before converting it back is at least a good fraction,
+like maybe half, of its initial size.  There's one exception to this, though: If you repeatedly
+modify the value for a given map key, or the multiplicity of a bag element, you will see significant
+performance gains using a transient.
+
+The function @code{make-persistent}, that extracts a persistent collection from a transient one, has
+two modes, controlled by its @code{copy?} keyword parameter.  If @code{copy?} is false --- the
+default case --- then @code{make-persistent} runs in O(1) time; @emph{but} it resets the transient,
+so that if you continue to update it afterwards, it is as if the transient was just created: you'll
+lose the performance benefit.
+
+However, if @code{copy?} is true, then @code{make-persistent} copies out the contents of the
+transient, instead of reusing its internal tree, and leaves it unchanged; this takes O(n) time
+(though it's a pretty fast O(n)), but you can then continue to update the transient, and it will be
+just as fast as it was.  Copying also does compaction, squeezing out the extra space allocated in
+the transient nodes to allow for updates.  So, in the common case in which you're discarding the
+transient after calling @code{make-persistent} on it, let @code{copy?} default to false ---
+@emph{unless} you've just created a very large collection that you expect to keep in memory for a
+long time, such that the compaction might be desirable; in that case, consider passing true for
+@code{copy?}.
+
+If you want to iterate over the current state of a transient collection, in most cases you will need
+to just make a persistent from it and iterate over that, in any of the several ways FSet gives you
+to iterate.  As just mentioned, @code{(make-persistent ... :copy? t)} does that without disturbing
+the transient, and the fact that it takes O(n) time is likely of little consequence if you're about
+to perform another O(n) operation on the collection anyway by iterating over the whole thing.  But
+for the replay collections, @code{transient-ch-replay-set} and @code{transient-ch-replay-map}, you
+don't need to make a copy, as these have an @code{at-index} operation to retrieve an element or pair
+by its index; this can be used with @code{dotimes} or the like to iterate over the collection.
+However, there's a tradeoff; this is an O(log @i{n}) operation.  (The reason the replay collections
+have this operation when the others don't is that their ordering is well-defined, being the order in
+which elements or keys were first added.)
+
+By default, transients are unsynchronized and are @emph{not thread-safe}.  However,
+@code{make-transient} has keyword parameter @code{synchronized?}, which if true, adds locking to
+serialize all operations on the transient.
+
 
 @c ================================================================================
 @node Dynamic Tuples

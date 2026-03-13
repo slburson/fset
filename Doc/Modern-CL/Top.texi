@@ -6,10 +6,16 @@
 @syncodeindex fn cp
 @syncodeindex tp cp
 
+Version 0.2
+
 © 2026 Scott L. Burson
 
 This document is published under the Creative Commons
-@uref{https://creativecommons.org/licenses/by-sa/4.0/,CC BY-SA} license.
+@uref{https://creativecommons.org/licenses/by-nc-sa/4.0/, CC BY-NC-SA 4.0} license.  This license
+enables reusers to distribute, remix, adapt, and build upon the material in any medium or format for
+noncommercial purposes only, and only so long as attribution is given to the creator.  If you remix,
+adapt, or build upon the material, you must license the modified material under identical terms.
+
 
 @c ================================================================================
 
@@ -35,6 +41,13 @@ This document is published under the Creative Commons
 @macro ilc{stuff}
 @end macro
 
+@c ``hrule'': A horizontal rule in HTML.
+@macro hrule{}
+@html
+<hr>
+@end html
+@end macro
+
 @c ================================================================================
 
 @contents
@@ -52,6 +65,8 @@ This document is published under the Creative Commons
 @include API-Reference.texi
 
 @include Iterating.texi
+
+@include Conversions.texi
 
 @include Recommendations.texi
 
@@ -77,8 +92,11 @@ Design of FSet
   Design Goals
   Divergences from CL
   Comparison and Equality
+    Mixed-Type Collections
   Seqs and Strings
   The @code{@@} Macro
+  Map and Seq Defaults
+  Quasi-Mutating Operators
 FSet Data Structures
   Weight-Balanced trees
   CHAMP trees
@@ -92,6 +110,7 @@ FSet Data Structures
     Which Elements are Compared or Hashed
     Strict Weak Orderings
   Choosing a Data Structure
+  Transients
   Dynamic Tuples
 FSet Collection Types
   Sets
@@ -122,9 +141,9 @@ Iterating over FSet Collections
   GMap
   Iterate
   Others
-Transients
-Generic Function @code{convert}
-JSON Parsing and Printing
+The @code{convert} Generic Function
+Printing and Reading
+  JSON
 Larger Examples
 Recommendations for Language Designers
   Features of FSet
