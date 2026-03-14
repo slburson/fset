@@ -959,7 +959,8 @@ between equal trees."
 ;;; input is not actually sorted, but if it isn't even close to sorted, this is slower.
 (defun WB-Set-Tree-From-Sorted-Iterable (it len cmp-fn)
   (declare (optimize (speed 3) (safety 0))
-	   (type function it cmp-fn))
+	   (type function it cmp-fn)
+	   (dynamic-extent it))
   (labels ((recur (n)
 	     (declare (fixnum n))
 	     (cond ((= n 0) (values nil Hedge-Positive-Infinity Hedge-Negative-Infinity))
@@ -3795,7 +3796,7 @@ value and `count-var' to its member count."
 	 (idx (svref iter (1+ sp)))))
     (declare (fixnum idx))
     (if (null node)
-	(values nil nil nil)
+	(values nil 0 nil)
       (progn
 	(setf (svref iter (1+ sp)) (1+ idx))
 	(if (consp node)

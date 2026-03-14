@@ -44,7 +44,7 @@ complement set."
 (defun full-set ()
   "The set containing everything.  It is a complement set, so it cannot be
 enumerated, but certain other operations are defined on it."
-  (make-complement-set (empty-set)))
+  (make-complement-set (empty-ch-set)))
 
 (defmethod contains? ((cs complement-set) x &optional (y nil y?))
   (declare (ignore y))
@@ -52,13 +52,10 @@ enumerated, but certain other operations are defined on it."
   (not (contains? (complement-set-complement cs) x)))
 
 (defmethod arb ((cs complement-set))
-  ;; Well... I _could_ return some newly consed object... but I think this
-  ;; makes more sense :-)
   (error "Can't take `arb' of a complement-set"))
 
 (defmethod size ((cs complement-set))
-  ;; Not sure this really makes sense... but what the hell...
-  (- (size (complement-set-complement cs))))
+  (error "Can't take `size' of a complement-set"))
 
 (defmethod with ((cs complement-set) x &optional (arg2 nil arg2?))
   (declare (ignore arg2))

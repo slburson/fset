@@ -89,11 +89,6 @@ be supplied; returns true iff it contains the pair <x, y>."))
     "Returns true iff the domain of the map or seq contains `x'.  (The domain
 of a seq is the set of valid indices.)"))
 
-;;; This is a common operation on seqs, making me wonder if the name should
-;;; be shorter, but I like the clarity of this name.  Simply defining `contains?'
-;;; on maps and seqs to do this is not entirely out of the question, but (a) I
-;;; previously had `contains?' on a map meaning `domain-contains?', and (b) I
-;;; prefer a single generic function to have a single time complexity.
 (defgeneric range-contains? (collection x)
   (:documentation
     "Returns true iff the range of the map or seq contains `x'.  (The range
@@ -2803,8 +2798,8 @@ or hash function, as `b'.  `b' can also be a set."))
 (defmethod empty? ((b wb-bag))
   (null (wb-bag-contents b)))
 
-(defmethod arb ((m wb-bag))
-  (let ((tree (wb-bag-contents m)))
+(defmethod arb ((b wb-bag))
+  (let ((tree (wb-bag-contents b)))
     (if tree
 	(let ((val mult (WB-Bag-Tree-Arb-Pair tree)))
 	  (values val mult t))
@@ -2875,7 +2870,8 @@ or hash function, as `b'.  `b' can also be a set."))
   (WB-Bag-Tree-Multiplicity (wb-bag-contents b) x (tree-set-org-compare-fn (wb-bag-org b))))
 
 (defmethod multiplicity ((s set) x)
-  (if (contains? s x) 1 0))
+  (let ((found? found-elt (lookup s x)))
+    (if found? (values 1 found-elt) (values 0 nil))))
 
 (defmethod with ((b wb-bag) value &optional (multiplicity 1))
   (assert (and (integerp multiplicity) (not (minusp multiplicity))))
@@ -3154,7 +3150,7 @@ or hash function, as `b'.  `b' can also be a set."))
 
 (defmethod bag-difference ((s set) (b bag))
   "Fallback method for mixed implementations."
-  (let ((result (convert 'bag s)))
+  (let ((result s))
     (do-bag-pairs (x n b)
       (declare (ignore n))
       (excludef result x))
@@ -3164,8 +3160,8 @@ or hash function, as `b'.  `b' can also be a set."))
   (let ((scmp (wb-set-compare-fn s))
 	(bcmp (tree-set-org-compare-fn (wb-bag-org b))))
     (if (eq scmp bcmp)
-	(make-wb-bag (WB-Bag-Tree-Diff (WB-Set-Tree-To-Bag-Tree (wb-set-contents s))
-				       (wb-bag-contents b) bcmp)
+	(make-wb-set (WB-Set-Tree-Diff (wb-set-contents s)
+				       (WB-Bag-Tree-To-Set-Tree (wb-bag-contents b)) bcmp)
 		     (wb-set-org s))
       (call-next-method))))
 
@@ -3339,10 +3335,10 @@ different bag implementations; it is not for public use.  `elt-fn' and
   (bag-image (fn (x) (fset2:lookup fn x)) b compare-fn-name))
 
 (define-methods (image fset2:image) ((fn set) (b bag) &key compare-fn-name)
-  (bag-image (fn (x) (lookup fn x)) b compare-fn-name))
+  (bag-image (fn (x) (contains? fn x)) b compare-fn-name))
 
 (define-methods (image fset2:image) ((fn bag) (b bag) &key compare-fn-name)
-  (bag-image (fn (x) (lookup fn x)) b compare-fn-name))
+  (bag-image (fn (x) (contains? fn x)) b compare-fn-name))
 
 (defun bag-image (fn b compare-fn-name)
   (declare (type function fn))
@@ -3352,14 +3348,14 @@ different bag implementations; it is not for public use.  `elt-fn' and
       (setq result (WB-Bag-Tree-With result (funcall fn x) (tree-set-org-compare-fn org) n)))
     (make-wb-bag result org)))
 
-(defmethod reduce ((fn function) (b bag) &key key (initial-value nil init?))
-  (bag-reduce fn b initial-value (and key (coerce-to-function key)) init?))
+(defmethod reduce ((fn function) (b bag) &key key (initial-value nil init?) pairs?)
+  (bag-reduce fn b initial-value (and key (coerce-to-function key)) init? pairs?))
 
-(defmethod reduce ((fn symbol) (b bag) &key key (initial-value nil init?))
+(defmethod reduce ((fn symbol) (b bag) &key key (initial-value nil init?) pairs?)
   (bag-reduce (coerce-to-function fn) b initial-value (and key (coerce-to-function key))
-	      init?))
+	      init? pairs?))
 
-(defun bag-reduce (fn b initial-value key init?)
+(defun bag-reduce (fn b initial-value key init? pairs?)
   (declare (optimize (speed 3) (safety 0))
 	   (type function fn)
 	   (type (or function null) key))
@@ -3367,11 +3363,17 @@ different bag implementations; it is not for public use.  `elt-fn' and
 	(call-fn? init?))
     (if (and (not init?) (empty? b))
 	(setq result (funcall fn))
-      (do-bag (x b)
-	(if call-fn?
-	    (setq result (funcall fn result (if key (funcall key x) x)))
-	  (setq result (if key (funcall key x) x)
-		call-fn? t))))
+      (if pairs?
+	  (do-bag-pairs (x n b)
+	    (if call-fn?
+		(setq result (funcall fn result (if key (funcall key x) x) n))
+	      (setq result (if key (funcall key x) x)
+		    call-fn? t)))
+	(do-bag (x b)
+	  (if call-fn?
+	      (setq result (funcall fn result (if key (funcall key x) x)))
+	    (setq result (if key (funcall key x) x)
+		  call-fn? t)))))
     result))
 
 (defmethod convert ((to-type (eql 'bag)) (b bag) &key)
@@ -3647,18 +3649,18 @@ different bag implementations; it is not for public use.  `elt-fn' and
 (defmethod empty? ((b ch-bag))
   (null (ch-bag-contents b)))
 
-(defmethod arb ((m ch-bag))
-  (let ((tree (ch-bag-contents m)))
+(defmethod arb ((b ch-bag))
+  (let ((tree (ch-bag-contents b)))
     (if tree
 	(let ((val mult (ch-bag-tree-arb-pair tree)))
 	  (values val mult t))
       (values nil 0 nil))))
 
 (defmethod contains? ((b ch-bag) x &optional (multiplicity 1))
-  (let ((hsorg (ch-bag-org b))
-	((mult (ch-bag-tree-multiplicity (ch-bag-contents b) x
-					 (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg)))))
-    (>= mult multiplicity)))
+  (let ((hsorg (ch-bag-org b)))
+    (>= (ch-bag-tree-multiplicity (ch-bag-contents b) x
+				  (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg))
+	multiplicity)))
 
 (defmethod lookup ((b ch-bag) x)
   (let ((hsorg (ch-bag-org b))
@@ -3698,20 +3700,20 @@ different bag implementations; it is not for public use.  `elt-fn' and
     (ch-bag-tree-multiplicity (ch-bag-contents b) x
 			      (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg))))
 
-(defmethod with ((b ch-bag) value &optional (multiplicity 1))
-  (assert (and (integerp multiplicity) (not (minusp multiplicity))))
-  (if (zerop multiplicity) b
+(defmethod with ((b ch-bag) value &optional (mult 1))
+  (assert (and (integerp mult) (not (minusp mult))))
+  (if (zerop mult) b
     (let ((hsorg (ch-bag-org b)))
-      (make-ch-bag (ch-bag-tree-with (ch-bag-contents b) value multiplicity
+      (make-ch-bag (ch-bag-tree-with (ch-bag-contents b) value mult
 				     (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg))
 		   (ch-bag-org b)))))
 
-(defmethod less ((b ch-bag) value &optional (multiplicity 1))
-  (assert (and (integerp multiplicity) (not (minusp multiplicity))))
-  (if (zerop multiplicity) b
+(defmethod less ((b ch-bag) value &optional (mult 1))
+  (assert (and (integerp mult) (not (minusp mult))))
+  (if (zerop mult) b
     (let ((hsorg (ch-bag-org b))
 	  ((new-tree changed?
-	     (ch-bag-tree-less (ch-bag-contents b) value multiplicity
+	     (ch-bag-tree-less (ch-bag-contents b) value mult
 			       (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg)))))
       (if (not changed?) b
 	(make-ch-bag new-tree hsorg)))))
@@ -3836,7 +3838,7 @@ different bag implementations; it is not for public use.  `elt-fn' and
   (let ((scmp (compare-fn s))
 	(bcmp (compare-fn b)))
     (if (eq scmp bcmp)
-	(make-ch-bag (ch-bag-tree-diff (ch-set-tree-to-bag-tree (ch-set-contents s)) (ch-bag-contents b)
+	(make-ch-set (ch-set-tree-diff (ch-set-contents s) (ch-bag-tree-to-set-tree (ch-bag-contents b))
 				       (hash-set-org-hash-fn (ch-bag-org b)) bcmp)
 		     (ch-bag-org b))
       (call-next-method))))
@@ -4351,7 +4353,6 @@ symbols."))
 
 (defmethod reduce ((fn function) (m map) &key key (initial-value nil init?))
   (map-reduce fn m initial-value (and key (coerce-to-function key)) init?))
-
 (defmethod reduce ((fn symbol) (m map) &key key (initial-value nil init?))
   (map-reduce (coerce-to-function fn) m initial-value (and key (coerce-to-function key))
 	      init?))
@@ -5662,8 +5663,8 @@ This is the default implementation of seqs in FSet."
 (define-wb-seq-method subseq ((s wb-seq) start &optional end)
   (let ((tree (wb-seq-contents s))
  	((size (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size tree))
-	 ((start (max 0 start))
-	  (end (if end (min end size) size)))))
+	 ((start (max 0 (min start size)))
+	  (end (max start (if end (min end size) size))))))
     (if (and (= start 0) (= end size))
 	s
       (make-wb-seq (call-selected WB-Seq-Tree-Subseq WB-HT-Seq-Tree-Subseq tree start end)
@@ -5682,10 +5683,14 @@ This is the default implementation of seqs in FSet."
 		(seq-default s)))
 
 (define-wb-seq-method domain ((s wb-seq))
-  (let ((result nil))
-    (dotimes (i (size s))
-      (setq result (WB-Set-Tree-With result i #'compare)))
-    (make-wb-set result)))
+  (let ((n (size s))
+	(i 0))
+    (make-wb-set (WB-Set-Tree-From-Sorted-Iterable (lambda (op)
+						     (ecase op
+						       (:get (postincf i))
+						       (:more? (< i n))
+						       (:done? (>= i n))))
+						   n #'compare))))
 
 (define-wb-seq-method range ((s wb-seq))
   (convert 'set s))
@@ -5848,12 +5853,19 @@ not symbols."))
 			     (wb-seq-contents s))))
   (assert (and (typep start 'fixnum) (typep end 'fixnum)))
   (if index?
-      (let ((i start))
-	(declare (type fixnum i))
-	(Do-WB-Seq-Tree-Members-Gen (x (wb-seq-contents s) start end from-end?
-				       (funcall value-fn))
-	  (funcall elt-fn x i)
-	  (incf i)))
+      (if from-end?
+	  (let ((i end))
+	    (declare (type fixnum i))
+	    (Do-WB-Seq-Tree-Members-Gen (x (wb-seq-contents s) start end from-end?
+					   (funcall value-fn))
+	      (decf i)
+	      (funcall elt-fn x i)))
+	(let ((i start))
+	  (declare (type fixnum i))
+	  (Do-WB-Seq-Tree-Members-Gen (x (wb-seq-contents s) start end from-end?
+					 (funcall value-fn))
+	    (funcall elt-fn x i)
+	    (incf i))))
     (Do-WB-Seq-Tree-Members-Gen (x (wb-seq-contents s) start end from-end?
 				     (funcall value-fn))
 	(funcall elt-fn x))))
@@ -6161,38 +6173,38 @@ different seq implementations; it is not for public use.  `vec-fn' and
   (let ((start (or start 0))
 	(end (or end (size s)))
 	(count (or count (size s)))
-	((head (subseq s 0 start))
-	 (tail (subseq s end)))
-	(mid nil)
+	(n-left-removed 0)
 	(test (if test (coerce-to-function test) #'equal?))
 	(key (and key (coerce-to-function key))))
-    (declare (fixnum count))
-    (do-seq (x s :start start :end end :from-end? from-end)
-      (if (and (> count 0)
-	       (funcall test item (if key (funcall key x) x)))
-	  (decf count)
-	(push x mid)))
-    (concat head (concat (convert 'seq (if from-end mid (nreverse mid)))
-			 tail))))
+    (declare (fixnum count n-left-removed))
+    (do-seq (x s :start start :end end :from-end? from-end :index idx)
+      (when (zerop count)
+	(return))
+      (when (funcall test item (if key (funcall key x) x))
+	(excludef s (the fixnum (- idx n-left-removed)))
+	(decf count)
+	(unless from-end
+	  (incf n-left-removed))))
+    s))
 
 (defmethod remove-if (pred (s seq) &key key start end from-end count)
   (declare (optimize (speed 3) (safety 0)))
   (let ((start (or start 0))
 	(end (or end (size s)))
 	(count (or count (size s)))
-	((head (subseq s 0 start))
-	 (tail (subseq s end)))
-	(mid nil)
+	(n-left-removed 0)
 	(pred (coerce-to-function pred))
 	(key (and key (coerce-to-function key))))
-    (declare (fixnum count))
-    (do-seq (x s :start start :end end :from-end? from-end)
-      (if (and (> count 0)
-	       (funcall pred (if key (funcall key x) x)))
-	  (decf count)
-	(push x mid)))
-    (concat head (concat (convert 'seq (if from-end mid (nreverse mid)))
-			 tail))))
+    (declare (fixnum count n-left-removed))
+    (do-seq (x s :start start :end end :from-end? from-end :index idx)
+      (when (zerop count)
+	(return))
+      (when (funcall pred (if key (funcall key x) x))
+	(excludef s (the fixnum (- idx n-left-removed)))
+	(decf count)
+	(unless from-end
+	  (incf n-left-removed))))
+    s))
 
 (defmethod remove-if-not (pred (s seq) &key key start end from-end count)
   (declare (optimize (speed 3) (safety 0)))
@@ -6205,38 +6217,32 @@ different seq implementations; it is not for public use.  `vec-fn' and
   (let ((start (or start 0))
 	(end (or end (size s)))
 	(count (or count (size s)))
-	((head (subseq s 0 start))
-	 (tail (subseq s end)))
-	(mid nil)
 	(test (if test (coerce-to-function test) #'equal?))
 	(key (and key (coerce-to-function key))))
     (declare (fixnum count))
-    (do-seq (x s :start start :end end :from-end? from-end)
-      (if (and (> count 0)
-	       (funcall test olditem (if key (funcall key x) x)))
-	  (progn (push newitem mid) (decf count))
-	(push x mid)))
-    (concat head (concat (convert 'seq mid :reverse? (not from-end))
-			 tail))))
+    (do-seq (x s :start start :end end :from-end? from-end :index idx)
+      (when (zerop count)
+	(return))
+      (when (funcall test olditem (if key (funcall key x) x))
+	(setf (@ s idx) newitem)
+	(decf count)))
+    s))
 
 (defmethod substitute-if (newitem pred (s seq) &key key start end from-end count)
   (declare (optimize (speed 3) (safety 0)))
   (let ((start (or start 0))
 	(end (or end (size s)))
 	(count (or count (size s)))
-	((head (subseq s 0 start))
-	 (tail (subseq s end)))
-	(mid nil)
 	(pred (coerce-to-function pred))
 	(key (and key (coerce-to-function key))))
     (declare (fixnum count))
-    (do-seq (x s :start start :end end :from-end? from-end)
-      (if (and (> count 0)
-	       (funcall pred (if key (funcall key x) x)))
-	  (progn (push newitem mid) (decf count))
-	(push x mid)))
-    (concat head (concat (convert 'seq mid :reverse? (not from-end))
-			 tail))))
+    (do-seq (x s :start start :end end :from-end? from-end :index idx)
+      (when (zerop count)
+	(return))
+      (when (funcall pred (if key (funcall key x) x))
+	(setf (@ s idx) newitem)
+	(decf count)))
+    s))
 
 (defmethod substitute-if-not (newitem pred (s seq) &key key start end from-end count)
   (declare (optimize (speed 3) (safety 0)))
@@ -6368,17 +6374,20 @@ different seq implementations; it is not for public use.  `vec-fn' and
 	     (when (or (eql c #\\) (eql c #\"))
 	       (write-char #\\ stream))
 	     (write-char c stream))
-	   (write-char #\" stream)))
+	   (write-char #\" stream))
+	 (default-suffix ()
+	   (let ((dflt (seq-default seq)))
+	     (format nil "~:[~;/~:[~S~;[no default]~]~]"
+		     dflt (eq dflt 'no-default) dflt))))
     (if (char-seq? seq)
-	(if (or *print-readably* *print-escape*)
-	    (print-as-string "#" seq stream)
-	  ;; Probably faster than writing individual characters.
-	  (do-seq-chunks (s seq)
-	    (write-string s stream)))
-      (pprint-logical-block (stream nil :prefix "#["
-					:suffix (let ((dflt (seq-default seq)))
-						  (format nil " ]~:[~;/~:[~S~;[no default]~]~]"
-							  dflt (eq dflt 'no-default) dflt)))
+	(progn
+	  (if (or *print-readably* *print-escape*)
+	      (print-as-string "#" seq stream)
+	    ;; Probably faster than writing individual characters.
+	    (do-seq-chunks (s seq)
+	      (write-string s stream)))
+	  (write-string (default-suffix) stream))
+      (pprint-logical-block (stream nil :prefix "#[" :suffix (concatenate 'string " ]" (default-suffix)))
 	(let ((chars (empty-seq)))
 	  (labels ((print-thing (x)
 		     (pprint-pop)

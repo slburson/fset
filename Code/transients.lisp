@@ -45,6 +45,12 @@ not content."
 	  because you called `less' directly, or because you used the `excludef'~@
 	  modify macro.  On a transient collection, use `exclude!'."))
 
+(defmethod with-default ((tcoll transient-collection) value)
+  (declare (ignore value))
+  (error "`with-default' is not supported on a transient collection.  You may be seeing~@
+	  this because you called `with-default' directly, or because you did
+	  \(setf \(default map\) ...\) or \(clear-default map\), without the `!'."))
+
 (defun print-transient-collection (coll stream level)
   (declare (ignore level))
   (print-unreadable-object (coll stream :type t)
@@ -72,7 +78,7 @@ not content."
   "The abstract class for FSet transient maps.  It is a structure class."
   (default nil))
 
-(defmethod default! ((tm transient-map))
+(define-methods (default default!) ((tm transient-map))
   (let ((dflt (transient-map-default tm)))
     (if (eq dflt 'no-default) (values nil nil)
       (values dflt t))))
@@ -81,7 +87,8 @@ not content."
   (setf (transient-map-default tm) new-default))
 
 (defmethod clear-default! ((tm transient-map))
-  (setf (transient-map-default tm) 'no-default))
+  (setf (transient-map-default tm) 'no-default)
+  (values))				; hide the sentinel value
 
 (defstruct (transient-relation
 	    (:include transient-collection)

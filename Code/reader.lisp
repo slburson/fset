@@ -274,9 +274,9 @@ argument subforms."
   "Constructs a bag of the default implementation according to the supplied
 argument subforms.  Each argument subform can be an expression, whose value
 will be added to the bag with multiplicity 1; or a list of the form
-\($ `expression'), in which case the expression must evaluate to a bag (or a
-set), which is bag-summed into the result; or a list of the form
-\(% `expression1' `expression2') (called a \"multi-arg\"), which indicates that
+\($ `expression'\), in which case the expression must evaluate to a bag \(or a
+set\), which is bag-summed into the result; or a list of the form
+\(% `expression1' `expression2'\) \(called a \"multi-arg\"\), which indicates that
 the value of `expression1' is bag-summed into the result with multiplicity
 given by the value of `expression2'.  That is, the multiplicity of each element
 of the result bag is the sum of its multiplicities as supplied by each of the
@@ -312,10 +312,10 @@ argument subforms."
 (defmacro ch-bag (&rest args)
   "Constructs a ch-bag according to the supplied argument subforms.  Each
 argument subform can be an expression, whose value will be added to the bag
-with multiplicity 1; or a list of the form ($ `expression'), in which case the
-expression must evaluate to a bag (or a set), which is bag-summed into the
-result; or a list of the form (% `expression1' `expression2') (called a
-\"multi-arg\"), which indicates that the value of `expression1' is bag-summed
+with multiplicity 1; or a list of the form \($ `expression'\), in which case the
+expression must evaluate to a bag \(or a set\), which is bag-summed into the
+result; or a list of the form \(% `expression1' `expression2'\) \(called a
+\"multi-arg\"\), which indicates that the value of `expression1' is bag-summed
 into the result with multiplicity given by the value of `expression2'.  That
 is, the multiplicity of each element of the result bag is the sum of its
 multiplicities as supplied by each of the argument subforms."
@@ -328,7 +328,7 @@ comparison function.  Each argument subform can be an expression, whose value
 will be added to the bag with multiplicity 1; or a list of the form
 \($ `expression'\), in which case the expression must evaluate to a bag \(or a
 set\), which is bag-summed into the result; or a list of the form
-\(% `expression1' `expression2'\) (called a \"multi-arg\"), which indicates
+\(% `expression1' `expression2'\) \(called a \"multi-arg\"\), which indicates
 that the value of `expression1' is bag-summed into the result with multiplicity
 given by the value of `expression2'.  That is, the multiplicity of each element
 of the result bag is the sum of its multiplicities as supplied by each of the
@@ -713,7 +713,7 @@ value will be given by the rightmost such subform."
   "Constructs a ch-replay-map with a custom ordering, according to the supplied
 argument subforms.  Each of `args' can be a list of the form \(`key-expr'
 `value-expr'\), denoting a mapping from the value of `key-expr' to the value of
-`value-expr'; or a list of the form \($ `expression'\), in which case the
+ `value-expr'; or a list of the form \($ `expression'\), in which case the
 expression must evaluate to a map, denoting all its mappings; or the symbol
 `:default' followed by a form; or the symbol `:no-default'.  If `:default' is
 supplied, the map's default is the value of the subsequent form; if
@@ -776,13 +776,13 @@ default; if neither, the seq's default is `nil'.  To include `:default' or
 `:no-default' as an ordinary element, quote it.  Examples:
 
   > (seq 3 17)
-  #[ 3 17 ]/NIL
+  #[ 3 17 ]
   > (seq 3 17 :default 0)
   #[ 3 17 ]/0
   > (seq 3 17 :no-default)
-  #[ 3 17 ]
+  #[ 3 17 ]/[no default]
   > (seq 3 17 ':default)
-  #[ 3 17 :DEFAULT ]/NIL"
+  #[ 3 17 :DEFAULT ]"
   (expand-seq-constructor-form 'fset2:seq 'fset2:empty-seq args))
 
 (defmacro wb-seq (&rest args)
@@ -805,13 +805,13 @@ the seq's default is `nil'.  To include `:default' or `:no-default' as an
 ordinary element, quote it.  Examples:
 
   > (seq 3 17)
-  #[ 3 17 ]/NIL
+  #[ 3 17 ]
   > (seq 3 17 :default 0)
   #[ 3 17 ]/0
   > (seq 3 17 :no-default)
-  #[ 3 17 ]
+  #[ 3 17 ]/[no default]
   > (seq 3 17 ':default)
-  #[ 3 17 :DEFAULT ]/NIL"
+  #[ 3 17 :DEFAULT ]"
   (expand-seq-constructor-form 'fset2:wb-seq 'fset2:empty-wb-seq args))
 
 (defun expand-seq-constructor-form (type-name empty-fn args)

@@ -414,6 +414,10 @@ this macro directly, to keep the `hash-value' and `compare' methods consistent."
     `(intersection . ,args))
   (defmacro internal-set-difference (&rest args)
     `(set-difference . ,args))
+  (defmacro internal-with-default (&rest args)
+    `(with-default . ,args))
+  (defmacro internal-without-default (&rest args)
+    `(fset2:without-default . ,args))
   (defmacro internal-map-union (&rest args)
     `(map-union . ,args))
   (defmacro internal-map-intersection (&rest args)
@@ -458,6 +462,12 @@ this macro directly, to keep the `hash-value' and `compare' methods consistent."
   (declaim (inline internal-set-difference))
   (defun internal-set-difference (x y)
     (set-difference x y))
+  (declaim (inline internal-with-default))
+  (defun internal-with-default (map val)
+    (with-default map val))
+  (declaim (inline internal-without-default))
+  (defun internal-without-default (map)
+    (fset2:without-default map))
   (declaim (inline internal-map-union))
   (defun internal-map-union (map1 map2 &optional (val-fn nil val-fn?))
     (if val-fn?
@@ -533,6 +543,9 @@ this macro directly, to keep the `hash-value' and `compare' methods consistent."
 ;;; Not completely thrilled with these names, but nothing better occurs to me.
 (define-modify-macro set-differencef (set)
   internal-set-difference)
+
+(define-modify-macro fset2:clear-default ()
+  internal-without-default)
 
 ;;; It might seem more natural to use `&optional' than `&rest', but then this macro would have to
 ;;; know the correct default value for `val-fn'; otherwise `define-modify-macro' would fill in `nil'.
@@ -619,20 +632,20 @@ this macro directly, to keep the `hash-value' and `compare' methods consistent."
 ;;; --------------------------------
 ;;; SETF expanders and `@'
 
-(define-setf-expander lookup (collection key &environment env)
-  "Adds a pair to a map or updates an existing pair, or adds an element to a
-sequence or updates an existing element.  This does NOT modify the map or
-sequence; it modifies the place (generalized variable) HOLDING the map or
-sequence (just like `(setf (ldb ...) ...)').  That is, the `collection' subform
-must be `setf'able itself."
-  (expand-setf-of-lookup 'lookup collection key env))
-(define-setf-expander fset2:lookup (collection key &environment env)
-  "Adds a pair to a map or updates an existing pair, or adds an element to a
-sequence or updates an existing element.  This does NOT modify the map or
-sequence; it modifies the place (generalized variable) HOLDING the map or
-sequence (just like `(setf (ldb ...) ...)').  That is, the `collection' subform
-must be `setf'able itself."
-  (expand-setf-of-lookup 'fset2:lookup collection key env))
+(define-setf-expander lookup (collection key/index &environment env)
+  "Functionally updates `collection' (a map or seq) to associate the value
+being stored with the key (for a map) or index (for a seq).  That is, assigns
+to the place holding `collection' a new collection which is the same except
+for the value at `key/index'; does not modify the existing collection.
+The `collection' subform must be `setf'able."
+  (expand-setf-of-lookup 'lookup collection key/index env))
+(define-setf-expander fset2:lookup (collection key/index &environment env)
+  "Functionally updates `collection' (a map or seq) to associate the value
+being stored with the key (for a map) or index (for a seq).  That is, assigns
+to the place holding `collection' a new collection which is the same except
+for the value at `key/index'; does not modify the existing collection.
+The `collection' subform must be `setf'able."
+  (expand-setf-of-lookup 'fset2:lookup collection key/index env))
 
 (defun expand-setf-of-lookup (name collection key env)
   (let ((temps vals stores store-form access-form
@@ -650,6 +663,22 @@ must be `setf'able itself."
 	       ,store-form
 	       ,val-temp)
 	    `(,lookup-fn ,access-form ,key-temp))))
+
+(define-setf-expander default (collection &environment env)
+  "Functionally updates the default of `collection' (a map or seq).  That is,
+assigns to the place holding `collection' a new collection with the specified
+default; does not modify the existing collection.  The `collection' subform
+must be `setf'able."
+  (let ((temps vals stores store-form access-form (get-setf-expansion collection env))
+	(val-temp (gensymx #:val-))
+	((coll-temp (car stores))))
+    (when (cdr stores)
+      (error "Too many values required in `setf' of `default'"))
+    (values temps vals (list val-temp)
+	    `(let ((,coll-temp (internal-with-default ,access-form ,val-temp)))
+	       ,store-form
+	       ,val-temp)
+	    `(default ,access-form))))
 
 (defmacro @ (fn-or-collection &rest args)
   "A little hack with two purposes: (1) to make it easy to make FSet maps
@@ -800,7 +829,9 @@ If `index' is supplied, it names a variable that will be bound at each
 iteration to the index of the current element of `seq'.  When done, returns
 `value'."
   `(block nil
-     (let ((elt-fn #'(lambda (,var . ,(and index? `(,index))) . ,body))
+     (let ((elt-fn #'(lambda (,var . ,(and index? `(,index)))
+		       ,@(and index? `((declare (fixnum ,index))))
+		       . ,body))
 	   (value-fn #'(lambda () ,value)))
        (declare (dynamic-extent elt-fn value-fn))
        (internal-do-seq ,seq elt-fn value-fn ,index?

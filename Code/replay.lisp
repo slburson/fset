@@ -844,14 +844,14 @@ or `no-default?' is true."
 				      (tree-map-org-key-compare-fn (wb-replay-map-org m)))))
     (values (if val? val (map-default m)) val?)))
 (defmethod fset2:lookup ((m wb-replay-map) key)
-  (let ((val? val (wb-map-tree-lookup (wb-replay-map-contents m) key
-				      (tree-map-org-key-compare-fn (wb-replay-map-org m)))))
+  (let ((val? val mkey (wb-map-tree-lookup (wb-replay-map-contents m) key
+					   (tree-map-org-key-compare-fn (wb-replay-map-org m)))))
     (values (if val? val
 	      (let ((dflt (map-default m)))
 		(if (eq dflt 'no-default)
 		    (error 'fset2:map-domain-error :map m :key key)
 		  dflt)))
-	    val?)))
+	    val? mkey)))
 
 (defmethod contains? ((m wb-replay-map) x &optional (y nil y?))
   (let ((tmorg (wb-replay-map-org m))
@@ -1098,7 +1098,7 @@ or `no-default?' is true."
 	((size (wb-ht?-seq-tree-size ordering))))
     (unless (and (>= index 0) (< index size))
       (error 'simple-type-error :datum index :expected-type `(integer 0 (,(1- size)))
-	     :format-control "Index ~D out of bounds on ~A"
+				:format-control "Index ~D out of bounds on ~A"
 				:format-arguments (list index m)))
     (let ((ignore key (wb-ht?-seq-tree-subscript ordering index))
 	  (hmorg (ch-replay-map-org m))
@@ -1185,14 +1185,14 @@ or `no-default?' is true."
     (values (if val? val (map-default m)) val?)))
 (defmethod fset2:lookup ((m ch-replay-map) key)
   (let ((hmorg (ch-replay-map-org m))
-	((val? val (ch-map-tree-lookup (ch-replay-map-contents m) key
-				       (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)))))
+	((val? val mkey (ch-map-tree-lookup (ch-replay-map-contents m) key
+					    (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)))))
     (values (if val? val
 	      (let ((dflt (map-default m)))
 		(if (eq dflt 'no-default)
 		    (error 'fset2:map-domain-error :map m :key key)
 		  dflt)))
-	    val?)))
+	    val? mkey)))
 
 (defmethod contains? ((m ch-replay-map) x &optional (y nil y?))
   (let ((hmorg (ch-replay-map-org m))

@@ -215,7 +215,7 @@
 	   #:subset? #:proper-subset #:disjoint? #:subbag? #:proper-subbag?
 	   #:filter #:filter-pairs #:partition
 	   #:image #:reduce #:domain #:range #:update
-	   #:with-default #:without-default #:default
+	   #:with-default #:without-default #:default #:clear-default
 	   #:lookup-error #:map-domain-error #:map-domain-error-map #:map-domain-error-key
 	   #:seq-bounds-error #:seq-bounds-error-seq #:seq-bounds-error-index
 	   #:tuple-key-unbound-error #:tuple-key-unbound-error-tuple #:tuple-key-unbound-error-key
@@ -254,7 +254,7 @@
 	   ;; Bounded sets
 	   #:bounded-set #:make-bounded-set #:bounded-set-contents
 	   ;; Complement sets
-	   #:full-set
+	   #:complement-set #:complement-set? #:full-set
 	   ;; Relations
 	   #:relation #:relation? #:2-relation #:2-relation? #:wb-2-relation #:wb-2-relation?
 	   #:wb-custom-2-relation #:ch-2-relation #:ch-2-relation? #:ch-custom-2-relation

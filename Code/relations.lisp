@@ -105,9 +105,8 @@ also be supplied as a function returning a set."))
 	    (:print-function print-wb-2-relation)
 	    (:copier nil))
   "A class of functional binary relations represented as pairs of weight-
-balanced binary trees.  This is the default implementation of binary relations
-in FSet.  The inverse is constructed lazily, and maintained incrementally once
-constructed."
+balanced binary trees.  The inverse is constructed lazily, and maintained
+incrementally once constructed."
   (size 0 :type integer :read-only t)
   (map0 nil :read-only t)
   (map1 nil) ; a cache, so we leave it mutable
@@ -119,13 +118,13 @@ constructed."
 
 (declaim (inline empty-wb-2-relation fset2:empty-wb-2-relation))
 (defun empty-wb-2-relation (&optional key-compare-fn-name val-compare-fn-name)
-  "In this case, \"keys\" are the left values, and \"values\" are the right
+  "In this case, \"keys\" are the domain values, and \"values\" are the range
 values."
   (if (and (null key-compare-fn-name) (null val-compare-fn-name))
       +empty-wb-2-relation+
     (empty-wb-custom-2-relation (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare))))
 (defun fset2:empty-wb-2-relation (&key key-compare-fn-name val-compare-fn-name)
-  "In this case, \"keys\" are the left values, and \"values\" are the right
+  "In this case, \"keys\" are the domain values, and \"values\" are the range
 values."
   (if (and (null key-compare-fn-name) (null val-compare-fn-name))
       +empty-wb-2-relation+
@@ -771,10 +770,9 @@ corresponding range values.  If the val-compare-fn of the relation is not
 	    (:predicate ch-2-relation?)
 	    (:print-function print-ch-2-relation)
 	    (:copier nil))
-  "A class of functional binary relations represented as pairs of weight-
-balanced binary trees.  This is the default implementation of binary relations
-in FSet.  The inverse is constructed lazily, and maintained incrementally once
-constructed."
+  "A class of functional binary relations represented as pairs of CHAMP maps.
+This is the default implementation of binary relations in FSet.  The inverse
+is constructed lazily, and maintained incrementally once constructed."
   (size 0 :type integer :read-only t)
   (map0 nil :read-only t)
   (map1 nil) ; a cache, so we leave it mutable
@@ -793,13 +791,13 @@ constructed."
 
 (declaim (inline empty-ch-2-relation fset2:empty-ch-2-relation))
 (defun empty-ch-2-relation (&optional key-compare-fn-name val-compare-fn-name)
-  "In this case, \"keys\" are the left values, and \"values\" are the right
+  "In this case, \"keys\" are the domain values, and \"values\" are the range
 values."
   (if (and (null key-compare-fn-name) (null val-compare-fn-name))
       +empty-ch-2-relation+
     (empty-ch-custom-2-relation (or key-compare-fn-name 'compare) (or val-compare-fn-name 'compare))))
 (defun fset2:empty-ch-2-relation (&key key-compare-fn-name val-compare-fn-name)
-  "In this case, \"keys\" are the left values, and \"values\" are the right
+  "In this case, \"keys\" are the domain values, and \"values\" are the range
 values."
   (if (and (null key-compare-fn-name) (null val-compare-fn-name))
       +empty-ch-2-relation+
