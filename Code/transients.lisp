@@ -493,20 +493,12 @@ Note that this requires making an O(n) copy of the set."
   "Returns the set of domain values that the relation currently pairs with `y'.
 Note that this requires making an O(n) copy of the set."
   (with-lock-maybe ((transient-lock trel))
-    (let ((map1 (transient-ch-2-relation-get-inverse trel))
+    (let ((map1 (transient-ch-2-relation-map1 trel))
 	  (org (transient-ch-2-relation-org trel))
 	  ((ignore set-tree (ch-map-tree-lookup map1 y (hash-map-org-val-hash-fn org)
 						(hash-map-org-val-compare-fn org)))))
       (declare (ignore ignore))
       (make-ch-set (ch-set-compact-tree set-tree) (ch-2-relation-org-range-set-org org)))))
-
-(defun transient-ch-2-relation-get-inverse (trel)
-  "Call this only inside `with-lock-maybe'."
-  (allocate-transient-id-if-needed trel)
-  (or (transient-ch-2-relation-map1 trel)
-      (setf (transient-ch-2-relation-map1 trel)
-	    (ch-2-relation-compute-inverse (transient-ch-2-relation-map0 trel) (transient-ch-2-relation-org trel)
-					   (transient-id trel)))))
 
 (defmethod clear! ((trel transient-ch-2-relation))
   (with-lock-maybe ((transient-lock trel))
@@ -520,28 +512,28 @@ Note that this requires making an O(n) copy of the set."
     (with-lock-maybe ((transient-lock trel))
       (allocate-transient-id-if-needed trel)
       (let ((org (transient-ch-2-relation-org trel))
+	    (map0 (transient-ch-2-relation-map0 trel))
 	    ((map0-hash-fn (hash-map-org-key-hash-fn org))
 	     (map0-cmp-fn (hash-map-org-key-compare-fn org))
 	     (map1-hash-fn (hash-map-org-val-hash-fn org))
 	     (map1-cmp-fn (hash-map-org-val-compare-fn org))
-	     ((ignore set-tree (ch-map-tree-lookup (transient-ch-2-relation-map0 trel) x map0-hash-fn map0-cmp-fn))))
-	    (map1 (transient-ch-2-relation-map1 trel)))
+	     ((ignore set-tree (ch-map-tree-lookup map0 x map0-hash-fn map0-cmp-fn)))))
 	(declare (ignore ignore))
 	(let ((new-set-tree changed?
 		(ch-set-tree-with set-tree y map1-hash-fn map1-cmp-fn (transient-id trel))))
 	  (when changed?
 	    (incf (transient-ch-2-relation-size trel))
 	    (setf (transient-ch-2-relation-map0 trel)
-		  (ch-map-tree-with (transient-ch-2-relation-map0 trel) x new-set-tree map0-hash-fn map0-cmp-fn
+		  (ch-map-tree-with map0 x new-set-tree map0-hash-fn map0-cmp-fn
 				    #'ch-set-tree-hash-value #'eql-compare (transient-id trel)))
-	    (when map1
-	      (let ((ignore set-tree-1 (ch-map-tree-lookup map1 y map1-hash-fn map1-cmp-fn)))
-		(declare (ignore ignore))
-		(setf (transient-ch-2-relation-map1 trel)
-		      (ch-map-tree-with map1 y (ch-set-tree-with set-tree-1 x map0-hash-fn map0-cmp-fn
-								 (transient-id trel))
-					map1-hash-fn map1-cmp-fn #'ch-set-tree-hash-value #'eql-compare
-					(transient-id trel))))))))))
+	    (let ((map1 (transient-ch-2-relation-map1 trel))
+		  ((ignore set-tree-1 (ch-map-tree-lookup map1 y map1-hash-fn map1-cmp-fn))))
+	      (declare (ignore ignore))
+	      (setf (transient-ch-2-relation-map1 trel)
+		    (ch-map-tree-with map1 y (ch-set-tree-with set-tree-1 x map0-hash-fn map0-cmp-fn
+							       (transient-id trel))
+				      map1-hash-fn map1-cmp-fn #'ch-set-tree-hash-value #'eql-compare
+				      (transient-id trel)))))))))
   trel)
 
 (defmethod exclude! ((trel transient-ch-2-relation) x &optional (y nil y?))
@@ -550,13 +542,12 @@ Note that this requires making an O(n) copy of the set."
     (with-lock-maybe ((transient-lock trel))
       (allocate-transient-id-if-needed trel)
       (let ((org (transient-ch-2-relation-org trel))
+	    (map0 (transient-ch-2-relation-map0 trel))
 	    ((map0-hash-fn (hash-map-org-key-hash-fn org))
 	     (map0-cmp-fn (hash-map-org-key-compare-fn org))
 	     (map1-hash-fn (hash-map-org-val-hash-fn org))
 	     (map1-cmp-fn (hash-map-org-val-compare-fn org))
-	     ((ignore set-tree (ch-map-tree-lookup (transient-ch-2-relation-map0 trel) x map0-hash-fn map0-cmp-fn))))
-	    (map0 (transient-ch-2-relation-map0 trel))
-	    (map1 (transient-ch-2-relation-map1 trel)))
+	     ((ignore set-tree (ch-map-tree-lookup map0 x map0-hash-fn map0-cmp-fn)))))
 	(declare (ignore ignore))
 	(let ((new-set-tree changed?
 		(ch-set-tree-less set-tree y map1-hash-fn map1-cmp-fn (transient-id trel))))
@@ -567,16 +558,16 @@ Note that this requires making an O(n) copy of the set."
 		      (ch-map-tree-with map0 x new-set-tree map0-hash-fn map0-cmp-fn
 					#'ch-set-tree-hash-value #'eql-compare (transient-id trel))
 		    (ch-map-tree-less map0 x map0-hash-fn map0-cmp-fn #'ch-set-tree-hash-value (transient-id trel))))
-	    (when map1
-	      (let ((ignore set-tree-1 (ch-map-tree-lookup map1 y map1-hash-fn map1-cmp-fn))
-		    ((new-set-tree (ch-set-tree-less set-tree-1 x map0-hash-fn map0-cmp-fn (transient-id trel)))))
-		(declare (ignore ignore))
-		(setf (transient-ch-2-relation-map1 trel)
-		      (if new-set-tree
-			  (ch-map-tree-with map1 y new-set-tree map1-hash-fn map1-cmp-fn
-					    #'ch-set-tree-hash-value #'eql-compare (transient-id trel))
-			(ch-map-tree-less map1 y map1-hash-fn map1-cmp-fn #'ch-set-tree-hash-value
-					  (transient-id trel)))))))))))
+	    (let ((map1 (transient-ch-2-relation-map1 trel))
+		  ((ignore set-tree-1 (ch-map-tree-lookup map1 y map1-hash-fn map1-cmp-fn))
+		   ((new-set-tree (ch-set-tree-less set-tree-1 x map0-hash-fn map0-cmp-fn (transient-id trel))))))
+	      (declare (ignore ignore))
+	      (setf (transient-ch-2-relation-map1 trel)
+		    (if new-set-tree
+			(ch-map-tree-with map1 y new-set-tree map1-hash-fn map1-cmp-fn
+					  #'ch-set-tree-hash-value #'eql-compare (transient-id trel))
+		      (ch-map-tree-less map1 y map1-hash-fn map1-cmp-fn #'ch-set-tree-hash-value
+					(transient-id trel))))))))))
   trel)
 
 
