@@ -38,11 +38,11 @@
   (:export #:collection #:set #:bag #:map #:seq #:tuple
 	   #:collection? #:set? #:bag? #:map? #:seq? #:char-seq? #:tuple?
 	   #:wb-set #:wb-bag #:wb-map #:wb-seq #:dyn-tuple
-	   #:ch-set #:ch-map
+	   #:ch-set #:ch-bag #:ch-map
 	   #:replay-set #:replay-set? #:wb-replay-set #:wb-replay-set? #:ch-replay-set #:ch-replay-set?
 	   #:replay-map #:replay-map? #:wb-replay-map #:wb-replay-map? #:ch-replay-map #:ch-replay-map?
 	   #:wb-custom-set #:wb-custom-bag #:wb-custom-map
-	   #:ch-custom-set #:ch-custom-map
+	   #:ch-custom-set #:ch-custom-bag #:ch-custom-map
 	   #:wb-custom-replay-set #:wb-custom-replay-map #:ch-custom-replay-set #:ch-custom-replay-map
 	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal #:hash-slots #:eql-compare
 	   #:define-equality-slots #:define-comparison-slots #:define-hash-function
@@ -57,13 +57,13 @@
 	   #:empty-set #:empty-set-like #:empty-bag #:empty-bag-like #:empty-map #:empty-map-like
 	   #:empty-seq #:empty-tuple
 	   #:empty-wb-set #:empty-wb-bag #:empty-wb-map #:empty-wb-seq
-	   #:empty-dyn-tuple #:empty-ch-set #:empty-ch-map
+	   #:empty-dyn-tuple #:empty-ch-set #:empty-ch-bag #:empty-ch-map
 	   #:empty-replay-set #:empty-wb-replay-set #:empty-replay-map #:empty-wb-replay-map
 	   #:empty-ch-replay-set #:empty-ch-replay-map
 	   #:least #:greatest #:lookup #:rank #:at-rank #:index #:at-index #:@
 	   #:with #:less #:split-from #:split-above #:split-through #:split-below
 	   #:union #:bag-sum #:intersection #:bag-product #:complement
-	   #:set-difference #:set-difference-2 #:bag-difference #:bag-pairs #:wb-bag-pairs
+	   #:set-difference #:set-difference-2 #:bag-difference
 	   #:subset? #:proper-subset? #:disjoint? #:subbag? #:proper-subbag?
 	   #:filter #:filter-pairs #:partition
 	   #:image #:reduce #:domain #:range #:update
@@ -98,7 +98,7 @@
 	   ;; Used by the bag methods that convert to and from lists.
 	   #:alist
 	   ;; Miscellaneous GMap arg types
-	   #:fun-sequence #:fun-bag-pairs #:fun-map
+	   #:bag-pairs #:ch-bag-pairs #:wb-bag-pairs #:fun-bag-pairs #:fun-sequence #:fun-map
 	   ;; Miscellaneous GMap result types
 	   #:map-to-sets #:append-unique
 	   ;; Bounded sets
@@ -165,19 +165,17 @@
 			  #:remove #:remove-if #:remove-if-not
 			  #:substitute #:substitute-if #:substitute-if-not
 			  #:some #:every #:notany #:notevery
-			  #:search #:mismatch
-			  ;; Other exported symbols
-			  #:wb-bag-pairs #:$ #:% #:?
-			  ;; Internal, for testing
-			  #:erapmoc)
+			  #:search #:mismatch)
+  (:import-from :fset #:erapmoc)  ; internal, for testing
   ;; These are shadowed `fset:' symbols, with different definitions in `fset2:'.
   (:shadow ;; Names shadowed from `fset:' to implement FSet2 semantics
-	   #:set #:map #:wb-map #:wb-custom-map #:ch-map #:ch-custom-map #:seq #:wb-seq
+	   #:set #:bag #:map #:wb-map #:wb-custom-map #:ch-map #:ch-custom-map #:seq #:wb-seq
 	   #:replay-map #:wb-replay-map #:wb-custom-replay-map #:ch-replay-map #:ch-custom-replay-map
-	   #:empty-set #:empty-map #:empty-wb-map #:empty-ch-map #:empty-seq #:empty-wb-seq
-	   #:rank #:define-tuple-key #:get-tuple-key #:map-to-sets
+	   #:empty-set #:empty-bag #:empty-map #:empty-wb-map #:empty-ch-map #:empty-seq #:empty-wb-seq
+	   #:rank #:define-tuple-key #:get-tuple-key #:bag-pairs #:map-to-sets
 	   ;; These just changed from `&optional' to `&key'
-	   #:empty-wb-set #:empty-ch-set #:empty-wb-bag #:empty-wb-replay-set #:empty-ch-replay-set
+	   #:empty-wb-set #:empty-ch-set #:empty-wb-bag #:empty-ch-bag
+	   #:empty-wb-replay-set #:empty-ch-replay-set
 	   #:empty-replay-map #:empty-wb-replay-map #:empty-ch-replay-map
 	   #:empty-wb-2-relation #:empty-ch-2-relation
 	   #:empty-list-relation #:empty-wb-list-relation #:empty-ch-list-relation
@@ -192,7 +190,7 @@
 	   #:replay-set #:replay-set? #:wb-replay-set #:wb-replay-set? #:ch-replay-set #:ch-replay-set?
 	   #:replay-map #:replay-map? #:wb-replay-map #:wb-replay-map? #:ch-replay-map #:ch-replay-map?
 	   #:wb-custom-set #:wb-custom-bag #:wb-custom-map
-	   #:ch-custom-set #:ch-custom-map
+	   #:ch-custom-set #:ch-custom-bag #:ch-custom-map
 	   #:wb-custom-replay-set #:wb-custom-replay-map #:ch-custom-replay-set #:ch-custom-replay-map
 	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal #:hash-slots #:eql-compare
 	   #:define-equality-slots #:define-comparison-slots #:define-hash-function
@@ -207,13 +205,13 @@
 	   #:empty-set #:empty-set-like #:empty-bag #:empty-bag-like #:empty-map #:empty-map-like
 	   #:empty-seq #:empty-tuple
 	   #:empty-wb-set #:empty-wb-bag #:empty-wb-map #:empty-wb-seq
-	   #:empty-dyn-tuple #:empty-ch-set #:empty-ch-map
+	   #:empty-dyn-tuple #:empty-ch-set #:empty-ch-bag #:empty-ch-map
 	   #:empty-replay-set #:empty-wb-replay-set #:empty-replay-map #:empty-wb-replay-map
 	   #:empty-ch-replay-set #:empty-ch-replay-map
 	   #:least #:greatest #:lookup #:rank #:at-rank #:index #:at-index #:@
 	   #:with #:less #:split-from #:split-above #:split-through #:split-below
 	   #:union #:bag-sum #:intersection #:bag-product #:complement
-	   #:set-difference #:set-difference-2 #:bag-difference #:bag-pairs #:wb-bag-pairs
+	   #:set-difference #:set-difference-2 #:bag-difference
 	   #:subset? #:proper-subset #:disjoint? #:subbag? #:proper-subbag?
 	   #:filter #:filter-pairs #:partition
 	   #:image #:reduce #:domain #:range #:update
@@ -222,7 +220,7 @@
 	   #:seq-bounds-error #:seq-bounds-error-seq #:seq-bounds-error-index
 	   #:tuple-key-unbound-error #:tuple-key-unbound-error-tuple #:tuple-key-unbound-error-key
 	   #:empty-seq-error #:empty-seq-error-seq #:non-char-seq-error #:non-char-seq-error-seq
-	   #:map-union #:map-intersection #:map-difference-2 #:map-image
+	   #:map-union #:map-intersection #:map-difference #:map-difference-2 #:map-image
 	   #:restrict #:restrict-not #:compose
 	   #:first #:last
 	   #:lastcons #:head #:tail
@@ -250,7 +248,7 @@
 	   ;; Used by the bag methods that convert to and from lists.
 	   #:alist
 	   ;; Miscellaneous GMap arg types
-	   #:fun-sequence #:fun-bag-pairs #:fun-map
+	   #:bag-pairs #:ch-bag-pairs #:wb-bag-pairs #:fun-bag-pairs #:fun-sequence #:fun-map
 	   ;; Miscellaneous GMap result types
 	   #:map-to-sets #:append-unique
 	   ;; Bounded sets

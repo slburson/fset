@@ -110,7 +110,8 @@
       (Test-Tuple-Operations i))
     (test-champ-sets n-iterations)
     (test-champ-transient-internals)
-    (test-champ-maps n-iterations))
+    (test-champ-maps n-iterations)
+    (test-champ-bags n-iterations))
   (format t "passed~%"))
 
 
@@ -706,10 +707,20 @@
       (test (equal? (union (set 1) (bag 2 2)) (bag 1 2 2)))
       (test (equal? (union (set 2) (bag 2 2)) (bag 2 2)))
 
+      (test (equal? (union (ch-set) (ch-bag)) (ch-bag)))
+      (test (equal? (union (ch-set 1) (ch-bag 2)) (ch-bag 1 2)))
+      (test (equal? (union (ch-set 1) (ch-bag 2 2)) (ch-bag 1 2 2)))
+      (test (equal? (union (ch-set 2) (ch-bag 2 2)) (ch-bag 2 2)))
+
       (test (equal? (union (bag) (set)) (bag)))
       (test (equal? (union (bag 1) (set 2)) (bag 1 2)))
       (test (equal? (union (bag 1 1) (set 2)) (bag 1 1 2)))
       (test (equal? (union (bag 1 1) (set 1 3)) (bag 1 1 3)))
+
+      (test (equal? (union (ch-bag) (ch-set)) (ch-bag)))
+      (test (equal? (union (ch-bag 1) (ch-set 2)) (ch-bag 1 2)))
+      (test (equal? (union (ch-bag 1 1) (ch-set 2)) (ch-bag 1 1 2)))
+      (test (equal? (union (ch-bag 1 1) (ch-set 1 3)) (ch-bag 1 1 3)))
 
       (test (equal? (bag-sum (set) (bag)) (bag)))
       (test (equal? (bag-sum (set 1) (bag 2)) (bag 1 2)))
@@ -717,17 +728,35 @@
       (test (equal? (bag-sum (set 1) (bag 1 1 2)) (bag 1 1 1 2)))
       (test (equal? (bag-sum (set 3) (bag 1 1 2)) (bag 1 1 2 3)))
 
+      (test (equal? (bag-sum (ch-set) (ch-bag)) (ch-bag)))
+      (test (equal? (bag-sum (ch-set 1) (ch-bag 2)) (ch-bag 1 2)))
+      (test (equal? (bag-sum (ch-set 1) (ch-bag 1 2)) (ch-bag 1 1 2)))
+      (test (equal? (bag-sum (ch-set 1) (ch-bag 1 1 2)) (ch-bag 1 1 1 2)))
+      (test (equal? (bag-sum (ch-set 3) (ch-bag 1 1 2)) (ch-bag 1 1 2 3)))
+
       (test (equal? (bag-sum (bag) (set)) (bag)))
       (test (equal? (bag-sum (bag 2) (set 1)) (bag 1 2)))
       (test (equal? (bag-sum (bag 1 2) (set 1)) (bag 1 1 2)))
       (test (equal? (bag-sum (bag 1 1 2) (set 1)) (bag 1 1 1 2)))
       (test (equal? (bag-sum (bag 1 1 2) (set 3)) (bag 1 1 2 3)))
 
+      (test (equal? (bag-sum (ch-bag) (ch-set)) (ch-bag)))
+      (test (equal? (bag-sum (ch-bag 2) (ch-set 1)) (ch-bag 1 2)))
+      (test (equal? (bag-sum (ch-bag 1 2) (ch-set 1)) (ch-bag 1 1 2)))
+      (test (equal? (bag-sum (ch-bag 1 1 2) (ch-set 1)) (ch-bag 1 1 1 2)))
+      (test (equal? (bag-sum (ch-bag 1 1 2) (ch-set 3)) (ch-bag 1 1 2 3)))
+
       (test (equal? (intersection (set) (bag)) (set)))
       (test (equal? (intersection (set 1) (bag 2)) (set)))
       (test (equal? (intersection (set 1) (bag 1 2)) (set 1)))
       (test (equal? (intersection (set 1) (bag 1 1 2)) (set 1)))
       (test (equal? (intersection (set 3) (bag 1 1 2)) (set)))
+
+      (test (equal? (intersection (ch-set) (ch-bag)) (ch-set)))
+      (test (equal? (intersection (ch-set 1) (ch-bag 2)) (ch-set)))
+      (test (equal? (intersection (ch-set 1) (ch-bag 1 2)) (ch-set 1)))
+      (test (equal? (intersection (ch-set 1) (ch-bag 1 1 2)) (ch-set 1)))
+      (test (equal? (intersection (ch-set 3) (ch-bag 1 1 2)) (ch-set)))
 
       (test (equal? (bag-product (set) (bag)) (bag)))
       (test (equal? (bag-product (set 1) (bag)) (bag)))
@@ -737,6 +766,14 @@
       (test (equal? (bag-product (set 1) (bag 1 1 2)) (bag 1 1)))
       (test (equal? (bag-product (set 2) (bag 1 1 2)) (bag 2)))
 
+      (test (equal? (bag-product (ch-set) (ch-bag)) (ch-bag)))
+      (test (equal? (bag-product (ch-set 1) (ch-bag)) (ch-bag)))
+      (test (equal? (bag-product (ch-set) (ch-bag 2)) (ch-bag)))
+      (test (equal? (bag-product (ch-set 1) (ch-bag 2)) (ch-bag)))
+      (test (equal? (bag-product (ch-set 1) (ch-bag 1)) (ch-bag 1)))
+      (test (equal? (bag-product (ch-set 1) (ch-bag 1 1 2)) (ch-bag 1 1)))
+      (test (equal? (bag-product (ch-set 2) (ch-bag 1 1 2)) (ch-bag 2)))
+
       (test (equal? (bag-product (bag) (set)) (bag)))
       (test (equal? (bag-product (bag) (set 1)) (bag)))
       (test (equal? (bag-product (bag 2) (set)) (bag)))
@@ -744,6 +781,14 @@
       (test (equal? (bag-product (bag 1) (set 1)) (bag 1)))
       (test (equal? (bag-product (bag 1 1 2) (set 1)) (bag 1 1)))
       (test (equal? (bag-product (bag 1 1 2) (set 2)) (bag 2)))
+
+      (test (equal? (bag-product (ch-bag) (ch-set)) (ch-bag)))
+      (test (equal? (bag-product (ch-bag) (ch-set 1)) (ch-bag)))
+      (test (equal? (bag-product (ch-bag 2) (ch-set)) (ch-bag)))
+      (test (equal? (bag-product (ch-bag 2) (ch-set 1)) (ch-bag)))
+      (test (equal? (bag-product (ch-bag 1) (ch-set 1)) (ch-bag 1)))
+      (test (equal? (bag-product (ch-bag 1 1 2) (ch-set 1)) (ch-bag 1 1)))
+      (test (equal? (bag-product (ch-bag 1 1 2) (ch-set 2)) (ch-bag 2)))
 
       (test (equal? (bag-difference (set) (bag)) (bag)))
       (test (equal? (bag-difference (set) (bag 1)) (bag)))
@@ -753,6 +798,14 @@
       (test (equal? (bag-difference (set 1) (bag 2)) (bag 1)))
       (test (equal? (bag-difference (set 1 3) (bag 1 2)) (bag 3)))
 
+      (test (equal? (bag-difference (ch-set) (ch-bag)) (ch-bag)))
+      (test (equal? (bag-difference (ch-set) (ch-bag 1)) (ch-bag)))
+      (test (equal? (bag-difference (ch-set 1) (ch-bag)) (ch-bag 1)))
+      (test (equal? (bag-difference (ch-set 1) (ch-bag 1)) (ch-bag)))
+      (test (equal? (bag-difference (ch-set 1) (ch-bag 1 1)) (ch-bag)))
+      (test (equal? (bag-difference (ch-set 1) (ch-bag 2)) (ch-bag 1)))
+      (test (equal? (bag-difference (ch-set 1 3) (ch-bag 1 2)) (ch-bag 3)))
+
       (test (equal? (bag-difference (bag) (set)) (bag)))
       (test (equal? (bag-difference (bag 1) (set)) (bag 1)))
       (test (equal? (bag-difference (bag) (set 1)) (bag)))
@@ -760,6 +813,14 @@
       (test (equal? (bag-difference (bag 1 1) (set 1)) (bag 1)))
       (test (equal? (bag-difference (bag 1 2) (set 1)) (bag 2)))
       (test (equal? (bag-difference (bag 1 1 1 2) (set 1 3)) (bag 1 1 2)))
+
+      (test (equal? (bag-difference (ch-bag) (ch-set)) (ch-bag)))
+      (test (equal? (bag-difference (ch-bag 1) (ch-set)) (ch-bag 1)))
+      (test (equal? (bag-difference (ch-bag) (ch-set 1)) (ch-bag)))
+      (test (equal? (bag-difference (ch-bag 1) (ch-set 1)) (ch-bag)))
+      (test (equal? (bag-difference (ch-bag 1 1) (ch-set 1)) (ch-bag 1)))
+      (test (equal? (bag-difference (ch-bag 1 2) (ch-set 1)) (ch-bag 2)))
+      (test (equal? (bag-difference (ch-bag 1 1 1 2) (ch-set 1 3)) (ch-bag 1 1 2)))
 
       (test (subbag? (set) (bag)))
       (test (subbag? (set) (bag 1)))
@@ -777,6 +838,16 @@
       (test (subbag? (bag 1 4 8 10) (set 0 1 2 3 4 5 6 7 8 9 10 11)))
       (test (not (subbag? (bag 1 4 8 8 10) (set 0 1 2 3 4 5 6 7 8 9 10 11))))
       (test (subbag? (bag 1 3 3) (wb-custom-bag 'erapmoc 1 1 3 3 7 12)))
+
+      (test (subbag? (ch-bag) (ch-set)))
+      (test (subbag? (ch-bag) (ch-set 1)))
+      (test (subbag? (ch-bag 1) (ch-set 1)))
+      (test (not (subbag? (ch-bag 1) (ch-set 2))))
+      (test (not (subbag? (ch-bag 1 1) (ch-set 1))))
+      (test (not (subbag? (ch-bag 1 2) (ch-set 1))))
+      (test (subbag? (ch-bag 1 4 8 10) (ch-set 0 1 2 3 4 5 6 7 8 9 10 11)))
+      (test (not (subbag? (ch-bag 1 4 8 8 10) (ch-set 0 1 2 3 4 5 6 7 8 9 10 11))))
+      (test (subbag? (ch-bag 1 3 3) (ch-custom-bag 'erapmoc 1 1 3 3 7 12)))
 
       (test (disjoint? (set 1 3 5) (set 0 2 4 6)))
       (test (disjoint? (set 1 3 5) (wb-custom-set 'erapmoc 0 2 4 6)))
@@ -2520,7 +2591,7 @@
       (test (handler-case (progn (contains? (wb-set 1) 1 nil) nil)
               (simple-program-error () t)))
       (test (let ((val mult val? (arb (bag))))
-	      (and (null val) (null mult) (not val?))))
+	      (and (null val) (zerop mult) (not val?))))
       (test (let ((b (bag 1 4 8))
 		  ((val mult val? (arb b))))
 	      (and val? (contains? b val) (= mult 1))))
@@ -2531,8 +2602,6 @@
 	      (and pr? (equal? val (lookup m key)))))
       (test (contains? (set 1 2 1) 1))
       (test (contains? (bag 1 2 1) 2))
-      (test (handler-case (progn (contains? (bag 1) 1 nil) nil)
-              (simple-program-error () t)))
       (test (domain-contains? (map ('x 0) ('y 1)) 'y))
       (test (domain-contains? (ch-map ('x 0) ('y 1)) 'y))
       (test (domain-contains? (seq 'a 'e 'g 'x) 3))
@@ -2647,6 +2716,8 @@
 		       (ch-custom-set 'erapmoc 19 7 'c '(eek))
 		       (wb-bag 7 2 3 'd 2 9 4 2 7 'd)
 		       (wb-custom-bag 'erapmoc 7 2 3 'd 2 9 4 2 7 'd)
+		       (ch-bag 7 2 3 'd 2 9 4 2 7 'd)
+		       (ch-custom-bag 'erapmoc 7 2 3 'd 2 9 4 2 7 'd)
 		       (wb-map ('a 'foo) (7 14) ('(yow) '(x y zzy)))
 		       (wb-custom-map 'erapmoc 'erapmoc ('a 'foo) (7 14) ('(yow) '(x y zzy)))
 		       (ch-map ('a 'baz) (7 42) ('(yow!) '(y zzy x)))
@@ -2866,3 +2937,7 @@
 	    (frob5 (make-frob 1.0 2)))
 	(test (eql ':unequal (compare-slots frob4 frob5 'a 'b)))
 	(test (eql ':unequal (compare-slots frob4 frob5 'b 'a)))))))
+
+;;; Outlined so SBCL constant propagation doesn't do the test at compile time.
+(defun hash-mix-func (a b)
+  (hash-mix a b))

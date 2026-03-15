@@ -180,13 +180,21 @@
 					  ,(format nil "** Show entries ~D - ~D **" hi2 (1- hi)))
 				 '(:newline))))))))
 
-(defmethod emacs-inspect-footer append ((b bag))
+(defmethod emacs-inspect-footer append ((b wb-bag))
   (append (let ((cmp-fn-name (compare-fn-name b)))
 	    (and (not (eq cmp-fn-name 'compare))
 		 (cons '(:newline)
 		       (swank::label-value-line "compare-fn" cmp-fn-name))))
 	  (list '(:newline) '(:newline)
 		`(:value ,(wb-bag-contents b) "[Show internal tree]"))))
+
+(defmethod emacs-inspect-footer append ((b ch-bag))
+  (append (let ((cmp-fn-name (compare-fn-name b)))
+	    (and (not (eq cmp-fn-name 'compare))
+		 (cons '(:newline)
+		       (swank::label-value-line "compare-fn" cmp-fn-name))))
+	  (list '(:newline) '(:newline)
+		`(:value ,(ch-bag-contents b) "[Show internal tree]"))))
 
 (defmethod swank::emacs-inspect ((tup tuple))
   (append (emacs-inspect-partial tup 0 (size tup))
