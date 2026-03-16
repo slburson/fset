@@ -92,7 +92,8 @@
     `(sb-thread:with-mutex (,lock :wait-p ,wait?)
        . ,body))
   (defmacro read-memory-barrier ()
-    '(sb-thread:barrier (:read)))
+    ;; We don't need the stronger `:read' barrier.
+    '(sb-thread:barrier (:data-dependency)))
   (defmacro write-memory-barrier ()
     '(sb-thread:barrier (:write))))
 

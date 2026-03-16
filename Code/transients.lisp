@@ -443,8 +443,9 @@ associate the key with the value passed to `setf'."))
 	(make-ch-2-relation (transient-ch-2-relation-size trel)
 			    (ch-map-compact-tree (transient-ch-2-relation-map0 trel)
 						 :compact-value-fn #'ch-set-compact-tree)
-			    (ch-map-compact-tree (transient-ch-2-relation-map1 trel)
-						 :compact-value-fn #'ch-set-compact-tree)
+			    (let ((map1 (transient-ch-2-relation-map1 trel)))
+			      (if (eq map1 'no-inverse) map1
+				(ch-map-compact-tree map1 :compact-value-fn #'ch-set-compact-tree)))
 			    (transient-ch-2-relation-org trel))
       (progn
 	(setf (transient-id trel) nil)
@@ -503,16 +504,18 @@ Note that this requires making an O(n) copy of the set."
 (defun transient-ch-2-relation-get-inverse (trel)
   "Call this only inside `with-lock-maybe'."
   (allocate-transient-id-if-needed trel)
-  (or (transient-ch-2-relation-map1 trel)
+  (let ((map1 (transient-ch-2-relation-map1 trel)))
+    (if (not (eq map1 'no-inverse))
+	map1
       (setf (transient-ch-2-relation-map1 trel)
 	    (ch-2-relation-compute-inverse (transient-ch-2-relation-map0 trel) (transient-ch-2-relation-org trel)
-					   (transient-id trel)))))
+					   (transient-id trel))))))
 
 (defmethod clear! ((trel transient-ch-2-relation))
   (with-lock-maybe ((transient-lock trel))
     (setf (transient-ch-2-relation-size trel) 0)
     (setf (transient-ch-2-relation-map0 trel) nil)
-    (setf (transient-ch-2-relation-map1 trel) nil)))
+    (setf (transient-ch-2-relation-map1 trel) 'no-inverse)))
 
 (defmethod include! ((trel transient-ch-2-relation) x &optional (y nil y?))
   (let ((x y (if y? (values x y)
@@ -534,7 +537,7 @@ Note that this requires making an O(n) copy of the set."
 	    (setf (transient-ch-2-relation-map0 trel)
 		  (ch-map-tree-with (transient-ch-2-relation-map0 trel) x new-set-tree map0-hash-fn map0-cmp-fn
 				    #'ch-set-tree-hash-value #'eql-compare (transient-id trel)))
-	    (when map1
+	    (unless (eq map1 'no-inverse)
 	      (let ((ignore set-tree-1 (ch-map-tree-lookup map1 y map1-hash-fn map1-cmp-fn)))
 		(declare (ignore ignore))
 		(setf (transient-ch-2-relation-map1 trel)
@@ -567,7 +570,7 @@ Note that this requires making an O(n) copy of the set."
 		      (ch-map-tree-with map0 x new-set-tree map0-hash-fn map0-cmp-fn
 					#'ch-set-tree-hash-value #'eql-compare (transient-id trel))
 		    (ch-map-tree-less map0 x map0-hash-fn map0-cmp-fn #'ch-set-tree-hash-value (transient-id trel))))
-	    (when map1
+	    (unless (eq map1 'no-inverse)
 	      (let ((ignore set-tree-1 (ch-map-tree-lookup map1 y map1-hash-fn map1-cmp-fn))
 		    ((new-set-tree (ch-set-tree-less set-tree-1 x map0-hash-fn map0-cmp-fn (transient-id trel)))))
 		(declare (ignore ignore))

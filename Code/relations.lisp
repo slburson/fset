@@ -114,7 +114,7 @@ incrementally once constructed."
 
 (define-cross-type-compare-methods wb-2-relation)
 
-(defparameter +empty-wb-2-relation+ (make-wb-2-relation 0 nil nil +fset-default-tree-map-org+))
+(defparameter +empty-wb-2-relation+ (make-wb-2-relation 0 nil 'no-inverse +fset-default-tree-map-org+))
 
 (declaim (inline empty-wb-2-relation fset2:empty-wb-2-relation))
 (defun empty-wb-2-relation (&optional key-compare-fn-name val-compare-fn-name)
@@ -151,8 +151,8 @@ values."
 		      (eq val-compare-fn (tree-map-org-val-compare-fn prev-org)))))
 	  prev-instance
 	(setf (gethash cache-key +empty-wb-custom-2-relation-cache+)
-	      (make-wb-2-relation 0 nil nil (make-tree-map-org key-compare-fn-name key-compare-fn
-							       val-compare-fn-name val-compare-fn)))))))
+	      (make-wb-2-relation 0 nil 'no-inverse (make-tree-map-org key-compare-fn-name key-compare-fn
+								       val-compare-fn-name val-compare-fn)))))))
 
 (defmethod empty-relation-like ((rel wb-2-relation))
   (let ((org (wb-2-relation-org rel)))
@@ -232,24 +232,29 @@ values."
   ;; Make sure this thread sees a fully initialized map tree, if some other thread has just
   ;; created it.  Not certain this is necessary and it seems like it might be a bit expensive,
   ;; but for safety I'm leaving it in.
-  (read-memory-barrier)
-  (let ((m0 (wb-2-relation-map0 rel))
-	(m1 (wb-2-relation-map1 rel))
-	(org (wb-2-relation-org rel)))
-    (when (and m0 (null m1))
-      (Do-WB-Map-Tree-Pairs (x s m0)
-	(Do-WB-Set-Tree-Members (y s)
-	  (let ((ignore prev (WB-Map-Tree-Lookup m1 y (tree-map-org-val-compare-fn org))))
-	    (declare (ignore ignore))
-	    ;; The `val-cmp-fn' for `WB-Map-Tree-With' is comparing set trees, not elements.
-	    ;; `eql-compare' suffices for this (actually, in this case, we could use `(constantly ':unequal)',
-	    ;; since `x' values are unique).
-	    (setq m1 (WB-Map-Tree-With m1 y (WB-Set-Tree-With prev x (tree-map-org-key-compare-fn org))
-				       (tree-map-org-val-compare-fn org) #'eql-compare)))))
+  (let ((map1 (wb-2-relation-map1 rel)))
+    ;; In case some other thread just did this (so we don't need to do it again), make sure that
+    ;; our caller doesn't see stale data.
+    (read-memory-barrier)
+    (when (eq map1 'no-inverse)
+      (setq map1 (wb-2-relation-compute-inverse (wb-2-relation-map0 rel) (wb-2-relation-org rel)))
       ;; Make sure other threads see a fully initialized map tree.
       (write-memory-barrier)
-      (setf (wb-2-relation-map1 rel) m1))
-    m1))
+      (setf (wb-2-relation-map1 rel) map1))
+    map1))
+
+(defun wb-2-relation-compute-inverse (map0 org)
+  (let ((map1 nil))
+    (Do-WB-Map-Tree-Pairs (x s map0)
+      (Do-WB-Set-Tree-Members (y s)
+	(let ((ignore prev (WB-Map-Tree-Lookup map1 y (tree-map-org-val-compare-fn org))))
+	  (declare (ignore ignore))
+	  ;; The `val-cmp-fn' for `WB-Map-Tree-With' is comparing set trees, not elements.
+	  ;; `eql-compare' suffices for this (actually, in this case, we could use `(constantly ':unequal)',
+	  ;; since `x' values are unique).
+	  (setq map1 (WB-Map-Tree-With map1 y (WB-Set-Tree-With prev x (tree-map-org-key-compare-fn org))
+				       (tree-map-org-val-compare-fn org) #'eql-compare)))))
+    map1))
 
 ;;; This is so fast (once the inverse is constructed) we almost don't need
 ;;; `lookup-inv'.  Maybe we should just put a compiler optimizer on
@@ -297,20 +302,20 @@ values."
 	      rel			; `y' was already there
 	    (make-wb-2-relation (1+ (wb-2-relation-size rel))
 				(WB-Map-Tree-With (wb-2-relation-map0 rel) x new-set-tree map0-cmp-fn #'eql-compare)
-				(and map1
-				     (let ((ignore set-tree-1 (WB-Map-Tree-Lookup map1 y map1-cmp-fn)))
-				       (declare (ignore ignore))
-				       (WB-Map-Tree-With map1 y (WB-Set-Tree-With set-tree-1 x map0-cmp-fn)
-							 map1-cmp-fn #'eql-compare)))
+				(if (eq map1 'no-inverse) map1
+				  (let ((ignore set-tree-1 (WB-Map-Tree-Lookup map1 y map1-cmp-fn)))
+				    (declare (ignore ignore))
+				    (WB-Map-Tree-With map1 y (WB-Set-Tree-With set-tree-1 x map0-cmp-fn)
+						      map1-cmp-fn #'eql-compare)))
 				org)))
       (make-wb-2-relation (1+ (wb-2-relation-size rel))
 			  (WB-Map-Tree-With (wb-2-relation-map0 rel) x (WB-Set-Tree-With nil y map1-cmp-fn)
 					    map0-cmp-fn #'eql-compare)
-			  (and map1
-			       (let ((ignore set-tree-1 (WB-Map-Tree-Lookup map1 y map1-cmp-fn)))
-				 (declare (ignore ignore))
-				 (WB-Map-Tree-With map1 y (WB-Set-Tree-With set-tree-1 x map0-cmp-fn)
-						   map1-cmp-fn #'eql-compare)))
+			  (if (eq map1 'no-inverse) map1
+			    (let ((ignore set-tree-1 (WB-Map-Tree-Lookup map1 y map1-cmp-fn)))
+			      (declare (ignore ignore))
+			      (WB-Map-Tree-With map1 y (WB-Set-Tree-With set-tree-1 x map0-cmp-fn)
+						map1-cmp-fn #'eql-compare)))
 			  org))))
 
 (defmethod less ((rel wb-2-relation) x &optional (y nil y?))
@@ -331,13 +336,13 @@ values."
 			      (if new-set-tree
 				  (WB-Map-Tree-With (wb-2-relation-map0 rel) x new-set-tree map0-cmp-fn #'eql-compare)
 				(WB-Map-Tree-Less (wb-2-relation-map0 rel) x map0-cmp-fn))
-			      (and map1
-				   (let ((ignore set-tree (WB-Map-Tree-Lookup map1 y map1-cmp-fn))
-					 ((new-set-tree (WB-Set-Tree-Less set-tree x map0-cmp-fn))))
-				     (declare (ignore ignore))
-				     (if new-set-tree
-					 (WB-Map-Tree-With map1 y new-set-tree map1-cmp-fn #'eql-compare)
-				       (WB-Map-Tree-Less map1 y map1-cmp-fn))))
+			      (if (eq map1 'no-inverse) map1
+				(let ((ignore set-tree (WB-Map-Tree-Lookup map1 y map1-cmp-fn))
+				      ((new-set-tree (WB-Set-Tree-Less set-tree x map0-cmp-fn))))
+				  (declare (ignore ignore))
+				  (if new-set-tree
+				      (WB-Map-Tree-With map1 y new-set-tree map1-cmp-fn #'eql-compare)
+				    (WB-Map-Tree-Less map1 y map1-cmp-fn))))
 			      org))))))
 
 (defmethod union ((rel1 wb-2-relation) (rel2 wb-2-relation) &key)
@@ -355,13 +360,15 @@ values."
 					  ;; Passing `(constantly ':unequal)' forces the previous lambda
 					  ;; to be called whenever keys match.
 					  map0-cmp-fn (constantly ':unequal)))
-	     (new-map1 (and (or (wb-2-relation-map1 rel1) (wb-2-relation-map1 rel2))
-			    (progn
-			      (wb-2-relation-get-inverse rel1)
-			      (wb-2-relation-get-inverse rel2)
-			      (WB-Map-Tree-Union (wb-2-relation-map1 rel1) (wb-2-relation-map1 rel2)
-						 (fn (a b) (WB-Set-Tree-Union a b map0-cmp-fn))
-						 map1-cmp-fn (constantly ':unequal)))))))
+	     (new-map1 (if (and (eq (wb-2-relation-map1 rel1) 'no-inverse)
+				(eq (wb-2-relation-map1 rel2) 'no-inverse))
+			   'no-inverse
+			 (progn
+			   (wb-2-relation-get-inverse rel1)
+			   (wb-2-relation-get-inverse rel2)
+			   (WB-Map-Tree-Union (wb-2-relation-map1 rel1) (wb-2-relation-map1 rel2)
+					      (fn (a b) (WB-Set-Tree-Union a b map0-cmp-fn))
+					      map1-cmp-fn (constantly ':unequal)))))))
 	(make-wb-2-relation new-size new-map0 new-map1 org))
     (call-next-method)))
 
@@ -377,15 +384,17 @@ values."
 						  (incf new-size (WB-Set-Tree-Size s))
 						  (values s (and (null s) ':no-value))))
 					      map0-cmp-fn (constantly ':unequal)))
-	     (new-map1 (and (or (wb-2-relation-map1 rel1) (wb-2-relation-map1 rel2))
-			    (progn
-			      (wb-2-relation-get-inverse rel1)
-			      (wb-2-relation-get-inverse rel2)
-			      (WB-Map-Tree-Intersect (wb-2-relation-map1 rel1) (wb-2-relation-map1 rel2)
-						     (lambda (s1 s2)
-						       (let ((s (WB-Set-Tree-Intersect s1 s2 map0-cmp-fn)))
-							 (values s (and (null s) ':no-value))))
-						     map1-cmp-fn (constantly ':unequal)))))))
+	     (new-map1 (if (and (eq (wb-2-relation-map1 rel1) 'no-inverse)
+				(eq (wb-2-relation-map1 rel2) 'no-inverse))
+			   'no-inverse
+			 (progn
+			   (wb-2-relation-get-inverse rel1)
+			   (wb-2-relation-get-inverse rel2)
+			   (WB-Map-Tree-Intersect (wb-2-relation-map1 rel1) (wb-2-relation-map1 rel2)
+						  (lambda (s1 s2)
+						    (let ((s (WB-Set-Tree-Intersect s1 s2 map0-cmp-fn)))
+						      (values s (and (null s) ':no-value))))
+						  map1-cmp-fn (constantly ':unequal)))))))
 	(make-wb-2-relation new-size new-map0 new-map1 org))
     (call-next-method)))
 
@@ -413,7 +422,7 @@ values."
 			  (tree-map-org-val-compare-fn org-b) (tree-map-org-key-compare-fn org-b)
 			  (tree-map-org-key-compare-fn-name org-b)))))))
 	(new-map0 nil)
-	(new-map1 nil)
+	(new-map1 'no-inverse)
 	(new-size 0))
     (Do-WB-Map-Tree-Pairs (x ys map0a)
       (Do-WB-Set-Tree-Members (y ys)
@@ -424,11 +433,12 @@ values."
 	      (declare (ignore ignore))
 	      (incf new-size (- (WB-Set-Tree-Size new) (WB-Set-Tree-Size prev)))
 	      (setq new-map0 (WB-Map-Tree-With new-map0 x new cmp-fn-0a #'eql-compare)))))))
-    (when (or map1a map1b)
-      (when (null map1b)
-	(setq map1b (wb-2-relation-get-inverse relb)))
-      (when (null map1a)
+    (unless (and (eq map1a 'no-inverse) (eq map1b 'no-inverse))
+      (when (eq map1a 'no-inverse)
 	(setq map1a (wb-2-relation-get-inverse rela)))
+      (when (eq map1b 'no-inverse)
+	(setq map1b (wb-2-relation-get-inverse relb)))
+      (setq new-map1 nil)
       (Do-WB-Map-Tree-Pairs (x ys map1b)
 	(Do-WB-Set-Tree-Members (y ys)
 	  (let ((s? s (WB-Map-Tree-Lookup map1a y cmp-fn-1a)))
@@ -471,7 +481,7 @@ values."
 			      (incf new-size (WB-Set-Tree-Size result))
 			      (values x result)))
 			  (:arg wb-map (make-wb-map (wb-2-relation-map0 rel) rel-org nil)))))))
-    (make-wb-2-relation new-size (wb-map-contents new-map0) nil org)))
+    (make-wb-2-relation new-size (wb-map-contents new-map0) 'no-inverse org)))
 
 (define-wb-set-methods (image fset2:image) ((fn 2-relation) (s wb-set) &key compare-fn-name)
   (wb-set-image (fn (x) (lookup fn x)) (contents s) (or compare-fn-name (compare-fn-name s))))
@@ -501,7 +511,9 @@ values."
 	      (setq map0 (WB-Map-Tree-With map0 x (WB-Set-Tree-With prev y val-compare-fn)
 					   key-compare-fn #'eql-compare)))
 	    (incf size)))
-	(make-wb-2-relation size map0 nil org)))))
+	(make-wb-2-relation size map0 (if (eq (wb-2-relation-map1 rel) 'no-inverse) 'no-inverse
+					(wb-2-relation-compute-inverse map0 org transient-id))
+			    org)))))
 
 (defmethod convert ((to-type (eql 'wb-2-relation)) (pairs set)
 		    &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name)
@@ -566,7 +578,7 @@ explicitly overridden in the call."
 						     (convert 'wb-set s :compare-fn-name vcfn-name))))
 					    (incf size (WB-Set-Tree-Size s))
 					    s))))))
-    (convert 'wb-2-relation (make-wb-2-relation size new-tree nil compose-org)
+    (convert 'wb-2-relation (make-wb-2-relation size new-tree 'no-inverse compose-org)
 	     :key-compare-fn-name (or kcfn-name (tree-map-org-key-compare-fn-name compose-org))
 	     :val-compare-fn-name vcfn-name)))
 
@@ -574,7 +586,7 @@ explicitly overridden in the call."
   (let ((map-org (wb-map-org m))
 	((new-tree (WB-Map-Tree-Compose (wb-map-contents m)
 					(fn (x) (WB-Set-Tree-With nil x (tree-map-org-val-compare-fn map-org)))))))
-    (convert 'wb-2-relation (make-wb-2-relation (size m) new-tree nil map-org)
+    (convert 'wb-2-relation (make-wb-2-relation (size m) new-tree 'no-inverse map-org)
 	     :key-compare-fn-name (or key-compare-fn-name (tree-map-org-key-compare-fn-name map-org))
 	     :val-compare-fn-name (or val-compare-fn-name (tree-map-org-val-compare-fn-name map-org)))))
 
@@ -655,7 +667,7 @@ corresponding range values.  If the val-compare-fn of the relation is not
       (when (> (WB-Set-Tree-Size s) 1)
 	(setq m0 (WB-Map-Tree-With m0 x s key-compare-fn #'eql-compare))
 	(incf size (WB-Set-Tree-Size s))))
-    (make-wb-2-relation size m0 nil (wb-2-relation-org rel))))
+    (make-wb-2-relation size m0 'no-inverse (wb-2-relation-org rel))))
 
 (defun print-wb-2-relation (rel stream level)
   (declare (ignore level))
@@ -780,7 +792,7 @@ is constructed lazily, and maintained incrementally once constructed."
 
 (define-cross-type-compare-methods ch-2-relation)
 
-(defparameter +empty-ch-2-relation+ (make-ch-2-relation 0 nil nil +fset-default-hash-map-org+))
+(defparameter +empty-ch-2-relation+ (make-ch-2-relation 0 nil 'no-inverse +fset-default-hash-map-org+))
 
 ;;; Moved here from above because forward-referencing `+empty-ch-2-relation+' ran afoul of
 ;;; https://bugs.launchpad.net/sbcl/+bug/2129827 .
@@ -834,8 +846,9 @@ values."
 		      (eq val-hash-fn (hash-map-org-val-hash-fn prev-org)))))
 	  prev-instance
 	(setf (gethash cache-key +empty-ch-custom-2-relation-cache+)
-	      (make-ch-2-relation 0 nil nil (make-hash-map-org key-compare-fn-name key-compare-fn key-hash-fn
-							       val-compare-fn-name val-compare-fn val-hash-fn)))))))
+	      (make-ch-2-relation 0 nil 'no-inverse
+				  (make-hash-map-org key-compare-fn-name key-compare-fn key-hash-fn
+						     val-compare-fn-name val-compare-fn val-hash-fn)))))))
 
 (defmethod empty-relation-like ((rel ch-2-relation))
   (let ((org (ch-2-relation-org rel)))
@@ -898,21 +911,17 @@ values."
 		     (hash-map-org-val-hash-fn rel-org)))
 
 (defun ch-2-relation-get-inverse (rel)
-  ;; Make sure this thread sees a fully initialized map tree, if some other thread has just
-  ;; created it.  Not certain this is necessary and it seems like it might be a bit expensive,
-  ;; but for safety I'm leaving it in.
-  (or (ch-2-relation-map1 rel)
-      (progn
-	(read-memory-barrier)
-	(let ((m0 (ch-2-relation-map0 rel))
-	      (m1 (ch-2-relation-map1 rel))
-	      (org (ch-2-relation-org rel)))
-	  (or m1
-	      (let ((transient-id (get-next-transient-id))
-		    ((m1 (ch-2-relation-compute-inverse m0 org transient-id))))
-		;; Make sure other threads see a fully initialized map tree.
-		(write-memory-barrier)
-		(setf (ch-2-relation-map1 rel) m1)))))))
+  (let ((map1 (ch-2-relation-map1 rel)))
+    ;; In case some other thread just did this (so we don't need to do it again), make sure that
+    ;; our caller doesn't see stale data.
+    (read-memory-barrier)
+    (when (eq map1 'no-inverse)
+      (setq map1 (ch-2-relation-compute-inverse (ch-2-relation-map0 rel) (ch-2-relation-org rel)
+					      (get-next-transient-id)))
+      ;; Make sure other threads see a fully initialized map tree.
+      (write-memory-barrier)
+      (setf (ch-2-relation-map1 rel) map1))
+    map1))
 
 (defun ch-2-relation-compute-inverse (map0 org transient-id)
   (let ((map1 nil))
@@ -961,12 +970,12 @@ values."
 	  (make-ch-2-relation (1+ (ch-2-relation-size rel))
 			      (ch-map-tree-with (ch-2-relation-map0 rel) x new-set-tree map0-hash-fn map0-cmp-fn
 						#'ch-set-tree-hash-value #'eql-compare)
-			      (and map1
-				   (let ((ignore set-tree-1 (ch-map-tree-lookup map1 y map1-hash-fn map1-cmp-fn)))
-				     (declare (ignore ignore))
-				     (ch-map-tree-with map1 y (ch-set-tree-with set-tree-1 x map0-hash-fn map0-cmp-fn)
-						       map1-hash-fn map1-cmp-fn
-						       #'ch-set-tree-hash-value #'eql-compare)))
+			      (if (eq map1 'no-inverse) map1
+				(let ((ignore set-tree-1 (ch-map-tree-lookup map1 y map1-hash-fn map1-cmp-fn)))
+				  (declare (ignore ignore))
+				  (ch-map-tree-with map1 y (ch-set-tree-with set-tree-1 x map0-hash-fn map0-cmp-fn)
+						    map1-hash-fn map1-cmp-fn
+						    #'ch-set-tree-hash-value #'eql-compare)))
 			      org))))))
 
 (defmethod less ((rel ch-2-relation) x &optional (y nil y?))
@@ -991,14 +1000,14 @@ values."
 						      #'ch-set-tree-hash-value #'eql-compare)
 				  (ch-map-tree-less (ch-2-relation-map0 rel) x map0-hash-fn map0-cmp-fn
 						    #'ch-set-tree-hash-value))
-				(and map1
-				     (let ((ignore set-tree (ch-map-tree-lookup map1 y map1-hash-fn map1-cmp-fn))
-					   ((new-set-tree (ch-set-tree-less set-tree x map0-hash-fn map0-cmp-fn))))
-				       (declare (ignore ignore))
-				       (if new-set-tree
-					   (ch-map-tree-with map1 y new-set-tree map1-hash-fn map1-cmp-fn
-							     #'ch-set-tree-hash-value #'eql-compare)
-					 (ch-map-tree-less map1 y map1-hash-fn map1-cmp-fn #'ch-set-tree-hash-value))))
+				(if (eq map1 'no-inverse) map1
+				  (let ((ignore set-tree (ch-map-tree-lookup map1 y map1-hash-fn map1-cmp-fn))
+					((new-set-tree (ch-set-tree-less set-tree x map0-hash-fn map0-cmp-fn))))
+				    (declare (ignore ignore))
+				    (if new-set-tree
+					(ch-map-tree-with map1 y new-set-tree map1-hash-fn map1-cmp-fn
+							  #'ch-set-tree-hash-value #'eql-compare)
+				      (ch-map-tree-less map1 y map1-hash-fn map1-cmp-fn #'ch-set-tree-hash-value))))
 				org)))))))
 
 (defmethod union ((rel1 ch-2-relation) (rel2 ch-2-relation) &key)
@@ -1018,14 +1027,16 @@ values."
 					  ;; Passing `(constantly ':unequal)' forces the previous lambda
 					  ;; to be called whenever keys match.
 					  map0-hash-fn map0-cmp-fn #'ch-set-tree-hash-value (constantly ':unequal)))
-	     (new-map1 (and (or (ch-2-relation-map1 rel1) (ch-2-relation-map1 rel2))
-			    (progn
-			      (ch-2-relation-get-inverse rel1)
-			      (ch-2-relation-get-inverse rel2)
-			      (ch-map-tree-union (ch-2-relation-map1 rel1) (ch-2-relation-map1 rel2)
-						 (fn (a b) (ch-set-tree-union a b map0-hash-fn map0-cmp-fn))
-						 map1-hash-fn map1-cmp-fn #'ch-set-tree-hash-value
-						 (constantly ':unequal)))))))
+	     (new-map1 (if (and (eq (ch-2-relation-map1 rel1) 'no-inverse)
+				(eq (ch-2-relation-map1 rel2) 'no-inverse))
+			   'no-inverse
+			 (progn
+			   (ch-2-relation-get-inverse rel1)
+			   (ch-2-relation-get-inverse rel2)
+			   (ch-map-tree-union (ch-2-relation-map1 rel1) (ch-2-relation-map1 rel2)
+					      (fn (a b) (ch-set-tree-union a b map0-hash-fn map0-cmp-fn))
+					      map1-hash-fn map1-cmp-fn #'ch-set-tree-hash-value
+					      (constantly ':unequal)))))))
 	(make-ch-2-relation new-size new-map0 new-map1 org))
     (call-next-method)))
 
@@ -1043,17 +1054,19 @@ values."
 						     (incf new-size (ch-set-tree-size s))
 						     (values s (and (null s) ':no-value))))
 						 map0-hash-fn map0-cmp-fn map1-hash-fn (constantly ':unequal)))
-	     (new-map1 (and (or (ch-2-relation-map1 rel1) (ch-2-relation-map1 rel2))
-			    (progn
-			      (ch-2-relation-get-inverse rel1)
-			      (ch-2-relation-get-inverse rel2)
-			      (ch-map-tree-intersection (ch-2-relation-map1 rel1) (ch-2-relation-map1 rel2)
-							(lambda (s1 s2)
-							  (let ((s (ch-set-tree-intersection s1 s2 map0-hash-fn
-											     map0-cmp-fn)))
-							    (values s (and (null s) ':no-value))))
-							map1-hash-fn map1-cmp-fn
-							map0-hash-fn (constantly ':unequal)))))))
+	     (new-map1 (if (and (eq (ch-2-relation-map1 rel1) 'no-inverse)
+				(eq (ch-2-relation-map1 rel2) 'no-inverse))
+			   'no-inverse
+			 (progn
+			   (ch-2-relation-get-inverse rel1)
+			   (ch-2-relation-get-inverse rel2)
+			   (ch-map-tree-intersection (ch-2-relation-map1 rel1) (ch-2-relation-map1 rel2)
+						     (lambda (s1 s2)
+						       (let ((s (ch-set-tree-intersection s1 s2 map0-hash-fn
+											  map0-cmp-fn)))
+							 (values s (and (null s) ':no-value))))
+						     map1-hash-fn map1-cmp-fn
+						     map0-hash-fn (constantly ':unequal)))))))
 	(make-ch-2-relation new-size new-map0 new-map1 org))
     (call-next-method)))
 
@@ -1085,7 +1098,7 @@ values."
 			  (hash-map-org-key-compare-fn org-b) (hash-map-org-key-hash-fn org-b)
 			  (hash-map-org-key-compare-fn-name org-b)))))))
 	(new-map0 nil)
-	(new-map1 nil)
+	(new-map1 'no-inverse)
 	(new-size 0))
     (do-ch-map-tree-pairs (x ys map0a)
       (do-ch-set-tree-members (y ys)
@@ -1097,11 +1110,12 @@ values."
 	      (incf new-size (- (ch-set-tree-size new) (ch-set-tree-size prev)))
 	      (setq new-map0 (ch-map-tree-with new-map0 x new hash-fn-0a cmp-fn-0a
 					       #'ch-set-tree-hash-value #'eql-compare)))))))
-    (when (or map1a map1b)
-      (when (null map1b)
-	(setq map1b (ch-2-relation-get-inverse relb)))
-      (when (null map1a)
+    (unless (and (eq map1a 'no-inverse) (eq map1b 'no-inverse))
+      (when (eq map1a 'no-inverse)
 	(setq map1a (ch-2-relation-get-inverse rela)))
+      (when (eq map1b 'no-inverse)
+	(setq map1b (ch-2-relation-get-inverse relb)))
+      (setq new-map1 nil)
       (do-ch-map-tree-pairs (x ys map1b)
 	(do-ch-set-tree-members (y ys)
 	  (let ((s? s (ch-map-tree-lookup map1a y hash-fn-1a cmp-fn-1a)))
@@ -1146,10 +1160,10 @@ values."
 			      (incf new-size (ch-set-tree-size result))
 			      (values x result)))
 			  (:arg ch-map (make-ch-map (ch-2-relation-map0 rel) rel-org nil)))))))
-    (make-ch-2-relation new-size (ch-map-contents new-map0) nil org)))
+    (make-ch-2-relation new-size (ch-map-contents new-map0) 'no-inverse org)))
 
 (define-methods (image fset2:image) ((fn 2-relation) (s ch-set) &key compare-fn-name)
-  (ch-set-image (fn (x) (lookup fn x)) s compare-fn-name))
+  (ch-set-image (fn (x) (lookup fn x)) s (or compare-fn-name (compare-fn-name s))))
 
 
 (defmethod internal-do-2-relation ((rel ch-2-relation) elt-fn value-fn)
@@ -1181,7 +1195,9 @@ values."
 					   key-hash-fn key-compare-fn #'ch-set-tree-hash-value #'eql-compare
 					   transient-id)))
 	    (incf size)))
-	(make-ch-2-relation size map0 nil org)))))
+	(make-ch-2-relation size map0 (if (eq (ch-2-relation-map1 rel) 'no-inverse) 'no-inverse
+					(ch-2-relation-compute-inverse map0 org transient-id))
+			    org)))))
 
 (defmethod convert ((to-type (eql '2-relation)) (pairs set) &key (key-fn #'car) (value-fn #'cdr))
   (convert 'ch-2-relation pairs :key-fn key-fn :value-fn value-fn))
@@ -1235,7 +1251,7 @@ explicitly overridden in the call."
 						     (convert 'ch-set s :compare-fn-name vcfn-name))))
 					    (incf size (ch-set-tree-size s))
 					    s))))))
-    (convert 'ch-2-relation (make-ch-2-relation size new-tree nil compose-org)
+    (convert 'ch-2-relation (make-ch-2-relation size new-tree 'no-inverse compose-org)
 	     :key-compare-fn-name (or kcfn-name (hash-map-org-key-compare-fn-name compose-org))
 	     :val-compare-fn-name vcfn-name)))
 
@@ -1244,7 +1260,7 @@ explicitly overridden in the call."
 	((new-tree (ch-map-tree-compose (ch-map-contents m)
 					(fn (x) (ch-set-tree-with nil x (hash-map-org-val-hash-fn map-org)
 								  (hash-map-org-val-compare-fn map-org)))))))
-    (convert 'ch-2-relation (make-ch-2-relation (size m) new-tree nil map-org)
+    (convert 'ch-2-relation (make-ch-2-relation (size m) new-tree 'no-inverse map-org)
 	     :key-compare-fn-name (or kcfn-name (hash-map-org-key-compare-fn-name map-org))
 	     :val-compare-fn-name (or vcfn-name (hash-map-org-val-compare-fn-name map-org)))))
 
@@ -1348,7 +1364,7 @@ corresponding range values.  If the val-compare-fn of the relation is not
       (when (> (ch-set-tree-size s) 1)
 	(setq m0 (ch-map-tree-with m0 x s key-hash-fn key-compare-fn #'ch-set-tree-hash-value #'eql-compare))
 	(incf size (ch-set-tree-size s))))
-    (make-ch-2-relation size m0 nil org)))
+    (make-ch-2-relation size m0 'no-inverse org)))
 
 (defun print-ch-2-relation (rel stream level)
   (declare (ignore level))

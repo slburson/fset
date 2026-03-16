@@ -480,9 +480,11 @@ don't worry about locking it, either.")
 		(let ((nd (lookup (Tuple-Desc-Next-Desc-Map old-desc) key)))
 		  (if nd (values nd (Tuple-Desc-Key-Set nd))
 		    (let ((nks (with (Tuple-Desc-Key-Set old-desc) key))
-			  ((nd (progn
-				 (read-memory-barrier)
-				 (lookup +Tuple-Descriptor-Map+ nks)))))
+			  ;; The read memory barrier pairs with the write memory barrier below;
+			  ;; it ensures that the reads done by the `lookup' see any relevant writes.
+			  ((nd (lookup (prog1 +Tuple-Descriptor-Map+
+					 (read-memory-barrier))
+				       nks))))
 		      (when nd
 			(setf (lookup (Tuple-Desc-Next-Desc-Map old-desc) key) nd))
 		      (values nd nks)))))
