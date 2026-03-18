@@ -20,10 +20,10 @@
 (defgeneric arity (rel)
   (:documentation "Returns the arity of the relation `rel'."))
 
-(defgeneric join (relation-a column-a relation-b column-b)
+(defgeneric join (relation-1 column-1 relation-2 column-2)
   (:documentation
-    "A relational equijoin, matching up `column-a' of `relation-a' with `column-b' of
-`relation-b'.  For a binary relation, the columns are named 0 (domain) and 1 (range)."))
+    "A relational equijoin, matching up `column-1' of `relation-1' with `column-2' of
+`relation-2'.  For a binary relation, the columns are named 0 (domain) and 1 (range)."))
 
 (define-cross-type-compare-methods relation)
 
@@ -65,6 +65,20 @@ is mapped to multiple range values."))
     (do-2-relation (x y rel1)
       (when (contains? rel2 x y)
 	(includef result x y)))
+    result))
+
+(defmethod join ((rel1 2-relation) col1 (rel2 2-relation) col2)
+  (let ((rel1 (ecase col1
+		(1 rel1)
+		(0 (inverse rel1))))
+	(rel2 (ecase col2
+		(0 rel2)
+		(1 (inverse rel2))))
+	((result (empty-relation-like rel1 :key-compare-fn-name (key-compare-fn-name rel1)
+					   :val-compare-fn-name (val-compare-fn-name rel2)))))
+    (do-2-relation (x y rel1)
+      (do-set (z (lookup rel2 y))
+	(includef result x z)))
     result))
 
 
@@ -154,9 +168,16 @@ values."
 	      (make-wb-2-relation 0 nil 'no-inverse (make-tree-map-org key-compare-fn-name key-compare-fn
 								       val-compare-fn-name val-compare-fn)))))))
 
-(defmethod empty-relation-like ((rel wb-2-relation))
+(defmethod empty-relation-like ((rel wb-2-relation) &key key-compare-fn-name val-compare-fn-name)
   (let ((org (wb-2-relation-org rel)))
-    (empty-wb-2-relation (tree-map-org-key-compare-fn-name org) (tree-map-org-val-compare-fn-name org))))
+    (empty-wb-2-relation (or key-compare-fn-name (tree-map-org-key-compare-fn-name org))
+			 (or val-compare-fn-name (tree-map-org-val-compare-fn-name org)))))
+
+(defmethod key-compare-fn-name ((m wb-2-relation))
+  (tree-map-org-key-compare-fn-name (wb-2-relation-org m)))
+
+(defmethod val-compare-fn-name ((m wb-2-relation))
+  (tree-map-org-val-compare-fn-name (wb-2-relation-org m)))
 
 (defmethod empty? ((rel wb-2-relation))
   (zerop (wb-2-relation-size rel)))
@@ -176,6 +197,17 @@ values."
   (let ((org (wb-2-relation-org rel))
 	((found? set-tree (WB-Map-Tree-Lookup (wb-2-relation-map0 rel) x (tree-map-org-key-compare-fn org)))))
     (and found? (WB-Set-Tree-Contains? set-tree y (tree-map-org-val-compare-fn org)))))
+
+(defmethod domain-contains? ((rel wb-2-relation) x)
+  (let ((org (wb-2-relation-org rel)))
+    ;; Wrap in `(not (null ...))' so we don't expose the internal set tree.
+    (not (null (WB-Map-Tree-Lookup (wb-2-relation-map0 rel) x (tree-map-org-key-compare-fn org))))))
+
+(defmethod range-contains? ((rel wb-2-relation) x)
+  (wb-2-relation-get-inverse rel)
+  (let ((org (wb-2-relation-org rel)))
+    ;; Wrap in `(not (null ...))' so we don't expose the internal set tree.
+    (not (null (WB-Map-Tree-Lookup (wb-2-relation-map1 rel) x (tree-map-org-key-compare-fn org))))))
 
 ;;; Note that `(setf (lookup rel x) y)' is the same as `(includef rel x y)'.
 (define-methods (lookup fset2:lookup) ((rel wb-2-relation) x)
@@ -850,9 +882,16 @@ values."
 				  (make-hash-map-org key-compare-fn-name key-compare-fn key-hash-fn
 						     val-compare-fn-name val-compare-fn val-hash-fn)))))))
 
-(defmethod empty-relation-like ((rel ch-2-relation))
+(defmethod empty-relation-like ((rel ch-2-relation) &key key-compare-fn-name val-compare-fn-name)
   (let ((org (ch-2-relation-org rel)))
-    (empty-ch-2-relation (hash-map-org-key-compare-fn-name org) (hash-map-org-val-compare-fn-name org))))
+    (empty-ch-2-relation (or key-compare-fn-name (hash-map-org-key-compare-fn-name org))
+			 (or val-compare-fn-name (hash-map-org-val-compare-fn-name org)))))
+
+(defmethod key-compare-fn-name ((m ch-2-relation))
+  (hash-map-org-key-compare-fn-name (ch-2-relation-org m)))
+
+(defmethod val-compare-fn-name ((m ch-2-relation))
+  (hash-map-org-val-compare-fn-name (ch-2-relation-org m)))
 
 (defmethod empty? ((rel ch-2-relation))
   (zerop (ch-2-relation-size rel)))
@@ -873,6 +912,19 @@ values."
 	((found? set-tree (ch-map-tree-lookup (ch-2-relation-map0 rel) x
 					      (hash-map-org-key-hash-fn org) (hash-map-org-key-compare-fn org)))))
     (and found? (ch-set-tree-contains? set-tree y (hash-map-org-val-hash-fn org) (hash-map-org-val-compare-fn org)))))
+
+(defmethod domain-contains? ((rel ch-2-relation) x)
+  (let ((org (ch-2-relation-org rel)))
+    ;; Wrap in `(not (null ...))' so we don't expose the internal set tree.
+    (not (null (ch-map-tree-lookup (ch-2-relation-map0 rel) x
+				   (hash-map-org-key-hash-fn org) (hash-map-org-key-compare-fn org))))))
+
+(defmethod range-contains? ((rel ch-2-relation) x)
+  (ch-2-relation-get-inverse rel)
+  (let ((org (ch-2-relation-org rel)))
+    ;; Wrap in `(not (null ...))' so we don't expose the internal set tree.
+    (not (null (ch-map-tree-lookup (ch-2-relation-map1 rel) x
+				   (hash-map-org-key-hash-fn org) (hash-map-org-key-compare-fn org))))))
 
 (define-methods (lookup fset2:lookup) ((rel ch-2-relation) x)
   "Returns the set of values that the relation pairs `x' with."

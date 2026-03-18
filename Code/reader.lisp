@@ -965,7 +965,9 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
 
 (defmacro ch-custom-2-relation (key-compare-fn-name val-compare-fn-name &rest args)
   "Constructs a ch-2-relation with a custom ordering, according to the supplied
-argument subforms.  Each argument subform can be a list of the form \(`key-expr'
+argument subforms.  `key-compare-fn-name' and `val-compare-fn-name' must be
+symbols naming the comparison functions to be used for keys and values
+respectively.  Each argument subform can be a list of the form \(`key-expr'
 `value-expr'\), denoting a mapping from the value of `key-expr' to the value of
 `value-expr'; or a list of the form ($ `expression'), in which case the
 expression must evaluate to a 2-relation, all of whose mappings will be included

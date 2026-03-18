@@ -141,7 +141,7 @@ Iterating over FSet Collections
   GMap
   Iterate
   Others
-The @code{convert} Generic Function
+Generic Function @code{convert}
 Printing and Reading
   JSON
 Larger Examples

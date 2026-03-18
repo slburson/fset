@@ -16,12 +16,28 @@ these customizations.
 
 In most cases, operations that require a single collection take it as the first argument.  (CL is
 itself inconsistent about this; the collection is more commonly the second argument
-(e.g. @code{member}, @code{assoc}), but then there's @code{aref}.)  The exceptions are the
-higher-order operators @code{image} (or @code{map-image}), @code{filter}, and @code{reduce}, which
-all take the function to call first, to be consistent with one another and with CL's @code{mapcar},
-@code{remove-if-not}, and @code{reduce} respectively; and most of the shadowed CL sequence
-operations --- @code{find} @href{Shadowed CL sequence operations, etc.} (obviously, I couldn't
-change the argument orders of these, if the shadowed versions are to be compatible).
+(e.g. @code{member}, @code{assoc}), but then there's @code{aref} and @code{elt}.)  The exceptions
+are the higher-order operators @code{image} (or @code{map-image}), @code{filter}, and @code{reduce},
+which all take the function to call first, to be consistent with one another and with CL's
+@code{mapcar}, @code{remove-if-not}, and @code{reduce} respectively; and most of the shadowed CL
+sequence operations --- @code{find} @href{Shadowed CL sequence operations, etc.} (obviously, I
+couldn't change the argument orders of these, if the shadowed versions are to be compatible).
+
+The methods as listed here do not correspond exactly to the ones in the FSet code.  In many cases
+what I've given as one method here is actually two or more, because there are subclasses which have
+distinct methods in the code that I've treated as one method here.  Also, I've omitted trailing
+@code{t} specializers, since they don't affect method selection, and @code{&key} on methods that
+don't actually have any keyword parameters, even though other methods on the same generic function
+do.
+
+@anchor{arbitrary} There is sometimes confusion over the meaning of @code{arb}, which returns an
+arbitrary element of a set or bag, or an arbitrary pair of a map or binary relation.  ``Arbitrary''
+doesn't mean ``randomly selected''; it simply means that the sole postcondition is that the returned
+value is in the collection --- FSet may pick any convenient element or pair.  In particular,
+@code{arb} on a given collection instance will always return the same thing; by itself, it doesn't
+iterate --- although you can use @code{less} to remove the returned element/pair from the
+collection, creating a new collection instance on which @code{arb} will necessarily return something
+different.
 
 This chapter uses the notation [@i{a} .. @i{b}) for an integer interval inclusive of @i{a} and
 exclusive of @i{b}.
@@ -41,11 +57,11 @@ collection.
 FSet has several operations, such as @code{union} on sets, that combine two collections.  These
 operations are normally O(@i{n}), but there are two exceptions.  On one hand, if the collections are
 not of the same type and organization, more generic methods are invoked that are O(@i{n} log @i{n}).
-On the other, under some circumstances they can take O(log @i{n}) time.  The latter occurs if they
-are @dfn{historically related}: one is the result of making a small number of point updates on the
-6other, or they are both the result of making such updates on a common ancestor.  Under such
-circumstances, their internal trees will be largely shared; the implementations detect and exploit
-this sharing to elide most of the work.
+On the other, under some circumstances (when they are of the same type and organization), they can
+take O(log @i{n}) time.  The latter occurs if they are @dfn{historically related}: one is the result
+of making a small number of point updates on the 6other, or they are both the result of making such
+updates on a common ancestor.  Under such circumstances, their internal trees will be largely
+shared; the implementations detect and exploit this sharing to elide most of the work.
 
 Also, even when these operations do take O(@i{n}) time, there's the question of exactly what @i{n}
 corresponds to.  For many of these operations, in the worst case, it's the sum of the two sizes, but
@@ -76,6 +92,7 @@ The abstract class for FSet functional sets.
 Constructor function.  Returns an empty set of the default implementation and organization.
 @end defun
 
+@anchor{Macro set}
 @defmac set @r{&rest} subforms
 Constructor macro.  Constructs a set of the default implementation according to the supplied
 argument subforms.  Each argument subform can be an expression, whose value will be an element of
@@ -95,26 +112,23 @@ Note the double @code{#}, which indicates CHAMP.  The comparison function is pri
 @end deftp
 
 @defun empty-ch-set @r{&key} compare-fn-name
-Constructor function.  Returns an empty ch-set.  By default, it will be ordered by @code{compare}.
-To use a custom ordering, supply the comparison function name (a symbol) as @code{compare-fn-name};
-a hash function must have been defined for it using @href{define-hash-function,
-@code{define-hash-function}}.
+Constructor function.  Returns an empty @code{ch-set}.  By default, it will be ordered by
+@code{compare}.  To use a custom ordering, supply the comparison function name (a symbol) as
+@code{compare-fn-name}; a hash function must have been defined for it using
+@href{define-hash-function, @code{define-hash-function}}.
 @end defun
 
 @defmac ch-set @r{&rest} subforms
-Constructor macro.  Constructs a @code{ch-set} according to the supplied argument subforms.  Each
-argument subform can be an expression, whose value will be an element of the result set; or a list
-of the form @code{($ @var{expression})}, in which case the expression must evaluate to a set, all of
-whose elements become elements of the result set.
+Constructor macro.  Constructs a @code{ch-set} according to the supplied argument subforms.  See
+@href{Macro set, @code{set}@comma{} above} for the interpretation of @var{subforms}.
 @end defmac
 
 @defmac ch-custom-set compare-fn-name @r{&rest} subforms
 Constructor macro.  Constructs a @code{ch-set} with a custom organization, according to the supplied
 argument subforms.  @code{compare-fn-name} must be a symbol naming the desired comparison function;
 a hash function must have been defined for it using @href{define-hash-function,
-@code{define-hash-function}}.  Each of @code{args} can be an expression, whose value will be an
-element of the result set; or a list of the form @code{($ @var{expression})}, in which case the
-expression must evaluate to a set, all of whose elements become elements of the result set.
+@code{define-hash-function}}.  See @href{Macro set, @code{set}@comma{} above} for the interpretation of
+@var{subforms}.
 @end defmac
 
 @deftp {Data type} wb-set
@@ -135,18 +149,14 @@ Constructor function.  Returns an empty wb-set.  By default, it will be ordered 
 @end defun
 
 @defmac wb-set @r{&rest} subforms
-Constructor macro.  Constructs a @code{wb-set} according to the supplied argument subforms.  Each
-argument subform can be an expression, whose value will be an element of the result set; or a list
-of the form @code{($ @var{expression})}, in which case the expression must evaluate to a set, all of
-whose elements become elements of the result set.
+Constructor macro.  Constructs a @code{wb-set} according to the supplied argument subforms.  See
+@href{Macro set, @code{set}@comma{} above} for the interpretation of @var{subforms}.
 @end defmac
 
 @defmac wb-custom-set compare-fn-name @r{&rest} subforms
 Constructor macro.  Constructs a @code{wb-set} with a custom organization, according to the supplied
 argument subforms.  @code{compare-fn-name} must be a symbol naming the desired comparison function.
-Each of @code{args} can be an expression, whose value will be an element of the result set; or a
-list of the form @code{($ @var{expression})}, in which case the expression must evaluate to a set,
-all of whose elements become elements of the result set.
+See @href{Macro set, @code{set}@comma{} above} for the interpretation of @var{subforms}.
 @end defmac
 
 @c --------------------------------------------------------------------------------
@@ -168,27 +178,25 @@ Returns the number of elements in @var{s}.  O(1).
 @end deffn
 
 @deffn Method {arb (set)} @ s
-Returns an arbitrary element of @var{s}.  Specifically, on a nonempty set, returns two values: an
-arbitrary element and true; on an empty set, returns two false values.  Please note that
-``arbitrary'' does not mean ``randomly selected''; it simply means that the sole postcondition is
-that the returned value is an element of the set --- FSet may pick any convenient element.  O(1).
+Returns an @href{arbitrary, arbitrary} element of @var{s}.  Specifically, on a nonempty set, returns
+two values: an arbitrary element and true; on an empty set, returns two false values.  O(1).
 @end deffn
 
-@deffn Method {contains? (set t)} @ s x
+@deffn Method {contains? (set)} @ s x
 Returns true iff @var{x} is an element of @var{s}.  O(log @i{n}).
 @end deffn
 
-@deffn Method {lookup (set t)} @ s x
+@deffn Method {lookup (set)} @ s x
 If @var{s} contains @var{x}, returns two values, true and the element found; else false and
 @code{nil}.  (This is useful for canonicalizing instances; the element found may be a different
 instance from @var{x}.)  O(log @i{n}).
 @end deffn
 
-@deffn Method {with (set t)} @ s x
+@deffn Method {with (set)} @ s x
 Returns a set, of the same class and organization as @var{s}, that contains all elements of @var{s}
 and also @var{x}.  If @var{s} already contained a value equal to @var{x}, according to its
 comparison function, returns @var{s} itself.  (This is so you can find out whether the element was
-added simply by calling @code{eq} on @var{s} and the result.)
+added simply by calling @code{eq} on @var{s} and the result.)  O(log @i{n}).
 
 @defmac includef place x
 A @href{Quasi-Mutating Operators, modify macro} that expands to @code{with}.  If @var{place} holds a
@@ -196,11 +204,11 @@ set, updates it so the set now contains @var{x}.
 @end defmac
 @end deffn
 
-@deffn Method {less (set t)} @ s x
+@deffn Method {less (set)} @ s x
 Returns a set, of the same class and organization as @var{s}, that contains all elements of @var{s}
 except @var{x}.  If @var{s} did not contain a value equal to @var{x}, according to its comparison
 function, returns @var{s} itself.  (This is so you can find out whether the element was removed
-simply by calling @code{eq} on @var{s} and the result.)
+simply by calling @code{eq} on @var{s} and the result.)  O(log @i{n}).
 
 @defmac excludef place x
 A @href{Quasi-Mutating Operators, modify macro} that expands to @code{less}.  If @var{place} holds a
@@ -208,12 +216,12 @@ set, updates it so the set does not contain @var{x}.
 @end defmac
 @end deffn
 
-@deffn Method {index (set t)} @ s x
+@deffn Method {index (set)} @ s x
 If @var{s} contains @var{x}, returns the index of @var{x} within the ordering of @var{s}; otherwise
 @code{nil}.  O(log @i{n}).
 @end deffn
 
-@deffn Method {at-index (set fixnum)} @ s idx
+@deffn Method {at-index (set)} @ s idx
 Returns the element at index @var{idx} within the ordering of @var{s}.  (On a @code{wb-set}, this is
 the same as @code{at-rank}.)  @var{idx} must be in [0 .. size(@var{s})); otherwise, signals an error of
 type @code{simple-type-error}.  O(log @i{n}).
@@ -221,7 +229,7 @@ type @code{simple-type-error}.  O(log @i{n}).
 
 @anchor{union}
 @c &&& Is it worth mentioning &key on methods that don't actually have any keyword parameters?
-@deffn Method {union (set set)} @ s1 s2 @r{&key}
+@deffn Method {union (set set)} @ s1 s2
 Returns a set of the same type and organization as @var{s1}, that contains all elements that are in
 either @var{s1} or @var{s2}.  Implements @href{Left Preference, left preference}: for any pair of
 equal objects in the two sets, the result contains the instance that was in @var{s1}.  @href{Notes
@@ -229,7 +237,7 @@ on Time Complexity, Normally O(@i{n})}.
 @end deffn
 
 @anchor{intersection}
-@deffn Method {intersection (set set)} @ s1 s2 @r{&key}
+@deffn Method {intersection (set set)} @ s1 s2
 Returns a set of the same type and organization as @var{s1}, that contains all elements that are in
 both @var{s1} and @var{s2}.  Implements @href{Left Preference, left preference}: for any pair of
 equal objects in the two sets, the result contains the instance that was in @var{s1}.  @href{Notes
@@ -270,7 +278,7 @@ returns @var{value} if supplied, otherwise @code{nil}.
 @end defmac
 
 @anchor{iterator (set)}
-@deffn Method {iterator (set)} @ s @r{&key}
+@deffn Method {iterator (set)} @ s n
 Returns a @href{Stateful Iterators, stateful iterator} over the set.  The @code{:get} operation
 returns two values: if there is another element remaining, returns it and a true second value, else
 @code{nil} and false.  Creating an iterator takes O(log @i{n}) time; the @code{:get} operation is
@@ -278,7 +286,7 @@ amortized O(1).
 @end deffn
 
 @anchor{fun-iterator (set)}
-@deffn Method {fun-iterator (set)} @ s @r{&key}
+@deffn Method {fun-iterator (set)} @ s
 Returns a @href{Functional Iterators, functional iterator} over the set.  The @code{:first}
 operation returns two values: if the iterator is not empty, returns the first element and a true
 second value, else @code{nil} and false.  Creating an iterator takes O(log @i{n}) time; the
@@ -398,7 +406,7 @@ otherwise, the transient is not thread-safe.
 A transient CHAMP set.
 @end deftp
 
-@c --------------------------------------------------------------------------------
+@c ----------------------------------------
 @node Transient-CH-Set Operations
 @subsubsection Transient-CH-Set Operations
 
@@ -411,14 +419,12 @@ Returns the current number of elements in @var{ts}.  O(1).
 @end deffn
 
 @deffn Method {arb (transient-ch-set)} @ ts
-Returns an arbitrary element of the current contents of @var{ts}.  Specifically, on a nonempty set,
-returns two values: an arbitrary element and true; on an empty set, returns two false values.
-Please note that ``arbitrary'' does not mean ``randomly selected''; it simply means that the sole
-postcondition is that the returned value is an element of the set --- FSet may pick any convenient
-element.  O(1).
+Returns an @href{arbitrary, arbitrary} element of the current contents of @var{ts}.  Specifically,
+on a nonempty set, returns two values: an arbitrary element and true; on an empty set, returns two
+false values.  O(1).
 @end deffn
 
-@deffn Method {contains? (transient-ch-set t)} @ ts x
+@deffn Method {contains? (transient-ch-set)} @ ts x
 Returns true iff @var{x} is currently an element of @var{ts}.  O(log @i{n}).
 @end deffn
 
@@ -426,12 +432,12 @@ Returns true iff @var{x} is currently an element of @var{ts}.  O(log @i{n}).
 Removes all elements from @var{ts}, resetting it to the empty state.  O(1).
 @end deffn
 
-@deffn Method {include! (transient-ch-set t)} @ ts value
+@deffn Method {include! (transient-ch-set)} @ ts value
 Modifies @var{ts} so that it contains @var{value}.  Has no effect if this was already the case.
 Returns @var{ts}.  O(log @i{n}).
 @end deffn
 
-@deffn Method {exclude! (transient-ch-set t)} @ ts value
+@deffn Method {exclude! (transient-ch-set)} @ ts value
 Modifies @var{ts} so that it does not contain @var{value}.  Has no effect if this was already the
 case.  Returns @var{ts}.  O(log @i{n}).
 @end deffn
@@ -455,7 +461,7 @@ compacts it, so it uses less heap space.
 These operations make use of the ordering of the set, as determined by its comparison function.
 They are not defined on CHAMP sets.
 
-@deffn Method {rank (wb-set t)} @ s x
+@deffn Method {rank (wb-set)} @ s x
 If @var{s} contains @var{x}, returns the rank of @var{x} in the ordering defined by the comparison
 function of @var{s}, and a true second value. If @var{x} is not in the set, the second value is
 false, and the first value is the rank that @var{x} would have if it were added.  Note that if there
@@ -481,20 +487,20 @@ If @var{s} is nonempty, returns the element with the largest rank and a true sec
 otherwise, @code{nil} and false.
 @end deffn
 
-@deffn Method {split-from (wb-set t)} @ s x
+@deffn Method {split-from (wb-set)} @ s x
 Returns the subset of @var{s} with elements greater than or equal to @var{x}.  O(log @i{n}).
 @end deffn
 
-@deffn Method {split-above (wb-set t)} @ s x
+@deffn Method {split-above (wb-set)} @ s x
 Returns the subset of @var{s} with elements strictly greater than @var{x}.  O(log @i{n}) in general;
 O(1) if @var{x} is the result of @code{(arb @var{s})}.
 @end deffn
 
-@deffn Method {split-through (wb-set t)} @ s x
+@deffn Method {split-through (wb-set)} @ s x
 Returns the subset of @var{s} with elements less than or equal to @var{x}.  O(log @i{n}).
 @end deffn
 
-@deffn Method {split-below (wb-set t)} @ s x
+@deffn Method {split-below (wb-set)} @ s x
 Returns the subset of @var{s} with elements strictly less than @var{x}.  O(log @i{n}) in general;
 O(1) if @var{x} is the result of @code{(arb @var{s})}.
 @end deffn
@@ -507,7 +513,7 @@ A @dfn{complement set} represents the complement of a normal, enumerated set.  T
 complement of a set S contains every object that is not in S, and does not contain any object that
 is in S.
 
-Complement sets are infinite, so they can't be iterated over and calling @code{arb} or @code{size}
+Complement sets are infinite, so they can't be iterated over, and calling @code{arb} or @code{size}
 on one is an error, but some operations are available on them.  They can be unioned, intersected,
 etc. with each other and with normal sets.
 
@@ -536,9 +542,9 @@ Returns the normal set of which @var{cs} is the complement.
 Returns the full set, the complement of the empty set.
 @end defun
 
-@deffn Method {contains? (complement-set t)} @ cs x
-@deffnx Method {with (complement-set t)} @ cs x
-@deffnx Method {less (complement-set t)} @ cs x
+@deffn Method {contains? (complement-set)} @ cs x
+@deffnx Method {with (complement-set)} @ cs x
+@deffnx Method {less (complement-set)} @ cs x
 @deffnx Method {union (complement-set complement-set)} @ cs1 cs2
 @deffnx Method {union (complement-set set)} @ cs1 s2
 @deffnx Method {union (set complement-set)} @ s1 cs2
@@ -596,7 +602,7 @@ Constructing the value of the @code{range} operation, that returns all the value
 Constructing the result of @code{map-difference} and  @code{map-difference-2}
 @end itemize
 
-In most cases, you can just let the value comparison function default to @code{#'compare}.
+In most cases, you can just let the value comparison function default to @code{compare}.
 Occasionally, though, you might need this:
 
 @defun eql-compare a b
@@ -620,6 +626,7 @@ Constructor function.  Returns an empty map of the default implementation and or
 @var{no-default?} is true, the map will have no default.
 @end defun
 
+@anchor{Macro map}
 @defmac map @r{&rest} subforms
 Constructor macro.  Constructs a map of the default implementation according to the supplied
 argument subforms.  Each argument subform can be a list of the form @code{(@var{key-expr}
@@ -640,10 +647,11 @@ associated value will be given by the rightmost such subform.
 Functional maps implemented using CHAMP trees.  These print as:
 
 @example
-##@{| (@i{k0 v0}) (@i{k1 v1}) ... @}[@i{key-compare-fn};@i{val-compare-fn}]/@i{default}
+##@{| (@i{k0 v0}) (@i{k1 v1}) ... |@}[@i{key-compare-fn};@i{val-compare-fn}]/@i{default}
 @end example
 
-Note the double @code{#}, which indicates CHAMP.  The comparison functions are printed only if they
+Note the double @code{#}, which indicates CHAMP, and the vertical bars (``pipes'' in Unix-speak)
+just inside the braces, which indicate a map.  The comparison functions are printed only if they
 are not @code{compare}.  The default is printed only if it is not @code{nil}; if the map has no
 default, @code{/[no default]} is printed.
 @end deftp
@@ -651,26 +659,15 @@ default, @code{/[no default]} is printed.
 @defun empty-ch-map @r{&key} @r{(@var{default} nil)} no-default? key-compare-fn-name val-compare-fn-name
 Constructor function.  Returns an empty @code{ch-map}.  If @var{default} is supplied, that will be
 the map's @href{Map and Seq Defaults, default}; if @var{no-default?} is true, the map will have no
-default.  @var{key-compare-fn-name} and @var{val-compare-fn-name} must be symbols naming the
-comparison functions to be used for keys and values respectively (these default to
-@code{#'compare}).  A hash function must have been defined for each comparison function using
+default.  @var{key-compare-fn-name} and @var{val-compare-fn-name}, if supplied, must be symbols
+naming the comparison functions to be used for keys and values respectively (these default to
+@code{compare}).  A hash function must have been defined for each comparison function using
 @href{define-hash-function, @code{define-hash-function}}.
 @end defun
 
 @defmac ch-map @r{&rest} subforms
-Constructor macro.  Constructs a @code{ch-map} according to the supplied argument subforms.  Each
-argument subform can be a list of the form @code{(@var{key-expr} @var{value-expr})}, denoting a
-mapping from the value of @var{key-expr} to the value of @var{value-expr}; or a list of the form
-@code{($ @var{expression})}, in which case the expression must evaluate to a map, denoting all its
-mappings; or the symbol @code{:default}, followed by a form; or the symbol @code{:no-default}.  If
-@code{:default} is supplied, the map's @href{Map and Seq Defaults, default} is the value of the
-subsequent form; if @code{:no-default} is supplied, the map has no default; if neither, the map's
-default is @code{nil}.
-
-As a convenience, if a subform is @code{($ @var{expression})} and the expression evaluates to
-@code{nil}, it will be treated as an empty map.  The result is constructed from the denoted mappings
-in left-to-right order; so if a given key is supplied by more than one argument subform, its
-associated value will be given by the rightmost such subform.
+Constructor macro.  Constructs a @code{ch-map} according to the supplied argument subforms.  See
+@href{Macro map, @code{map}@comma{} above} for the interpretation of @var{subforms}.
 @end defmac
 
 @defmac ch-custom-map key-compare-fn-name val-compare-fn-name @r{&rest} subforms
@@ -680,28 +677,18 @@ the comparison functions to be used for keys and values respectively (you can us
 synonym of @code{compare}).  A hash function must have been defined for each comparison function
 using @href{define-hash-function, @code{define-hash-function}}.
 
-Each argument subform can be a list of the form @code{(@var{key-expr} @var{value-expr})}, denoting a
-mapping from the value of @var{key-expr} to the value of @var{value-expr}; or a list of the form
-@code{($ @var{expression})}, in which case the expression must evaluate to a map, denoting all its
-mappings; or the symbol @code{:default}, followed by a form; or the symbol @code{:no-default}.  If
-@code{:default} is supplied, the map's @href{Map and Seq Defaults, default} is the value of the
-subsequent form; if @code{:no-default} is supplied, the map has no default; if neither, the map's
-default is @code{nil}.
-
-As a convenience, if a subform is @code{($ @var{expression})} and the expression evaluates to
-@code{nil}, it will be treated as an empty map.  The result is constructed from the denoted mappings
-in left-to-right order; so if a given key is supplied by more than one argument subform, its
-associated value will be given by the rightmost such subform.
+See @href{Macro map, @code{map}@comma{} above} for the interpretation of @var{subforms}.
 @end defmac
 
 @deftp {Data type} wb-map
 Functional maps implemented using WB-trees.  These print as:
 
 @example
-#@{| (@i{k0 v0}) (@i{k1 v1}) @dots{} @}[@i{key-compare-fn};@i{val-compare-fn}]/@i{default}
+#@{| (@i{k0 v0}) (@i{k1 v1}) @dots{} |@}[@i{key-compare-fn};@i{val-compare-fn}]/@i{default}
 @end example
 
-Note the single @code{#}, which indicates WB.  The comparison functions are printed only if they are
+Note the single @code{#}, which indicates WB, and the vertical bars (``pipes'' in Unix-speak)
+just inside the braces, which indicate a map.  The comparison functions are printed only if they are
 not @code{compare}.  The default is printed only if it is not @code{nil}; if the map has no
 default, @code{/[no default]} is printed.
 @end deftp
@@ -710,24 +697,13 @@ default, @code{/[no default]} is printed.
 Constructor function.  Returns an empty map of the default implementation and organization.  If
 @var{default} is supplied, that will be the map's @href{Map and Seq Defaults, default}; if
 @var{no-default?} is true, the map will have no default.  @var{key-compare-fn-name} and
-@var{val-compare-fn-name} must be symbols naming the comparison functions to be used for keys and
-values respectively (these default to @code{#'compare}).
+@var{val-compare-fn-name}, if supplied, must be symbols naming the comparison functions to be used
+for keys and values respectively (these default to @code{compare}).
 @end defun
 
 @defmac wb-map @r{&rest} subforms
-Constructor macro.  Constructs a @code{wb-map} according to the supplied argument subforms.  Each
-argument subform can be a list of the form @code{(@var{key-expr} @var{value-expr})}, denoting a
-mapping from the value of @var{key-expr} to the value of @var{value-expr}; or a list of the form
-@code{($ @var{expression})}, in which case the expression must evaluate to a map, denoting all its
-mappings; or the symbol @code{:default}, followed by a form; or the symbol @code{:no-default}.  If
-@code{:default} is supplied, the map's @href{Map and Seq Defaults, default} is the value of the
-subsequent form; if @code{:no-default} is supplied, the map has no default; if neither, the map's
-default is @code{nil}.
-
-As a convenience, if a subform is @code{($ @var{expression})} and the expression evaluates to
-@code{nil}, it will be treated as an empty map.  The result is constructed from the denoted mappings
-in left-to-right order; so if a given key is supplied by more than one argument subform, its
-associated value will be given by the rightmost such subform.
+Constructor macro.  Constructs a @code{wb-map} according to the supplied argument subforms.  See
+@href{Macro map, @code{map}@comma{} above} for the interpretation of @var{subforms}.
 @end defmac
 
 @defmac wb-custom-map key-compare-fn-name val-compare-fn-name @r{&rest} subforms
@@ -736,18 +712,7 @@ argument subforms.  @var{key-compare-fn-name} and @var{val-compare-fn-name} must
 the comparison functions to be used for keys and values respectively (you can use @code{nil} as a
 synonym of @code{compare}).
 
-Each argument subform can be a list of the form @code{(@var{key-expr} @var{value-expr})}, denoting a
-mapping from the value of @var{key-expr} to the value of @var{value-expr}; or a list of the form
-@code{($ @var{expression})}, in which case the expression must evaluate to a map, denoting all its
-mappings; or the symbol @code{:default}, followed by a form; or the symbol @code{:no-default}.  If
-@code{:default} is supplied, the map's @href{Map and Seq Defaults, default} is the value of the
-subsequent form; if @code{:no-default} is supplied, the map has no default; if neither, the map's
-default is @code{nil}.
-
-As a convenience, if a subform is @code{($ @var{expression})} and the expression evaluates to
-@code{nil}, it will be treated as an empty map.  The result is constructed from the denoted mappings
-in left-to-right order; so if a given key is supplied by more than one argument subform, its
-associated value will be given by the rightmost such subform.
+See @href{Macro map, @code{map}@comma{} above} for the interpretation of @var{subforms}.
 @end defmac
 
 @c --------------------------------------------------------------------------------
@@ -767,19 +732,17 @@ Returns the number of key-value pairs in the map.  O(1).
 @end deffn
 
 @deffn Method {arb (map)} @ m
-Returns an arbitrary pair of the map.  Specifically, on a nonempty map, returns three values: an
-arbitrary key, its associated value, and true; on an empty map, returns three false values.  Please
-note that ``arbitrary'' does not mean ``randomly selected''; it simply means that the sole
-postcondition is that the map contains the pair returned --- FSet may pick any convenient pair.
-O(1).
+Returns an @href{arbitrary, arbitrary} pair of the map.  Specifically, on a nonempty map, returns
+three values: an arbitrary key, its associated value, and true; on an empty map, returns @code{nil},
+@code{nil}, and false.  O(1).
 @end deffn
 
-@deffn Method {contains? (map t)} @ m k @r{&optional} v
+@deffn Method {contains? (map)} @ m k @r{&optional} v
 If @var{v} is not supplied, returns true iff the domain of @var{m} contains @var{k}.  If @var{v} is
 supplied, returns true iff @var{m} maps @var{k} to @var{v}.  O(log @i{n}).
 @end deffn
 
-@deffn Method {domain-contains? (map t)} @ m k
+@deffn Method {domain-contains? (map)} @ m k
 Returns true iff the domain of @var{m} contains @var{k}.  (This is now redundant with two-argument
 @code{contains?}, and is mildly deprecated.  For most of FSet's history, @code{contains?} on a map
 required three arguments; so it was all but useless, and you had to use @code{domain-contains?}
@@ -787,12 +750,12 @@ instead.  Fortunately, I finally came to my senses and fixed @code{contains?} to
 arguments.)  O(log @i{n}).
 @end deffn
 
-@deffn Method {range-contains? (map t)} @ m v
+@deffn Method {range-contains? (map)} @ m v
 Returns true iff the range of @var{m} contains @var{v}, that is, if any key is mapped to @var{v}.
 O(@i{n}) (requires a linear search).
 @end deffn
 
-@deffn Method {lookup (map t)} @ m k
+@deffn Method {lookup (map)} @ m k
 If @var{m} contains a key equal to @var{k}, according to its key comparison function, returns three
 values: the corresponding value, true, and the key found; otherwise, the map's @href{Map and Seq
 Defaults, default}, false, and @code{nil}.  If the key is not found and the map has no default,
@@ -801,7 +764,7 @@ signals an error of type @code{map-domain-error}.  O(log @i{n}).
 See also @ref{The @code{@@} Macro}.
 @end deffn
 
-@deffn Method {with (map t)} @ m k v
+@deffn Method {with (map)} @ m k v
 Returns a map, of the same class and organization as @var{m}, that contains all pairs of @var{m}
 whose key is not equal to @var{k} (according to its key comparison function), and also maps @var{k}
 to @var{v}.  If @var{m} already contained a key equal to @var{k}, and the corresponding value is
@@ -815,7 +778,7 @@ map, updates it so the map now maps @var{k} to @var{v}.
 @end defmac
 @end deffn
 
-@deffn Method {less (map t)} @ m k
+@deffn Method {less (map)} @ m k
 Returns a map, of the same class and organization as @var{m}, that contains all pairs of @var{m}
 whose key is not equal to @var{k}.  If @var{m} did not contain a key equal to @var{k}, according to
 its comparison function, returns @var{m} itself.  (This is so you can find out whether the pair was
@@ -823,7 +786,7 @@ removed simply by calling @code{eq} on @var{} and the result.)
 
 @defmac excludef place k
 A @href{Quasi-Mutating Operators, modify macro} that expands to @code{less}.  If @var{place} holds a
-map, updates it so the set does not contain a key @var{k}.
+map, updates it so the map does not contain a key @var{k}.
 @end defmac
 @end deffn
 
@@ -832,7 +795,7 @@ If the map has a default, returns it and a true second value; otherwise, returns
 false.  O(1).
 @end deffn
 
-@deffn Method {with-default (map t)} @ m new-default
+@deffn Method {with-default (map)} @ m new-default
 Returns a new map that has all the pairs of @var{m}, but whose default is @var{new-default}.  O(1).
 
 @deffn {@code{setf} Expander} default @ m new-default
@@ -850,12 +813,12 @@ except that subexpressions within @var{m} are evaluated only once.
 @end defmac
 @end deffn
 
-@deffn Method {index (map t)} @ m k
+@deffn Method {index (map)} @ m k
 If @var{m} contains key @var{k}, returns the index of @var{k} within the ordering of @var{m}; otherwise
 @code{nil}.  O(log @i{n}).
 @end deffn
 
-@deffn Method {at-index (map fixnum)} @ m idx
+@deffn Method {at-index (map)} @ m idx
 Returns the pair at index @var{idx} within the ordering of @var{m}.  (On a @code{wb-m}, this is
 the same as @code{at-rank}.)  @var{rank} must be in [0 .. size(s)); otherwise, signals an error of
 type @code{simple-type-error}.  O(log @i{n}).
@@ -954,7 +917,7 @@ executes @var{body}.  When done, returns @var{value} if supplied, otherwise @cod
 @end defmac
 
 @anchor{iterator (map)}
-@deffn Method {iterator (map)} @ m @r{&key}
+@deffn Method {iterator (map)} @ m
 Returns a @href{Stateful Iterators, stateful iterator} over the map @var{m}.  The @code{:get}
 operation returns three values: if there is another key/value pair remaining, returns it as two
 values and a true third value, else two @code{nil} values and false.  Creating an iterator takes
@@ -962,7 +925,7 @@ O(log @i{n}) time; the @code{:get} operation is amortized O(1).
 @end deffn
 
 @anchor{fun-iterator (map)}
-@deffn Method {fun-iterator (map)} @ m @r{&key}
+@deffn Method {fun-iterator (map)} @ m
 Returns a @href{Functional Iterators, functional iterator} over the map @var{m}.  The @code{:first}
 operation returns three values: if the iterator is not empty, returns the first key/value pair as
 two values and a true third value, else two @code{nil} values and false.  Creating an iterator takes
@@ -1087,7 +1050,7 @@ otherwise, the transient is not thread-safe.
 A transient CHAMP map.
 @end deftp
 
-@c --------------------------------------------------------------------------------
+@c ----------------------------------------
 @node Transient-CH-Map Operations
 @subsubsection Transient-CH-Map Operations
 
@@ -1104,14 +1067,12 @@ Returns the current number of elements in @var{tm}.  O(1).
 @end deffn
 
 @deffn Method {arb (transient-ch-map)} @ tm
-Returns an arbitrary element of the current contents of @var{tm}.  Specifically, on a nonempty map,
-returns three values: an arbitrary key, its value, and true; on an empty map, returns three false
-values.  Please note that ``arbitrary'' does not mean ``randomly selected''; it simply means that
-the sole postcondition is that the returned value is an element of the map --- FSet may pick any
-convenient element.  O(1).
+Returns an @href{arbitrary, arbitrary} element of the current contents of @var{tm}.  Specifically,
+on a nonempty map, returns three values: an arbitrary key, its value, and true; on an empty map,
+returns @code{nil}, @code{nil}, and false.  O(1).
 @end deffn
 
-@deffn Method {contains? (transient-ch-map t)} @ tm key @r{&optional} value
+@deffn Method {contains? (transient-ch-map)} @ tm key @r{&optional} value
 Returns true iff @var{key} is currently a key of @var{tm}, and if @var{value} is supplied, it is the
 corresponding value.  O(log @i{n}).
 @end deffn
@@ -1120,25 +1081,25 @@ corresponding value.  O(log @i{n}).
 Removes all elements from @var{tm}, resetting it to the empty state.  O(1).
 @end deffn
 
-@deffn Method {include! (transient-ch-map t)} @ tm key value
+@deffn Method {include! (transient-ch-map)} @ tm key value
 Modifies @var{tm} so that it maps @var{key} to @var{value}.  Has no effect if this was already the
 case.  Returns @var{tm}.  O(log @i{n}).
 @end deffn
 
-@deffn Method {exclude! (transient-ch-map t)} @ tm key
+@deffn Method {exclude! (transient-ch-map)} @ tm key
 Modifies @var{tm} so that it does not contain a mapping for @var{key}.  Has no effect if this was
 already the case.  Returns @var{tm}.  O(log @i{n}).
 @end deffn
 
-@deffn Method {lookup (transient-ch-map t)} @ tm key
-@deffnx Method {lookup! (transient-ch-map t)} @ tm key
+@deffn Method {lookup (transient-ch-map)} @ tm key
+@deffnx Method {lookup! (transient-ch-map)} @ tm key
 If @var{tm} currently contains a key equal to @var{k}, according to its key comparison function, returns three
 values: the corresponding value, true, and the key found; otherwise, the map's @href{Map and Seq
 Defaults, default}, false, and @code{nil}.  If the key is not found and the map has no default,
 signals an error of type @code{map-domain-error}.  O(log @i{n}).
 @end deffn
 
-@deffn Method {(setf lookup!) (t transient-ch-map t)} @ value tm key
+@deffn Method {(setf lookup!) (t transient-ch-map)} @ value tm key
 Modifies @var{tm} so that it maps @var{key} to @var{value}.  Has no effect if this was already the
 case.  Returns @var{value} (the CL spec for @code{setf} requires this).  O(log @i{n}).
 @end deffn
@@ -1148,7 +1109,7 @@ case.  Returns @var{value} (the CL spec for @code{setf} requires this).  O(log @
 Returns the @href{Map and Seq Defaults, default} associated with @var{tm}.
 @end deffn
 
-@deffn Method {(setf default!) (transient-ch-map t)} @ tm new-default
+@deffn Method {(setf default!) (transient-ch-map)} @ tm new-default
 Changes the default associated with @var{tm} to @var{new-default}.
 @end deffn
 
@@ -1176,7 +1137,7 @@ compacts it, so it uses less heap space.
 These operations make use of the ordering of the map, as determined by its key comparison function.
 They are not defined on CHAMP maps.
 
-@deffn Method {rank (wb-map t)} @ m x
+@deffn Method {rank (wb-map)} @ m x
 If @var{m} contains key @var{x}, returns the rank of @var{x} in the ordering defined by the key
 comparison function of @var{m}, and a true second value. If @var{x} is not in the map, the second
 value is false, and the first value is the rank that @var{x} would have if it were added.  Note that
@@ -1202,20 +1163,20 @@ If @var{m} is nonempty, returns the pair with the largest rank and a true third 
 @code{nil}, @code{nil}, and false.
 @end deffn
 
-@deffn Method {split-from (wb-map t)} @ m x
+@deffn Method {split-from (wb-map)} @ m x
 Returns the submap of @var{m} with keys greater than or equal to @var{x}.  O(log @i{n}).
 @end deffn
 
-@deffn Method {split-above (wb-map t)} @ m x
+@deffn Method {split-above (wb-map)} @ m x
 Returns the submap of @var{m} with keys strictly greater than @var{x}.  O(log @i{n}) in general;
 O(1) if @var{x} is the first value of @code{(arb @var{m})}.
 @end deffn
 
-@deffn Method {split-through (wb-map t)} @ m x
+@deffn Method {split-through (wb-map)} @ m x
 Returns the submap of @var{m} with keys less than or equal to @var{x}.  O(log @i{n}).
 @end deffn
 
-@deffn Method {split-below (wb-map t)} @ m x
+@deffn Method {split-below (wb-map)} @ m x
 Returns the submap of @var{m} with keys strictly less than @var{x}.  O(log @i{n}) in general; O(1)
 if @var{x} is the result of @code{(arb @var{m})}.
 @end deffn
@@ -1255,6 +1216,7 @@ The abstract class for FSet functional bags.
 Constructor function.  Returns an empty bag of the default implementation and organization.
 @end defun
 
+@anchor{Macro bag}
 @defmac bag @r{&rest} subforms
 Constructor macro.  Constructs a bag of the default implementation according to the supplied
 argument subforms.  Each argument subform can be an expression, whose value will be added to the bag
@@ -1284,23 +1246,16 @@ a hash function must have been defined for it using @href{define-hash-function,
 @end defun
 
 @defmac ch-bag @r{&rest} subforms
-Constructor macro.  Constructs a @code{ch-bag} according to the supplied argument subforms.  Each
-argument subform can be an expression, whose value will be added to the bag with multiplicity 1; or
-a list of the form @code{($ @var{expression})}, in which case the expression must evaluate to a bag
-(or a set), whose elements are added to the result bag with the specified multiplicities (1, if it's
-a set); or a list of the form @code{(% @var{value} @var{multiplicity})}, which adds the value to the
-bag with the specified multiplicity.
+Constructor macro.  Constructs a @code{ch-bag} according to the supplied argument subforms.  See
+@href{Macro bag, @code{bag}@comma{} above} for the interpretation of @var{subforms}.
 @end defmac
 
 @defmac ch-custom-bag compare-fn-name @r{&rest} subforms
 Constructor macro.  Constructs a @code{ch-bag} with a custom organization, according to the supplied
 argument subforms.  @code{compare-fn-name} must be a symbol naming the desired comparison function;
 a hash function must have been defined for it using @href{define-hash-function,
-@code{define-hash-function}}.  Each argument subform can be an expression, whose value will be added
-to the bag with multiplicity 1; or a list of the form @code{($ @var{expression})}, in which case the
-expression must evaluate to a bag (or a set), whose elements are added to the result bag with the
-specified multiplicities (1, if it's a set); or a list of the form @code{(% @var{value}
-@var{multiplicity})}, which adds the value to the bag with the specified multiplicity.
+@code{define-hash-function}}.  See @href{Macro bag, @code{bag}@comma{} above} for the interpretation of
+@var{subforms}.
 @end defmac
 
 @deftp {Data type} wb-bag
@@ -1323,22 +1278,14 @@ a hash function must have been defined for it using @href{define-hash-function,
 @end defun
 
 @defmac wb-bag @r{&rest} subforms
-Constructor macro.  Constructs a @code{wb-bag} according to the supplied argument subforms.  Each
-argument subform can be an expression, whose value will be added to the bag with multiplicity 1; or
-a list of the form @code{($ @var{expression})}, in which case the expression must evaluate to a bag
-(or a set), whose elements are added to the result bag with the specified multiplicities (1, if it's
-a set); or a list of the form @code{(% @var{value} @var{multiplicity})}, which adds the value to the
-bag with the specified multiplicity.
+Constructor macro.  Constructs a @code{wb-bag} according to the supplied argument subforms.  See
+@href{Macro bag, @code{bag}@comma{} above} for the interpretation of @var{subforms}.
 @end defmac
 
 @defmac wb-custom-bag compare-fn-name @r{&rest} subforms
 Constructor macro.  Constructs a @code{wb-bag} with a custom organization, according to the supplied
 argument subforms.  @code{compare-fn-name} must be a symbol naming the desired comparison function.
-Each argument subform can be an expression, whose value will be added to the bag with multiplicity
-1; or a list of the form @code{($ @var{expression})}, in which case the expression must evaluate to
-a bag (or a set), whose elements are added to the result bag with the specified multiplicities (1,
-if it's a set); or a list of the form @code{(% @var{value} @var{multiplicity})}, which adds the
-value to the bag with the specified multiplicity.
+See @href{Macro bag, @code{bag}@comma{} above} for the interpretation of @var{subforms}.
 @end defmac
 
 @c --------------------------------------------------------------------------------
@@ -1364,32 +1311,30 @@ elements.  O(1).
 @end deffn
 
 @deffn Method {arb (bag)} @ b
-Returns an arbitrary element of @var{b}, with its multiplicity.  Specifically, on a nonempty bag,
-returns three values: an arbitrary element, its multiplicity, and true; on an empty set, returns
-three false values.  Please note that ``arbitrary'' does not mean ``randomly selected''; it simply
-means that the sole postcondition is that the returned value is an element of the bag --- FSet may
-pick any convenient element.  O(1).
+Returns an @href{arbitrary, arbitrary} element of @var{b}, with its multiplicity.  Specifically, on
+a nonempty bag, returns three values: an arbitrary element, its multiplicity, and true; on an empty
+set, returns @code{nil}, @code{nil}, and false.  O(1).
 @end deffn
 
-@deffn Method {contains? (bag t)} @ b x @r{&optional (@var{mult} 1)}
+@deffn Method {contains? (bag)} @ b x @r{&optional (@var{mult} 1)}
 Returns true iff @var{x} is an element of @var{b}, with multiplicity of at least @var{mult}.
 O(log @i{n}).
 @end deffn
 
-@deffn Method {multiplicity (bag t)} @ b x
-@deffnx Method {lookup (bag t)} @ b x
+@deffn Method {multiplicity (bag)} @ b x
+@deffnx Method {lookup (bag)} @ b x
 If @var{b} contains @var{x}, returns two values, its multiplicity and the element found; else 0 and
 @code{nil}.  O(log @i{n}).  (The @code{lookup} method is provided as a convenience; because it is
 provided, you can also use @href{The @code{@@} Macro, the @code{@@} macro}.)
 
-@deffn Method {multiplicity (set t)} @ s x
+@deffn Method {multiplicity (set)} @ s x
 Convenience method.  If @var{s} contains @var{x}, returns two values, 1 and the instance found; else
 0 and @code{nil}.  O(log @i{n}).  (Note that @code{multiplicity} returns an integer first value on
 both bags and sets, but @code{lookup} on a set returns a boolean.)
 @end deffn
 @end deffn
 
-@deffn Method {with (bag t)} @ b x @r{&optional (@var{mult} 1)}
+@deffn Method {with (bag)} @ b x @r{&optional (@var{mult} 1)}
 Returns a bag, of the same class and organization as @var{b}, that contains @var{mult} more
 repetitions of @var{x}.  That is, if @var{x} was not an element of @var{b}, the result contains it
 with multiplicity @var{mult}; if it was an element, the result contains it with its multiplicity in
@@ -1401,7 +1346,7 @@ bag, updates it so the bag now contains @var{mult} more repetitions of @var{x}.
 @end defmac
 @end deffn
 
-@deffn Method {less (bag t)} @ b x @r{&optional (@var{mult} 1)}
+@deffn Method {less (bag)} @ b x @r{&optional (@var{mult} 1)}
 Returns a bag, of the same class and organization as @var{b}, that contains @var{mult} fewer
 repetitions of @var{x}, but not fewer than zero.  That is, if @var{b} contains @var{x} with
 multiplicity less than or equal to @var{mult}, the result does not contain @var{x}; if greater, the
@@ -1414,21 +1359,21 @@ zero).
 @end defmac
 @end deffn
 
-@deffn Method {index (bag t)} @ b x
+@deffn Method {index (bag)} @ b x
 If @var{b} contains @var{x}, returns the index of @var{x} within the ordering of @var{b}; otherwise
 @code{nil}.  This ordering ignores multiplicities, counting each element once.  O(log @i{n}).
 @end deffn
 
-@deffn Method {at-index (bag fixnum)} @ b idx
+@deffn Method {at-index (bag)} @ b idx
 Returns, as two values the element at index @var{idx} within the ordering of @var{b}, and its
 multiplicity.  (On a @code{wb-bag}, this is the same as @code{at-rank}.)  @var{idx} must be in [0
 .. size(s)); otherwise, signals an error of type @code{simple-type-error}.  O(log @i{n}).
 @end deffn
 
 @anchor{bag-union}
-@deffn Method {union (bag bag)} @ b1 b2 @r{&key}
-@deffnx Method {union (bag set)} @ b1 b2 @r{&key}
-@deffnx Method {union (set bag)} @ b1 b2 @r{&key}
+@deffn Method {union (bag bag)} @ b1 b2
+@deffnx Method {union (bag set)} @ b1 b2
+@deffnx Method {union (set bag)} @ b1 b2
 Returns a bag of the same type and organization as @var{b1}, that contains all elements that are in
 either @var{b1} or @var{b2}, with the multiplicity of each equal to its maximum multiplicity in the
 two bags.  A set can be supplied for one of the bags; its elements are treated as having
@@ -1450,9 +1395,9 @@ Complexity, Normally O(@i{n})}.
 @end deffn
 
 @anchor{bag-intersection}
-@deffn Method {intersection (bag bag)} @ b1 b2 @r{&key}
-@deffnx Method {intersection (bag set)} @ b1 b2 @r{&key}
-@deffnx Method {intersection (set bag)} @ b1 b2 @r{&key}
+@deffn Method {intersection (bag bag)} @ b1 b2
+@deffnx Method {intersection (bag set)} @ b1 b2
+@deffnx Method {intersection (set bag)} @ b1 b2
 Returns a bag of the same type and organization as @var{b1}, that contains all elements that are in
 both @var{b1} and @var{b2}, with the multiplicity of each equal to its minimum multiplicity in the
 two bags.  A set can be supplied for one of the bags; its elements are treated as having
@@ -1528,7 +1473,7 @@ zero, and false.
 @end deffn
 
 @anchor{fun-iterator (bag)}
-@deffn Method {fun-iterator (bag)} @ b @r{&key}
+@deffn Method {fun-iterator (bag)} @ b
 Returns a @href{Functional Iterators, functional iterator} over the bag @var{b}.  Creating an
 iterator takes O(log @i{n}) time; the @code{:first} operation is O(1), and @code{:rest} is amortized
 O(1).
@@ -1662,7 +1607,7 @@ otherwise, the transient is not thread-safe.
 A transient CHAMP bag.
 @end deftp
 
-@c --------------------------------------------------------------------------------
+@c ----------------------------------------
 @node Transient-CH-Bag Operations
 @subsubsection Transient-CH-Bag Operations
 
@@ -1680,21 +1625,19 @@ its elements.  O(1).
 @end deffn
 
 @deffn Method {arb (transient-ch-bag)} @ tb
-Returns an arbitrary element of the current contents of @var{tb}.  Specifically, on a nonempty bag,
-returns two values: an arbitrary element and true; on an empty bag, returns two false values.
-Please note that ``arbitrary'' does not mean ``randomly selected''; it simply means that the sole
-postcondition is that the returned value is an element of the bag --- FSet may pick any convenient
-element.  O(1).
+Returns an @href{arbitrary, arbitrary} element of the current contents of @var{tb}.  Specifically,
+on a nonempty bag, returns two values: an arbitrary element and true; on an empty bag, returns two
+false values.  O(1).
 @end deffn
 
-@deffn Method {multiplicity (transient-ch-bag t)} @ tb x
-@deffnx Method {lookup (transient-ch-bag t)} @ tb x
+@deffn Method {multiplicity (transient-ch-bag)} @ tb x
+@deffnx Method {lookup (transient-ch-bag)} @ tb x
 If @var{tb} currently contains @var{x}, returns two values, its multiplicity and the instance found;
 else 0 and @code{nil}.  O(log @i{n}).  (The @code{lookup} method is provided as a convenience;
 because it is provided, you can also use the @code{@@} macro.)
 @end deffn
 
-@deffn Method {contains? (transient-ch-bag t)} @ tb x
+@deffn Method {contains? (transient-ch-bag)} @ tb x
 Returns true iff @var{x} is currently an element of @var{tb}.  O(log @i{n}).
 @end deffn
 
@@ -1702,12 +1645,12 @@ Returns true iff @var{x} is currently an element of @var{tb}.  O(log @i{n}).
 Removes all elements from @var{tb}, resetting it to the empty state.  O(1).
 @end deffn
 
-@deffn Method {include! (transient-ch-bag t)} @ tb value
+@deffn Method {include! (transient-ch-bag)} @ tb value
 Modifies @var{tb} so that it contains @var{value}.  Has no effect if this was already the case.
 Returns @var{tb}.  O(log @i{n}).
 @end deffn
 
-@deffn Method {exclude! (transient-ch-bag t)} @ tb value
+@deffn Method {exclude! (transient-ch-bag)} @ tb value
 Modifies @var{tb} so that it does not contain @var{value}.  Has no effect if this was already the
 case.  Returns @var{tb}.  O(log @i{n}).
 @end deffn
@@ -1731,7 +1674,7 @@ compacts it, so it uses less heap space.
 These operations make use of the ordering of the bag, as determined by its comparison function.
 They are not defined on CHAMP bags.
 
-@deffn Method {rank (wb-bag t)} @ s x
+@deffn Method {rank (wb-bag)} @ s x
 If @var{s} contains @var{x}, returns the rank of @var{x} in the ordering defined by the comparison
 function of @var{s}, and a true second value. If @var{x} is not in the bag, the second value is
 false, and the first value is the rank that @var{x} would have if it were added.  Note that if there
@@ -1758,20 +1701,20 @@ If @var{s} is nonempty, returns the element with the largest rank and a true sec
 otherwise, @code{nil} and false.
 @end deffn
 
-@deffn Method {split-from (wb-bag t)} @ s x
+@deffn Method {split-from (wb-bag)} @ s x
 Returns the subbag of @var{s} with elements greater than or equal to @var{x}.  O(log @i{n}).
 @end deffn
 
-@deffn Method {split-above (wb-bag t)} @ s x
+@deffn Method {split-above (wb-bag)} @ s x
 Returns the subbag of @var{s} with elements strictly greater than @var{x}.  O(log @i{n}) in general;
 O(1) if @var{x} is the result of @code{(arb @var{s})}.
 @end deffn
 
-@deffn Method {split-through (wb-bag t)} @ s x
+@deffn Method {split-through (wb-bag)} @ s x
 Returns the subbag of @var{s} with elements less than or equal to @var{x}.  O(log @i{n}).
 @end deffn
 
-@deffn Method {split-below (wb-bag t)} @ s x
+@deffn Method {split-below (wb-bag)} @ s x
 Returns the subbag of @var{s} with elements strictly less than @var{x}.  O(log @i{n}) in general;
 O(1) if @var{x} is the result of @code{(arb @var{s})}.
 @end deffn
@@ -1858,12 +1801,12 @@ default.
 @defmacx wb-seq @r{&rest} subforms
 Constructor macro.  Constructs a @code{wb-seq} according to the supplied argument subforms.  Each
 argument subform can be an expression whose value is to appear in the sequence; or a list of the
-form ($ @i{expression}), in which case the value of the expression is @href{The @code{convert}
-Generic Function, converted} to a seq, which is spliced into the result seq.  The order of the
-result sequence reflects the order of the argument subforms.  If one of the arguments is
-@code{:default}, the seq's default is the value of the subsequent form; if one is
-@code{:no-default}, the seq has no default; if neither, the seq's default is @code{nil}.  To include
-@code{:default} or @code{:no-default} as an ordinary element, quote it.  Examples:
+form ($ @i{expression}), in which case the value of the expression is @href{Generic Function
+@code{convert}, converted} to a seq, which is spliced into the result seq.  The order of the result
+sequence reflects the order of the argument subforms.  If one of the arguments is @code{:default},
+the seq's default is the value of the subsequent form; if one is @code{:no-default}, the seq has no
+default; if neither, the seq's default is @code{nil}.  To include @code{:default} or
+@code{:no-default} as an ordinary element, quote it.  Examples:
 
 @example
 > (seq 3 17)
@@ -1905,7 +1848,7 @@ Returns the number of elements in the map.  O(1).
 Returns true iff @var{s} is a char seq, i.e., it contains only characters and is not empty.
 @end deffn
 
-@deffn Method {lookup (seq t)} @ s idx
+@deffn Method {lookup (seq)} @ s idx
 If @var{idx} is an integer in [0 .. size(@var{s})], returns two values: the element at that
 position, and true.  Otherwise, returns the seq's @href{Map and Seq Defaults, default} and false; if
 the seq has no default, signals an error of type @code{seq-bounds-error}.  O(log @i{n}).
@@ -1918,7 +1861,7 @@ If the seq has a default, returns it and a true second value; otherwise, returns
 false.  O(1).
 @end deffn
 
-@deffn Method {with-default (seq t)} @ s new-default
+@deffn Method {with-default (seq)} @ s new-default
 Returns a new seq that has all the pairs of @var{s}, but whose default is @var{new-default}.  O(1).
 
 @deffn {@code{setf} Expander} default @ s new-default
@@ -1942,7 +1885,7 @@ value.  Otherwise, returns the seq's @href{Map and Seq Defaults, default} and fa
 no default, signals an error of type @code{empty-seq-error}.  O(1).
 @end deffn
 
-@deffn Method {with-first (seq t)} @ s x
+@deffn Method {with-first (seq)} @ s x
 Returns a new seq of size one greater than that of @var{s}, with @var{x} inserted at index 0.  O(log
 @i{n}), but with a relatively small constant factor, since it usually doesn't require walking the
 tree.
@@ -1953,7 +1896,7 @@ A @href{Quasi-Mutating Operators, modify macro} that expands to @code{with-first
 @end defmac
 @end deffn
 
-@deffn Method {less-first (seq t)} @ s
+@deffn Method {less-first (seq)} @ s
 If @var{s} is nonempty, returns a new seq of size one less than that of @var{s}, with the element at
 index 0 removed.  Otherwise, returns the seq's @href{Map and Seq Defaults, default} and false; if
 the seq has no default, signals an error of type @code{empty-seq-error}.  O(log @i{n}), but with a
@@ -1973,7 +1916,7 @@ true second value.  Otherwise, returns the seq's @href{Map and Seq Defaults, def
 the seq has no default, signals an error of type @code{empty-seq-error}.  O(1).
 @end deffn
 
-@deffn Method {with-last (seq t)} @ s x
+@deffn Method {with-last (seq)} @ s x
 Returns a new seq of size one greater than that of @var{s}, with @var{x} inserted after the last
 element (i.e., at index size(@var{s})).  O(log @i{n}), but with a relatively small constant factor,
 since it usually doesn't require walking the tree.
@@ -1984,7 +1927,7 @@ A @href{Quasi-Mutating Operators, modify macro} that expands to @code{with-last}
 @end defmac
 @end deffn
 
-@deffn Method {less-last (seq t)} @ s
+@deffn Method {less-last (seq)} @ s
 If @var{s} is nonempty, returns a new seq of size one less than that of @var{s}, with the element at
 index 0 removed.  Otherwise, returns the seq's @href{Map and Seq Defaults, default} and false; if
 the seq has no default, signals an error of type @code{empty-seq-error}.  O(log @i{n}), but with a
@@ -1998,7 +1941,7 @@ signals an error of type @code{empty-seq-error}.
 @end defmac
 @end deffn
 
-@deffn Method {with (seq t t)} @ s idx x
+@deffn Method {with (seq)} @ s idx x
 If @var{idx} is in [0 .. size(@var{s})), returns a new seq which contains @code{x} at position
 @var{idx}.  If @var{idx} is -1, equivalent to @code{(with-first @var{s} @var{x})}; if @var{idx} is
 size(@var{s}), equivalent to @code{(with-last @var{s} @var{x})}.
@@ -2012,15 +1955,15 @@ the end.  If @var{s} has no default, signals an error of type @code{seq-bounds-e
 O(log @i{n}).
 @end deffn
 
-@deffn Method {less (seq t)} @ s idx
+@deffn Method {less (seq)} @ s idx
 If @var{idx} is in [0 .. size(@var{s})), returns a new seq with the element at position @var{idx}
 removed.  Otherwise, returns @var{s}.
 
 O(log @i{n})
 @end deffn
 
-@deffn Method {inserted (seq t t)} @ s idx x
-@deffnx Method {insert (seq t t)} @ s idx x
+@deffn Method {inserted (seq)} @ s idx x
+@deffnx Method {insert (seq)} @ s idx x
 If @var{idx} is in [0 .. size(@var{s})), returns a new seq which contains @code{x} inserted just
 before position @code{idx}.  If @var{idx} is 0, equivalent to @code{(with-first @var{s} @var{x})};
 if @var{idx} is size(@var{s}), equivalent to @code{(with-last @var{s} @var{x})}.
@@ -2037,7 +1980,7 @@ O(log @i{n}).
 is too suggestive of mutation, and have deprecated it in favor of @code{inserted}.)
 @end deffn
 
-@deffn Method {subseq (seq t t)} @ s start @r{&optional} end
+@deffn Method {subseq (seq)} @ s start @r{&optional} end
 Returns the subsequence of @var{s} on the interval [@var{start} .. @var{end}).  @var{end} defaults
 to size(@var{s}).  Out-of-bounds values for @var{start} and @var{end} are silently adjusted to the
 nearest correct bound.
@@ -2046,15 +1989,15 @@ O(log @i{n}).
 @end deffn
 
 @deffn Method {concat (seq)} @ s @r{&rest} seqs
-The first argument must be a seq, but the remainder can be any type that can be @href{The
-@code{convert} Generic Function, converted} to a seq.  Returns the concatenation of the arguments in
+The first argument must be a seq, but the remainder can be any type that can be @href{Generic
+Function @code{convert}, converted} to a seq.  Returns the concatenation of the arguments in
 the order given.
 
 O(log @i{n}) on two seqs; if conversions are required, they will generally take O(@i{n}) time.
 @end deffn
 
-@deffn Method {spliced (seq t t)} @ s idx subseq
-@deffnx Method {splice (seq t t)} @ s idx subseq
+@deffn Method {spliced (seq)} @ s idx subseq
+@deffnx Method {splice (seq)} @ s idx subseq
 If @var{idx} is in [0 .. size(@var{s})), returns a new seq which contains the elements of
 @code{subseq} inserted just before position @code{idx}.  If @var{idx} is 0, equivalent to
 @code{(concat @var{subseq} @var{s})}; if @var{idx} is size(@var{s}), equivalent to @code{(concat
@@ -2077,8 +2020,8 @@ is too suggestive of mutation, and have deprecated it in favor of @code{spliced}
 Returns the reversal of the seq.  O(@i{n}).
 @end deffn
 
-@deffn Method {sort (seq t)} @ s pred @r{&key} key
-@deffnx Method {stable-sort (seq t)} @ s pred @r{&key} key
+@deffn Method {sort (seq)} @ s pred @r{&key} key
+@deffnx Method {stable-sort (seq)} @ s pred @r{&key} key
 Returns a seq of the same size as @var{s}, with the elements sorted by @var{pred}, which must be a
 function of two arguments that implements a
 @uref{https://en.wikipedia.org/wiki/Weak_ordering#Strict_weak_orderings, strict weak ordering} (of
@@ -2109,18 +2052,18 @@ Returns a set of the valid indices of @var{s}, that is, the integers in [0 .. si
 O(@i{n}).
 @end deffn
 
-@deffn Method {domain-contains? (seq t)} @ s idx
+@deffn Method {domain-contains? (seq)} @ s idx
 Returns true iff @var{idx} is an integer in [0 .. size(@var{s})].
 @end deffn
 
-@deffn Method {range-contains? (seq t)} @ s x
+@deffn Method {range-contains? (seq)} @ s x
 Returns true iff @var{s} contains @var{x} at any index.  O(@i{n}) (requires a linear search).
 @end deffn
 
 @deffn Method {range (seq)} @ s
 Returns the elements of @var{s}, as a set.  O(n log @i{n}).
 
-(Deprecated.  I recommend using a @href{The @code{convert} Generic Function, conversion} instead,
+(Deprecated.  I recommend using a @href{Generic Function @code{convert}, conversion} instead,
 e.g. @code{(convert 'set s)}, as this gives you a way to specify the type and organization of the
 set if you wish to.)
 @end deffn
@@ -2143,7 +2086,7 @@ operation is amortized O(1).
 @end deffn
 
 @anchor{fun-iterator (seq)}
-@deffn Method {fun-iterator (seq)} @ s @r{&key}
+@deffn Method {fun-iterator (seq)} @ s
 Returns a @href{Functional Iterators, functional iterator} over the seq, possibly restricted by
 @var{start} and @var{end}, and in reverse order if @var{from-end?} is true.  The @code{:first}
 operation returns two values: if the iterator is not empty, returns the first element and a true
@@ -2339,29 +2282,600 @@ functions or fbound symbols.  @var{key} defaults to the identity function.
 @deffn Method {search (t seq)} @ seq1 seq2 @r{&key} from-end test key start1 start2 end1 end2
 Searches the interval of @var{seq2} bounded by @var{start2} and @var{end2} for a subsequence
 matching the interval of @var{seq1} between @var{start1} and @var{end1}.  @var{seq1} can be anything
-that can be @href{The @code{convert} Generic Function, converted} to a seq.  Returns the index of
-the leftmost occurrence, unless @var{from-end} is true, in which case it returns the index of the
+that can be @href{Generic Function @code{convert}, converted} to a seq.  Returns the index of the
+leftmost occurrence, unless @var{from-end} is true, in which case it returns the index of the
 leftmost element of the rightmost occurrence.
 @end deffn
 
-@deffn Method {mismatch (seq t)} @ seq1 seq2 @r{&key} from-end test key start1 start2 end1 end2
+@deffn Method {mismatch (seq)} @ seq1 seq2 @r{&key} from-end test key start1 start2 end1 end2
 @c &&& write me
 @end deffn
 
 
 @c ================================================================================
+@node Replay Sets and Maps
+@section Replay Sets and Maps
+
+@dfn{Replay set} is my term for a set whose iteration order is the order in which the elements were
+first added to it.  It's the same concept as Java's @code{LinkedHashSet}, but I don't like the term
+``linked'' here, because it's a fact about the implementation, not the semantics.  Anyway, FSet's
+replay sets don't use a linked list, but keep the ordering in a seq alongside the set.
+
+Alternatively, you can look at a replay set as a sequence that enforces uniqueness: an element can
+be added only once.
+
+@dfn{Replay maps} are very similar; like @code{LinkedHashMap}, they remember the order in which keys
+were first added.  They also use a seq for this purpose.
+
+Of course, FSet's implementation is functional and persistent.  There is one significant downside to
+it, though: the @code{less} and @code{index} operations take O(@i{n}) time, as they have to scan
+through the seq to find the element or key.
+
+The original implementations of replay sets and maps used WB-trees.  By default, the newer and
+faster CHAMP sets and maps are now used instead.  I have not removed the older classes
+@code{wb-replay-set} and @code{wb-replay-map}, so as not to break existing code, but I'm not
+documenting them because I don't know why you would want to use them; iteration order is not a
+concern here, since it's imposed by the client anyway.
+
+@c --------------------------------------------------------------------------------
 @node Replay Sets
-@section Replay Sets
+@subsection Replay Sets
 
+@deftp {Data type} replay-set
+@deftpx {Data type} ch-replay-set
+Functional replay sets implemented as pairs of a CHAMP set and a seq.  These print as:
 
-@c ================================================================================
+@example
+##@{= @i{e0} @i{e1} ... @}[@i{compare-fn}]
+@end example
+
+That is, there's an @code{=} just inside the opening brace; otherwise they look like ch-sets.  As
+always, the comparison function is printed only if it is not @code{compare}.
+@end deftp
+
+@defun empty-replay-set
+@defunx empty-ch-replay-set @r{&key} compare-fn-name
+Constructor function.  Returns an empty @code{ch-replay-set}.  By default, its internal set will be
+organized by @code{compare}.  To use a custom organization, supply the comparison function name (a
+symbol) as @code{compare-fn-name}; a hash function must have been defined for it using
+@href{define-hash-function, @code{define-hash-function}}.  (A custom organization will not affect
+the set's ordering for iteration or printing; the only reason you would need one is if you had a
+user-defined data type for which you had not defined methods on @code{compare} and
+@code{hash-value}.)
+@end defun
+
+@defmac replay-set @r{&rest} subforms
+@defmacx ch-replay-set @r{&rest} subforms
+@defmacx ch-custom-replay-set compare-fn-name @r{&rest} subforms
+Constructor macro.  Constructs a @code{ch-replay-set} according to the supplied argument subforms.
+Each argument subform can be an expression, whose value will be an element of the result set; or a
+list of the form @code{($ @var{expression})}, in which case the expression must evaluate to a set
+(possibly a replay set), all of whose elements become elements of the result set.  Elements are
+added in left-to-right order.
+
+To use a custom organization, use @code{ch-custom-replay-set}.  @code{compare-fn-name} must be a
+symbol naming the desired comparison function; a hash function must have been defined for it using
+@href{define-hash-function, @code{define-hash-function}}.
+@end defmac
+
+@c ----------------------------------------
+@node Replay-Set Operations
+@subsubsection Replay-Set Operations
+
+@deffn Method  {empty? (replay-set)} @ rs
+Returns true iff @var{rs} is empty.  O(1).
+@end deffn
+
+@deffn Method {size (replay-set)} @ rs
+Returns the number of elements in @var{rs}.  O(1).
+@end deffn
+
+@deffn Method {arb (replay-set)} @ rs
+Returns an @href{arbitrary, arbitrary} element of @var{rs}.  Specifically, on a nonempty replay set,
+returns two values: an arbitrary element and true; on an empty one, returns two false values.  O(1).
+@end deffn
+
+@deffn Method {first (replay-set)} @ rs
+Returns the first element that was added to @var{rs}.  Signals an error if O(1).
+@end deffn
+
+@deffn Method {last (replay-set)} @ rs
+Returns the last (most recent) element that was added to @var{rs}.  O(1).
+@end deffn
+
+@deffn Method {index (replay-set)} @ rs x
+Returns the index of @var{x} within the ordering of @var{rs}, or @code{nil} if it is not found.
+NOTE: O(@i{n}).
+@end deffn
+
+@deffn Method {at-index (replay-set)} @ rs idx
+Returns the element at index @var{idx} within the ordering of @var{rs}.  Signals an error if
+@var{idx} is out of bounds.  O(log @i{n}).
+@end deffn
+
+@deffn Method {contains? (replay-set)} @ rs x
+Returns true iff @var{x} is an element of @var{rs}.  O(log @i{n}).
+@end deffn
+
+@deffn Method {lookup (replay-set)} @ rs x
+If @var{rs} contains @var{x}, returns two values, true and the element found; else false and
+@code{nil}.  (This is useful for canonicalizing instances; the element found may be a different
+instance from @var{x}.)  O(log @i{n}).
+@end deffn
+
+@deffn Method {with (replay-set)} @ rs x
+Returns a replay set, of the same class and organization as @var{s}, that contains all elements of
+@var{s} and also @var{x}.  If @var{s} did not already contain @var{x}, @var{x} is appended to the
+set's ordering.  O(log @i{n}).
+
+@defmac includef place x
+A @href{Quasi-Mutating Operators, modify macro} that expands to @code{with}.  If @var{place} holds a
+replay set, updates it to contain @var{x}.
+@end defmac
+@end deffn
+
+@deffn Method {less (set)} @ s x
+Returns a set, of the same class and organization as @var{s}, that contains all elements of @var{s}
+except @var{x}.  NOTE: O(@i{n}).
+
+@defmac excludef place x
+A @href{Quasi-Mutating Operators, modify macro} that expands to @code{less}.  If @var{place} holds a
+replay set, updates it not to contain @var{x}.
+@end defmac
+@end deffn
+
+@deffn Method {union (replay-set set)} @ rs s
+Iterates over @var{s}, adding each of its elements to @var{rs}, and returning the final value of
+@var{rs}.  That is, if @var{s} is itself a replay set, its elements that are not already in
+@var{rs} will be added in order to the end of @var{rs}.  O(size(@var{s}) log size(@var{rs})).
+@end deffn
+
+@deffn Method {intersection (replay-set set)} @ rs s
+Iterates over @var{rs}, retaining each of its elements that is also in @var{s}.  That is, the result
+contains the elements that are in both sets, in the order in which they appear in @var{rs}.
+O(size(@var{rs}) log size(@var{s})).
+@end deffn
+
+@c --------------------------------------------------------------------------------
 @node Replay Maps
-@section Replay Maps
+@subsection Replay Maps
+
+@deftp {Data type} replay-map
+@deftpx {Data type} ch-replay-map
+Functional replay maps implemented as pairs of a CHAMP map and a seq.  These print as:
+
+@example
+##@{=| (@i{k0 v0}) (@i{k1 v1}) ... @}[@i{key-compare-fn};@i{val-compare-fn}]/@i{default}
+@end example
+
+That is, there's an @code{=} just inside the opening brace; otherwise they look like ch-maps.  As
+always, the comparison function is printed only if it is not @code{compare}, and the default is
+printed only if it is not @code{nil}.
+@end deftp
+
+@defun empty-replay-map @r{&key (@var{default} nil)} no-default?
+@defunx empty-ch-replay-map @r{&key (@var{default} nil)} no-default? key-compare-fn-name val-compare-fn-name
+Constructor function.  Returns an empty @code{ch-replay-map} with the specified @var{default}, or
+with no default if @var{no-default?} is true.  By default, its internal map will be organized by
+@code{compare}.  To use a custom organization, @var{key-compare-fn-name} and
+@var{val-compare-fn-name} must be symbols naming the comparison functions to be used for keys and
+values respectively (these default to @code{compare}).  A hash function must have been defined for
+each comparison function using @href{define-hash-function, @code{define-hash-function}}.  (A custom
+organization will not affect the map's ordering for iteration or printing; the only reason you would
+need one is if you had a user-defined data type for which you had not defined methods on
+@code{compare} and @code{hash-value}.)
+@end defun
+
+@defmac replay-map @r{&rest} subforms
+@defmacx ch-replay-map @r{&rest} subforms
+@defmacx ch-custom-replay-map key-compare-fn-name val-compare-fn-name @r{&rest} subforms
+Constructor macro.  Constructs a @code{ch-replay-map} according to the supplied argument subforms.
+Each argument subform can be a list of the form @code{(@var{key-expr} @var{value-expr})}, denoting a
+mapping from the value of @var{key-expr} to the value of @var{value-expr}; or a list of the form
+@code{($ @var{expression})}, in which case the expression must evaluate to a map, denoting all its
+mappings; or the symbol @code{:default}, followed by a form; or the symbol @code{:no-default}.  If
+@code{:default} is supplied, the map's @href{Map and Seq Defaults, default} is the value of the
+subsequent form; if @code{:no-default} is supplied, the map has no default; if neither, the map's
+default is @code{nil}.
+
+By default, its internal map will be organized by @code{compare}.  To use a custom organization, use
+@code{ch-custom-replay-map}; @var{key-compare-fn-name} and @var{val-compare-fn-name} must be symbols
+naming the comparison functions to be used for keys and values respectively (these default to
+@code{compare}).  A hash function must have been defined for each comparison function using
+@href{define-hash-function, @code{define-hash-function}}.  (A custom organization will not affect
+the map's ordering for iteration or printing; the only reason you would need one is if you had a
+user-defined data type for which you had not defined methods on @code{compare} and
+@code{hash-value}.)
+
+The result is constructed from the denoted mappings in left-to-right order; so if a given key is
+supplied by more than one argument subform, its associated value will be given by the rightmost such
+subform, but its position in the ordering by the leftmost.
+@end defmac
+
+@c ----------------------------------------
+@node Replay-Map Operations
+@subsubsection Replay-Map Operations
+
+@deffn Method  {empty? (replay-map)} @ rm
+Returns true iff @var{rm} is empty.  O(1).
+@end deffn
+
+@deffn Method {size (replay-map)} @ rm
+Returns the number of key-value pairs in @var{rm}.  O(1).
+@end deffn
+
+@deffn Method {arb (replay-map)} @ rm
+Returns an @href{arbitrary, arbitrary} pair of @var{rm}.  Specifically, on a nonempty replay map,
+returns three values: an arbitrary key, its associated value, and true; on an empty one, returns
+@code{nil}, @code{nil}, and false.  O(1).
+@end deffn
+
+@deffn Method {first (replay-map)} @ rm
+Returns, as two values, the first key that was added to @var{rm}, and its most recently assigned
+value.  If @var{rm} is empty, signals an error.  O(log @i{n}).
+@end deffn
+
+@deffn Method {last (replay-map)} @ rm
+Returns, as two values, the last (most recent) key that was added to @var{rm}, and its most recently
+assigned value.  If @var{rm} is empty, signals an error.  O(log @i{n}).
+@end deffn
+
+@deffn Method {index (replay-map)} @ rm x
+Returns the index of @var{x} within the ordering of the keys of @var{rm}, or @code{nil} if it is not
+found.  NOTE: O(@i{n}).
+@end deffn
+
+@deffn Method {at-index (replay-map)} @ rs idx
+Returns the element at index @var{idx} within the ordering of @var{rs}.  Signals an error if
+@var{idx} is out of bounds.  O(log @i{n}).
+@end deffn
+
+@deffn Method {contains? (replay-map)} @ rm k @r{&optional} v
+If @var{v} is not supplied, returns true iff the domain of @var{rm} contains @var{k}.  If @var{v} is
+supplied, returns true iff @var{rm} maps @var{k} to @var{v}.  O(log @i{n}).
+@end deffn
+
+@deffn Method {domain-contains? (replay-map)} @ rm k
+Returns true iff the domain of @var{rm} contains @var{k}.  (This is now redundant with two-argument
+@code{contains?}, and is mildly deprecated.  For most of FSet's history, @code{contains?} on a map
+required three arguments; so it was all but useless, and you had to use @code{domain-contains?}
+instead.  Fortunately, I finally came to my senses and fixed @code{contains?} to accept two
+arguments.)  O(log @i{n}).
+@end deffn
+
+@deffn Method {lookup (replay-map)} @ rm k
+If @var{rm} contains a key equal to @var{k}, according to its key comparison function, returns three
+values: the corresponding value, true, and the key found; otherwise, the map's @href{Map and Seq
+Defaults, default}, false, and @code{nil}.  If the key is not found and the map has no default,
+signals an error of type @code{map-domain-error}.  O(log @i{n}).
+
+See also @ref{The @code{@@} Macro}.
+@end deffn
+
+@deffn Method {with (replay-map)} @ rm k v
+Returns a replay map, of the same class and organization as @var{rm}, that contains all pairs of
+@var{rm} whose key is not equal to @var{k} (according to its key comparison function), and also maps
+@var{k} to @var{v}.  If @var{rm} did not already contain key @var{k}, @var{k} is appended to the
+map's ordering.  O(log @i{n}).
+
+@defmac includef place k v
+A @href{Quasi-Mutating Operators, modify macro} that expands to @code{with}.  If @var{place} holds a
+replay map, updates it so the map now maps @var{k} to @var{v}.
+@end defmac
+@end deffn
+
+@deffn Method {less (replay-map)} @ rm k
+Returns a map, of the same class and organization as @var{rm}, that contains all pairs of @var{rm}
+whose key is not equal to @var{k}.  NOTE: O(@i{n}).
+
+@defmac excludef place k
+A @href{Quasi-Mutating Operators, modify macro} that expands to @code{less}.  If @var{place} holds a
+replay map, updates it so the map does not contain a key @var{k}.
+@end defmac
+@end deffn
+
+@deffn Method {with-default (replay-map)} @ rm new-default
+Returns a new map that has all the pairs of @var{rm} in the same order, but whose default is
+@var{new-default}.  O(1).
+
+@deffn {@code{setf} Expander} default @ rm new-default
+@code{(setf (default @var{rm}) @var{new-default})} is equivalent to @code{(setf @var{rm}
+(with-default @var{rm} @var{new-default}))}, except that subexpressions within @var{rm} are
+evaluated only once.
+@end deffn
+@end deffn
+
+@deffn Method {without-default (replay-map)} @ rm
+Returns a new map that has all the pairs of @var{rm} in the same order, but has no default.  O(1).
+
+@defmac clear-default rm
+@code{(clear-default @var{rm})} is equivalent to @code{(setf @var{rm} (without-default @var{rm}))},
+except that subexpressions within @var{rm} are evaluated only once.
+@end defmac
+@end deffn
+
+@deffn Method {domain (replay-map)} @ rm
+Returns the domain (set of keys) of @var{rm} as a replay set of the same implementation, and using
+@var{rm}'s key ordering as its ordering.  O(@i{n}), but with a relatively small constant factor.
+@end deffn
 
 
 @c ================================================================================
 @node Binary Relations
 @section Binary Relations
+
+Where a map is a set of key/value pairs where the keys are unique, a binary relation is any set of
+such pairs, possibly with dupicate keys.  For a simple example, imagine you have a number of
+products, each of which comes in one or more colors.  There are, in general, multiple colors per
+product, but also different products that come in the same color; so you couldn't represent this as
+a map from product to color, or one from color to product.  What you have is a binary relation.  You
+could draw it as a boolean-valued matrix where the rows are products and the columns are colors.
+
+You @emph{could} represent your matrix as a map from each product to a @emph{set} of colors; and
+that's how FSet treats binary relations internally.  The inverse mapping, from color to set of
+products, may also be of interest; FSet will build that for you on demand and cache it, updating it
+incrementally as you update the relation.  The operations listed below that cause the inverse
+mapping to be built are marked as ``constructs inverse''; the time complexities for these operations
+are given as amortized, under the assumption that the inverse mapping has usually already been
+built.
+
+I used the name @code{2-relation} for these, partly because it's shorter than
+@code{binary-relation}, and partly to show off Lisp's unconventional lexical rules --- most
+languages wouldn't let us start an identifier with a digit!
+
+There are both CHAMP and WB implementations; the default is CHAMP.
+
+@deftp {Data type} 2-relation
+The abstract class of FSet functional binary relations.
+@end deftp
+
+@defun empty-2-relation
+Constructor function.  Returns an empty binary relation of the default implementation and
+organization.
+@end defun
+
+@anchor{Macro 2-relation}
+@defmac 2-relation @r{&rest} subforms
+Constructor macro.  Constructs a 2-relation of the default implementation and organization according
+to the supplied argument subforms.  Each argument subform can be a list of the form (@var{key-expr}
+@var{value-expr}), denoting a mapping from the value of @var{key-expr} to the value of
+@var{value-expr}; or a list of the form ($ @var{expression}), in which case the expression must
+evaluate to a 2-relation, all of whose mappings will be included in the result.  Also, each of
+@var{key-expr} and @var{value-expr} can be of the form ($ @var{expression}), in which case the
+expression must evaluate to a set, and the elements of the set are used individually to form pairs;
+for example:
+
+@example
+> (2-relation (($ (set 1 2)) ($ (set 'a 'b))))
+##@{+ (1 B) (1 A) (2 B) (2 A) +@}
+@end example
+@end defmac
+
+@deftp {Data type} ch-2-relation
+Functional binary relations implemented using CHAMP trees.  These print as:
+
+@example
+##@{+ (@i{k0 v0}) (@i{k1 v1}) ... +@}[@i{key-compare-fn};@i{val-compare-fn}]
+@end example
+
+Note the double @code{#}, which indicates CHAMP, and the plus signs just inside the braces.  The
+comparison functions are printed only if they are not @code{compare}.
+@end deftp
+
+@defun empty-ch-2-relation @r{&key} key-compare-fn-name val-compare-fn-name
+Constructor function.  Returns an empty @code{ch-2-relation}.  @var{key-compare-fn-name} and
+@var{val-compare-fn-name}, if supplied, must be symbols naming the comparison functions to be used
+for keys and values respectively (these default to @code{compare}).  A hash function must have been
+defined for each comparison function using @href{define-hash-function, @code{define-hash-function}}.
+@end defun
+
+@defmac ch-2-relation @r{&rest} subforms
+Constructor macro.  Constructs a ch-2-relation according to the supplied argument subforms.  See
+@href{Macro 2-relation, @code{2-relation}@comma{} above} for the interpretation of @var{subforms}.
+@end defmac
+
+@defmac ch-custom-2-relation @r{&rest} subforms
+Constructor macro.  Constructs a ch-2-relation with a custom organization, according to the supplied
+argument subforms.  @var{key-compare-fn-name} and @var{val-compare-fn-name} must be symbols naming
+the comparison functions to be used for keys and values respectively (you can use @code{nil} as a
+synonym of @code{compare}).  See @href{Macro 2-relation, @code{2-relation}@comma{} above} for the
+interpretation of @var{subforms}.
+@end defmac
+
+@defmac wb-2-relation @r{&rest} subforms
+Constructor macro.  Constructs a wb-2-relation according to the supplied argument subforms.  See
+@href{Macro 2-relation, @code{2-relation}@comma{} above} for the interpretation of @var{subforms}.
+@end defmac
+
+@defmac wb-custom-2-relation @r{&rest} subforms
+Constructor macro.  Constructs a wb-2-relation with a custom organization, according to the supplied
+argument subforms.  @var{key-compare-fn-name} and @var{val-compare-fn-name} must be symbols naming
+the comparison functions to be used for keys and values respectively (you can use @code{nil} as a
+synonym of @code{compare}).  See @href{Macro 2-relation, @code{2-relation}@comma{} above} for the
+interpretation of @var{subforms}.
+@end defmac
+
+
+
+@c --------------------------------------------------------------------------------
+@node 2-Relation Operations
+@subsection 2-Relation Operations
+
+@deffn Method  {empty? (2-relation)} @ r
+Returns true iff @var{r} is empty.  O(1).
+@end deffn
+
+@deffn Method {size (2-relation)} @ r
+Returns the number of key/value pairs in @var{r}.  O(1).
+@end deffn
+
+@deffn Method {arb (2-relation)} @ r
+Returns an @href{arbitrary, arbitrary} key/value pair of @var{r}.  Specifically, on a nonempty
+relation, returns three values: an arbitrary key, an arbitrary value associated with that key, and
+true; on an empty relation, returns @code{nil}, @code{nil}, and false.  O(1).
+@end deffn
+
+@deffn Method {inverse (2-relation)} @ r
+Constructs inverse.  Returns the inverse of @var{r}, that is, a relation with the same pairs as
+@var{r} except that keys and values are swapped.  The returned relation is of the same
+implementation as @var{r}, and its key and value comparison functions are swapped.  Amortized O(1).
+@end deffn
+
+@deffn Method {contains? (2-relation)} @ r x y
+Returns true iff @var{r} contains a pair whose key is @var{x} and whose value is @var{y}.  O(log
+@i{n}).
+@end deffn
+
+@deffn Method {domain-contains? (2-relation)} @ r x
+Returns true iff @var{r} has any pair whose key is @var{x}.  O(log @i{n}).
+@end deffn
+
+@deffn Method {range-contains? (2-relation)} @ r y
+Constructs inverse.  Returns true iff @var{r} has any pair whose value is @var{y}.  Amortized O(log
+@i{n}).
+@end deffn
+
+@deffn Method {lookup (2-relation)} @ r x
+Returns the set of values to which @var{r} maps key @var{x}.  If @var{r} has no pairs with
+key @var{x}, simply returns an empty set.  The returned set is of the same implementation (WB or
+CHAMP) as @var{r}, and its comparison function is the value comparison function of @var{r}.  O(log
+@i{n}).
+@end deffn
+
+@deffn Method {lookup-inv (2-relation)} @ r y
+Constructs inverse.  Returns the set of keys that @var{r} maps to value @var{y}.  If @var{r} has no
+pairs with value @var{y}, simply returns an empty set.  The returned set is of the same
+implementation (WB or CHAMP) as @var{r}, and its comparison function is the key comparison function
+of @var{r}.  Amortized O(log @i{n}).
+@end deffn
+
+@deffn Method {domain (2-relation)} @ r
+Returns the domain of @var{r}, that is, the set of keys it maps to at least one value.  O(n).
+@end deffn
+
+@deffn Method {range (2-relation)} @ r
+Constructs inverse.  Returns the range of @var{r}, that is, the set of values to which at least one
+key is mapped.  Amortized O(n).
+@end deffn
+
+@deffn Method {with (2-relation)} @ r x y
+Returns a relation, of the same type and organization as @var{r}, that contains all pairs of @var{r}
+and also maps key @var{x} to value @var{y}.  If @var{r} already contained that mapping, returns
+@var{r} itself.  O(log @i{n}).
+@end deffn
+
+@deffn Method {less (2-relation)} @ r x y
+Returns a relation, of the same type and organization as @var{r}, that contains all pairs of @var{r}
+except the one mapping key @var{x} to value @var{y}.  If @var{r} already did not contain that
+mapping, returns @var{r} itself.  O(log @i{n}).
+@end deffn
+
+@deffn Method {union (2-relation 2-relation)} @ r1 r2
+Returns a relation, of the same type and organization is @var{r1}, that contains all pairs that are
+in either @var{r1} or @var{r2}.  Implements @href{Left Preference, left preference}: for any pair of
+equal objects in the two relations, the result contains the instance that was in @var{s1}.  If either
+@var{r1} or @var{r2} has had its inverse constructed, the result does also.  O(@i{n}).
+@end deffn
+
+@deffn Method {intersection (2-relation 2-relation)} @ r1 r2
+Returns a relation, of the same type and organization is @var{r1}, that contains all pairs that are
+in both @var{r1} and @var{r2}.  Implements @href{Left Preference, left preference}: for any pair of
+equal objects in the two relations, the result contains the instance that was in @var{r1}.  If
+either @var{r1} or @var{r2} has had its inverse constructed, the result does also.  O(@i{n}).
+@end deffn
+
+@deffn Method {join (2-relation t 2-relation t)} @ r1 c1 r2 c2
+Here @var{c1} and @var{c2} designate columns of @var{r1} and @var{r2} respectively, as 0 for the
+domain and 1 for the range.  Computes and returns the equijoin of @var{r1} column @var{c1} with
+@var{r2} column @var{c2}.  This is a 2-relation in which each pair of pairs of the two relations
+that have equal values in the specified columns become one pair in the result, with the other column
+of the @var{r1} pair being its domain value and the other column in the @var{r2} pair its range
+value.  O(@i{n}).
+@end deffn
+
+@c --------------------------------------------------------------------------------
+@node CH-2-Relation Operations
+@subsection CH-2-Relation Operations
+
+CHAMP binary relations support @href{Transients, transients}.
+
+@deffn Method {make-transient (ch-2-relation)} @ s @r{&key} synchronized?
+Makes a @code{transient-ch-2-relation} whose initial contents are those of @var{s}.  If
+@code{synchronized?} is true, all operations on the transient will be serialized via locking;
+otherwise, the transient is not thread-safe.
+@end deffn
+
+@deftp {Data type} transient-ch-2-relation
+A transient CHAMP binary relation.
+@end deftp
+
+@c ----------------------------------------
+@node Transient-CH-2-Relation Operations
+@subsubsection Transient-CH-2-Relation Operations
+
+@deffn Method  {empty? (transient-ch-2-relation)} @ tr
+Returns true iff @var{tr} is currently empty.  O(1).
+@end deffn
+
+@deffn Method {size (transient-ch-2-relation)} @ tr
+Returns the current number of pairs in @var{tr}.  O(1).
+@end deffn
+
+@deffn Method {arb (transient-ch-2-relation)} @ tr
+Returns an @href{arbitrary, arbitrary} pair of the current contents of @var{tr}.  Specifically, on a
+nonempty relation, returns three values: an arbitrary key, an arbitrary value associated with that
+key, and true; on an empty relation, returns @code{nil}, @code{nil}, and false.  O(1).
+@end deffn
+
+@deffn Method {contains? (transient-ch-2-relation)} @ tr x y
+Returns true iff @var{tr} currently contains a pair whose key is @var{x} and whose value is @var{y}.
+O(log @i{n}).
+@end deffn
+
+@deffn Method {lookup (transient-ch-2-relation)} @ tr x
+Returns the set of values to which @var{tr} currently maps key @var{x}.  If @var{tr} has no pairs
+with key @var{x}, simply returns an empty set.  The returned set is of the same implementation (WB
+or CHAMP) as @var{tr}, and its comparison function is the value comparison function of @var{r}.
+This operation copies the set being returned.  O(@i{m} + log @i{n}), where @i{m} is the size of the
+returned set.
+@end deffn
+
+@deffn Method {lookup-inv (transient-ch-2-relation)} @ tr y
+Constructs inverse.  Returns the set of keys that @var{tr} maps to value @var{y}.  If @var{r} has no
+pairs with value @var{y}, simply returns an empty set.  The returned set is of the same
+implementation (WB or CHAMP) as @var{r}, and its comparison function is the key comparison function
+of @var{r}.  This operation copies the set being returned.  Amortized O(@i{m} + log @i{n}), where
+@i{m} is the size of the returned set.
+@end deffn
+
+@deffn Method {clear! (transient-ch-2-relation)} @ tr
+Removes all pairs from @var{tr}, resetting it to the empty state.  O(1).
+@end deffn
+
+@deffn Method {include! (transient-ch-2-relation)} @ tr x y
+Modifies @var{tr} so that it also maps @var{x} to @var{y}.  Has no effect if this was already the
+case.  Returns @var{tr}.  O(log @i{n}).
+@end deffn
+
+@deffn Method {exclude! (transient-ch-2-relation)} @ tr x y
+Modifies @var{tr} so that it does not map @var{x} to @var{y}.  Has no effect if this was already the
+case.  Returns @var{tr}.  O(log @i{n}).
+@end deffn
+
+@c --------------------------------------------------------------------------------
+@node WB-2-Relation Operations
+@subsection WB-2-Relation Operations
+
+@deffn Method {least (wb-2-relation)} @ r
+If @var{r} is nonempty, returns three values: the key at rank 0 of the domain, the set of values it
+is mapped to, and true; if empty, returns @code{nil}, @code{nil}, and false.  O(log @i{n}).
+@end deffn
+
+@deffn Method {greatest (wb-2-relation)} @ r
+If @var{r} is nonempty, returns three values: the key with the largest rank in the domain, the set
+of values it is mapped to, and true; if empty, returns @code{nil}, @code{nil}, and false.  O(log
+@i{n}).
+@end deffn
 
 
 @c ================================================================================

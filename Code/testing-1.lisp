@@ -1618,6 +1618,8 @@
                  '(1 2 t)))
     (test (contains? (wb-2-relation (1 2) (1 3) (4 7)) 1 2))
     (test (not (contains? (wb-2-relation (1 2)) 1 3)))
+    (test (domain-contains? (wb-2-relation (1 2) (1 3) (4 7)) 4))
+    (test (range-contains? (wb-2-relation (1 2) (1 3) (4 7)) 3))
     (test (equal? (lookup (empty-wb-2-relation) 1) (set)))
     (test (equal? (lookup (wb-2-relation (1 2)) 1) (set 2)))
     (test (equal? (lookup-inv (wb-2-relation (1 2)) 2) (set 1)))
@@ -1832,6 +1834,8 @@
                  '(1 2 t)))
     (test (contains? (ch-2-relation (1 2) (1 3) (4 7)) 1 2))
     (test (not (contains? (ch-2-relation (1 2)) 1 3)))
+    (test (domain-contains? (ch-2-relation (1 2) (1 3) (4 7)) 4))
+    (test (range-contains? (ch-2-relation (1 2) (1 3) (4 7)) 3))
     (test (equal? (lookup (empty-ch-2-relation) 1) (ch-set)))
     (test (equal? (lookup (ch-2-relation (1 2)) 1) (ch-set 2)))
     (test (equal? (lookup-inv (ch-2-relation (1 2)) 2) (ch-set 1)))
@@ -2013,7 +2017,19 @@
 
     (test (equal? (transitive-closure (ch-2-relation (1 3) (1 4) (3 7) (3 8) (4 11) (5 14) (6 12) (11 23))
 				      (ch-set 1))
-		  (ch-set 1 3 4 7 8 11 23)))))
+		  (ch-set 1 3 4 7 8 11 23)))
+
+    ;; Fallback methods
+    (test (equal? (union (ch-2-relation (1 2) (1 4)) (wb-2-relation (1 3) (2 5)))
+                  (ch-2-relation (1 2) (1 3) (1 4) (2 5))))
+    (test (equal? (intersection (ch-2-relation ('a 7) ('b 12) ('c 17)) (wb-2-relation ('b 12) ('c 17) ('c 22)))
+		  (ch-2-relation ('b 12) ('c 17))))
+    (test (equal? (join (ch-2-relation ('a 3) ('a 5) ('b 7) ('b 8)) 1
+			(wb-2-relation (3 "yo") (7 "eek") (7 "mrr")) 0)
+		  (ch-2-relation ('a "yo") ('b "eek") ('b "mrr"))))
+    (test (equal? (join (wb-2-relation (3 "mrr") (7 "eek") (7 "mrr")) 0
+			(ch-custom-2-relation 'compare 'erapmoc ('a 3) ('a 5) ('b 7) ('b 8)) 1)
+		  (wb-2-relation ("eek" 'b) ("mrr" 'a) ("mrr" 'b))))))
 
 (defun Test-List-Relations ()
   "Simple tests on List-Relations and Query-Registries."
