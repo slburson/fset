@@ -800,18 +800,22 @@ Method summary:     to-type       collection type         notes
                      replay-set         replay-set        0
                      wb-replay-set      wb-replay-set     0
                      ch-replay-set      ch-replay-set     0
-                     list               wb-replay-set
-                     vector             wb-replay-set
-                     seq                wb-replay-set     1
-                     wb-seq             wb-replay-set
-                     set                wb-replay-set     1
-                     wb-set             wb-replay-set
+                     list               replay-set
+                     vector             replay-set
+                     seq                replay-set        1, 22
+                     wb-seq             replay-set        22
+                     set                replay-set        1, 22
+                     wb-set             wb-replay-set     22
+                     ch-set             ch-replay-set     22
                      replay-set         list              19
                      wb-replay-set      list
+                     ch-replay-set      list
                      replay-set         seq               19
                      wb-replay-set      seq
+                     ch-replay-set      seq
                      replay-set         sequence          19
                      wb-replay-set      sequence
+                     ch-replay-set      sequence
 
                      replay-map         replay-map        0
                      wb-replay-map      wb-replay-map     0
@@ -855,7 +859,7 @@ Notes:
 4. Has keyword parameter `from-type'.  If it's the symbol `alist', treats the
    input elements as pairs (as conses) of a value and a count.  Deprecated; use
    `pairs?'.
-5. Has keyword parameter `pair-fn', defaulting to `#'cons', specifies the
+5. Has keyword parameter `pair-fn', defaulting to `#'cons', which specifies the
    function used to combine each key/value pair.
 6. Has keyword parameters `key-fn' and `value-fn', used to extract a key/value
    pair from each input element.  Defaults are `#'car' and `#'cdr'.
@@ -897,7 +901,8 @@ Notes:
     parameter `no-default?' to specify no default.
 21. FSet 1: has keyword parameter `default', which specifies the default of the
     result; if not supplied, the default is the same as that of the argument.
-    FSet 2: also has keyword parameter `no-default?' to specify no default."))
+    FSet 2: also has keyword parameter `no-default?' to specify no default.
+22. O(1), provided the organization is unchanged."))
 
 
 ;;; ================================================================================
@@ -3376,7 +3381,7 @@ different bag implementations; it is not for public use.  `elt-fn' and
 		  call-fn? t)))))
     result))
 
-(defmethod convert ((to-type (eql 'bag)) (b bag) &key)
+(define-convert-methods (bag fset2:bag) ((b bag) &key)
   b)
 
 (defmethod convert ((to-type (eql 'wb-bag)) (b bag) &key compare-fn-name)
@@ -3916,15 +3921,63 @@ different bag implementations; it is not for public use.  `elt-fn' and
 	      (let ((elt n (funcall it ':first)))
 		(luup (funcall it ':rest) elt n)))))))))
 
-(defmethod convert ((to-type (eql 'wb-bag)) (b ch-bag) &key compare-fn-name)
-  (gmap (:result wb-bag-pairs :compare-fn-name compare-fn-name)
-	nil (:arg ch-bag-pairs b)))
+(defmethod convert ((to-type (eql 'fset2:bag)) (s set) &key)
+  (gmap (:result ch-bag) nil (:arg set s)))
 
-(define-convert-methods (ch-bag fset2:bag) ((b bag) &key compare-fn-name)
+(defmethod convert ((to-type (eql 'ch-bag)) (s set) &key compare-fn-name)
+  (gmap (:result ch-bag :compare-fn-name compare-fn-name)
+	nil (:arg set s)))
+
+(defmethod convert ((to-type (eql 'fset2:bag)) (s ch-set) &key)
+  (make-ch-bag (ch-set-tree-to-bag-tree (ch-set-contents s)) (ch-set-org s)))
+
+(defmethod convert ((to-type (eql 'ch-bag)) (s ch-set) &key compare-fn-name)
+  (let ((prototype (empty-ch-bag compare-fn-name))
+	((hsorg (ch-bag-org prototype))
+	 ((compare-fn (hash-set-org-compare-fn hsorg))
+	  (hash-fn (hash-set-org-hash-fn hsorg)))))
+    (if (and (eq compare-fn (compare-fn s))
+	     (eq hash-fn (hash-set-org-compare-fn (ch-set-org s))))
+	(make-ch-bag (ch-set-tree-to-bag-tree (ch-set-contents s)) (ch-set-org s))
+      (gmap (:result ch-bag-pairs :compare-fn-name compare-fn-name)
+	    nil (:arg ch-set s)))))
+
+(defmethod convert ((to-type (eql 'fset2:set)) (b ch-bag) &key)
+  (make-ch-set (ch-bag-tree-to-set-tree (ch-bag-contents b)) (ch-bag-org b)))
+
+(defmethod convert ((to-type (eql 'ch-set)) (b ch-bag) &key compare-fn-name)
+  (let ((prototype (empty-ch-set compare-fn-name))
+	((hsorg (ch-set-org prototype))
+	 ((compare-fn (hash-set-org-compare-fn hsorg))
+	  (hash-fn (hash-set-org-hash-fn hsorg)))))
+    (if (and (eq compare-fn (compare-fn b))
+	     (eq hash-fn (hash-set-org-compare-fn (ch-bag-org b))))
+	(make-ch-set (ch-bag-tree-to-set-tree (ch-bag-contents b)) (ch-bag-org b))
+      (gmap (:result ch-set :compare-fn-name compare-fn-name)
+	    nil (:arg ch-bag-pairs b)))))
+
+(defmethod convert ((to-type (eql 'ch-bag)) (b bag) &key compare-fn-name)
   (gmap (:result ch-bag-pairs :compare-fn-name compare-fn-name)
-	nil (:arg wb-bag-pairs b)))
+	nil (:arg bag-pairs b)))
 
-(define-convert-methods (ch-bag fset2:bag) ((l list) &key pairs? from-type compare-fn-name)
+(defmethod convert ((to-type (eql 'fset2:bag)) (b ch-bag) &key)
+  (convert 'ch-bag b))
+
+(defmethod convert ((to-type (eql 'ch-bag)) (b ch-bag) &key compare-fn-name)
+  (let ((prototype (empty-ch-bag compare-fn-name))
+	((hsorg (ch-bag-org prototype))
+	 ((compare-fn (hash-set-org-compare-fn hsorg))
+	  (hash-fn (hash-set-org-hash-fn hsorg)))))
+    (if (and (eq compare-fn (compare-fn b))
+	     (eq hash-fn (hash-set-org-compare-fn (ch-bag-org b))))
+	b
+      (gmap (:result ch-bag-pairs :compare-fn-name compare-fn-name)
+	    nil (:arg ch-bag-pairs b)))))
+
+(defmethod convert ((to-type (eql 'fset2:bag)) (l list) &key pairs? from-type)
+  (convert 'ch-bag l :pairs? pairs? :from-type from-type))
+
+(defmethod convert ((to-type (eql 'ch-bag)) (l list) &key pairs? from-type compare-fn-name)
   (if (or pairs? (eq from-type 'alist))
       (gmap (:result ch-bag-pairs :compare-fn-name compare-fn-name)
 	    (fn (c)
@@ -3938,7 +3991,10 @@ different bag implementations; it is not for public use.  `elt-fn' and
     (gmap (:result ch-bag :compare-fn-name compare-fn-name)
 	  nil (:arg list l))))
 
-(define-convert-methods (ch-bag fset2:bag) ((s sequence) &key pairs? compare-fn-name)
+(defmethod convert ((to-type (eql 'fset2:bag)) (s sequence) &key pairs?)
+  (convert 'ch-bag s :pairs? pairs?))
+
+(defmethod convert ((to-type (eql 'ch-bag)) (s sequence) &key pairs? compare-fn-name)
   (if pairs?
       (gmap (:result ch-bag-pairs :compare-fn-name compare-fn-name)
 	    (fn (c)
@@ -4736,6 +4792,10 @@ to `compare'."
 			 key-compare-fn-name val-compare-fn-name (default (and (eq to-type 'wb-map) (seq-default s))))
   (wb-map-from-sequence s key-fn value-fn input-sorted? key-compare-fn-name val-compare-fn-name default))
 
+(defmethod convert ((to-type (eql 'map)) (l list)
+		    &key (key-fn #'car) (value-fn #'cdr) input-sorted? default)
+  (wb-map-from-sequence l key-fn value-fn input-sorted? nil nil default))
+
 (defmethod convert ((to-type (eql 'map)) (s sequence)
 		    &key (key-fn #'car) (value-fn #'cdr) input-sorted? default)
   (wb-map-from-sequence s key-fn value-fn input-sorted? nil nil default))
@@ -4759,7 +4819,7 @@ to `compare'."
 	     (WB-Map-Tree-From-Iterable (iterator s) key-fn value-fn
 					key-compare-fn val-compare-fn))))))
 
-(define-convert-methods (map fset2:map) ((b bag) &key default)
+(define-convert-methods (map) ((b bag) &key default)
   (convert 'wb-map b :default default))
 
 (define-convert-methods (wb-map fset2:wb-map) ((b bag) &key key-compare-fn-name val-compare-fn-name default)
@@ -5319,15 +5379,13 @@ The map's default is `nil' unless a different default is supplied, or
       (ch-map-tree-rev-fun-iter (ch-map-contents s))
     (ch-map-tree-fun-iter (ch-map-contents s))))
 
-(define-convert-methods (ch-map fset2:ch-map)
-			((m map) &key key-compare-fn-name val-compare-fn-name default)
+(define-convert-methods (ch-map fset2:ch-map) ((m map) &key key-compare-fn-name val-compare-fn-name default)
   (gmap (:result ch-map :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name
 			:default default)
 	nil
 	(:arg map m)))
 
-(define-convert-methods (ch-map fset2:ch-map)
-			((m ch-map) &key key-compare-fn-name val-compare-fn-name default)
+(define-convert-methods (ch-map fset2:ch-map) ((m ch-map) &key key-compare-fn-name val-compare-fn-name default)
   "The result uses `default' if supplied, otherwise has the same default as `m'."
   (let ((prototype (empty-ch-map nil key-compare-fn-name val-compare-fn-name))
 	((hmorg (ch-map-org prototype))
@@ -5350,27 +5408,39 @@ The map's default is `nil' unless a different default is supplied, or
 
 ;;; Conversions to ch-maps from seqs moved down under `defstruct seq'.
 
+(define-convert-methods (fset2:map) ((l list) &key (key-fn #'car) (value-fn #'cdr) default)
+  (ch-map-from-list l key-fn value-fn nil nil default))
+
+(define-convert-methods (ch-map fset2:ch-map) ((l list) &key (key-fn #'car) (value-fn #'cdr)
+					       key-compare-fn-name val-compare-fn-name default)
+  (ch-map-from-list l key-fn value-fn key-compare-fn-name val-compare-fn-name default))
+
+(defun ch-map-from-list (l key-fn value-fn key-compare-fn-name val-compare-fn-name default)
+  (let ((key-fn (coerce key-fn 'function))
+	(value-fn (coerce value-fn 'function)))
+    (gmap (:result ch-map :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name
+	   :default default)
+	  (fn (x) (values (funcall key-fn x) (funcall value-fn x)))
+	  (:arg list l))))
+
 (define-convert-methods (fset2:map) ((s sequence) &key (key-fn #'car) (value-fn #'cdr) default)
   (ch-map-from-sequence s key-fn value-fn nil nil default))
 
-(define-convert-methods (ch-map fset2:ch-map)
-			((s sequence) &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name
-					   default)
+(define-convert-methods (ch-map fset2:ch-map) ((s sequence) &key (key-fn #'car) (value-fn #'cdr)
+					       key-compare-fn-name val-compare-fn-name default)
   (ch-map-from-sequence s key-fn value-fn key-compare-fn-name val-compare-fn-name default))
 
-(defun ch-map-from-sequence (s key-fn value-fn &optional key-compare-fn-name val-compare-fn-name default)
+(defun ch-map-from-sequence (s key-fn value-fn key-compare-fn-name val-compare-fn-name default)
   (let ((key-fn (coerce key-fn 'function))
 	(value-fn (coerce value-fn 'function)))
-    (if (listp s)
-	(gmap (:result ch-map :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name
-			      :default default)
-	      (fn (x) (values (funcall key-fn x) (funcall value-fn x)))
-	      (:arg list s))
-      (gmap (:result ch-map :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name
-			    :default default)
-	    (fn (i) (let ((x (elt s i)))
-		      (values (funcall key-fn x) (funcall value-fn x))))
-	    (:arg index 0 (length s))))))
+    (gmap (:result ch-map :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name
+	   :default default)
+	  (fn (i) (let ((x (elt s i)))
+		    (values (funcall key-fn x) (funcall value-fn x))))
+	  (:arg index 0 (length s)))))
+
+(define-convert-methods (fset2:map) ((b bag) &key default)
+  (convert 'wb-map b :default default))
 
 (define-convert-methods (ch-map fset2:ch-map) ((b bag) &key key-compare-fn-name val-compare-fn-name default)
   (gmap (:result ch-map :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name
@@ -5733,8 +5803,7 @@ This is the default implementation of seqs in FSet."
 (define-convert-methods (seq wb-seq fset2:seq fset2:wb-seq) ((s set) &key default)
   (make-wb-seq (wb-seq-tree-from-iterable (iterator s) (size s)) default))
 
-(define-convert-methods (seq wb-seq fset2:seq fset2:wb-seq)
-			((b bag) &key pairs? (pair-fn #'cons) default)
+(define-convert-methods (seq wb-seq fset2:seq fset2:wb-seq) ((b bag) &key pairs? (pair-fn #'cons) default)
   (bag-to-seq b pairs? pair-fn default))
 
 (defun bag-to-seq (b pairs? pair-fn default)
@@ -5749,8 +5818,9 @@ This is the default implementation of seqs in FSet."
 					  (if pairs? (set-size b) (size b)))
 	       default))
 
-(define-convert-methods (seq wb-seq fset2:seq fset2:wb-seq)
-			((m map) &key (pair-fn #'cons) (default (and (member to-type '(seq wb-seq)) (map-default m))))
+(define-convert-methods (seq wb-seq fset2:seq fset2:wb-seq) ((m map) &key (pair-fn #'cons)
+							     (default (and (member to-type '(seq wb-seq))
+									   (map-default m))))
   (make-wb-seq (wb-seq-tree-from-iterable (let ((m-it (iterator m)))
 					    (lambda (op)
 					      (ecase op
@@ -5761,9 +5831,15 @@ This is the default implementation of seqs in FSet."
 
 ;;; These moved down here so we can use `:arg seq'.
 
-(define-convert-methods (ch-set fset2:set) ((s seq) &key compare-fn-name)
+(defmethod convert ((to-type (eql 'fset2:set)) (s seq) &key)
+  (gmap (:result ch-set) nil (:arg seq s)))
+
+(defmethod convert ((to-type (eql 'ch-set)) (s seq) &key compare-fn-name)
   (gmap (:result ch-set :compare-fn-name compare-fn-name) nil
 	(:arg seq s)))
+
+(defmethod convert ((to-type (eql 'fset2:bag)) (s seq) &key pairs?)
+  (convert 'ch-bag s :pairs? pairs?))
 
 (defmethod convert ((to-type (eql 'ch-bag)) (s seq) &key pairs? compare-fn-name)
   (if pairs?
@@ -5784,16 +5860,15 @@ This is the default implementation of seqs in FSet."
 	(fn (x) (values (funcall key-fn x) (funcall value-fn x)))
 	(:arg seq s)))
 
-(define-convert-methods (ch-map)
-			((s seq) &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name
-				      (default (seq-default s)))
+(define-convert-methods (ch-map) ((s seq) &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name
+				  (default (seq-default s)))
   (gmap (:result ch-map :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name
 			:default default)
 	(fn (x) (values (funcall key-fn x) (funcall value-fn x)))
 	(:arg seq s)))
-(define-convert-methods (fset2:ch-map)
-			((s seq) &key (key-fn #'car) (value-fn #'cdr) key-compare-fn-name val-compare-fn-name
-				      default) ; default default is now `nil'
+(define-convert-methods (fset2:ch-map) ((s seq) &key (key-fn #'car) (value-fn #'cdr)
+					key-compare-fn-name val-compare-fn-name
+					default) ; default default is now `nil'
   (gmap (:result ch-map :key-compare-fn-name key-compare-fn-name :val-compare-fn-name val-compare-fn-name
 			:default default)
 	(fn (x) (values (funcall key-fn x) (funcall value-fn x)))
@@ -6439,12 +6514,6 @@ different seq implementations; it is not for public use.  `vec-fn' and
 
 (define-methods (lookup fset2:lookup) ((fn symbol) (v t))
   (funcall fn v))
-
-(defmethod convert ((to-type (eql 'list)) (v vector) &key)
-  (coerce v 'list))
-
-(defmethod convert ((to-type (eql 'vector)) (l list) &key)
-  (coerce l 'vector))
 
 (defmethod convert ((to-type (eql 'string)) (s sequence) &key)
   (coerce s 'string))

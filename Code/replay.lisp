@@ -576,16 +576,6 @@ result is that of `s1', filtered by membership in `s2'."
 (defmethod convert ((to-type (eql 'vector)) (m replay-map) &key (pair-fn #'cons) keys-only?)
   (convert 'vector (convert 'list m :pair-fn pair-fn :keys-only? keys-only?)))
 
-(defmethod convert ((to-type (eql 'seq)) (m replay-map) &key (pair-fn #'cons) keys-only?)
-  (convert 'seq (convert 'list m :pair-fn pair-fn :keys-only? keys-only?)))
-(defmethod convert ((to-type (eql 'fset2:seq)) (m replay-map) &key (pair-fn #'cons) keys-only?)
-  (convert 'fset2:seq (convert 'list m :pair-fn pair-fn :keys-only? keys-only?)))
-
-(defmethod convert ((to-type (eql 'wb-seq)) (m replay-map) &key (pair-fn #'cons) keys-only?)
-  (convert 'wb-seq (convert 'list m :pair-fn pair-fn :keys-only? keys-only?)))
-(defmethod convert ((to-type (eql 'fset2:wb-seq)) (m replay-map) &key (pair-fn #'cons) keys-only?)
-  (convert 'fset2:wb-seq (convert 'list m :pair-fn pair-fn :keys-only? keys-only?)))
-
 (defmethod convert ((to-type (eql 'replay-map)) (list list)
 		    &key (key-fn #'car) (value-fn #'cdr) default)
   (gmap (:result replay-map :default default)
@@ -838,6 +828,39 @@ or `no-default?' is true."
 	    (setq ordering (wb-ht?-seq-tree-append ordering key))
 	    (setq contents new-contents)))))
     (make-wb-replay-map contents ordering proto-tmorg default)))
+
+(defmethod convert ((to-type (eql 'seq)) (m wb-replay-map) &key (pair-fn #'cons) keys-only?)
+  (wb-seq-from-wb-replay-map m pair-fn keys-only? nil))
+(defmethod convert ((to-type (eql 'fset2:seq)) (m wb-replay-map) &key (pair-fn #'cons) keys-only?
+								   (default nil default?) no-default?)
+  (wb-seq-from-wb-replay-map m pair-fn keys-only? (fset2-default default? default no-default?)))
+
+(defmethod convert ((to-type (eql 'wb-seq)) (m wb-replay-map) &key (pair-fn #'cons) keys-only?)
+  (wb-seq-from-wb-replay-map m pair-fn keys-only? nil))
+(defmethod convert ((to-type (eql 'fset2:wb-seq)) (m wb-replay-map) &key (pair-fn #'cons) keys-only?
+								      (default nil default?) no-default?)
+  (wb-seq-from-wb-replay-map m pair-fn keys-only? (fset2-default default? default no-default?)))
+
+(defun wb-seq-from-wb-replay-map (m pair-fn keys-only? default)
+  (if keys-only?
+      (make-wb-seq (replay-map-ordering m) default)
+    (let ((it (make-wb-seq-tree-iterator (replay-map-ordering m)))
+	  (pair-fn (coerce pair-fn 'function)))
+      (declare (optimize (speed 3))
+	       (type function it))
+      (make-wb-seq (wb-seq-tree-from-iterable (let ((tree (wb-replay-map-contents m))
+						    (key-cfn (tree-map-org-key-compare-fn (wb-replay-map-org m))))
+						(fn (op)
+						  (ecase op
+						    (:get (let ((k k? (funcall it ':get)))
+							    (and k? (let ((v? v (wb-map-tree-lookup tree k key-cfn)))
+								      (unless v?
+									(error "Bug in replay-map"))
+								      (values (funcall pair-fn k v) t)))))
+						    (:more? (funcall it ':more?))
+						    (:done? (funcall it ':done?)))))
+					      (wb-ht?-seq-tree-size (replay-map-ordering m)))
+		   default))))
 
 (defmethod lookup ((m wb-replay-map) key)
   (let ((val? val (wb-map-tree-lookup (wb-replay-map-contents m) key
@@ -1177,6 +1200,42 @@ or `no-default?' is true."
 	 :default default)
 	(fn (x) (values (funcall key-fn x) (funcall value-fn x)))
 	(:arg sequence s)))
+
+(defmethod convert ((to-type (eql 'seq)) (m ch-replay-map) &key (pair-fn #'cons) keys-only?)
+  (wb-seq-from-ch-replay-map m pair-fn keys-only? nil))
+(defmethod convert ((to-type (eql 'fset2:seq)) (m ch-replay-map) &key (pair-fn #'cons) keys-only?
+								(default nil default?) no-default?)
+  (wb-seq-from-ch-replay-map m pair-fn keys-only? (fset2-default default? default no-default?)))
+
+(defmethod convert ((to-type (eql 'wb-seq)) (m ch-replay-map) &key (pair-fn #'cons) keys-only?)
+  (wb-seq-from-ch-replay-map m pair-fn keys-only? nil))
+(defmethod convert ((to-type (eql 'fset2:wb-seq)) (m ch-replay-map) &key (pair-fn #'cons) keys-only?
+								      (default nil default?) no-default?)
+  (wb-seq-from-ch-replay-map m pair-fn keys-only? (fset2-default default? default no-default?)))
+
+(defun wb-seq-from-ch-replay-map (m pair-fn keys-only? default)
+  (if keys-only?
+      (make-wb-seq (replay-map-ordering m) default)
+    (let ((it (make-wb-seq-tree-iterator (replay-map-ordering m)))
+	  (pair-fn (coerce pair-fn 'function))
+	  (tree (ch-replay-map-contents m))
+	  (org (ch-replay-map-org m))
+	  ((key-hfn (hash-map-org-key-hash-fn org))
+	   (key-cfn (hash-map-org-key-compare-fn org))))
+      (declare (optimize (speed 3))
+	       (type function it))
+      (make-wb-seq (wb-seq-tree-from-iterable (fn (op)
+						(ecase op
+						  (:get (let ((k k? (funcall it ':get)))
+							  (and k?
+							       (let ((v? v (ch-map-tree-lookup tree k key-hfn key-cfn)))
+								 (unless v?
+								   (error "Bug in replay-map"))
+								 (values (funcall pair-fn k v) t)))))
+						  (:more? (funcall it ':more?))
+						  (:done? (funcall it ':done?))))
+					      (wb-ht?-seq-tree-size (replay-map-ordering m)))
+		   default))))
 
 (defmethod lookup ((m ch-replay-map) key)
   (let ((hmorg (ch-replay-map-org m))

@@ -1,0 +1,286 @@
+@node Generic Function @code{convert}
+@chapter Generic Function @code{convert}
+
+The @code{convert} generic function provides convenient conversions between many FSet types.  It is
+called with the first argument @var{to-type} being a symbol --- normally a quoted constant --- that
+specifies the target type of the conversion, and the second argument being the collection to be
+converted.  (This is the opposite order from @code{cl:coerce}.)  Many methods have additional
+keyword parameters to further specify details of the conversion.
+
+When @code{to-type} is one of the abstract types -- @code{set}, @code{bag}, @code{map} etc. -- the
+only guarantee is that @code{convert} will return an instance of the requested type.  The choices of
+implementation and organization are up to FSet, and there's no option to request a specific
+organization.  In contrast, when @code{to-type} is one of the concrete types -- @code{wb-set},
+@code{ch-set}, @code{wb-map}, etc. -- the @code{convert} method accepts keyword arguments specifying
+the organization (e.g.  @code{compare-fn-name}), and guarantees to return a collection of that type
+and organization; including the case where no organization is specified, in which @code{convert} is
+guaranteed to return a collection of the default organization (the one using @code{fset:compare}).
+
+Method summary:
+
+@c The "@item @" lines make a blank line in the table.
+@multitable @columnfractions .2 .3 .3
+@c @headitem to-type @tab collection type @tab notes
+@item @b{to-type (symbol)} @tab @b{collection type} @tab @b{notes}
+@item set @tab set @tab 0
+@item ch-set @tab set @tab 15
+@item ch-set @tab ch-set @tab 0, 15
+@item wb-set @tab set @tab 0, 15
+@item wb-set @tab wb-set @tab 0, 15
+@item set @tab list @tab 2
+@item ch-set @tab list @tab 15
+@item wb-set @tab list @tab 15, 18
+@item set @tab seq @tab 2
+@item ch-set @tab seq @tab 15
+@item wb-set @tab seq @tab 15, 18
+@item set @tab sequence @tab 2, 21
+@item ch-set @tab sequence @tab 15, 21
+@item wb-set @tab sequence @tab 15, 18, 21
+@item list @tab set @tab
+@item vector @tab set @tab
+@item @
+@item bag @tab bag @tab 0
+@item ch-bag @tab bag @tab 15
+@item ch-bag @tab ch-bag @tab 0, 15
+@item wb-bag @tab bag @tab 15
+@item wb-bag @tab wb-bag @tab 0, 15
+@item bag @tab set @tab 2
+@item bag @tab wb-set @tab 1
+@item ch-bag @tab set @tab 15
+@item ch-bag @tab ch-set @tab 9, 15
+@item wb-bag @tab set @tab 15
+@item wb-bag @tab wb-set @tab 9, 15
+@item set @tab wb-bag @tab 1
+@item wb-set @tab wb-bag @tab 15
+@item set @tab ch-bag @tab 2
+@item ch-set @tab ch-bag @tab 15
+@item bag @tab list @tab 2, 3, 4
+@item ch-bag @tab list @tab 3, 4, 15
+@item wb-bag @tab list @tab 3, 4, 15, 18
+@item bag @tab seq @tab 2, 3
+@item ch-bag @tab seq @tab 3, 15
+@item wb-bag @tab seq @tab 3, 15, 18
+@item bag @tab sequence @tab 1, 3, 21
+@item ch-bag @tab sequence @tab 3, 21
+@item wb-bag @tab sequence @tab 3, 15, 18, 21
+@item list @tab bag @tab 3
+@item seq @tab bag @tab 3
+@item vector @tab bag @tab 3
+@item alist @tab bag @tab
+@item @
+@item map @tab map @tab 0
+@item ch-map @tab map @tab 16, 20
+@item wb-map @tab map @tab 16, 20
+@item ch-map @tab ch-map @tab 0, 16, 20
+@item wb-map @tab wb-map @tab 0, 16, 20
+@item map @tab list @tab 2, 6, 7, 18, 19
+@item ch-map @tab list @tab 6, 7, 16, 19
+@item wb-map @tab list @tab 6, 7, 16, 18, 19
+@item map @tab seq @tab 2, 6, 7, 19
+@item ch-map @tab seq @tab 6, 7, 16, 19
+@item wb-map @tab seq @tab 6, 7, 16, 18, 19
+@item map @tab sequence @tab 2, 6, 7, 19, 21
+@item ch-map @tab sequence @tab 6, 7, 16, 19, 21
+@item wb-map @tab sequence @tab 6, 7, 16, 18, 19, 21
+@item map @tab bag @tab 2, 19
+@item ch-map @tab bag @tab 16, 19
+@item wb-map @tab bag @tab 16, 19
+@item map @tab hash-table @tab 2, 19
+@item ch-map @tab hash-table @tab 16, 19
+@item wb-map @tab hash-table @tab 16, 19
+@item set @tab map @tab 2, 5
+@item list @tab map @tab 5
+@item alist @tab map @tab
+@item seq @tab map @tab 5
+@item vector @tab map @tab 5
+@item hash-table @tab map @tab 8
+@item @
+@item seq @tab seq @tab 0
+@item wb-seq @tab wb-seq @tab 0
+@item seq @tab list @tab 1, 9, 23
+@item wb-seq @tab list @tab 9, 23
+@item seq @tab vector @tab 1, 9
+@item wb-seq @tab vector @tab 9
+@item seq @tab set @tab 1
+@item wb-seq @tab set @tab
+@item seq @tab bag @tab 1, 3, 5
+@item wb-seq @tab bag @tab 3, 5
+@item seq @tab map @tab 1, 5, 19
+@item wb-seq @tab map @tab 5, 19
+@item list @tab wb-seq @tab
+@item vector @tab wb-seq @tab
+@item string @tab wb-seq @tab 14
+@item base-string @tab wb-seq @tab 14
+@item @
+@item 2-relation @tab 2-relation @tab 0
+@item ch-2-relation @tab ch-2-relation @tab 0, 16
+@item wb-2-relation @tab wb-2-relation @tab 0, 16
+@item 2-relation @tab set @tab 6, 2
+@item ch-2-relation @tab set @tab 6, 16
+@item wb-2-relation @tab set @tab 6, 16
+@item set @tab ch-2-relation @tab 2, 5
+@item set @tab wb-2-relation @tab 1, 5
+@item ch-set @tab 2-relation @tab 5
+@item wb-set @tab 2-relation @tab 5
+@item 2-relation @tab ch-map @tab 2, 10
+@item ch-2-relation @tab ch-map @tab 2, 10, 16
+@item 2-relation @tab wb-map @tab 1, 10
+@item wb-2-relation @tab wb-map @tab 10, 16
+@item 2-relation @tab list @tab 2, 6
+@item ch-2-relation @tab list @tab 6, 16
+@item wb-2-relation @tab list @tab 6, 16
+@item 2-relation @tab seq @tab 2, 6
+@item ch-2-relation @tab seq @tab 6, 16
+@item wb-2-relation @tab seq @tab 6, 16
+@item map @tab wb-2-relation @tab 1, 11, 19
+@item map @tab ch-2-relation @tab 2, 11, 19
+@item wb-map @tab wb-2-relation @tab 11, 16, 19
+@item ch-map @tab ch-2-relation @tab 11, 16, 19
+@item map-to-sets @tab ch-2-relation @tab 12
+@item map-to-sets @tab wb-2-relation @tab 12
+@item list @tab 2-relation @tab 5
+@item @
+@item tuple @tab tuple @tab 0
+@item dyn-tuple @tab dyn-tuple @tab 0
+@item map @tab tuple @tab 2
+@item ch-map @tab tuple @tab 16
+@item wb-map @tab tuple @tab 16
+@item tuple @tab map @tab 13, 17
+@item dyn-tuple @tab map @tab 17
+@item list @tab tuple @tab 5
+@item tuple @tab list @tab 6, 7, 13
+@item dyn-tuple @tab list @tab 7
+@item @
+@item replay-set @tab replay-set @tab 0
+@item wb-replay-set @tab replay-set @tab 15
+@item ch-replay-set @tab replay-set @tab 15
+@item wb-replay-set @tab wb-replay-set @tab 0, 15
+@item ch-replay-set @tab ch-replay-set @tab 0, 15
+@item seq @tab replay-set @tab 1, 22
+@item wb-seq @tab replay-set @tab 22
+@item set @tab ch-replay-set @tab 2, 22
+@item ch-set @tab ch-replay-set @tab 15, 22
+@item set @tab wb-replay-set @tab 1, 22
+@item wb-set @tab wb-replay-set @tab 15, 22
+@item replay-set @tab list @tab 2
+@item ch-replay-set @tab list @tab 15
+@item wb-replay-set @tab list @tab 15
+@item replay-set @tab seq @tab 2
+@item ch-replay-set @tab seq @tab 15
+@item wb-replay-set @tab seq @tab 15
+@item replay-set @tab sequence @tab 2, 21
+@item ch-replay-set @tab sequence @tab 15, 21
+@item wb-replay-set @tab sequence @tab 15, 21
+@item list @tab replay-set @tab
+@item vector @tab replay-set @tab
+@item @
+@item replay-map @tab replay-map @tab 0
+@item wb-replay-map @tab wb-replay-map @tab 0
+@item ch-replay-map @tab ch-replay-map @tab 0
+@item map @tab wb-replay-map @tab 1
+@item map @tab ch-replay-map @tab 2
+@item wb-map @tab wb-replay-map @tab
+@item ch-map @tab ch-replay-map @tab
+@item replay-map @tab list @tab 2, 6
+@item wb-replay-map @tab list @tab 6
+@item replay-map @tab seq @tab 2, 6
+@item wb-replay-map @tab seq @tab 6
+@item replay-map @tab sequence @tab 2, 6, 21
+@item wb-replay-map @tab sequence @tab 6, 21
+@item list @tab replay-map @tab 5, 24
+@item vector @tab replay-map @tab 5, 24
+@item seq @tab replay-map @tab 5, 19, 24
+@item wb-seq @tab replay-map @tab 5, 19, 24
+@item @
+@item list @tab list @tab 0
+@item vector @tab vector @tab 0
+@item list @tab sequence @tab 21
+@item vector @tab sequence @tab 21
+@item string @tab sequence @tab 21
+@item base-string @tab sequence @tab 21
+@end multitable
+
+Notes:
+
+@enumerate 0
+@item @ilc{0}
+Identity conversion, provided for convenience.  (If the method also accepts an organization, then it
+performs the identity conversion only if the organization of the argument matches that requested.)
+@item @ilc{1}
+Constructs the WB-tree implementation of its type (@code{wb-set} etc.).
+@item @ilc{2}
+Constructs the CHAMP implementation of its type (@code{ch-set} etc.).
+@item @ilc{3}
+Has keyword parameter @var{pairs?}.  If true, treats the input elements as pairs (represented as
+conses) of a value and a count (multiplicity).
+@item @ilc{4}
+Has keyword parameter @var{from-type}.  If it's the symbol @code{alist}, treats the input elements as pairs
+(as conses) of a value and a count.  Deprecated; use @var{pairs?}.
+@item @ilc{5}
+Has keyword parameter @var{pair-fn}, defaulting to @code{#'cons}, which specifies the function used
+to combine each key/value pair.
+@item @ilc{6}
+Has keyword parameters @var{key-fn} and @var{value-fn}, used to extract a key/value pair from each
+input element.  Defaults are @code{#'car} and @code{#'cdr}.
+@item @ilc{7}
+If a key occurs more than once in the input, the result will have the value associated with the last
+occurrence.
+@item @ilc{8}
+All keyword arguments are forwarded to @code{make-hash-table}.
+@item @ilc{9}
+Optimized O(n) algorithm.
+@item @ilc{10}
+Has keyword parameter @var{from-type}.  If it's the symbol @code{map-to-sets}, the range elements
+must all be sets, and the result pairs each domain element with each element of the corresponding
+range set.  Otherwise, the result pairs each domain element with the corresponding range element
+directly.
+@item @ilc{11}
+The relation must be a function (must have only one range value per domain value).  @xref{Method
+conflicts}.
+@item @ilc{12}
+Returns a map mapping each domain value to the set of corresponding range values.  The default of
+the result is the empty set.
+@item @ilc{13}
+Constructs a @code{dyn-tuple}.
+@item @ilc{14}
+Always returns a string (or base-string, if specified).  Signals a @code{non-char-seq-error} if the
+seq contains a non-character.  Signals a @code{type-error} if a base-string is specified and it
+encounters a non-base character.
+@item @ilc{15}
+Has keyword parameter @var{compare-fn-name}.  If nonnull, must be a symbol, the name of the comparison
+function to be used.  The returned set will be converted, if necessary, to use the specified
+function, or to use @code{compare} if one is not specified.
+@item @ilc{16}
+Has keyword parameters @var{key-compare-fn-name} band @var{val-compare-fn-name}.  If nonnull, these
+must be symbols, the names of the key and value comparison functions, respectively, to be used.  The
+returned map will be converted, if necessary, to use the specified functions, or to use
+@code{compare} for those not specified.
+@item @ilc{17}
+Has keyword parameter @var{autokey?}.  if true, then any keys of the map that are not instances of
+@code{tuple-key} are automatically converted to such instances using @href{Function get-tuple-key,
+@code{get-tuple-key}}.
+@item @ilc{18}
+Has keyword parameter @var{input-sorted?}.  If true, uses an algorithm optimized for the case where
+the input is sorted: it runs in O(n) time and is much faster, but is substantially @emph{slower}
+than the default algorithm if the input is completely unsorted.  ``Sorted'' here means that the
+input is in the same order as the collection being built.  The algorithm's correctness doesn't
+depend on the sorting, only its performance; so it's okay if a few elements are out of order.
+@item @ilc{19}
+Has keyword parameter @var{default}, which specifies the default of the result; if not supplied, the
+default is @code{nil}.  Also has keyword parameter @var{no-default?} to specify no default.
+@item @ilc{20}
+Has keyword parameter @var{default}, which specifies the default of the result; if not supplied, the
+default is the same as that of the argument.  Also has keyword parameter @var{no-default?}  to
+specify no default.
+@item @ilc{21}
+@code{sequence} here refers to a CL sequence -- either a list or a vector, unless the implementation
+has more sequence subtypes.  FSet's @code{seq} is not a subtype of @code{sequence}.
+@item @ilc{22}
+O(1), provided the implementation and organization, if applicable, are unchanged.
+@item @ilc{23}
+Has keyword parameter @var{reverse?}, which if true, reverses the order.
+@item @ilc{24}
+Has keyword parameter @var{keys-only?}; if true, converts the key sequence to the target type,
+omitting the values and ignoring @var{pair-fn}.  If it's true and @var{to-type} is @code{seq} or
+@code{wb-seq}, the conversion is O(1).
+@end enumerate

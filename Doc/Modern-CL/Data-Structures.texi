@@ -809,13 +809,13 @@ If you want to iterate over the current state of a transient collection, in most
 to just make a persistent from it and iterate over that, in any of the several ways FSet gives you
 to iterate.  As just mentioned, @code{(make-persistent ... :copy? t)} does that without disturbing
 the transient, and the fact that it takes O(n) time is likely of little consequence if you're about
-to perform another O(n) operation on the collection anyway by iterating over the whole thing.  But
-for the replay collections, @code{transient-ch-replay-set} and @code{transient-ch-replay-map}, you
-don't need to make a copy, as these have an @code{at-index} operation to retrieve an element or pair
-by its index; this can be used with @code{dotimes} or the like to iterate over the collection.
-However, there's a tradeoff; this is an O(log @i{n}) operation.  (The reason the replay collections
-have this operation when the others don't is that their ordering is well-defined, being the order in
-which elements or keys were first added.)
+to perform another O(n) operation on the collection anyway by iterating over it.  But for the replay
+collections, @code{transient-ch-replay-set} and @code{transient-ch-replay-map}, you don't need to
+make a copy, as these have an @code{at-index} operation to retrieve an element or pair by its index;
+this can be used with @code{dotimes} or the like to iterate over the collection.  However, there's a
+tradeoff; this is an O(log @i{n}) operation.  (The reason the replay collections have this operation
+when the others don't is that their ordering is well-defined, being the order in which elements or
+keys were first added.)
 
 By default, transients are unsynchronized and are @emph{not thread-safe}.  However,
 @code{make-transient} has keyword parameter @code{synchronized?}, which if true, adds locking to
@@ -826,4 +826,63 @@ serialize all operations on the transient.
 @node Dynamic Tuples
 @section Dynamic Tuples
 
-@c &&& write me
+@c The placement of this section is debatable.  In some ways it fits better in the Design chapter,
+@c but it does also discuss the data structure.  Or, it could go as the introductory material in the
+@c Tuples section of the API chapter.  &&&
+
+Tuples, like maps, are collections of key/value pairs updated functionally.  But where maps are
+designed for situations where the key values are an open class --- they're created at runtime, there
+can be arbitrarily many of them, and you don't know in advance what they're going to be --- tuples
+are designed for the case where the keys are a closed class: you know what they are at compile time.
+Also, in a map, the range values are all logically of the same type, while in a tuple, each key has
+its own value type.
+
+Perhaps the best analogy is that a tuple is like a row in a relational table.  Each key corresponds
+to a relational column, and of course the columns can contain different types.  You could also think
+of tuples as like objects where the keys correspond to slots, but at least for now, tuples have no
+notion of class; there's no way to write methods that dispatch on a type field, except manually
+using good old @code{ecase} or the like.  So I think the relational row --- a heterogeneous
+collection of keyed values without associated behaviors --- is the clearest analog.
+
+Since Lisp is untyped, you can, of course, use a map for this purpose anyway; in a statically typed
+language you'd have to give all the column types some common supertype, but Lisp spares you that
+ceremony.  So a map is a viable choice, even when the values are of different types.  Nonetheless,
+there are three reasons you might want to use a tuple rather than a map:
+
+@itemize
+@item
+It's better FSet style, as it communicates immediately to the reader of your code that the keys are
+known at compile time and the values are (probably) of different types.
+
+@item
+FSet allows you to declare the value type of a key, and will enforce it for you.  Keys can also have
+individual defaults.
+
+@item
+In a case where you have many instances of a map all with the same set of keys, you would be paying
+a space cost that could get to be significant.  For instance, a CHAMP map with four key/value pairs
+would typically take 14 words (112 8-bit bytes, on a 64-bit machine), while a four-key dynamic tuple
+brings that down to 9 words --- 36% smaller.  Given millions of instances, that could start to
+matter.
+
+(There's a caveat.  Dynamic tuples maintain a descriptor for every set of keys ever used in a single
+tuple over the lifetime of the Lisp session.  The assumption is that code that builds tuples will
+tend to add the keys in the same order every time, or at worst, in one of a small set of possible
+orders; so the space used by the descriptors will be amortized over many instances.  This is a
+fairly reasonable assumption in light of the intended use case, where they're being built by
+constructor-like functions in the code, but if they're being built in some more data-dependent way,
+it might not pan out.)
+@end itemize
+
+@anchor{Dynamic tuple performance}
+Dynamic tuples are implemented quite unlike any other FSet type.  Each key is assigned a number.
+Each descriptor contains a vector of pairs of integers, implemented as bytes (bitfields) of a
+fixnum; one integer is the key number, and the other is the index of the value in tuples using this
+descriptor.  Lookup is done by linear search through the vector for a pair whose key number matches
+the key being looked for.  For small tuples, cache effects make this quite fast.  For large ones
+(more than eight keys), FSet does something clever: it dynamically orders the descriptor vector so
+that frequently-used keys tend to migrate toward the front.  If the frequency of access of the
+different keys follows something like a power-law distribution, with some keys being accessed much
+more frequently than others --- not an unreasonable assumption --- then searches for keys beyond the
+first eight or so will be relatively rare.
+

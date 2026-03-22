@@ -127,8 +127,10 @@ FSet Collection Types
   Replay Maps
   Tuples
   Complement Sets
-  [Future: Interval Sets and Maps]
-  [Future: Bounded Sets]
+  The Bleeding Edge
+    List Relations and Query Registries
+     Interval Sets
+    Bounded Sets
 Iterating over FSet Collections
   The @code{do-} Macros
   Higher-Order Functions
@@ -159,9 +161,19 @@ Recommendations for Language Designers
     Immer
 
 Notes:
-() Should Left Preference be its own section?  Or just mentioned in the doc for each operation to
-which it applies?  --- The latter.
-() Should there be a separate Performance section?
+() Should there be a separate Performance section? [no]
+
+Remaining to be done:
+  ( ) @code{convert}
+  ( ) GMap
+  ( ) Finish Iteration
+  ( ) Reader macros
+  ( ) JSON
+  ( ) Statement on use of AI
+  ( ) Fill out Recommendations chapter
+  ( ) Scatter small examples?
+  ( ) Lem case study
+  ( ) Bounded sets (redo first?)
 
 Operations named by verbs:
 - lookup (but not a verb of modification) (1)

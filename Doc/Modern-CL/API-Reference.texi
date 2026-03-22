@@ -42,6 +42,7 @@ different.
 This chapter uses the notation [@i{a} .. @i{b}) for an integer interval inclusive of @i{a} and
 exclusive of @i{b}.
 
+@c &&& Need to add the predicates for all these types.
 @deftp {Data type} collection
 The root class of the FSet functional collections hierarchy.
 @end deftp
@@ -911,9 +912,9 @@ Returns a map containing only those pairs of @var{m} whose keys are @emph{not} a
 @end deffn
 
 @anchor{Macro do-map}
-@defmac do-map @r{(@var{x-var} @var{y-var} @var{map} &optional @var{value}) &body} body
-For each key/value pair of @var{map}, binds @var{x-var} to the key and @var{y-var} to the value and
-executes @var{body}.  When done, returns @var{value} if supplied, otherwise @code{nil}.
+@defmac do-map @r{(@var{x} @var{y} @var{map} &optional @var{value}) &body} body
+For each key/value pair of @var{map}, binds @var{x} to the key and @var{y} to the value and executes
+@var{body}.  When done, returns @var{value} if supplied, otherwise @code{nil}.
 @end defmac
 
 @anchor{iterator (map)}
@@ -1453,9 +1454,9 @@ times as the element's multiplicity.  When done, returns @var{value} if supplied
 @end defmac
 
 @anchor{Macro do-bag-pairs}
-@defmac do-bag-pairs @r{(@var{x-var} @var{n-var} @var{bag} &optional @var{value}) &body} body
-For each element of @var{bag}, binds @var{x-var} to it and @var{n-var} to its multiplicity, and
-executes @var{body} once.  When done, returns @var{value} if supplied, otherwise @code{nil}.
+@defmac do-bag-pairs @r{(@var{x} @var{n} @var{bag} &optional @var{value}) &body} body
+For each element of @var{bag}, binds @var{x} to it and @var{n} to its multiplicity, and executes
+@var{body} once.  When done, returns @var{value} if supplied, otherwise @code{nil}.
 @end defmac
 
 @anchor{iterator (bag)}
@@ -2695,8 +2696,6 @@ synonym of @code{compare}).  See @href{Macro 2-relation, @code{2-relation}@comma
 interpretation of @var{subforms}.
 @end defmac
 
-
-
 @c --------------------------------------------------------------------------------
 @node 2-Relation Operations
 @subsection 2-Relation Operations
@@ -2793,6 +2792,53 @@ of the @var{r1} pair being its domain value and the other column in the @var{r2}
 value.  O(@i{n}).
 @end deffn
 
+@anchor{Method conflicts}
+@deffn Method {conflicts (2-relation)} @ r
+Returns a 2-relation containing those pairs of @var{r} for which the key is mapped to more than one
+value.  O(n).
+
+(The use case for this operation is when you expect the relation to be a function, or nearly so;
+perhaps you plan to @href{Generic Function @code{convert}, convert} it to a map.  If @var{r} is a
+function already, @code{conflicts} returns an empty relation; otherwise, it tells you which keys map
+to non-unique values --- the idea is that these are conflicts that will need to be resolved
+somehow.)
+@end deffn
+
+@deffn Method {transitive-closure (2-relation set)} @ r s
+@deffnx Method {transitive-closure (function set)} @ fn s
+@c &&& write me
+@end deffn
+
+@anchor{Macro do-2-relation}
+@defmac do-2-relation  @r{(@var{x} @var{y} @var{rel} &optional @var{value}) &body} body
+For each key/value pair of @var{rel}, binds @var{x} to the key and @var{y} to the value and executes
+@var{body}.  When done, returns @var{value} if supplied, otherwise @code{nil}.
+
+(If you want to execute the body only once for each @emph{key}, write:
+@example
+(do-map (x y-set (convert 'map-to-sets @var{rel}))
+  ...)
+@end example
+@var{y-set} will be bound to the set of values for the current key.)
+@end defmac
+
+@anchor{iterator (2-relation)}
+@deffn Method {iterator (2-relation)} @ r
+Returns a @href{Stateful Iterators, stateful iterator} over the 2-relation @var{r}.  The @code{:get}
+operation returns three values: if there is another key/value pair remaining, returns it as two
+values and a true third value, else two @code{nil} values and false.  Creating an iterator takes
+O(log @i{n}) time; the @code{:get} operation is amortized O(1).
+@end deffn
+
+@anchor{fun-iterator (2-relation)}
+@deffn Method {fun-iterator (2-relation)} @ m
+Returns a @href{Functional Iterators, functional iterator} over the 2-relation @var{r}.  The
+@code{:first} operation returns three values: if the iterator is not empty, returns the first
+key/value pair as two values and a true third value, else two @code{nil} values and false.  Creating
+an iterator takes O(log @i{n}) time; the @code{:first} operation is O(1), and @code{:rest} is
+amortized O(1).
+@end deffn
+
 @c --------------------------------------------------------------------------------
 @node CH-2-Relation Operations
 @subsection CH-2-Relation Operations
@@ -2882,6 +2928,95 @@ of values it is mapped to, and true; if empty, returns @code{nil}, @code{nil}, a
 @node Tuples
 @section Tuples
 
+For a general description, @pxref{Dynamic Tuples}.  Dynamic tuples are currently the only
+implementation of tuples.
+
+To use tuples, you first need to declare some tuple keys.  They can also be created dynamically, but
+this is less common.
+
+@deftp {Data type} tuple-key
+A key in a tuple.  All tuple keys must be of this type.  These print as:
+
+@example
+#<Key @var{name}>
+@end example
+@end deftp
+
+@defmac define-tuple-key name @r{&key (@var{type} 't) (@var{default} nil)} no-default? documentation
+Defines a tuple key named @var{name} as a @href{Macro deflex, global lexical variable}.  If
+@var{type} is supplied, @code{with} operations using this key will check that the supplied value is
+of that type; @var{default} is also checked.  If @var{default} is supplied, it will be returned from
+@code{lookup}, instead of @code{nil}, when the tuple has no pair with the given key.  Alternatively,
+if @var{no-default?} is true, @code{lookup} will signal an error in that case.
+@end defmac
+
+@anchor{Function get-tuple-key}
+@defun get-tuple-key name @r{&key (@var{type} 't) (@var{default} nil)} no-default?
+Creates a tuple key or updates an existing one.  If @var{name} has not previously been used in the
+current Lisp session to name a tuple key, creates a new one; otherwise, finds and updates the
+existing one.  In either case, returns the key.  @var{name} should normally be a symbol, but can be
+of any type known to FSet.  @var{type}, @var{default}, and @var{no-default?}  are treated as by
+@code{define-tuple-key}, above.
+@end defun
+
+@defun tuple-key-name key
+The name given when the key was created.
+@end defun
+
+@defun tuple-key-type key
+The type of values associated with the key.
+@end defun
+
+@deftp {Data type} tuple
+The abstract class for FSet functional tuples.
+@end deftp
+
+@deftp {Data type} dyn-tuple
+Functional tuples implemented as dynamic tuples.  These print as:
+
+@example
+#~< (@i{k0 v0}) (@i{k1 v1}) @dots{} >
+@end example
+
+For each key, only its name is printed, without the @code{#<Key @dots{}>}.
+@end deftp
+
+@defun empty-tuple
+@defunx empty-dyn-tuple
+Returns an empty @code{dyn-tuple}.
+@end defun
+
+@deffn Method {size (tuple)} @ tup
+Returns the number of key/value pairs in @var{tup}.  O(1).
+@end deffn
+
+@deffn Method {domain (tuple)} @ tup
+The set of keys in @var{tup}.  O(1).
+@end deffn
+
+@deffn Method {with (tuple)} @ tup k v
+Returns a new dynamic tuple that contains all pairs of @var{tup} whose key is not @var{k}, and also
+maps @var{k} to @var{v}.  If @var{tup} already maps @var{k} to a value @code{equal?} to @var{v},
+returns @var{tup} itself.  If @var{k} was created with a type, checks that @var{v} is of that type,
+signalling a @code{tuple-value-type-error} if not.  O(n) in the worst case, but under @href{Dynamic
+tuple performance, reasonable assumptions}, typically O(1) in practice.
+@end deffn
+
+@deffn Method {lookup (tuple)} @ tup k
+If @var{tup} contains key @var{k}, returns the associated value.  Otherwise, if @var{k} has a
+default, returns that default.  Otherwise, signals a @code{tuple-key-unbound-error}.  O(n) in the
+worst case, but under @href{Dynamic tuple performance, reasonable assumptions}, typically O(1) in
+practice..
+@end deffn
+
+@deffn Method {tuple-merge (tuple tuple)} @ tup1 tup2
+Returns a new tuple containing all the keys of @var{tuple1} and @var{tuple2}, where the value for
+each key contained in only one tuple is the value from that tuple, and the value for each key
+contained in both tuples is the result of calling @var{val-fn} on the value from @var{tuple1} and
+the value from @var{tuple2}.  @var{val-fn} defaults to simply returning its second argument, so the
+entries in @var{tuple2} simply shadow those in @var{tuple1}.  O(n).
+@end deffn
+
 
 @c ================================================================================
 @node Methods on CL Types
@@ -2924,6 +3059,16 @@ the seq, and the seq has no @href{Map and Seq Defaults, default}.
 @deftp Condition empty-seq-error @r{(lookup-error)} seq
 The condition signalled when @code{first} or @code{last} is called on an empty seq, and the seq has
 no @href{Map and Seq Defaults, default}.
+@end deftp
+
+@deftp Condition tuple-value-type-error @r{(type-error)} key datum expected-type
+The condition signalled when @code{with} is called on a tuple, key, and value, such that the value
+is not of the correct type for the key.
+@end deftp
+
+@deftp Condition tuple-key-unbound-error @r{(lookup-error)} tuple key
+The condition signalled when @code{lookup} is called on a tuple and a key, when the key is not in
+the tuple.
 @end deftp
 
 

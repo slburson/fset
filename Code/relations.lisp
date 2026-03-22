@@ -544,7 +544,7 @@ values."
 					   key-compare-fn #'eql-compare)))
 	    (incf size)))
 	(make-wb-2-relation size map0 (if (eq (wb-2-relation-map1 rel) 'no-inverse) 'no-inverse
-					(wb-2-relation-compute-inverse map0 org transient-id))
+					(wb-2-relation-compute-inverse map0 org))
 			    org)))))
 
 (defmethod convert ((to-type (eql 'wb-2-relation)) (pairs set)
@@ -654,19 +654,17 @@ domain value to that range value."
   (wb-2-relation-to-wb-map rel key-compare-fn-name val-compare-fn-name default))
 
 (defun wb-2-relation-to-wb-map (rel key-compare-fn-name val-compare-fn-name default)
-  (let ((m nil)
-	(rel-org (wb-2-relation-org rel))
+  (let ((rel-org (wb-2-relation-org rel))
 	((org (wb-2-relation-org (empty-wb-2-relation
 				   (or key-compare-fn-name (tree-map-org-key-compare-fn-name rel-org))
-				   (or val-compare-fn-name (tree-map-org-val-compare-fn-name rel-org)))))
-	 ((key-compare-fn (tree-map-org-key-compare-fn org))
-	  (val-compare-fn (tree-map-org-val-compare-fn org)))))
-    (Do-WB-Map-Tree-Pairs (x s (wb-2-relation-map0 rel))
-      (let ((sz (WB-Set-Tree-Size s)))
-	(unless (= 1 sz)
-	  (error "2-relation maps ~A to ~D values" x sz))
-	(setq m (WB-Map-Tree-With m x (WB-Set-Tree-Arb s) key-compare-fn val-compare-fn))))
-    (make-wb-map m org default)))
+				   (or val-compare-fn-name (tree-map-org-val-compare-fn-name rel-org))))))
+	(m0 (wb-map-tree-compose (wb-2-relation-map0 rel)
+				 (fn (s)
+				   (unless (= 1 (wb-set-tree-size s))
+				     (error "2-relation is not functional; conflicts: ~A"
+					    (conflicts rel)))
+				   (wb-set-tree-arb s)))))
+    (make-wb-map m0 org default)))
 
 (define-convert-methods (map-to-sets fset2:map-to-sets) ((rel wb-2-relation) &key)
   "This conversion returns a map mapping each domain value to the set of
@@ -969,7 +967,7 @@ values."
     (read-memory-barrier)
     (when (eq map1 'no-inverse)
       (setq map1 (ch-2-relation-compute-inverse (ch-2-relation-map0 rel) (ch-2-relation-org rel)
-					      (get-next-transient-id)))
+						(get-next-transient-id)))
       ;; Make sure other threads see a fully initialized map tree.
       (write-memory-barrier)
       (setf (ch-2-relation-map1 rel) map1))
@@ -1353,9 +1351,8 @@ domain value to a single range value, and the returned map maps that
 domain value to that range value."
   (ch-2-relation-to-ch-map rel nil nil default))
 
-(define-convert-methods (ch-map fset2:ch-map)
-			((rel ch-2-relation)
-			 &key key-compare-fn-name val-compare-fn-name default)
+(define-convert-methods (ch-map fset2:ch-map) ((rel ch-2-relation)
+					       &key key-compare-fn-name val-compare-fn-name default)
   "This conversion requires the relation to be functional, and returns
 a map representing the function; that is, the relation must map each
 domain value to a single range value, and the returned map maps that
@@ -1363,21 +1360,17 @@ domain value to that range value."
   (ch-2-relation-to-ch-map rel key-compare-fn-name val-compare-fn-name default))
 
 (defun ch-2-relation-to-ch-map (rel key-compare-fn-name val-compare-fn-name default)
-  (let ((m nil)
-	(rel-org (ch-2-relation-org rel))
+  (let ((rel-org (ch-2-relation-org rel))
 	((org (ch-2-relation-org (empty-ch-2-relation
 				   (or key-compare-fn-name (hash-map-org-key-compare-fn-name rel-org))
-				   (or val-compare-fn-name (hash-map-org-val-compare-fn-name rel-org)))))
-	 ((key-compare-fn (hash-map-org-key-compare-fn org))
-	  (key-hash-fn (hash-map-org-key-hash-fn org))
-	  (val-compare-fn (hash-map-org-val-compare-fn org))
-	  (val-hash-fn (hash-map-org-val-hash-fn org)))))
-    (do-ch-map-tree-pairs (x s (ch-2-relation-map0 rel))
-      (let ((sz (ch-set-tree-size s)))
-	(unless (= 1 sz)
-	  (error "2-relation maps ~A to ~D values" x sz))
-	(setq m (ch-map-tree-with m x (ch-set-tree-arb s) key-hash-fn key-compare-fn val-hash-fn val-compare-fn))))
-    (make-ch-map m org default)))
+				   (or val-compare-fn-name (hash-map-org-val-compare-fn-name rel-org))))))
+	(m0 (ch-map-tree-compose (ch-2-relation-map0 rel)
+				 (fn (s)
+				   (unless (= 1 (ch-set-tree-size s))
+				     (error "2-relation is not functional; conflicts: ~A"
+					    (conflicts rel)))
+				   (ch-set-tree-arb s)))))
+    (make-ch-map m0 org default)))
 
 (define-convert-methods (map-to-sets fset2:map-to-sets) ((rel ch-2-relation) &key)
   "This conversion returns a map mapping each domain value to the set of
@@ -1408,13 +1401,15 @@ corresponding range values.  If the val-compare-fn of the relation is not
 
 (defmethod conflicts ((rel ch-2-relation))
   (let ((m0 nil)
+	(transient-id (get-next-transient-id))
 	(org (ch-2-relation-org rel))
 	((key-compare-fn (hash-map-org-key-compare-fn org))
 	 (key-hash-fn (hash-map-org-key-hash-fn org)))
 	(size 0))
     (do-ch-map-tree-pairs (x s (ch-2-relation-map0 rel))
       (when (> (ch-set-tree-size s) 1)
-	(setq m0 (ch-map-tree-with m0 x s key-hash-fn key-compare-fn #'ch-set-tree-hash-value #'eql-compare))
+	(setq m0 (ch-map-tree-with m0 x s key-hash-fn key-compare-fn #'ch-set-tree-hash-value #'eql-compare
+				   transient-id))
 	(incf size (ch-set-tree-size s))))
     (make-ch-2-relation size m0 'no-inverse org)))
 

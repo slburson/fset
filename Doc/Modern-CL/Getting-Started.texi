@@ -289,6 +289,7 @@ One catch, though, is that if you inadvertently write @code{#'(fn ...)}, you wil
 probably-unintelligible compiler error.  Just delete the @code{#'}.
 @end defmac
 
+@anchor{Macro deflex}
 @defmac deflex var @r{&optional} val doc
 Declares @code{var} as a global lexical (non-special) variable, and if @code{val} is supplied and
 @code{var} is not already bound, initializes it to @code{val}.  @code{doc}, if supplied, is taken as

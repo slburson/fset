@@ -5836,10 +5836,12 @@ between equal trees."
        ,value-form)))
 
 (defun WB-Map-Tree-Compose (tree fn)
+  (declare (optimize (speed 3) (safety 0))
+	   (type function fn))
   (and tree
        (if (consp tree)
 	   (cons (car tree)
-		 (gmap (:result vector :length (length (cdr tree)))
+		 (gmap (:result vector :length (length (the simple-vector (cdr tree))))
 		       fn (:arg simple-vector (cdr tree))))
 	 (let ((key (WB-Map-Tree-Node-Key tree))
 	       (val (WB-Map-Tree-Node-Value tree))

@@ -2936,6 +2936,16 @@
     (test (equal? (convert 'seq (map (1 3) (2 10) :default 17))
 		  (seq '(1 . 3) '(2 . 10))))
 
+    (test (equal? (convert 'bag (set 1 2 3)) (ch-bag 1 2 3)))
+    (test (equal? (convert 'bag (ch-custom-set 'erapmoc 1 2 3)) (ch-custom-bag 'erapmoc 1 2 3)))
+    (test (equal? (convert 'ch-bag (set 1 2 3)) (ch-bag 1 2 3)))
+    (test (equal? (convert 'set (bag 1 2 2 3)) (ch-set 1 2 3)))
+    (test (equal? (convert 'set (ch-custom-bag 'erapmoc 1 2 2 3)) (ch-custom-set 'erapmoc 1 2 3)))
+    (test (equal? (convert 'ch-set (bag 1 2 3)) (ch-set 1 2 3)))
+    ;; May change; see https://gitlab.common-lisp.net/fset/fset/-/work_items/10
+    (test (equal? (convert 'ch-bag (ch-custom-set 'erapmoc 1 2 3)) (ch-bag 1 2 3)))
+    (test (equal? (convert 'ch-set (ch-custom-bag 'erapmoc 1 2 2 3)) (ch-set 1 2 3)))
+
     ;; New defaulting semantics for `map-union', `map-intersection', `map-difference-2', and `compose'
     (let ((chm (map ('a 3)))
 	  (chm-d (map ('a 3) :default 42))

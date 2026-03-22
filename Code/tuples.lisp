@@ -216,7 +216,9 @@ for `default'."
 `deflex').  If `default' is supplied, it will be returned from `lookup',
 instead of `nil', when the tuple has no explicit pair with this key.
 Alternatively, if `no-default?' is true, `lookup` will signal an error
-in that case."
+in that case.  If `type' is supplied, `with' operations using this key
+will check that the supplied value is of that type; `default' is also
+checked."
   (assert (symbolp name))
   (when (and default? no-default?)
     (error "Both a default and `no-default?' specified"))
@@ -768,8 +770,6 @@ of calling `val-fn' on the value from `tuple1' and the value from `tuple2'.
 
 (defmethod convert ((to-type (eql 'map)) (tup tuple) &key)
   (wb-map-from-tuple tup))
-(defmethod convert ((to-type (eql 'fset2:map)) (tup tuple) &key)
-  (wb-map-from-tuple tup))
 
 (defmethod convert ((to-type (eql 'wb-map)) (tup tuple) &key key-compare-fn-name val-compare-fn-name)
   (wb-map-from-tuple tup key-compare-fn-name val-compare-fn-name))
@@ -782,6 +782,38 @@ of calling `val-fn' on the value from `tuple1' and the value from `tuple2'.
     (do-tuple (k v tup)
       (setq tree (WB-Map-Tree-With tree k v (tree-map-org-key-compare-fn tmorg) (tree-map-org-val-compare-fn tmorg))))
     (make-wb-map tree tmorg nil)))
+
+(defmethod convert ((to-type (eql 'fset2:map)) (tup tuple) &key)
+  (ch-map-from-tuple tup))
+
+(defmethod convert ((to-type (eql 'ch-map)) (tup tuple) &key key-compare-fn-name val-compare-fn-name)
+  (ch-map-from-tuple tup key-compare-fn-name val-compare-fn-name))
+(defmethod convert ((to-type (eql 'fset2:ch-map)) (tup tuple) &key key-compare-fn-name val-compare-fn-name)
+  (ch-map-from-tuple tup key-compare-fn-name val-compare-fn-name))
+
+(defun ch-map-from-tuple (tup &optional key-compare-fn-name val-compare-fn-name)
+  (let ((tree nil)
+	(hmorg (ch-map-org (empty-ch-map nil key-compare-fn-name val-compare-fn-name)))
+	(transient-id (get-next-transient-id)))
+    (do-tuple (k v tup)
+      (setq tree (ch-map-tree-with tree k v (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)
+				   (hash-map-org-val-hash-fn hmorg) (hash-map-org-val-compare-fn hmorg) transient-id)))
+    (make-ch-map (ch-map-compact-tree tree) hmorg nil)))
+
+(defmethod convert ((to-type (eql 'tuple)) (m map) &key autokey?)
+  (dyn-tuple-from-map m autokey?))
+
+(defmethod convert ((to-type (eql 'dyn-tuple)) (m map) &key autokey?)
+  (dyn-tuple-from-map m autokey?))
+
+(defun dyn-tuple-from-map (m autokey?)
+  (let ((result (empty-dyn-tuple)))
+    (do-map (k v m)
+      (setq result (Tuple-With result (if (and autokey? (not (tuple-key? k)))
+					  (fset2:get-tuple-key k)
+					k)
+			       v)))
+    result))
 
 (defmethod convert ((to-type (eql 'list)) (tup tuple) &key (pair-fn #'cons))
   (let ((result nil)
