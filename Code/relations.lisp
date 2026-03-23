@@ -1616,6 +1616,12 @@ are in list form."
 
 (define-cross-type-compare-methods wb-list-relation)
 
+(declaim (inline wb-list-relation-read-indices))
+(defun wb-list-relation-read-indices (rel)
+  (prog1 (wb-list-relation-indices rel)
+    ;; Pairs with the write memory barrier near the bottom of `get-indices'.
+    (read-memory-barrier)))
+
 (defun empty-list-relation (&optional arity)
   "We allow the arity to be temporarily unspecified; it will be taken from
 the first tuple added."
@@ -1710,8 +1716,8 @@ be able to compare both tuples \(lists\) and their elements."
 	    (let ((reduced-tuple (reduced-tuple pattern mask))
 		  (org (wb-list-relation-org rel))
 		  ((tuple-compare-fn (tlrorg-tuple-compare-fn org))
-		   (index? index (WB-Map-Tree-Lookup (wb-list-relation-indices rel) mask
-						     (tlrorg-index-compare-fn org)))))
+		   (index? index (WB-Map-Tree-Lookup (wb-list-relation-read-indices rel)
+						     mask (tlrorg-index-compare-fn org)))))
 	      (if index?
 		  (make-wb-set (nth-value 1 (WB-Map-Tree-Lookup index reduced-tuple tuple-compare-fn))
 			       (wb-list-relation-result-org rel))
@@ -1843,8 +1849,8 @@ Indices are returned as internal wb-map trees."
 	 (tuple-compare-fn (tlrorg-tuple-compare-fn org))
 	 ((ex-inds (gmap (:result seq)
 			 (fn (i) (and (logbitp i mask)
-				      (nth-value 1 (WB-Map-Tree-Lookup (wb-list-relation-indices rel) (ash 1 i)
-								       index-compare-fn))))
+				      (nth-value 1 (WB-Map-Tree-Lookup (wb-list-relation-read-indices rel)
+								       (ash 1 i) index-compare-fn))))
 			 (:arg index 0 (arity rel))))
 	  ((unindexed (gmap (:result list)
 			    (lambda (index i)
@@ -1875,8 +1881,8 @@ Indices are returned as internal wb-map trees."
 	;; Store them back in the relation.  This is unusual in that we're modifying an FSet
 	;; collection, but note that we're just caching information about the contents.
 	;; In particular, if two threads do this at the same time, all that goes wrong is
-	;; some duplication of work.
-	(let ((indices (wb-list-relation-indices rel)))
+	;; some loss or duplication of work.
+	(let ((indices (wb-list-relation-read-indices rel)))
 	  (gmap nil (fn (unind i new-index)
 		      (when unind
 			;; (setf (@ indices (ash 1 i)) new-index)
@@ -1884,6 +1890,7 @@ Indices are returned as internal wb-map trees."
 		(:arg list unindexed)
 		(:arg index 0)
 		(:arg vector new-indices))
+	  (write-memory-barrier)
 	  (setf (wb-list-relation-indices rel) indices))
 	(gmap (:result seq) (fn (ex-ind new-index) (or ex-ind new-index))
 	      (:arg seq ex-inds)
@@ -2048,6 +2055,12 @@ are in list form."
 
 (define-cross-type-compare-methods ch-list-relation)
 
+(declaim (inline ch-list-relation-read-indices))
+(defun ch-list-relation-read-indices (rel)
+  (prog1 (ch-list-relation-indices rel)
+    ;; Pairs with the write memory barrier near the bottom of `get-indices'.
+    (read-memory-barrier)))
+
 (defun empty-ch-list-relation (&optional arity compare-fn-name)
   "We allow the arity to be temporarily unspecified; it will be taken from
 the first tuple added.  If `compare-fn-name' is provided, the function must
@@ -2115,7 +2128,7 @@ be able to compare both tuples \(lists\) and their elements."
 		  (org (ch-list-relation-org rel))
 		  ((tuple-hash-fn (hlrorg-tuple-hash-fn org))
 		   (tuple-compare-fn (hlrorg-tuple-compare-fn org))
-		   (index? index (ch-map-tree-lookup (ch-list-relation-indices rel) mask
+		   (index? index (ch-map-tree-lookup (ch-list-relation-read-indices rel) mask
 						     (hlrorg-index-hash-fn org) (hlrorg-index-compare-fn org)))))
 	      (if index?
 		  (make-ch-set (nth-value 1 (ch-map-tree-lookup index reduced-tuple tuple-hash-fn tuple-compare-fn))
@@ -2239,8 +2252,8 @@ Indices are returned as internal ch-map trees."
 	 (tuple-compare-fn (hlrorg-tuple-compare-fn org))
 	 ((ex-inds (gmap (:result seq)
 			 (fn (i) (and (logbitp i mask)
-				      (nth-value 1 (ch-map-tree-lookup (ch-list-relation-indices rel) (ash 1 i)
-								       index-hash-fn index-compare-fn))))
+				      (nth-value 1 (ch-map-tree-lookup (ch-list-relation-read-indices rel)
+								       (ash 1 i) index-hash-fn index-compare-fn))))
 			 (:arg index 0 (arity rel))))
 	  ((unindexed (gmap (:result list)
 			    (lambda (index i)
@@ -2275,7 +2288,7 @@ Indices are returned as internal ch-map trees."
 	;; collection, but note that we're just caching information about the contents.
 	;; In particular, if two threads do this at the same time, all that goes wrong is
 	;; some duplication of work.
-	(let ((indices (ch-list-relation-indices rel)))
+	(let ((indices (ch-list-relation-read-indices rel)))
 	  (gmap nil (fn (unind i new-index)
 		      (when unind
 			;; (setf (@ indices (ash 1 i)) new-index)
@@ -2285,6 +2298,7 @@ Indices are returned as internal ch-map trees."
 		(:arg list unindexed)
 		(:arg index 0)
 		(:arg vector new-indices))
+	  (write-memory-barrier)
 	  (setf (ch-list-relation-indices rel) indices))
 	(gmap (:result seq) (fn (ex-ind new-index) (or ex-ind new-index))
 	      (:arg seq ex-inds)
