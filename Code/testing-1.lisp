@@ -2833,6 +2833,7 @@
 
 (define-tuple-key +k5+ :default 'plugh)
 (define-tuple-key +k6+)
+(define-tuple-key +k7+ :default 0 :type fixnum)
 
 (defun fset::test-fset2 ()
   (declare (optimize (debug 3)))
@@ -3093,6 +3094,7 @@
       (test (= (rank (wb-set 1 3 5) 2) 1))
       (test (equal? (@ (tuple) +k5+) 'plugh))
       (test (equal? (@ (tuple) +k6+) nil))
+      (test-error (tuple (+k7+ 'foo)))
       (test (equal? (@ (tuple) (get-tuple-key 'fubar :default 11)) 11))
       (test-error (@ (tuple) (get-tuple-key 'fubar :no-default? t)))
       (test (equal? (@ (tuple) (get-tuple-key 'fubar :default 0)) 0))

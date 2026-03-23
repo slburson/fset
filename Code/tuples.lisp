@@ -119,7 +119,7 @@ reordered key vectors.  This is the default implementation of tuples in FSet."
 
 
 (defstruct (tuple-key
-	    (:constructor make-tuple-key (name default number &optional type))
+	    (:constructor make-tuple-key (name default number &optional type type-check-fn))
 	    (:predicate tuple-key?)
 	    (:print-function print-tuple-key))
   (name nil :read-only t)	; a symbol (normally, but actually can be any type known to FSet)
@@ -127,7 +127,8 @@ reordered key vectors.  This is the default implementation of tuples in FSet."
 				;   (in FSet1, this was a function called on the tuple)
   (number nil :type fixnum
 	      :read-only t)	; used for lookup and sorting
-  (type t))
+  (type 't)
+  (type-check-fn nil :type (or null function)))
 
 (deflex +Tuple-Key-Name-Map+ (empty-ch-map))
 
@@ -177,17 +178,20 @@ of `nil'; if it already existed, its default will be unchanged."
     (error 'tuple-default-type-error :datum default :expected-type type :key-name name))
   (with-lock (+Tuple-Key-Lock+)
     (let ((key (lookup +Tuple-Key-Name-Map+ name))
-	  (key-idx (size +Tuple-Key-Seq+)))
+	  (key-idx (size +Tuple-Key-Seq+))
+	  (type-check-fn (and (not (eq type 't))
+			      (compile nil `(lambda (x) (typep x ',type))))))
       (cond (key
 	     (cond (default?
 		    (setf (tuple-key-default key) default))
 		   (no-default?
 		    (setf (tuple-key-default key) 'no-default)))
 	     (setf (tuple-key-type key) type)
+	     (setf (tuple-key-type-check-fn key) type-check-fn)
 	     key)
 	    ((<= key-idx Tuple-Key-Number-Mask)
 	     (let ((key (make-tuple-key name (if default? default (and no-default? 'no-default))
-					key-idx type)))
+					key-idx type type-check-fn)))
 	       (setf (lookup +Tuple-Key-Name-Map+ name) key)
 	       (push-last +Tuple-Key-Seq+ key)
 	       key))
@@ -428,9 +432,9 @@ don't worry about locking it, either.")
 
 ;;; Someday: multiple key/value pair update.
 (defun Tuple-With (tuple key val)
-  (let ((type (tuple-key-type key)))
-    (unless (or (eq type 't) (typep val type))
-      (error 'tuple-value-type-error :datum val :expected-type type :key key)))
+  (let ((type-check-fn (tuple-key-type-check-fn key)))
+    (unless (or (null type-check-fn) (funcall type-check-fn val))
+      (error 'tuple-value-type-error :datum val :expected-type (tuple-key-type key) :key key)))
   (let ((old-val? old-val (Tuple-Lookup tuple key)))
     (declare (optimize (speed 3) (safety 0)))  ; moved here to quiet note on `(typep val type)'
     (if old-val?
@@ -700,8 +704,9 @@ When done, returns `value'."
 	(setf (dyn-tuple-hash-value tup) hash))))
 
 
-(defmethod with ((tuple tuple) (key tuple-key) &optional (value nil value?))
+(defmethod with ((tuple tuple) key &optional (value nil value?))
   (check-three-arguments value? 'with 'tuple)
+  (check-type key tuple-key)
   (Tuple-With tuple key value))
 
 (define-condition fset2:tuple-key-unbound-error (fset2:lookup-error)
