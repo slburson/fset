@@ -3296,13 +3296,20 @@ different bag implementations; it is not for public use.  `elt-fn' and
 (define-methods (filter fset2:filter) ((pred symbol) (b bag))
   (bag-filter (coerce-to-function pred) b))
 
+(defmethod filter ((pred set) (b bag))
+  (bag-filter (fn (x) (lookup pred x)) b))
+(defmethod fset2:filter ((pred set) (b bag))
+  (bag-filter (fn (x) (fset2:lookup pred x)) b))
+
 (defmethod filter ((pred map) (b bag))
   (bag-filter (fn (x) (lookup pred x)) b))
 (defmethod fset2:filter ((pred map) (b bag))
   (bag-filter (fn (x) (fset2:lookup pred x)) b))
 
 (defun bag-filter (pred b)
-  (let ((result (empty-bag-like b)))
+  (declare (optimize (speed 3)))
+  (let ((result (empty-bag-like b))
+	(pred (coerce pred 'function)))
     (do-bag-pairs (x n b)
       (when (funcall pred x)
 	(setq result (with result x n))))

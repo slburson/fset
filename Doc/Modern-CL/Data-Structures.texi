@@ -404,12 +404,14 @@ easier: just include @code{identity-equality-mixin} as a superclass; FSet handle
 @node Left Preference
 @subsection Left Preference
 
-FSet has several operations that combine two collections into a third: @cref{union},
-@cref{intersection}, @cref{map-union}, @cref{map-intersection}, @cref{bag-union},
-@cref{bag-intersection}, @cref{bag-sum}, and @cref{bag-product}.  All of these implement @dfn{left
-preference}: for any case where equal elements or map keys appear in both collections, the result
-will use the one from the left operand.  This also applies to equal values associated with a given
-map key.
+FSet has several operations that combine two collections into a third: @href{Method union (set set),
+union}, @href{Method intersection (set set), intersection}, @href{Method map-union (map map),
+map-union}, @href{Method map-intersection (map map), map-intersection}, @href{Method union (bag
+bag), bag union}, @href{Method intersection (bag bag), bag intersection}, @href{Method bag-sum (bag
+bag), bag sum}, and @href{Method bag-product (bag bag), bag product}.  All of these implement
+@dfn{left preference}: for any case where equal elements or map keys appear in both collections, the
+result will use the one from the left operand.  This also applies to equal values associated with a
+given map key.
 
 The motivation for FSet offering this guarantee has to do with the fact that if you're using
 @code{define-equality-slots} for your class, there's no requirement that you include all the slots
@@ -478,7 +480,7 @@ with a custom organization always take only the comparison function name; the ha
 implicit.
 @end itemize
 
-@anchor{define-hash-function}
+@anchor{Macro define-hash-function}
 @defmac define-hash-function compare-fn-name hash-fn-name
 Establishes that hash-based collections that are created using the named comparison function should
 use the specified hashing function also.

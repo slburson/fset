@@ -116,7 +116,7 @@ Note the double @code{#}, which indicates CHAMP.  The comparison function is pri
 Constructor function.  Returns an empty @code{ch-set}.  By default, it will be ordered by
 @code{compare}.  To use a custom ordering, supply the comparison function name (a symbol) as
 @code{compare-fn-name}; a hash function must have been defined for it using
-@href{define-hash-function, @code{define-hash-function}}.
+@href{Macro define-hash-function, @code{define-hash-function}}.
 @end defun
 
 @defmac ch-set @r{&rest} subforms
@@ -127,7 +127,7 @@ Constructor macro.  Constructs a @code{ch-set} according to the supplied argumen
 @defmac ch-custom-set compare-fn-name @r{&rest} subforms
 Constructor macro.  Constructs a @code{ch-set} with a custom organization, according to the supplied
 argument subforms.  @code{compare-fn-name} must be a symbol naming the desired comparison function;
-a hash function must have been defined for it using @href{define-hash-function,
+a hash function must have been defined for it using @href{Macro define-hash-function,
 @code{define-hash-function}}.  See @href{Macro set, @code{set}@comma{} above} for the interpretation of
 @var{subforms}.
 @end defmac
@@ -228,7 +228,7 @@ the same as @code{at-rank}.)  @var{idx} must be in [0 .. size(@var{s})); otherwi
 type @code{simple-type-error}.  O(log @i{n}).
 @end deffn
 
-@anchor{union}
+@anchor{Method union (set set)}
 @c &&& Is it worth mentioning &key on methods that don't actually have any keyword parameters?
 @deffn Method {union (set set)} @ s1 s2
 Returns a set of the same type and organization as @var{s1}, that contains all elements that are in
@@ -237,7 +237,7 @@ equal objects in the two sets, the result contains the instance that was in @var
 on Time Complexity, Normally O(@i{n})}.
 @end deffn
 
-@anchor{intersection}
+@anchor{Method intersection (set set)}
 @deffn Method {intersection (set set)} @ s1 s2
 Returns a set of the same type and organization as @var{s1}, that contains all elements that are in
 both @var{s1} and @var{s2}.  Implements @href{Left Preference, left preference}: for any pair of
@@ -278,15 +278,15 @@ For each element of @var{set}, binds @var{var} to it and executes @var{body}.  W
 returns @var{value} if supplied, otherwise @code{nil}.
 @end defmac
 
-@anchor{iterator (set)}
-@deffn Method {iterator (set)} @ s n
+@anchor{Method iterator (set)}
+@deffn Method {iterator (set)} @ s
 Returns a @href{Stateful Iterators, stateful iterator} over the set.  The @code{:get} operation
 returns two values: if there is another element remaining, returns it and a true second value, else
 @code{nil} and false.  Creating an iterator takes O(log @i{n}) time; the @code{:get} operation is
 amortized O(1).
 @end deffn
 
-@anchor{fun-iterator (set)}
+@anchor{Method fun-iterator (set)}
 @deffn Method {fun-iterator (set)} @ s
 Returns a @href{Functional Iterators, functional iterator} over the set.  The @code{:first}
 operation returns two values: if the iterator is not empty, returns the first element and a true
@@ -375,8 +375,8 @@ Returns the count.  @var{key} and @var{test} must be functions or fbound symbols
 to the identity function; @var{test} defaults to @code{equal?}, not @code{eql}.
 
 Normally O(@i{n}), but as a special case, if @var{test} is @code{equal?}, @var{key} is not supplied,
-and the set's comparison function is @code{compare}, this does an O(log @i{n}) lookup to return 1 or
-0.
+and the set's comparison function is @code{compare}, this does an O(log @i{n}) lookup to return 0 or
+1.
 @end deffn
 
 @deffn Method {count-if (t set)} @ pred s @r{&key} key
@@ -539,6 +539,7 @@ can be considered as a boolean function.)
 Returns the normal set of which @var{cs} is the complement.
 @end deffn
 
+@anchor{Function full-set}
 @defun full-set
 Returns the full set, the complement of the empty set.
 @end defun
@@ -564,7 +565,11 @@ Returns the full set, the complement of the empty set.
 @deffnx Method {disjoint? (complement-set complement-set)} @ cs1 cs2
 @deffnx Method {disjoint? (complement-set set)} @ cs1 s2
 @deffnx Method {disjoint? (set complement-set)} @ s1 cs2
-The operations available on complement sets.
+@deffnx Method {bag-product (bag complement-set)} @ b cs
+@deffnx Method {bag-product (complement-set bag)} @ cs b
+The operations available on complement sets.  (I've added the two @code{bag-product} methods because
+the full set is the identity value for the bag product operation: it contains every value with
+multiplicity 1.)
 @end deffn
 
 
@@ -621,7 +626,7 @@ search.
 The abstract class for FSet functional maps.
 @end deftp
 
-@defun empty-map @r{&key} @r{(@var{default} nil)} no-default?
+@defun empty-map @r{&key} @r{(@var{default} @code{nil})} no-default?
 Constructor function.  Returns an empty map of the default implementation and organization.  If
 @var{default} is supplied, that will be the map's @href{Map and Seq Defaults, default}; if
 @var{no-default?} is true, the map will have no default.
@@ -657,13 +662,13 @@ are not @code{compare}.  The default is printed only if it is not @code{nil}; if
 default, @code{/[no default]} is printed.
 @end deftp
 
-@defun empty-ch-map @r{&key} @r{(@var{default} nil)} no-default? key-compare-fn-name val-compare-fn-name
+@defun empty-ch-map @r{&key} @r{(@var{default} @code{nil})} no-default? key-compare-fn-name val-compare-fn-name
 Constructor function.  Returns an empty @code{ch-map}.  If @var{default} is supplied, that will be
 the map's @href{Map and Seq Defaults, default}; if @var{no-default?} is true, the map will have no
 default.  @var{key-compare-fn-name} and @var{val-compare-fn-name}, if supplied, must be symbols
 naming the comparison functions to be used for keys and values respectively (these default to
 @code{compare}).  A hash function must have been defined for each comparison function using
-@href{define-hash-function, @code{define-hash-function}}.
+@href{Macro define-hash-function, @code{define-hash-function}}.
 @end defun
 
 @defmac ch-map @r{&rest} subforms
@@ -676,7 +681,7 @@ Constructor macro.  Constructs a @code{ch-map} with a custom organization accord
 argument subforms.  @var{key-compare-fn-name} and @var{val-compare-fn-name} must be symbols naming
 the comparison functions to be used for keys and values respectively (you can use @code{nil} as a
 synonym of @code{compare}).  A hash function must have been defined for each comparison function
-using @href{define-hash-function, @code{define-hash-function}}.
+using @href{Macro define-hash-function, @code{define-hash-function}}.
 
 See @href{Macro map, @code{map}@comma{} above} for the interpretation of @var{subforms}.
 @end defmac
@@ -694,7 +699,7 @@ not @code{compare}.  The default is printed only if it is not @code{nil}; if the
 default, @code{/[no default]} is printed.
 @end deftp
 
-@defun empty-wb-map @r{&key} @r{(@var{default} nil)} no-default? key-compare-fn-name val-compare-fn-name
+@defun empty-wb-map @r{&key} @r{(@var{default} @code{nil})} no-default? key-compare-fn-name val-compare-fn-name
 Constructor function.  Returns an empty map of the default implementation and organization.  If
 @var{default} is supplied, that will be the map's @href{Map and Seq Defaults, default}; if
 @var{no-default?} is true, the map will have no default.  @var{key-compare-fn-name} and
@@ -820,7 +825,7 @@ If @var{m} contains key @var{k}, returns the index of @var{k} within the orderin
 @end deffn
 
 @deffn Method {at-index (map)} @ m idx
-Returns the pair at index @var{idx} within the ordering of @var{m}.  (On a @code{wb-m}, this is
+Returns the pair at index @var{idx} within the ordering of @var{m}.  (On a @code{wb-map}, this is
 the same as @code{at-rank}.)  @var{rank} must be in [0 .. size(s)); otherwise, signals an error of
 type @code{simple-type-error}.  O(log @i{n}).
 @end deffn
@@ -837,7 +842,7 @@ implementation (WB or CHAMP), and using @var{m}'s value ordering as its ordering
 @i{n}).
 @end deffn
 
-@anchor{map-union}
+@anchor{Method map-union (map map)}
 @deffn Method {map-union (map map)} @ m1 m2 @r{&optional} val-fn
 Returns a map containing all the keys of @var{m1} and @var{m2}, where the value for each key
 contained in only one map is the value from that map, and the value for each key contained in both
@@ -861,7 +866,7 @@ equal, is also that in @var{m1}.
 @href{Notes on Time Complexity, Normally O(@i{n})}.
 @end deffn
 
-@anchor{map-intersection}
+@anchor{Method map-intersection (map map)}
 @deffn Method {map-intersection (map map)} @ m1 m2 @r{&optional} val-fn
 Returns a map containing all the keys that are in the domains of both @var{m1} and @var{m2}, where
 the value for each key is the result of calling @var{val-fn} on the value from @var{m1} and the
@@ -917,7 +922,7 @@ For each key/value pair of @var{map}, binds @var{x} to the key and @var{y} to th
 @var{body}.  When done, returns @var{value} if supplied, otherwise @code{nil}.
 @end defmac
 
-@anchor{iterator (map)}
+@anchor{Method iterator (map)}
 @deffn Method {iterator (map)} @ m
 Returns a @href{Stateful Iterators, stateful iterator} over the map @var{m}.  The @code{:get}
 operation returns three values: if there is another key/value pair remaining, returns it as two
@@ -925,7 +930,7 @@ values and a true third value, else two @code{nil} values and false.  Creating a
 O(log @i{n}) time; the @code{:get} operation is amortized O(1).
 @end deffn
 
-@anchor{fun-iterator (map)}
+@anchor{Method fun-iterator (map)}
 @deffn Method {fun-iterator (map)} @ m
 Returns a @href{Functional Iterators, functional iterator} over the map @var{m}.  The @code{:first}
 operation returns three values: if the iterator is not empty, returns the first key/value pair as
@@ -1242,7 +1247,7 @@ unadorned; elements with higher multiplicity are printed followed by their multi
 @defun empty-ch-bag @r{&key} compare-fn-name
 Constructor function.  Returns an empty ch-bag.  By default, it will be ordered by @code{compare}.
 To use a custom ordering, supply the comparison function name (a symbol) as @code{compare-fn-name};
-a hash function must have been defined for it using @href{define-hash-function,
+a hash function must have been defined for it using @href{Macro define-hash-function,
 @code{define-hash-function}}.
 @end defun
 
@@ -1254,7 +1259,7 @@ Constructor macro.  Constructs a @code{ch-bag} according to the supplied argumen
 @defmac ch-custom-bag compare-fn-name @r{&rest} subforms
 Constructor macro.  Constructs a @code{ch-bag} with a custom organization, according to the supplied
 argument subforms.  @code{compare-fn-name} must be a symbol naming the desired comparison function;
-a hash function must have been defined for it using @href{define-hash-function,
+a hash function must have been defined for it using @href{Macro define-hash-function,
 @code{define-hash-function}}.  See @href{Macro bag, @code{bag}@comma{} above} for the interpretation of
 @var{subforms}.
 @end defmac
@@ -1274,7 +1279,7 @@ elements with higher multiplicity are printed followed by their multiplicity, wr
 @defun empty-wb-bag @r{&key} compare-fn-name
 Constructor function.  Returns an empty wb-bag.  By default, it will be ordered by @code{compare}.
 To use a custom ordering, supply the comparison function name (a symbol) as @code{compare-fn-name};
-a hash function must have been defined for it using @href{define-hash-function,
+a hash function must have been defined for it using @href{Macro define-hash-function,
 @code{define-hash-function}}.
 @end defun
 
@@ -1371,7 +1376,7 @@ multiplicity.  (On a @code{wb-bag}, this is the same as @code{at-rank}.)  @var{i
 .. size(s)); otherwise, signals an error of type @code{simple-type-error}.  O(log @i{n}).
 @end deffn
 
-@anchor{bag-union}
+@anchor{Method union (bag bag)}
 @deffn Method {union (bag bag)} @ b1 b2
 @deffnx Method {union (bag set)} @ b1 b2
 @deffnx Method {union (set bag)} @ b1 b2
@@ -1383,7 +1388,7 @@ in the two bags or sets, the result contains the instance that was in @var{b1}. 
 Complexity, Normally O(@i{n})}.
 @end deffn
 
-@anchor{bag-sum}
+@anchor{Method bag-sum (bag bag)}
 @deffn Method {bag-sum (bag bag)} @ b1 b2
 @deffnx Method {bag-sum (bag set)} @ b1 b2
 @deffnx Method {bag-sum (set bag)} @ b1 b2
@@ -1395,7 +1400,7 @@ in the two bags or sets, the result contains the instance that was in @var{b1}. 
 Complexity, Normally O(@i{n})}.
 @end deffn
 
-@anchor{bag-intersection}
+@anchor{Method intersection (bag bag)}
 @deffn Method {intersection (bag bag)} @ b1 b2
 @deffnx Method {intersection (bag set)} @ b1 b2
 @deffnx Method {intersection (set bag)} @ b1 b2
@@ -1407,7 +1412,7 @@ preference}: for any pair of equal objects in the two bags or sets, the result c
 that was in @var{b1}.  @href{Notes on Time Complexity, Normally O(@i{n})}.
 @end deffn
 
-@anchor{bag-product}
+@anchor{Method bag-product (bag bag)}
 @deffn Method {bag-product (bag bag)} @ b1 b2
 @deffnx Method {bag-product (bag set)} @ b1 b2
 @deffnx Method {bag-product (set bag)} @ b1 b2
@@ -1459,7 +1464,7 @@ For each element of @var{bag}, binds @var{x} to it and @var{n} to its multiplici
 @var{body} once.  When done, returns @var{value} if supplied, otherwise @code{nil}.
 @end defmac
 
-@anchor{iterator (bag)}
+@anchor{Method iterator (bag)}
 @deffn Method {iterator (bag)} @ b @r{&key} pairs?
 Returns a @href{Stateful Iterators, stateful iterator} over the bag @var{b}.  Creating an iterator
 takes O(log @i{n}) time; the @code{:get} operation is amortized O(1).
@@ -1473,7 +1478,7 @@ remaining, returns it and its multiplicity as two values and a true third value,
 zero, and false.
 @end deffn
 
-@anchor{fun-iterator (bag)}
+@anchor{Method fun-iterator (bag)}
 @deffn Method {fun-iterator (bag)} @ b
 Returns a @href{Functional Iterators, functional iterator} over the bag @var{b}.  Creating an
 iterator takes O(log @i{n}) time; the @code{:first} operation is O(1), and @code{:rest} is amortized
@@ -1492,9 +1497,10 @@ empty, returns the first element and its multiplicity as two values and a true t
 @deffnx Method {filter (symbol bag)} @ pred b
 @deffnx Method {filter (map bag)} @ pred b
 Returns a new bag, of the same type and organization as @var{b}, containing only those elements that
-satisfy @var{pred}.  @var{pred} must be a function, an fbound symbol, or a boolean-valued map.
-O(@i{n} ⋅ tc(@var{pred})) + O(@i{r} log @i{r}), where tc(@var{pred}) is the time complexity of
-@var{pred} and @i{r} is the size of the result.
+satisfy @var{pred}, with the same multiplicity as they have in @var{b}.  @var{pred} must be a
+function, an fbound symbol, or a boolean-valued map.  O(@i{n} ⋅ tc(@var{pred})) + O(@i{r} log
+@i{r}), where tc(@var{pred}) is the time complexity of @var{pred} and @i{r} is the size of the
+result.
 @end deffn
 
 @deffn Method {filter-pairs (function bag)} @ pred b
@@ -2077,7 +2083,7 @@ supplied, it names a variable that will be bound at each iteration to the index 
 element of @var{seq}.  When done, returns @var{value} if supplied, else @code{nil}.
 @end defmac
 
-@anchor{iterator (seq)}
+@anchor{Method iterator (seq)}
 @deffn Method {iterator (seq)} @ s @r{&key} start end from-end?
 Returns a @href{Stateful Iterators, stateful iterator} over the seq @var{s}, possibly restricted by
 @var{start} and @var{end}, and in reverse order if @var{from-end?} is true.  The @code{:get}
@@ -2086,7 +2092,7 @@ value, else @code{nil} and false.  Creating an iterator takes O(log @i{n}) time;
 operation is amortized O(1).
 @end deffn
 
-@anchor{fun-iterator (seq)}
+@anchor{Method fun-iterator (seq)}
 @deffn Method {fun-iterator (seq)} @ s
 Returns a @href{Functional Iterators, functional iterator} over the seq, possibly restricted by
 @var{start} and @var{end}, and in reverse order if @var{from-end?} is true.  The @code{:first}
@@ -2339,7 +2345,7 @@ always, the comparison function is printed only if it is not @code{compare}.
 Constructor function.  Returns an empty @code{ch-replay-set}.  By default, its internal set will be
 organized by @code{compare}.  To use a custom organization, supply the comparison function name (a
 symbol) as @code{compare-fn-name}; a hash function must have been defined for it using
-@href{define-hash-function, @code{define-hash-function}}.  (A custom organization will not affect
+@href{Macro define-hash-function, @code{define-hash-function}}.  (A custom organization will not affect
 the set's ordering for iteration or printing; the only reason you would need one is if you had a
 user-defined data type for which you had not defined methods on @code{compare} and
 @code{hash-value}.)
@@ -2356,7 +2362,7 @@ added in left-to-right order.
 
 To use a custom organization, use @code{ch-custom-replay-set}.  @code{compare-fn-name} must be a
 symbol naming the desired comparison function; a hash function must have been defined for it using
-@href{define-hash-function, @code{define-hash-function}}.
+@href{Macro define-hash-function, @code{define-hash-function}}.
 @end defmac
 
 @c ----------------------------------------
@@ -2437,6 +2443,23 @@ contains the elements that are in both sets, in the order in which they appear i
 O(size(@var{rs}) log size(@var{s})).
 @end deffn
 
+@anchor{Method iterator (replay-set)}
+@deffn Method {iterator (replay-set)} @ s
+Returns a @href{Stateful Iterators, stateful iterator} over the set, in replay order (the order in
+which elements were first added).  The @code{:get} operation returns two values: if there is another
+element remaining, returns it and a true second value, else @code{nil} and false.  Creating an
+iterator takes O(log @i{n}) time; the @code{:get} operation is amortized O(1).
+@end deffn
+
+@anchor{Method fun-iterator (replay-set)}
+@deffn Method {fun-iterator (replay-set)} @ s
+Returns a @href{Functional Iterators, functional iterator} over the set, in replay order (the order
+in which elements were first added).  The @code{:first} operation returns two values: if the
+iterator is not empty, returns the first element and a true second value, else @code{nil} and false.
+Creating an iterator takes O(log @i{n}) time; the @code{:first} operation is O(1), and @code{:rest}
+is amortized O(1).
+@end deffn
+
 @c --------------------------------------------------------------------------------
 @node Replay Maps
 @subsection Replay Maps
@@ -2461,9 +2484,9 @@ with no default if @var{no-default?} is true.  By default, its internal map will
 @code{compare}.  To use a custom organization, @var{key-compare-fn-name} and
 @var{val-compare-fn-name} must be symbols naming the comparison functions to be used for keys and
 values respectively (these default to @code{compare}).  A hash function must have been defined for
-each comparison function using @href{define-hash-function, @code{define-hash-function}}.  (A custom
-organization will not affect the map's ordering for iteration or printing; the only reason you would
-need one is if you had a user-defined data type for which you had not defined methods on
+each comparison function using @href{Macro define-hash-function, @code{define-hash-function}}.  (A
+custom organization will not affect the map's ordering for iteration or printing; the only reason
+you would need one is if you had a user-defined data type for which you had not defined methods on
 @code{compare} and @code{hash-value}.)
 @end defun
 
@@ -2483,9 +2506,9 @@ By default, its internal map will be organized by @code{compare}.  To use a cust
 @code{ch-custom-replay-map}; @var{key-compare-fn-name} and @var{val-compare-fn-name} must be symbols
 naming the comparison functions to be used for keys and values respectively (these default to
 @code{compare}).  A hash function must have been defined for each comparison function using
-@href{define-hash-function, @code{define-hash-function}}.  (A custom organization will not affect
-the map's ordering for iteration or printing; the only reason you would need one is if you had a
-user-defined data type for which you had not defined methods on @code{compare} and
+@href{Macro define-hash-function, @code{define-hash-function}}.  (A custom organization will not
+affect the map's ordering for iteration or printing; the only reason you would need one is if you
+had a user-defined data type for which you had not defined methods on @code{compare} and
 @code{hash-value}.)
 
 The result is constructed from the denoted mappings in left-to-right order; so if a given key is
@@ -2600,6 +2623,24 @@ Returns the domain (set of keys) of @var{rm} as a replay set of the same impleme
 @var{rm}'s key ordering as its ordering.  O(@i{n}), but with a relatively small constant factor.
 @end deffn
 
+@anchor{Method iterator (replay-map)}
+@deffn Method {iterator (replay-map)} @ m
+Returns a @href{Stateful Iterators, stateful iterator} over the map @var{m}, in replay order (the
+order in which keys were first added).  The @code{:get} operation returns three values: if there is
+another key/value pair remaining, returns it as two values and a true third value, else two
+@code{nil} values and false.  Creating an iterator takes O(log @i{n}) time; the @code{:get}
+operation is amortized O(1).
+@end deffn
+
+@anchor{Method fun-iterator (replay-map)}
+@deffn Method {fun-iterator (replay-map)} @ m
+Returns a @href{Functional Iterators, functional iterator} over the map @var{m}, in replay order
+(the order in which keys were first added).  The @code{:first} operation returns three values: if
+the iterator is not empty, returns the first key/value pair as two values and a true third value,
+else two @code{nil} values and false.  Creating an iterator takes O(log @i{n}) time; the
+@code{:first} operation is O(1), and @code{:rest} is amortized O(1).
+@end deffn
+
 
 @c ================================================================================
 @node Binary Relations
@@ -2667,7 +2708,7 @@ comparison functions are printed only if they are not @code{compare}.
 Constructor function.  Returns an empty @code{ch-2-relation}.  @var{key-compare-fn-name} and
 @var{val-compare-fn-name}, if supplied, must be symbols naming the comparison functions to be used
 for keys and values respectively (these default to @code{compare}).  A hash function must have been
-defined for each comparison function using @href{define-hash-function, @code{define-hash-function}}.
+defined for each comparison function using @href{Macro define-hash-function, @code{define-hash-function}}.
 @end defun
 
 @defmac ch-2-relation @r{&rest} subforms
@@ -2792,7 +2833,7 @@ of the @var{r1} pair being its domain value and the other column in the @var{r2}
 value.  O(@i{n}).
 @end deffn
 
-@anchor{Method conflicts}
+@anchor{Method conflicts (2-relation)}
 @deffn Method {conflicts (2-relation)} @ r
 Returns a 2-relation containing those pairs of @var{r} for which the key is mapped to more than one
 value.  O(n).
@@ -2822,7 +2863,7 @@ For each key/value pair of @var{rel}, binds @var{x} to the key and @var{y} to th
 @var{y-set} will be bound to the set of values for the current key.)
 @end defmac
 
-@anchor{iterator (2-relation)}
+@anchor{Method iterator (2-relation)}
 @deffn Method {iterator (2-relation)} @ r
 Returns a @href{Stateful Iterators, stateful iterator} over the 2-relation @var{r}.  The @code{:get}
 operation returns three values: if there is another key/value pair remaining, returns it as two
@@ -2830,7 +2871,7 @@ values and a true third value, else two @code{nil} values and false.  Creating a
 O(log @i{n}) time; the @code{:get} operation is amortized O(1).
 @end deffn
 
-@anchor{fun-iterator (2-relation)}
+@anchor{Method fun-iterator (2-relation)}
 @deffn Method {fun-iterator (2-relation)} @ m
 Returns a @href{Functional Iterators, functional iterator} over the 2-relation @var{r}.  The
 @code{:first} operation returns three values: if the iterator is not empty, returns the first

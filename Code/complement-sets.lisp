@@ -121,6 +121,18 @@ enumerated, but certain other operations are defined on it."
 (defmethod disjoint? ((s set) (cs complement-set))
   (subset? s (complement-set-complement cs)))
 
+;;; Added these since the full set is also the identity element for `bag-product', as it
+;;; contains every value with multiplicity 1.
+(defmethod bag-product ((b bag) (cs complement-set))
+  (if (empty? (complement-set-complement cs))
+      b
+    ;; Should there be a better way?
+    (filter (fn (x) (not (contains? (complement-set-complement cs) x))) b)))
+(defmethod bag-product ((cs complement-set) (b bag))
+  (if (empty? (complement-set-complement cs))
+      b
+    (filter (fn (x) (not (contains? (complement-set-complement cs) x))) b)))
+
 (defmethod internal-do-set ((cs complement-set) elt-fn value-fn)
   (declare (ignore elt-fn value-fn))
   (error "Can't enumerate a complement-set"))

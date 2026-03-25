@@ -36,7 +36,12 @@ improve on it by writing the iteration some other way.  Iterate uses the statefu
 @node Procedural Iteration Macros
 @section Procedural Iteration Macros
 
-The macros @href{Macro do-set, @code{do-set}},
+The macros @href{Macro do-set, @code{do-set}}, @href{Macro do-map, @code{do-map}}, @href{Macro
+do-bag, @code{do-bag}}, @href{Macro do-bag-pairs, @code{do-bag-pairs}}, @href{Macro do-seq,
+@code{do-seq}}, and @href{Macro do-2-relation, do-2-relation} are just like Common Lisp's
+@code{dolist}: they iterate in a procedural style, binding one or two variables to the elements or
+pairs of the collection and executing the body.  Optionally, an expression can be supplied for the
+value of the entire form; otherwise, they return @code{nil}.
 
 @c ================================================================================
 @node Stateful Iterators
@@ -59,17 +64,19 @@ operations on them are:
 Specifically, on a set iterator or a non-pair bag iterator, @code{:get} returns two values.  If the
 iterator is not exhausted (there are more elements remaining), it returns the next element and a
 true second value; if it is exhausted, it returns @code{nil} and false.  On a map iterator, a pair
-bag iterator, or a binary relation iterator, it returns three values: if not exhausted, the domain
+bag iterator, or a 2-relation iterator, it returns three values: if not exhausted, the domain
 element, the range element or multiplicity, and true; if exhausted, two @code{nil}s and false.
 
 So there are actually three ways to detect exhaustion: @code{:more?} or @code{:done?}, which return
 booleans with opposite senses, or just call @code{:get} until the second or third value is false.
 Use whichever is most convenient.
 
-FSet provides stateful iterators on these classes: @href{iterator (set), @code{set}}, @code{map},
-@code{bag}, @code{seq}, @code{replay-set}, @code{replay-map}, and @code{2-relation}.  For
-convenience, it also provides @code{iterator} methods on these CL builtin types: @code{list},
-@code{vector}, @code{string}, and @code{sequence}.
+FSet provides stateful iterators on these classes: @href{Method iterator (set), @code{set}},
+@href{Method iterator (map), @code{map}}, @href{Method iterator (bag), @code{bag}}, @href{Method
+iterator (seq), @code{seq}}, @href{Method iterator (replay-set), @code{replay-set}}, @href{Method
+iterator (replay-map), @code{replay-map}}, and @href{Method iterator (2-relation),
+@code{2-relation}}.  For convenience, it also provides @code{iterator} methods on these CL builtin
+types: @code{list}, @code{vector}, @code{string}, and @code{sequence}.
 
 The stateful iterators are not thread-safe.
 
@@ -111,10 +118,13 @@ So there are actually three ways to detect exhaustion: @code{:more?} or @code{:e
 booleans with opposite senses, or just call @code{:first} until the second or third value is false.
 Use whichever is most convenient.
 
-FSet provides functional iterators on these classes: @href{fun-iterator (set), @code{set}},
-@code{map}, @code{bag}, @code{seq}, @code{replay-set}, @code{replay-map}, and @code{2-relation}.
-For convenience, it also provides @code{fun-iterator} methods on these CL builtin types: @code{list},
-@code{vector}, @code{string}, and @code{sequence}.
+FSet provides functional iterators on these classes: @href{Method fun-iterator (set), @code{set}},
+@href{Method fun-iterator (map), @code{map}}, @href{Method fun-iterator (bag), @code{bag}},
+@href{Method fun-iterator (seq), @code{seq}}, @href{Method fun-iterator (replay-set),
+@code{replay-set}}, @href{Method fun-iterator (replay-map), @code{replay-map}}, and @href{Method
+fun-iterator (2-relation), @code{2-relation}}.  For convenience, it also provides
+@code{fun-iterator} methods on these CL builtin types: @code{list}, @code{vector}, @code{string},
+and @code{sequence}.
 
 @c ================================================================================
 @node The @code{at-index} Operation
@@ -128,6 +138,621 @@ to back up or skip forward arbitrarily, it will be the most convenient.
 @c ================================================================================
 @node GMap
 @section GMap
+
+GMap is an iteration macro for Common Lisp.  It was conceived as a generalization of @code{mapcar}
+(hence the name).  It is intended for cases when @code{mapcar} doesn't suffice because the things
+you want to map over aren't in lists, or you need to collect the results of the mapping into
+something other than a list.
+
+That is, @code{gmap} is probably the right thing to use when you are using iteration to perform the
+same computation on each element of some collection, as opposed to changing your state in some
+complicated way on every iteration of a loop.  It's conceptually reasonable to imagine all the
+iterations of a @code{gmap} as happening in parallel, just as you might with @code{mapcar}.  It also
+supports arbitrary reductions of the results of the mapped function; more on this below.
+
+GMap is explicitly intended only for iterations that fit this "map-reduce" model.  It is not trying
+to be a "universal" iteration construct.  People have asked me what guarantees it offers concerning
+the ordering of the various operations it performs, and the answer is none, other than those
+obviously imposed by the data flow (a result can't be used until it is computed).  I think that the
+question was rooted in experience of people using @code{loop} or other iteration constructs and
+supplying variable update expressions with side effects, so that there was "crosswise" data flow
+between the iterations.  I strongly advise that such side effects be avoided in @code{gmap} calls.
+If you find yourself wanting to use them, either there is a better way, or else @code{gmap} simply
+isn't the right tool for the job.  In short, you should think of @code{gmap} very much as a
+@emph{functional} iteration construct.
+
+In general, my philosophy about iteration in Lisp is that there are many ways to do it, for the very
+good reason that there are many kinds of iterations, and one should use the tool appropriate for the
+particular case one is confronted with.  So, for example, I almost never write a @code{gmap} form
+with side effects.  If I'm just iterating over a list for effect, I'll use @code{dolist}.  For
+iterations with cross-iteration data flow ("loop-carried dependences" is the compiler developer's
+term) or where the iteration space is not well defined in advance, I might use good old @code{do},
+or I might even write the code tail-recursively, counting on the fact that most CL implementations
+these days do tail-call optimization at least on local calls (calls to functions defined by
+@code{labels} or @code{flet}).
+
+So when I do use @code{gmap}, it's specifically intended to convey to someone reading the code that
+the iterations are independent --- either the function being mapped is side-effect-free, or at the
+very least, the argument generators and result collectors are mutually independent.  I strongly urge
+adherence to this rule, whose meaning will become clearer as we proceed.
+
+Even with that constraint, I find that occasions to use @code{gmap} are not at all uncommon.  It has
+proven handy over the years, and FSet makes substantial internal use of it.
+
+Common Lisp has @code{cl:map}, which already generalizes @code{mapcar} somewhat: it accepts vectors
+as well as lists, and takes a type specifier to control the type of the result collection, in case
+you want to construct a vector or string.  (I'm using an explicit @code{cl:} prefix on @code{map} to
+avoid confusion with FSet's @code{map}.)  GMap takes this idea even further by adding a little
+syntax, to make the argument generators and result collectors extensible.  For example, these three
+expressions are equivalent:
+
+@example
+(mapcar #'foo this-list that-list)
+(cl:map 'list #'foo this-list that-list)
+(gmap (:result list) #'foo (:arg list this-list) (:arg list that-list))
+@end example
+
+But along with being able to generate arguments (for the function being mapped; @code{#'foo} in this
+example) from lists or vectors, GMap has many other argument generators, e.g., @code{index} for an
+integer subrange; @code{hash-table} for the pairs of a hash table; or @code{file-chars} or
+@code{file-lines} for the contents of a file.  Similarly, GMap has more result collector types,
+e.g., @code{and} (provides the functionality of @code{cl:every}), @code{or} (ditto for
+@code{cl:some}), @code{sum}, @code{max}/@code{min}, etc.
+
+FSet builds on these by adding argument generators and result collectors for its collections.  (GMap
+predated FSet and can be used without it; I will list the ``base'' GMap features separately from
+those added by FSet.)
+
+Like @code{mapcar}, @code{gmap} accepts any number of argument clauses; the iterations they specify
+occur in parallel, and the iteration terminates when any of them is exhausted.
+
+GMap makes use of multiple values: some argument types generate two arguments for each call to the
+function being mapped instead of one, and some result types expect the function being mapped to
+return two values.  For example, this expression converts a plist @var{pl} to an alist:
+
+@example
+(gmap (:result list) #'cons (:arg plist @var{pl}))
+@end example
+
+This one converts it to a hash table:
+
+@example
+(gmap (:result hash-table) #'values (:arg plist @var{pl}))
+@end example
+
+The @code{:arg plist} clause emits the pairs of the plist; they become two arguments to the function
+being mapped.  In the first case, this is @code{cons}, and a list is formed of the resulting conses.
+In the second case, @code{values} reflects the two arguments back as two values, and then the
+@code{:result hash-table} clause takes those pairs and inserts them into a hash table.
+
+(GMap takes the view that consing up a collection of function results is a kind of reduction --- a
+slightly unusual view, perhaps, but not unreasonable.  So it treats collecting the results into a
+list, for example, as an instance of the same pattern as, say, summing them.)
+
+If you just want to pass the argument(s) to the result collector, there are a few ways to say this
+(too many, arguably).  The above example uses @code{#'values}, which is general.  GMap will also
+interpret the symbol @code{:id} as equivalent to @code{#'values}; you can also use @code{nil} for
+this, though I wouldn't really recommend it --- it's rather cryptic.  Finally, if only one value is
+involved, you can use @code{#'identity}.
+
+You can extend GMap too, but I won't go into that here; see the source.
+
+In sum --- I know, there are other iteration macros out there that you're already familiar with; you
+may be understandably unenthusiastic about learning another one.  It's certainly not
+@emph{necessary} to use GMap along witih FSet.  But the two do fit together nicely, and GMap has a
+simple and familiar conceptual model, as I've just explained.  I hope you'll give it a try.
+
+@c --------------------------------------------------------------------------------
+@node GMap Base Argument Types
+@subsection GMap Base Argument Types
+
+These could have been called ``generators''.
+
+@deffn {GMap arg type} constant value
+Yields @var{value} on every iteration.
+@end deffn
+
+@deffn {GMap arg type} list list
+Yields successive elements of @var{list}.
+@end deffn
+
+@deffn {GMap arg type} improper-list list
+Yields the successive elements of `list`, which may be improper; any non-cons tail terminates the
+iteration.
+@end deffn
+
+@deffn {GMap arg type} alist alist
+Yields, as two values, the successive pairs of @var{alist}.
+@end deffn
+
+@deffn {GMap arg type} plist plist
+Yields, as two values, the successive pairs of elements of @var{plist}; that is, there is one
+iteration for each two elements.
+@end deffn
+
+@deffn {GMap arg type} hash-table table
+Yields, as two values, the successive pairs of @var{table}.  (Warning: the ordering of pairs is
+Lisp-implementation-dependent and should not be relied on.)
+@end deffn
+
+@deffn {GMap arg type} tails list
+Yields the successive tails (cdrs) of @var{list}, starting with @var{list} itself, which may be
+improper.
+@end deffn
+
+@deffn {GMap arg type} index @r{&optional} start stop @r{&key} incr @r{(@var{fixnums?} t)}
+Yields integers in the interval [@var{start}, @var{stop}) if @var{incr} (which defaults to 1) is
+positive; or in the interval [@var{stop}, @var{start}) if @var{incr} is negative.  Specifically, in
+the upward case, the values begin with @var{start} and increase by @var{incr} until >= @var{stop};
+in the downward case, the values begin with @var{start} - @var{incr} and decrease by @var{incr}
+until < @var{stop}.  All values are assumed to be fixnums unless @var{fixnums?} is a literal
+@code{nil}.  @var{stop} can be omitted or a literal @code{nil} to indicate an unbounded sequence.
+@var{start} can be omitted to start at 0.
+@end deffn
+
+@deffn {GMap arg type} index-inc start stop &key incr @r{(@var{fixnums?} t)}
+("Index, INClusive") Yields integers in the interval [@var{start}, @var{stop}].  Specifically, in
+the upward case (@var{incr} > 0), the values begin with @var{start} and increase by @var{incr} until
+> @var{stop}; in the downward case, the values begin with @var{start} and decrease by @var{incr}
+until < @var{stop}.  All values are assumed to be fixnums unless @var{fixnums?}  is a literal
+@code{nil}.  @var{stop} can be a literal @code{nil} to indicate an unbounded sequence.
+@end deffn
+
+@deffn {GMap arg type} exp initial-value base
+Yields an exponential sequence whose first value is @var{initial-value}, and whose value is
+multiplied by @var{base} on each iteration.
+@end deffn
+
+@deffn {GMap arg type} vector vec @r{&key} start stop incr
+Yields elements of vector @var{vec}.  @var{start} and @var{stop} may be supplied to select a
+subsequence of @var{vec}; @var{incr} may be supplied (it must be positive) to select every second
+element etc.  For performance, you may prefer @code{simple-vector}.
+@end deffn
+
+@deffn {GMap arg type} simple-vector vec @r{&key} start stop incr
+Yields elements of vector @var{vec}, which is assumed to be simple, and whose size is assumed to be
+a fixnum.  @var{start} and @var{stop} may be supplied to select a subsequence of @var{vec};
+@var{incr} may be supplied (it must be positive) to select every second element etc.
+@end deffn
+
+@deffn {GMap arg type} string str @r{&key} start stop incr
+Yields elements of string @var{str}.  @var{start} and @var{stop} may be supplied to select a
+subsequence of @var{vec}; @var{incr} may be supplied (it must be positive) to select every second
+element etc.  For performance, you may prefer @var{simple-string}.
+@end deffn
+
+@deffn {GMap arg type} simple-string str @r{&key} start stop incr
+Yields elements of string @var{str}, which is assumed to be simple, and whose size is assumed to be
+a fixnum.  @var{start} and @var{stop} may be supplied to select a subsequence of @var{str};
+@var{incr} may be supplied (it must be positive) to select every second element etc.
+@end deffn
+
+@deffn {GMap arg type} array ary @r{&key} start stop incr
+Yields elements of array @var{ary}, which may be multidimensional and/or specialized.  Access is via
+@code{row-major-aref}, so the elements are yielded in row-major order.  @var{start} and @var{stop},
+which are row-major indices, may be supplied to select a subsequence, and @var{incr} to skip one or
+more elements at each step.
+@end deffn
+
+@deffn {GMap arg type} file-chars pathname @r{&key} element-type external-format
+Yields the characters of the file named by @var{pathname}.  @var{element-type} and
+@var{external-format}, if supplied, are passed to @var{open}.
+@end deffn
+
+@deffn {GMap arg type} file-lines pathname @r{&key} skip-initial external-format
+Yields the lines of the file named by @var{pathname}.  If @var{skip-initial} is given, it is the
+number of initial lines to skip.  @var{external-format}, if supplied, is passed to @var{open}.
+@end deffn
+
+@c --------------------------------------------------------------------------------
+@node GMap Base Result Types
+@subsection GMap Base Result Types
+
+@deffn {GMap result type} list @r{&key} filterp
+Returns a list of the values, optionally filtered by @var{filterp} (which can be @code{:id} to
+filter out @code{nil}).
+@end deffn
+
+@deffn {GMap result type} alist @r{&key} filterp
+Consumes two values from the mapped function; returns an alist of the pairs.  @var{filterp}, if
+supplied, must take two arguments.
+@end deffn
+
+@deffn {GMap result type} plist @r{&key} filterp
+Consumes two values from the mapped function; returns a plist of the pairs.  @var{filterp}, if
+supplied, must take two arguments.
+@end deffn
+
+@deffn {GMap result type} hash-table @r{&key} test size rehash-size rehash-threshold filterp
+Consumes two values from the mapped function; returns a hash-table of the pairs.  If any of
+@var{test}, @var{size}, @var{rehash-size}, or @var{rehash-threshold} are supplied, they are passed
+to @code{make-hash-table}.  @var{filterp}, if supplied, must take two arguments.
+@end deffn
+
+@deffn {GMap result type} append @r{&key} filterp
+Returns the result of @code{append}ing the values, optionally filtered by @var{filterp} (which can
+be @code{:id} to filter out @code{nil}).
+@end deffn
+
+@deffn {GMap result type} nconc @r{&key} filterp
+Returns the result of @code{nconc}ing the values, optionally filtered by @var{filterp} (which can be
+@code{:id} to filter out @code{nil}).
+@end deffn
+
+@deffn {GMap result type} and
+If one of the values is false, terminates the iteration and returns false; otherwise returns the
+last value.  Does not work as an operand of @code{values}.  (Generalizes @code{cl:every}.)
+@end deffn
+
+@deffn {GMap result type} or
+If one of the values is true, terminates the iteration and returns it; otherwise, returns false.
+(Does not work as an operand of @code{values}.  (Generalizes @code{cl:some}.)
+@end deffn
+
+@deffn {GMap result type} sum @r{&key} filterp
+Returns the sum of the values, optionally filtered by @var{filterp} (which can be @code{:id} to
+filter out @code{nil}).
+@end deffn
+
+@deffn {GMap result type} product @r{&key} filterp
+Returns the product of the values, optionally filtered by @var{filterp} (which can be @code{:id} to
+filter out @code{nil}).
+@end deffn
+
+@deffn {GMap result type} count
+Returns the number of true values.
+@end deffn
+
+@deffn {GMap result type} max @r{&key} filterp key
+Optionally filters the values by @var{filterp}, then returns the maximum, or if @var{key} is
+supplied, the value with the maximum key (if that's not unique, returns the first one); or
+@code{nil} if no values were supplied (or survived filtering).  Example:
+@example
+(gmap (:result max :key #'cdr) nil (:arg list alist))
+@end example
+returns the (first) pair of @var{alist} with the maximum @var{cdr}.
+
+If @var{key} is @var{:second-value}, the second value of the mapped function is used; for example,
+@example
+(gmap (:result max :key :second-value) nil (:arg alist an-alist))
+@end example
+returns the (first) @var{car} of @var{an-alist} with the maximum corresponding @var{cdr}.
+@end deffn
+
+@deffn {GMap result type} min @r{&key} filterp key
+Optionally filters the values by @var{filterp}, then
+returns the minimum, or if @var{key} is supplied, the value with the minimum key
+(if that's not unique, returns the first one); or @code{nil} if no values were
+supplied (or survived filtering).  Example:
+@example
+(gmap (:result min :key #'cdr) nil (:arg list alist))
+@end example
+returns the (first) pair of @var{alist} with the minimum @code{cdr}.
+
+If @var{key} is @var{:second-value}, the second value of the mapped function is used; for example,
+@example
+(gmap (:result min :key :second-value) nil (:arg alist an-alist))
+@end example
+returns the (first) @var{car} of @var{an-alist} with the minimum corresponding @code{cdr}.
+@end deffn
+
+@deffn {GMap result type} vector @r{&key} use-vector length fill-pointer adjustable filterp
+Constructs a vector containing the results.  If @var{use-vector} is supplied, the argument will be
+filled with the results and returned; if @var{fill-pointer} is true and @var{adjustable} is true, it
+must have a fill pointer and be adjustable, and values will be appended to it with
+@code{vector-push-extend}; if @var{fill-pointer} is true and @var{adjustable} is false, it must have
+a fill pointer, and values will be appended to it with @code{vector-push}; otherwise, the vector is
+assumed to be simple and must be large enough to hold the results.  (Recall that @code{vector-push}
+has no effect if the vector is full.)
+
+If @var{use-vector} is not supplied, a vector will be constructed and returned; if @var{length} is
+supplied, returns a simple vector of the specified length (which must be sufficient to hold the
+results); otherwise, returns a simple vector of the correct length (but to do this, it must cons a
+temporary list).
+
+In any case, if @var{filterp} is supplied, it is a predicate of one argument, the value of the
+function being mapped, that says whether to include it in the result (@var{filterp} can be
+@code{:id} to filter out @code{nil}).
+@end deffn
+
+@deffn {GMap result type} string @r{&key} use-string length fill-pointer adjustable filterp
+Constructs a string containing the results.  If @var{use-string} is supplied, the argument will be
+filled with the results and returned; if @var{fill-pointer} is true and @var{adjustable} is true, it
+must have a fill pointer and be adjustable, and values will be appended to it with
+@var{vector-push-extend}; if @var{fill-pointer} is true and @var{adjustable} is false, it must have
+a fill pointer, and values will be appended to it with @var{vector-push}; otherwise, the vector is
+assumed to be simple and must be large enough to hold the results.  (Recall that @var{vector-push}
+has no effect if the vector is full.)
+
+If @var{use-string} is not supplied, a string will be constructed and returned; if @var{length} is
+supplied, returns a simple string of the specified length (which must be sufficient to hold the
+results); otherwise, returns a simple string of the correct length (but to do this, it must cons a
+temporary list).
+
+In any case, if @var{filterp} is supplied, it is a predicate of one argument, the value of the
+function being mapped, that says whether to include it in the result (@var{filterp} can be
+@code{:id} to filter out @code{nil}).
+@end deffn
+
+@deffn {GMap result type} array dims @r{&key} element-type initial-element filterp
+Constructs an array containing the results.  Passes @var{dims}, and @var{element-type} and
+@var{initial-element} if supplied, to @code{make-array}.  If the array is multidimensional, fills it
+in row-major order.
+@end deffn
+
+@c --------------------------------------------------------------------------------
+@node GMap FSet Argument Types
+@subsection GMap FSet Argument Types
+
+Many of these come in both generic (@code{set}, @code{bag}, etc.) and implementation-specific
+(@code{ch-set}, @code{wb-set}, etc.) flavors.  In the past, there were performance reasons to prefer
+the specific ones when the implementation were known, but that is mostly no longer the case.  The one
+situation in which you might notice a difference is when doing parallel iteration over two or more
+collections; even then, the difference will be small.  So I recommend sticking with the generic
+ones; I have documented the specific ones here just for completeness.
+
+@deffn {GMap arg type} sequence seq
+Yields the elements of @var{seq}, which can be of any CL sequence type as well as an FSet seq, or a
+set or bag as well --- any type for which @href{Stateful Iterators, @code{iterator}} has a method.
+@end deffn
+
+@deffn {GMap arg type} iterator it
+Yields the values returned by @var{it}, which must be an FSet @href{Stateful Iterators, stateful
+iterator}.
+@end deffn
+
+@deffn {GMap arg type} fun-sequence @ @r{&key} from-end?
+Yields the elements of @var{fun-iterable}, which can be an FSet seq, set, or bag.  If
+@var{:from-end?} is true, iterates in reverse order.  (Uses a @href{Functional Iterators, functional
+iterator}.  There's no reason to use this unless you want the @var{from-end?} behavior.)
+@end deffn
+
+@deffn {GMap arg type} set s
+@deffnx {GMap arg type} ch-set s
+@deffnx {GMap arg type} wb-set s
+Yields the elements of @var{s}.
+@end deffn
+
+@deffn {GMap arg type} fun-set s @r{&key} from-end?
+Yields the elements of @var{s}.  (Uses a @href{Functional Iterators, functional iterator}.  There's
+no reason to use this unless you want the @var{from-end?} behavior.)
+@end deffn
+
+@deffn {GMap arg type} map m
+@deffnx {GMap arg type} ch-map m
+@deffnx {GMap arg type} wb-map m
+Yields each pair of @var{m} as two values.
+@end deffn
+
+@deffn {GMap arg type} fun-map m @r{&key} from-end?
+Yields the pairs of @var{m} as two values.  (Uses a @href{Functional Iterators, functional
+iterator}.  There's no reason to use this unless you want the @var{from-end?} behavior.)
+@end deffn
+
+@deffn {GMap arg type} bag b
+@deffnx {GMap arg type} ch-bag b
+@deffnx {GMap arg type} wb-bag b
+Yields each element of @var{b} repeatedly, as many times as its multiplicity.
+@end deffn
+
+@deffn {GMap arg type} bag-pairs b
+@deffnx {GMap arg type} ch-bag-pairs b
+@deffnx {GMap arg type} wb-bag-pairs b
+Yields each element of @var{b} and its multiplicity as two values.
+@end deffn
+
+@deffn {GMap arg type} seq @ @r{&key} start end from-end?
+@deffnx {GMap arg type} wb-seq @ @r{&key} start end from-end?
+Yields the elements of @var{seq}.  The keyword parameters @var{start} and @var{end} can be supplied
+to restrict the range of the iteration; @var{start} is inclusive and defaults to 0, while @var{end}
+is exclusive and defaults to the size of the seq.  If @var{from-end?} is true, the elements will be
+yielded in reverse order.
+@end deffn
+
+@deffn {GMap arg type} tuple tpl
+@deffnx {GMap arg type} dyn-tuple tpl
+Yields each pair of @var{tpl}, as two values.
+@end deffn
+
+@deffn {GMap arg type} replay-set s
+@deffnx {GMap arg type} ch-replay-set s
+@deffnx {GMap arg type} wb-replay-set s
+Yields the elements of @var{s}.  As always, the iteration is in replay order.
+@end deffn
+
+@deffn {GMap arg type} replay-map m
+@deffnx {GMap arg type} ch-replay-map m
+@deffnx {GMap arg type} wb-replay-map m
+Yields the pairs of @var{m} as two values.  As always, the iteration is in replay order.
+@end deffn
+
+@deffn {GMap arg type} 2-relation r
+@deffnx {GMap arg type} ch-2-relation r
+@deffnx {GMap arg type} wb-2-relation r
+Yields each pair of @var{r} as two values.
+@end deffn
+
+@c --------------------------------------------------------------------------------
+@node GMap FSet Result Types
+@subsection GMap FSet Result Types
+
+@deffn {GMap result type} set @ @r{&key} filterp
+Returns a CHAMP set of the values, optionally filtered by @var{filterp}.
+@end deffn
+
+@deffn {GMap result type} ch-set @ @r{&key} filterp compare-fn-name
+Returns a CHAMP set of the values, optionally filtered by @var{filterp}.  @var{compare-fn-name} can
+be supplied to specify a custom organization.
+@end deffn
+
+@deffn {GMap result type} wb-set @ @r{&key} filterp compare-fn-name
+Returns a WB-set of the values, optionally filtered by @var{filterp}.  @var{compare-fn-name} can be
+supplied to specify a custom ordering.
+@end deffn
+
+@deffn {GMap result type} union @ @r{&key} filterp
+Returns the union of the sets (or bags), optionally filtered by @var{filterp}.
+@end deffn
+
+@deffn {GMap result type} intersection @ @r{&key} filterp
+Returns the intersection of the sets (or bags), optionally filtered by @var{filterp}.  (If zero sets
+are supplied, returns the full set; see @href{Function full-set, @code{full-set}}.)
+@end deffn
+
+@deffn {GMap result type} map @ @r{&key} filter @r{(}default @r{@code{nil})} no-default?
+Consumes two values from the mapped function; returns a CHAMP map of the pairs.  @var{filterp}, if
+supplied, must take two arguments.  If @var{default} is supplied, that will be the map's @href{Map
+and Seq Defaults, default}; if @var{no-default?} is true, the map will have no default.
+@end deffn
+
+@deffn {GMap result type} ch-map @ @r{&key} filter @r{(@var{default} @code{nil})} no-default? key-compare-fn-name val-compare-fn-name
+Consumes two values from the mapped function; returns a CHAMP map of the pairs.  @var{filterp}, if
+supplied, must take two arguments.  @var{default} will be the map's @href{Map and Seq Defaults,
+default}; but if @var{no-default?} is true, the map will have no default.  @var{key-compare-fn-name} and
+@var{val-compare-fn-name}, if supplied, must be symbols naming the comparison functions to be used
+for keys and values respectively (these default to @code{compare}).
+@end deffn
+
+@deffn {GMap result type} wb-map @ @r{&key} filter @r{(@var{default} @code{nil})} no-default? key-compare-fn-name val-compare-fn-name
+Consumes two values from the mapped function; returns a CHAMP map of the pairs.  @var{filterp}, if
+supplied, must take two arguments.  @var{default} will be the map's @href{Map and Seq Defaults,
+default}; but if @var{no-default?} is true, the map will have no default.  @var{key-compare-fn-name} and
+@var{val-compare-fn-name}, if supplied, must be symbols naming the comparison functions to be used
+for keys and values respectively (these default to @code{compare}).
+@end deffn
+
+@deffn {GMap result type} map-union @r{&key @var{val-fn} (@var{default} @code{nil})} filterp
+Returns the @href{Method map-union (map map), map-union} of the values, optionally filtered by @var{filterp}.  If
+@var{val-fn} is supplied, it is passed to @code{map-union}.  @var{default} will be the map's
+@href{Map and Seq Defaults, default}; but if @var{no-default?} is true, the map will have no
+default.
+@end deffn
+
+@deffn {GMap result type} map-intersection @r{&key @var{val-fn} (@var{default} @code{nil})} filterp
+Returns the @href{Method map-intersection (map map), map-intersection} of the values, optionally filtered by
+@var{filterp}.  If @var{val-fn} is supplied, it is passed to @code{map-intersection}.  @var{default}
+will be the map's @href{Map and Seq Defaults, default}; but if @var{no-default?} is true, the map
+will have no default.  If zero maps are intersected, returns @code{nil} (there's no identity value
+for this operation).
+@end deffn
+
+@deffn {GMap result type} map-to-sets @ @r{&key} filterp key-compare-fn-name val-compare-fn-name
+Consumes two values from the mapped function.  Returns a map from the first values, with each one
+mapped to a set of the corresponding second values.  If you supply @var{val-compare-fn-name}, to
+customize the organization of the range sets, the returned map will use @code{eql-compare} as its
+@var{val-compare-fn}.  Also, @var{filterp}, if supplied, must take two arguments.
+@end deffn
+
+@deffn {GMap result type} bag @ @r{&key} filterp
+Returns a CHAMP bag of the values, optionally filtered by @var{filterp}.
+@end deffn
+
+@deffn {GMap result type} ch-bag @ @r{&key} filterp compare-fn-name
+Returns a CHAMP bag of the values, optionally filtered by @var{filterp}.  @var{compare-fn-name} can
+be supplied to specify a custom organization.
+@end deffn
+
+@deffn {GMap result type} wb-bag @ @r{&key} filterp compare-fn-name
+Returns a WB-bag of the values, optionally filtered by @var{filterp}.  @var{compare-fn-name} can be
+supplied to specify a custom ordering.
+@end deffn
+
+@deffn {GMap result type} bag-pairs @ @r{&key} filterp
+Consumes two values from the mapped function; returns a bag of the pairs.  @var{filterp}, if
+supplied, must take two arguments.
+@end deffn
+
+@deffn {GMap result type} ch-bag-pairs @ @r{&key} filterp compare-fn-name
+Consumes two values from the mapped function; returns a CHAMP bag of the pairs, optionally filtered
+by @var{filterp}.  @var{filterp}, if supplied, must take two arguments.  @var{compare-fn-name} can
+be supplied to specify a custom organization.
+@end deffn
+
+@deffn {GMap result type} wb-bag-pairs @ @r{&key} filterp compare-fn-name
+Consumes two values from the mapped function; returns a WB-bag of the values, optionally filtered by
+@var{filterp}.  @var{filterp}, if supplied, must take two arguments.  @var{compare-fn-name} can be
+supplied to specify a custom ordering.
+@end deffn
+
+@deffn {GMap result type} bag-sum @ @r{&key} filterp
+Returns the bag-sum of the values, optionally filtered by @var{filterp}.
+@end deffn
+
+@deffn {GMap result type} bag-product @ @r{&key} filterp
+Returns the bag-product of the values, optionally filtered by @var{filterp}.  (If zero bags are
+supplied, returns the full set, which contains every value with multiplicity 1; see @href{Function
+full-set, @code{full-set}}.)
+@end deffn
+
+@deffn {GMap result type} seq @ @r{&key} filterp
+@deffnx {GMap result type} wb-seq @ @r{&key} filterp
+Returns a seq of the values, optionally filtered by @var{filterp}.
+@end deffn
+
+@deffn {GMap result type} concat @ @r{&key} filterp
+Returns the concatenation of the seq values, optionally filtered by @var{filterp}.
+@end deffn
+
+@deffn {GMap result type} tuple @ @r{&key} filterp
+@deffnx {GMap result type} dyn-tuple @ @r{&key} filterp
+Consumes two values from the mapped function; returns a dynamic tuple of the pairs.
+@end deffn
+
+@deffn {GMap result type} replay-set @ @r{&key} filterp
+Returns a CHAMP replay-set of the values, optionally filtered by @var{filterp}.
+@end deffn
+
+@deffn {GMap result type} ch-replay-set @ @r{&key} filterp compare-fn-name
+Returns a CHAMP replay-set of the values, optionally filtered by @var{filterp}.
+@var{compare-fn-name} can be supplied to specify a custom organization.
+@end deffn
+
+@deffn {GMap result type} wb-replay-set @ @r{&key} filterp compare-fn-name
+Returns a WB-tree replay-set of the values, optionally filtered by @var{filterp}.
+@var{compare-fn-name} can be supplied to specify a custom ordering.
+@end deffn
+
+@deffn {GMap result type} replay-map @ @r{&key} filter @r{@var{default} @code{nil})} no-default? key-compare-fn-name val-compare-fn-name
+Consumes two values from the mapped function; returns a CHAMP map of the pairs.  @var{filterp}, if
+supplied, must take two arguments.  If @var{default} is supplied, that will be the map's @href{Map
+and Seq Defaults, default}; if @var{no-default?} is true, the map will have no default.
+@end deffn
+
+@deffn {GMap result type} ch-replay-map @ @r{&key} filter @r{@var{default} @code{nil})} no-default?
+Consumes two values from the mapped function; returns a CHAMP map of the pairs.  @var{filterp}, if
+supplied, must take two arguments.  If @var{default} is supplied, that will be the map's @href{Map
+and Seq Defaults, default}; if @var{no-default?} is true, the map will have no default.
+@var{key-compare-fn-name} and @var{val-compare-fn-name}, if supplied, must be symbols naming the
+comparison functions to be used for keys and values respectively (these default to @code{compare}).
+@end deffn
+
+@deffn {GMap result type} wb-replay-map @ @r{&key} filter @r{@var{default} @code{nil})} no-default?
+Consumes two values from the mapped function; returns a WB-tree map of the pairs.  @var{filterp}, if
+supplied, must take two arguments.  If @var{default} is supplied, that will be the map's @href{Map
+and Seq Defaults, default}; if @var{no-default?} is true, the map will have no default.
+@var{key-compare-fn-name} and @var{val-compare-fn-name}, if supplied, must be symbols naming the
+comparison functions to be used for keys and values respectively (these default to @code{compare}).
+@end deffn
+
+@deffn {GMap result type} 2-relation @ @r{&key} filterp
+Consumes two values from the mapped function; returns a CHAMP binary relation of the pairs.
+@var{filterp}, if supplied, must take two arguments.
+@end deffn
+
+@deffn {GMap result type} ch-2-relation @ @r{&key} filterp key-compare-fn-name val-compare-fn-name
+Consumes two values from the mapped function; returns a CHAMP binary relation of the pairs.
+@var{filterp}, if supplied, must take two arguments.  @var{key-compare-fn-name} and
+@var{val-compare-fn-name}, if supplied, must be symbols naming the comparison functions to be used
+for keys and values respectively (these default to @code{compare}).
+@end deffn
+
+@deffn {GMap result type} ch-2-relation @ @r{&key} filterp key-compare-fn-name val-compare-fn-name
+Consumes two values from the mapped function; returns a WB-tree binary relation of the pairs.
+@var{filterp}, if supplied, must take two arguments.  @var{key-compare-fn-name} and
+@var{val-compare-fn-name}, if supplied, must be symbols naming the comparison functions to be used
+for keys and values respectively (these default to @code{compare}).
+@end deffn
+
 
 @c ================================================================================
 @node Iterate
@@ -262,20 +887,20 @@ Concatenates successive seqs into a result seq.
 @end deffn
 
 @deffn {Iterate accumulator} {map-unioning @var{expr}} @ @r{&optional combining-with} val-fn @r{initial-value} init-val @r{into} var-spec
-Map-unions maps into a result map (@pxref{map-union}).  If @var{val-fn} is provided, it is used to
-combine values corresponding to the same key; the default is to overwrite the value from the earlier
-map with the later value.  If @var{init-val} is provided, the result will be of the same type and
-organization; otherwise, it will be of the same type and organization as the first set received,
-unless the iteration terminates without executing this clause at all, in which case the result will
-be the empty @code{ch-map}.
+Map-unions maps into a result map (@pxref{Method map-union (map map)}).  If @var{val-fn} is
+provided, it is used to combine values corresponding to the same key; the default is to overwrite
+the value from the earlier map with the later value.  If @var{init-val} is provided, the result will
+be of the same type and organization; otherwise, it will be of the same type and organization as the
+first set received, unless the iteration terminates without executing this clause at all, in which
+case the result will be the empty @code{ch-map}.
 @end deffn
 
 @deffn {Iterate accumulator} {map-intersecting @var{expr}} @ @r{&optional combining-with} val-fn @r{into} var-spec
-Map-intersects maps into a result map (@pxref{map-intersection}).  If @var{val-fn} is provided, it
-is used to combine values corresponding to the same key; the default is to overwrite the value from
-the earlier map with the later value.  The result will be of the same type and organization as the
-first set received, unless the iteration terminates without executing this clause at all, in which
-case the result will be @code{nil}.
+Map-intersects maps into a result map (@pxref{Method map-intersection (map map)}).  If @var{val-fn}
+is provided, it is used to combine values corresponding to the same key; the default is to overwrite
+the value from the earlier map with the later value.  The result will be of the same type and
+organization as the first set received, unless the iteration terminates without executing this
+clause at all, in which case the result will be @code{nil}.
 
 [Discussion: in the case of intersecting zero maps, there's nothing reasonable this could return,
 since there's no such thing as a ``full map''.  (There is a full binary relation, but it's not a

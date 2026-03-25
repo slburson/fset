@@ -1,0 +1,119 @@
+/* FSet book custom styles */
+
+/* ── Theme variables ─────────────────────────────────────────────────────── */
+
+:root {
+    --bg:          #CCDDCC;
+    --fg:          #111111;
+    --link:        #1a5c8a;
+    --link-visited:#5b3a8a;
+    --nav-bg:      #b8ccb8;
+    --nav-border:  #88aa88;
+    --code-bg:     #ddeadd;
+    --code-border: #aaccaa;
+    --def-bg:      #c4d8c4;
+}
+
+:root[data-theme="dark"] {
+    --bg:          #000050;
+    --fg:          #c8d8f8;
+    --link:        #80c0ff;
+    --link-visited:#c080ff;
+    --nav-bg:      #00007a;
+    --nav-border:  #2848c0;
+    --code-bg:     #000080;
+    --code-border: #2848c0;
+    --def-bg:      #00005e;
+}
+
+:root[data-theme="hc"] {
+    --bg:          #000000;
+    --fg:          #ffffff;
+    --link:        #ffff00;
+    --link-visited:#ff88ff;
+    --nav-bg:      #000000;
+    --nav-border:  #ffffff;
+    --code-bg:     #000000;
+    --code-border: #ffffff;
+    --def-bg:      #000000;
+}
+
+/* ── Base ────────────────────────────────────────────────────────────────── */
+
+body {
+    max-width: 48em;
+    font-size: 0.9em;
+    background-color: var(--bg);
+    color: var(--fg);
+}
+
+a:link    { color: var(--link); }
+a:visited { color: var(--link-visited); }
+
+/* ── Navigation panel ────────────────────────────────────────────────────── */
+
+.nav-panel {
+    background-color: var(--nav-bg);
+    border: 1px solid var(--nav-border);
+    padding: 0.25em 0.6em;
+    margin-bottom: 0.75em;
+}
+
+/* ── Code and examples ───────────────────────────────────────────────────── */
+
+pre, .example-preformatted {
+    background-color: var(--code-bg);
+    border: 1px solid var(--code-border);
+    padding: 0.5em 0.75em;
+    overflow-x: auto;
+}
+
+code.code, kbd, samp {
+    background-color: var(--code-bg);
+    padding: 0 0.2em;
+}
+
+/* ── Definition blocks ───────────────────────────────────────────────────── */
+
+.def-block {
+    background-color: var(--def-bg);
+    border-left: 3px solid var(--nav-border);
+    padding: 0.25em 0.5em;
+    margin: 1em 0;
+}
+
+/* ── var elements: monospace italic ──────────────────────────────────────── */
+
+pre, code, kbd, samp, var {
+    font-size: 1.25em;
+}
+
+var.def-var-arguments .r {
+    font-size: .8em;
+}
+
+/* Prevent compounding when these elements are nested */
+pre *, code *, kbd *, samp *, r * {
+    font-size: 1em;
+}
+
+var {
+    font-family: monospace;
+    font-style: italic;
+}
+
+/* ── Theme switcher widget ───────────────────────────────────────────────── */
+
+#theme-switcher {
+    position: fixed;
+    top: 0.5em;
+    right: 0.5em;
+    font-size: 0.8em;
+    background-color: var(--nav-bg);
+    border: 1px solid var(--nav-border);
+    color: var(--fg);
+    padding: 0.2em 0.4em;
+    border-radius: 4px;
+    cursor: pointer;
+    z-index: 9999;
+}

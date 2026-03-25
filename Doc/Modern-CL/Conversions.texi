@@ -236,7 +236,7 @@ range set.  Otherwise, the result pairs each domain element with the correspondi
 directly.
 @item @ilc{11}
 The relation must be a function (must have only one range value per domain value).  @xref{Method
-conflicts}.
+conflicts (2-relation)}.
 @item @ilc{12}
 Returns a map mapping each domain value to the set of corresponding range values.  The default of
 the result is the empty set.

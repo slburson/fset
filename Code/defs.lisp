@@ -248,7 +248,8 @@
 	   ;; Used by the bag methods that convert to and from lists.
 	   #:alist
 	   ;; Miscellaneous GMap arg types
-	   #:bag-pairs #:ch-bag-pairs #:wb-bag-pairs #:fun-bag-pairs #:fun-sequence #:fun-map
+	   #:bag-pairs #:ch-bag-pairs #:wb-bag-pairs
+	   #:fun-set #:fun-bag #:fun-bag-pairs #:fun-sequence #:fun-map
 	   ;; Miscellaneous GMap result types
 	   #:map-to-sets #:append-unique
 	   ;; Bounded sets

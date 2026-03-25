@@ -42,6 +42,11 @@
 (defmethod iterator ((s replay-set) &key)
   (make-wb-seq-tree-iterator (replay-set-ordering s)))
 
+(defmethod fun-iterator ((s replay-set) &key from-end?)
+  (if from-end?
+      (wb-seq-tree-rev-fun-iter (replay-set-ordering s))
+    (wb-seq-tree-fun-iter (replay-set-ordering s))))
+
 (defmethod internal-do-set ((s replay-set) elt-fn value-fn)
   (declare (optimize (speed 3) (safety 0))
 	   (type function elt-fn value-fn))
@@ -604,6 +609,23 @@ result is that of `s1', filtered by membership in `s2'."
 		    (values key val t)))))
 	(:done? (wb-seq-tree-iterator-done? iter))
 	(:more? (not (wb-seq-tree-iterator-done? iter)))))))
+
+(defmethod fun-iterator ((m replay-map) &key from-end?)
+  (rlabels (walk (if from-end?
+		     (wb-seq-tree-rev-fun-iter (replay-map-ordering m))
+		   (wb-seq-tree-fun-iter (replay-map-ordering m))))
+    (walk (iter)
+      (lambda (op)
+	(ecase op
+	  (:first (let ((key key? (funcall iter ':first)))
+		    (if (not key?)
+			(values nil nil nil)
+		      (let ((val val? (lookup m key)))
+			(assert val? () "Bug in `replay-map' iterator")
+			(values key val t)))))
+	  (:rest (walk (funcall iter ':rest)))
+	  (:empty? (funcall iter ':empty?))
+	  (:more? (funcall iter ':more?)))))))
 
 (defmethod internal-do-map ((m replay-map) elt-fn value-fn)
   (declare (optimize (speed 3) (safety 0))
