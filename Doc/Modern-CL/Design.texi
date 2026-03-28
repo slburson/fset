@@ -37,6 +37,8 @@ now explain.
 
 @c Map defaults should be mentioned here somewhere; they also support DRY.
 
+@hrule{}
+
 
 @c ================================================================================
 @node Divergences from Common Lisp
@@ -235,6 +237,8 @@ Elements are Compared or Hashed, discussed later}.)
 FSet does not attempt to define @code{compare} on Lisp hash tables or function objects.  I do not
 recommend placing these types in FSet collections.
 
+@hrule{}
+
 @c --------------------------------------------------------------------------------
 @node Mixed-Type Collections
 @subsection Mixed-Type Collections
@@ -297,14 +301,14 @@ for string manipulation.
 @node The @code{@@} Macro
 @section The @code{@@} Macro
 
-Common Lisp is, of course, a "Lisp-2", meaning a two-namespace Lisp in which a given name can have
-both a function binding and a value binding.  In a Lisp-1, like Scheme, it would be nice to set the
-FSet types up as objects that could be called as functions as well as having the various operations
+Common Lisp is a "Lisp-2", meaning a two-namespace Lisp in which a given name can have both a
+function binding and a value binding.  In a Lisp-1, like Scheme, it would be nice to set the FSet
+types up as objects that could be called as functions as well as having the various operations
 invoked on them (some object systems for other Lisps have supported this, such as that of
 @uref{http://mumble.net/~jar/tproject/,T}).  Then, instead of @code{(lookup m x)} where @code{m} is
 a map, you could write simply @code{(m x)}.  But this doesn't work in a Lisp-2, since the @code{car}
-of a form is evaluated in the function namespace; you'd have to write something like @code{(funcall
-m x)}, which isn't any more elegant.
+of a form is evaluated in the function namespace; you'd have to write @code{(funcall m x)}, which
+isn't any more elegant.
 
 What I can do, however, is give you a shorter name to type than @code{funcall}.  Thus is born
 @code{@@}.  It is a macro that expands to code that tests whether its first argument is a Lisp

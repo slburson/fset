@@ -1229,7 +1229,15 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
 
 (defun |rereading-#[-reader| (stream subchar arg)
   (declare (ignore subchar arg))
-  (let ((seq (convert 'seq (read-delimited-list #\] stream t))))
+  (let ((seq (convert 'seq (read-delimited-list #\] stream t)))
+	(start 0))
+    (loop
+      (let ((pos (position-if (fn (x) (and (consp x) (eq (car x) '$$))) seq :start start)))
+	(if (null pos)
+	    (return)
+	  (let ((str (cadr (@ seq pos))))
+	    (setq seq (concat (subseq seq 0 pos) (convert 'seq str) (subseq seq (1+ pos)))
+		  start (+ pos (length str)))))))
     (if (eql #\/ (peek-char nil stream nil nil t))
 	(progn
 	  (read-char stream t nil t)
@@ -1278,6 +1286,11 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
   (unread-char subchar stream)
   (convert 'seq (read stream t nil t)))
 
+(defun |rereading-#$-reader| (stream subchar arg)
+  (declare (ignore subchar arg))
+  ;; The rereading version uses an internal marker symbol; it's handled by |rereading-#[-reader|.
+  `($$ ,(read stream t nil t)))
+
 (defun fset-setup-rereading-readtable (readtable)
   "Adds the FSet rereading reader macros to `readtable'.  These reader macros
 will correctly read structure printed by the FSet print functions.  Returns
@@ -1290,6 +1303,7 @@ will correctly read structure printed by the FSet print functions.  Returns
   (set-dispatch-macro-character #\# #\% #'|rereading-#%-reader| readtable)
   (set-dispatch-macro-character #\# #\# #'|rereading-##-reader| readtable)
   (set-dispatch-macro-character #\# #\" #'|rereading-#"-reader| readtable)
+  (set-dispatch-macro-character #\# #\$ #'|rereading-#$-reader| readtable)
   readtable)
 
 (defvar *fset-rereading-readtable* (fset-setup-rereading-readtable (copy-readtable nil))
@@ -1306,4 +1320,5 @@ print functions.")
   (:dispatch-macro-char #\# #\~ #'|rereading-#~-reader|)
   (:dispatch-macro-char #\# #\% #'|rereading-#%-reader|)
   (:dispatch-macro-char #\# #\# #'|rereading-##-reader|)
-  (:dispatch-macro-char #\# #\" #'|rereading-#"-reader|))
+  (:dispatch-macro-char #\# #\" #'|rereading-#"-reader|)
+  (:dispatch-macro-char #\# #\$ #'|rereading-#$-reader|))

@@ -1,6 +1,8 @@
 @node Recommendations for Language Designers
 @chapter Recommendations for Language Designers
 
+@hrule{}
+
 @node Features of FSet
 @section Features of FSet
 
@@ -58,6 +60,8 @@ semantics.  An opportunity lost, I'd call that.)
 
 Here I take a look at some functional collections packages for other popular languages, from an FSet
 perspective.
+
+@hrule{}
 
 @c --------------------------------------------------------------------------------
 @node Clojure

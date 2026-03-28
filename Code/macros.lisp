@@ -828,16 +828,23 @@ reverse order if `from-end?' is true, binds `var' to it and executes `body'.
 If `index' is supplied, it names a variable that will be bound at each
 iteration to the index of the current element of `seq'.  When done, returns
 `value'."
-  `(block nil
-     (let ((elt-fn #'(lambda (,var . ,(and index? `(,index)))
-		       ,@(and index? `((declare (fixnum ,index))))
-		       . ,body))
-	   (value-fn #'(lambda () ,value)))
-       (declare (dynamic-extent elt-fn value-fn))
-       (internal-do-seq ,seq elt-fn value-fn ,index?
-			,@(and start? `(:start ,start))
-			,@(and end? `(:end ,end))
-			,@(and from-end?? `(:from-end? ,from-end?))))))
+  ;; Because we have only one implementation, we don't need to go through `internal-do-seq'
+  ;; unless they're using the `index' feature.  Skipping `internal-do-seq' saves us about 20%
+  ;; on one micro-benchmark.
+  (if index?
+      `(block nil
+	 (let ((elt-fn #'(lambda (,var . ,(and index? `(,index)))
+			   ,@(and index? `((declare (fixnum ,index))))
+			   . ,body))
+	       (value-fn #'(lambda () ,value)))
+	   (declare (dynamic-extent elt-fn value-fn))
+	   (internal-do-seq ,seq elt-fn value-fn ,index?
+			    ,@(and start? `(:start ,start))
+			    ,@(and end? `(:end ,end))
+			    ,@(and from-end?? `(:from-end? ,from-end?)))))
+    `(Do-WB-Seq-Tree-Members-Gen (,var (wb-seq-contents ,seq) ,(if start? start 0) ,(if end? end `(size ,seq))
+				       ,(and from-end?? from-end?) ,value)
+       . ,body)))
 
 (defmacro do-seq-chunks ((var seq &optional value) &body body)
   "Internally, a seq is represented as a tree whose leaves are vectors, each
@@ -1280,8 +1287,7 @@ Note that `filterp', if supplied, must take two arguments."
     #'make-persistent
     ,filterp))
 
-(gmap:def-gmap-res-type map-union (&key (val-fn nil val-fn?)
-				    (default nil default?) filterp)
+(gmap:def-gmap-res-type map-union (&key (val-fn nil val-fn?) (default nil default?) filterp)
   "Returns the map-union of the values, optionally filtered by `filterp'.  If `val-fn'
 is supplied, it is passed to `map-union' (q.v.).  If `default' is supplied, it is used
 as the map default."
@@ -1294,8 +1300,7 @@ as the map default."
        ,filterp
        (,@(and val-fn? `((,val-fn-var ,val-fn)))))))
 
-(gmap:def-gmap-res-type fset2:map-union (&key (val-fn nil val-fn?)
-					      (default nil default?) filterp)
+(gmap:def-result-type fset2:map-union (&key (val-fn nil val-fn?) (default nil default?) no-default? filterp)
   "Returns the map-union of the values, optionally filtered by `filterp'.  If `val-fn'
 is supplied, it is passed to `map-union' (q.v.).  If `default' is supplied, it is used
 as the map default."
@@ -1304,12 +1309,11 @@ as the map default."
        #'(lambda (prev-m m)
 	   (if (null prev-m) m
 	     ,(if val-fn? `(map-union prev-m m ,val-fn-var) '(map-union prev-m m))))
-       ,(and default? `#'(lambda (m) (with-default (or m (empty-ch-map)) ,default)))
+       ,(and default? `#'(lambda (m) (with-default (or m (empty-ch-map)) (fset2-default t ,default ,no-default?))))
        ,filterp
        (,@(and val-fn? `((,val-fn-var ,val-fn)))))))
 
-(gmap:def-gmap-res-type map-intersection (&key (val-fn nil val-fn?)
-					   (default nil default?) filterp)
+(gmap:def-gmap-res-type map-intersection (&key (val-fn nil val-fn?) (default nil default?) filterp)
   "Returns the map-intersection of the values, optionally filtered by `filterp'.
 If `val-fn' is supplied, it is passed to `map-intersection' (q.v.).  If
 `default' is supplied, it is used as the map default.  If zero maps are
@@ -1323,7 +1327,19 @@ intersected, returns nil."
       ,filterp
       (,@(and val-fn? `((,val-fn-var ,val-fn)))))))
 
-(gmap:def-result-type-synonym fset2:map-intersection map-intersection)
+(gmap:def-result-type fset2:map-intersection (&key (val-fn nil val-fn?) (default nil default?) no-default? filterp)
+  "Returns the map-intersection of the values, optionally filtered by `filterp'.
+If `val-fn' is supplied, it is passed to `map-intersection' (q.v.).  If
+`default' is supplied, it is used as the map default.  If zero maps are
+intersected, returns nil."
+  (let ((val-fn-var (gensymx #:val-fn-)))
+    `(nil
+      #'(lambda (prev-m m)
+	  (if (null prev-m) m
+	    ,(if val-fn? `(map-intersection prev-m m ,val-fn-var) '(map-intersection prev-m m))))
+      ,(and default? `#'(lambda (m) (and m (with-default m (fset2-default t ,default ,no-default?)))))
+      ,filterp
+      (,@(and val-fn? `((,val-fn-var ,val-fn)))))))
 
 (gmap:def-result-type map-to-sets (&key filterp key-compare-fn-name val-compare-fn-name)
   "Consumes two values from the mapped function.  Returns a map from the first
@@ -1367,27 +1383,25 @@ and defaults to 0, while `end' is exclusive and defaults to the size of the
 seq.  If `from-end?' is true, the elements will be yielded in reverse order."
   (let ((seq-var (gensymx #:seq-)))
     (cond ((null from-end?)
-	   (let ((tree-var (gensymx #:tree-)))
-	     `((Make-WB-Seq-Tree-Iterator-Internal ,tree-var ,start ,end)
-	       #'WB-Seq-Tree-Iterator-Done?
-	       #'WB-Seq-Tree-Iterator-Get
-	       nil
-	       ((,seq-var ,seq)
-		((,tree-var (WB-Seq-Tree-Canonicalize-Down-Unbalanced (wb-seq-contents ,seq-var)))))
-	       nil
-	       (Do-WB-Seq-Tree-Members-Gen ,tree-var
-		 ,(or start 0) ,(or end `(size ,seq-var)) nil))))
+	   `((Make-WB-Seq-Tree-Iterator-Internal (wb-seq-contents ,seq-var) ,start ,end)
+	     #'WB-Seq-Tree-Iterator-Done?
+	     #'WB-Seq-Tree-Iterator-Get
+	     nil
+	     ((,seq-var ,seq))
+	     nil
+	     (Do-WB-Seq-Tree-Members-Gen (wb-seq-contents ,seq-var)
+	       ,(or start 0) ,(or end `(size ,seq-var)) nil)
+	     ((,seq-var ,seq))))
 	  ((eq from-end? 't)
-	   (let ((tree-var (gensymx #:tree-)))
-	     `((Make-WB-Seq-Tree-Rev-Iterator-Internal ,tree-var ,start ,end)
-	       #'WB-Seq-Tree-Rev-Iterator-Done?
-	       #'WB-Seq-Tree-Rev-Iterator-Get
-	       nil
-	       ((,seq-var ,seq)
-		((,tree-var (WB-Seq-Tree-Canonicalize-Down-Unbalanced (wb-seq-contents ,seq-var)))))
-	       nil
-	       (Do-WB-Seq-Tree-Members-Gen ,tree-var
-		 (or ,start 0) (or ,end (size ,seq-var)) t))))
+	   `((Make-WB-Seq-Tree-Rev-Iterator-Internal (wb-seq-contents ,seq-var) ,start ,end)
+	     #'WB-Seq-Tree-Rev-Iterator-Done?
+	     #'WB-Seq-Tree-Rev-Iterator-Get
+	     nil
+	     ((,seq-var ,seq))
+	     nil
+	     (Do-WB-Seq-Tree-Members-Gen (wb-seq-contents ,seq-var)
+	       (or ,start 0) (or ,end (size ,seq-var)) t)
+	     ((,seq-var ,seq))))
 	  (t
 	   ;; Can't do much better than this if we don't statically know the direction.
 	   `((the function (iterator ,seq :start ,start :end ,end :from-end? ,from-end?))

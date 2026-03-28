@@ -7844,8 +7844,7 @@ may or may not be an HT tree."
 ;;; Stateful iterator
 
 (defun Make-WB-Seq-Tree-Iterator (tree &optional start end)
-  (let ((tree (WB-Seq-Tree-Canonicalize-Down-Unbalanced tree))
-	((iter (Make-WB-Seq-Tree-Iterator-Internal tree start end))))
+  (let ((iter (Make-WB-Seq-Tree-Iterator-Internal tree start end)))
     (lambda (op)
       (ecase op
 	(:get (WB-Seq-Tree-Iterator-Get iter))
@@ -7856,9 +7855,10 @@ may or may not be an HT tree."
 (defun Make-WB-Seq-Tree-Iterator-Internal (tree &optional start end)
   (declare (optimize (speed 3) (safety 0))
 	   (type (or null fixnum) start end))
-  (let ((tree-size (WB-Seq-Tree-Size tree))
-	((stack (Make-WB-Tree-Iterator tree tree-size 2 nil))
-	 ((iter (cons stack nil)))))
+  (let ((tree (WB-Seq-Tree-Canonicalize-Down-Unbalanced tree))
+	((tree-size (WB-Seq-Tree-Size tree))
+	 ((stack (Make-WB-Tree-Iterator tree tree-size 2 nil))
+	  ((iter (cons stack nil))))))
     (WB-Seq-Tree-Iterator-Initialize iter tree start end)))
 
 (defun WB-Seq-Tree-Iterator-Initialize (iter tree start end)

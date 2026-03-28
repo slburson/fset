@@ -47,6 +47,9 @@ exclusive of @i{b}.
 The root class of the FSet functional collections hierarchy.
 @end deftp
 
+@hrule{}
+
+
 @c ================================================================================
 @node Notes on Time Complexity
 @section Notes on Time Complexity
@@ -101,6 +104,7 @@ the result set; or a list of the form @code{($ @var{expression})}, in which case
 evaluate to a set, all of whose elements become elements of the result set.
 @end defmac
 
+@anchor{Type ch-set}
 @deftp {Data type} ch-set
 Functional sets implemented using CHAMP trees.  These print as:
 
@@ -119,6 +123,7 @@ Constructor function.  Returns an empty @code{ch-set}.  By default, it will be o
 @href{Macro define-hash-function, @code{define-hash-function}}.
 @end defun
 
+@anchor{Macro ch-set}
 @defmac ch-set @r{&rest} subforms
 Constructor macro.  Constructs a @code{ch-set} according to the supplied argument subforms.  See
 @href{Macro set, @code{set}@comma{} above} for the interpretation of @var{subforms}.
@@ -132,6 +137,7 @@ a hash function must have been defined for it using @href{Macro define-hash-func
 @var{subforms}.
 @end defmac
 
+@anchor{Type wb-set}
 @deftp {Data type} wb-set
 Functional sets implemented using WB-trees.  These print as:
 
@@ -149,6 +155,7 @@ Constructor function.  Returns an empty wb-set.  By default, it will be ordered 
 @code{compare-fn-name}.
 @end defun
 
+@anchor{Macro wb-set}
 @defmac wb-set @r{&rest} subforms
 Constructor macro.  Constructs a @code{wb-set} according to the supplied argument subforms.  See
 @href{Macro set, @code{set}@comma{} above} for the interpretation of @var{subforms}.
@@ -159,6 +166,8 @@ Constructor macro.  Constructs a @code{wb-set} with a custom organization, accor
 argument subforms.  @code{compare-fn-name} must be a symbol naming the desired comparison function.
 See @href{Macro set, @code{set}@comma{} above} for the interpretation of @var{subforms}.
 @end defmac
+
+@hrule{}
 
 @c --------------------------------------------------------------------------------
 @node Set Operations
@@ -403,9 +412,18 @@ Makes a @code{transient-ch-set} whose initial contents are those of @var{s}.  If
 otherwise, the transient is not thread-safe.
 @end deffn
 
+@anchor{Type transient-ch-set}
 @deftp {Data type} transient-ch-set
-A transient CHAMP set.
+A transient CHAMP set.  These print simply as:
+
+@example
+#<TRANSIENT-CH-SET @i{id}>
+@end example
+
+where @i{id} is a serial number to identify the instance.
 @end deftp
+
+@hrule{}
 
 @c ----------------------------------------
 @node Transient-CH-Set Operations
@@ -522,6 +540,7 @@ I don't think of complement sets as adding much functionality; they are mostly j
 convenience.  One thing they do add is a representation of the @dfn{full set}, the set containing
 everything, which is sometimes handy, being the identity element for the intersection operation.
 
+@anchor{Type complement-set}
 @deftp {Data type} complement-set
 A representation of the complement of a normal, enumerated set.
 
@@ -649,6 +668,7 @@ in left-to-right order; so if a given key is supplied by more than one argument 
 associated value will be given by the rightmost such subform.
 @end defmac
 
+@anchor{Type ch-map}
 @deftp {Data type} ch-map
 Functional maps implemented using CHAMP trees.  These print as:
 
@@ -671,6 +691,7 @@ naming the comparison functions to be used for keys and values respectively (the
 @href{Macro define-hash-function, @code{define-hash-function}}.
 @end defun
 
+@anchor{Macro ch-map}
 @defmac ch-map @r{&rest} subforms
 Constructor macro.  Constructs a @code{ch-map} according to the supplied argument subforms.  See
 @href{Macro map, @code{map}@comma{} above} for the interpretation of @var{subforms}.
@@ -686,6 +707,7 @@ using @href{Macro define-hash-function, @code{define-hash-function}}.
 See @href{Macro map, @code{map}@comma{} above} for the interpretation of @var{subforms}.
 @end defmac
 
+@anchor{Type wb-map}
 @deftp {Data type} wb-map
 Functional maps implemented using WB-trees.  These print as:
 
@@ -707,6 +729,7 @@ Constructor function.  Returns an empty map of the default implementation and or
 for keys and values respectively (these default to @code{compare}).
 @end defun
 
+@anchor{Macro wb-map}
 @defmac wb-map @r{&rest} subforms
 Constructor macro.  Constructs a @code{wb-map} according to the supplied argument subforms.  See
 @href{Macro map, @code{map}@comma{} above} for the interpretation of @var{subforms}.
@@ -720,6 +743,8 @@ synonym of @code{compare}).
 
 See @href{Macro map, @code{map}@comma{} above} for the interpretation of @var{subforms}.
 @end defmac
+
+@hrule{}
 
 @c --------------------------------------------------------------------------------
 @node Map Operations
@@ -1052,9 +1077,18 @@ Makes a @code{transient-ch-map} whose initial contents are those of @var{m}.  If
 otherwise, the transient is not thread-safe.
 @end deffn
 
+@anchor{Type transient-ch-map}
 @deftp {Data type} transient-ch-map
-A transient CHAMP map.
+A transient CHAMP map.  These print simply as:
+
+@example
+#<TRANSIENT-CH-MAP @i{id}>
+@end example
+
+where @i{id} is a serial number to identify the instance.
 @end deftp
+
+@hrule{}
 
 @c ----------------------------------------
 @node Transient-CH-Map Operations
@@ -1105,7 +1139,7 @@ Defaults, default}, false, and @code{nil}.  If the key is not found and the map 
 signals an error of type @code{map-domain-error}.  O(log @i{n}).
 @end deffn
 
-@deffn Method {(setf lookup!) (t transient-ch-map)} @ value tm key
+@deffn Method {setf lookup! (t transient-ch-map)} @ value tm key
 Modifies @var{tm} so that it maps @var{key} to @var{value}.  Has no effect if this was already the
 case.  Returns @var{value} (the CL spec for @code{setf} requires this).  O(log @i{n}).
 @end deffn
@@ -1115,11 +1149,11 @@ case.  Returns @var{value} (the CL spec for @code{setf} requires this).  O(log @
 Returns the @href{Map and Seq Defaults, default} associated with @var{tm}.
 @end deffn
 
-@deffn Method {(setf default!) (transient-ch-map)} @ tm new-default
+@deffn Method {setf default! (transient-ch-map)} @ tm new-default
 Changes the default associated with @var{tm} to @var{new-default}.
 @end deffn
 
-@deffn Method {(clear-default!) (transient-ch-map)} @ tm
+@deffn Method {clear-default! (transient-ch-map)} @ tm
 Removes the default from @var{tm}.  Subsequent lookups using keys not in the domain of @var{tm} will
 cause an error to be signalled.
 @end deffn
@@ -1232,6 +1266,7 @@ multiplicities (1, if it's a set); or a list of the form @code{(% @var{value} @v
 which adds the value to the bag with the specified multiplicity.
 @end defmac
 
+@anchor{Type ch-bag}
 @deftp {Data type} ch-bag
 Functional bags implemented using CHAMP trees.  These print as:
 
@@ -1251,6 +1286,7 @@ a hash function must have been defined for it using @href{Macro define-hash-func
 @code{define-hash-function}}.
 @end defun
 
+@anchor{Macro ch-bag}
 @defmac ch-bag @r{&rest} subforms
 Constructor macro.  Constructs a @code{ch-bag} according to the supplied argument subforms.  See
 @href{Macro bag, @code{bag}@comma{} above} for the interpretation of @var{subforms}.
@@ -1264,6 +1300,7 @@ a hash function must have been defined for it using @href{Macro define-hash-func
 @var{subforms}.
 @end defmac
 
+@anchor{Type wb-bag}
 @deftp {Data type} wb-bag
 Functional bags implemented using WB-trees.  These print as:
 
@@ -1283,6 +1320,7 @@ a hash function must have been defined for it using @href{Macro define-hash-func
 @code{define-hash-function}}.
 @end defun
 
+@anchor{Macro wb-bag}
 @defmac wb-bag @r{&rest} subforms
 Constructor macro.  Constructs a @code{wb-bag} according to the supplied argument subforms.  See
 @href{Macro bag, @code{bag}@comma{} above} for the interpretation of @var{subforms}.
@@ -1293,6 +1331,8 @@ Constructor macro.  Constructs a @code{wb-bag} with a custom organization, accor
 argument subforms.  @code{compare-fn-name} must be a symbol naming the desired comparison function.
 See @href{Macro bag, @code{bag}@comma{} above} for the interpretation of @var{subforms}.
 @end defmac
+
+@hrule{}
 
 @c --------------------------------------------------------------------------------
 @node Bag Operations
@@ -1610,9 +1650,18 @@ Makes a @code{transient-ch-bag} whose initial contents are those of @var{s}.  If
 otherwise, the transient is not thread-safe.
 @end deffn
 
+@anchor{Type transient-ch-bag}
 @deftp {Data type} transient-ch-bag
-A transient CHAMP bag.
+A transient CHAMP bag.  These print simply as:
+
+@example
+#<TRANSIENT-CH-BAG @i{id}>
+@end example
+
+where @i{id} is a serial number to identify the instance.
 @end deftp
+
+@hrule{}
 
 @c ----------------------------------------
 @node Transient-CH-Bag Operations
@@ -1781,6 +1830,7 @@ Currently, seqs have only one implementation: @code{wb-seq}, using WB-trees.
 The abstract class for FSet functional seqs.
 @end deftp
 
+@anchor{Type wb-seq}
 @deftp {Data type} wb-seq
 Functional seqs implemented using WB-trees.  These print in two different ways, depending on whether
 they are ``char seqs'', i.e., they contain only characters.  Non-char seqs use the general form:
@@ -1804,6 +1854,7 @@ the seq's @href{Map and Seq Defaults, default}; if @var{no-default?} is true, th
 default.
 @end defun
 
+@anchor{Macro seq}
 @defmac seq @r{&rest} subforms
 @defmacx wb-seq @r{&rest} subforms
 Constructor macro.  Constructs a @code{wb-seq} according to the supplied argument subforms.  Each
@@ -1839,6 +1890,8 @@ default; if neither, the seq's default is @code{nil}.  To include @code{:default
 @end example
 @end defmac
 
+@hrule{}
+
 @c --------------------------------------------------------------------------------
 @node Seq Operations
 @subsection Seq Operations
@@ -1856,11 +1909,12 @@ Returns true iff @var{s} is a char seq, i.e., it contains only characters and is
 @end deffn
 
 @deffn Method {lookup (seq)} @ s idx
+@deffnx Method {at-index (seq)} @ s idx
 If @var{idx} is an integer in [0 .. size(@var{s})], returns two values: the element at that
 position, and true.  Otherwise, returns the seq's @href{Map and Seq Defaults, default} and false; if
 the seq has no default, signals an error of type @code{seq-bounds-error}.  O(log @i{n}).
 
-See also @ref{The @code{@@} Macro}.
+For seqs, @code{at-index} is synonymous with @code{lookup}.  See also @ref{The @code{@@} Macro}.
 @end deffn
 
 @deffn Method {default (seq)} @ s
@@ -2324,10 +2378,13 @@ faster CHAMP sets and maps are now used instead.  I have not removed the older c
 documenting them because I don't know why you would want to use them; iteration order is not a
 concern here, since it's imposed by the client anyway.
 
+@hrule{}
+
 @c --------------------------------------------------------------------------------
 @node Replay Sets
 @subsection Replay Sets
 
+@anchor{Type ch-replay-set}
 @deftp {Data type} replay-set
 @deftpx {Data type} ch-replay-set
 Functional replay sets implemented as pairs of a CHAMP set and a seq.  These print as:
@@ -2351,6 +2408,7 @@ user-defined data type for which you had not defined methods on @code{compare} a
 @code{hash-value}.)
 @end defun
 
+@anchor{Macro replay-set}
 @defmac replay-set @r{&rest} subforms
 @defmacx ch-replay-set @r{&rest} subforms
 @defmacx ch-custom-replay-set compare-fn-name @r{&rest} subforms
@@ -2364,6 +2422,8 @@ To use a custom organization, use @code{ch-custom-replay-set}.  @code{compare-fn
 symbol naming the desired comparison function; a hash function must have been defined for it using
 @href{Macro define-hash-function, @code{define-hash-function}}.
 @end defmac
+
+@hrule{}
 
 @c ----------------------------------------
 @node Replay-Set Operations
@@ -2464,12 +2524,13 @@ is amortized O(1).
 @node Replay Maps
 @subsection Replay Maps
 
+@anchor{Type ch-replay-map}
 @deftp {Data type} replay-map
 @deftpx {Data type} ch-replay-map
 Functional replay maps implemented as pairs of a CHAMP map and a seq.  These print as:
 
 @example
-##@{=| (@i{k0 v0}) (@i{k1 v1}) ... @}[@i{key-compare-fn};@i{val-compare-fn}]/@i{default}
+##@{=| (@i{k0 v0}) (@i{k1 v1}) ... |@}[@i{key-compare-fn};@i{val-compare-fn}]/@i{default}
 @end example
 
 That is, there's an @code{=} just inside the opening brace; otherwise they look like ch-maps.  As
@@ -2490,6 +2551,7 @@ you would need one is if you had a user-defined data type for which you had not 
 @code{compare} and @code{hash-value}.)
 @end defun
 
+@anchor{Macro replay-map}
 @defmac replay-map @r{&rest} subforms
 @defmacx ch-replay-map @r{&rest} subforms
 @defmacx ch-custom-replay-map key-compare-fn-name val-compare-fn-name @r{&rest} subforms
@@ -2515,6 +2577,8 @@ The result is constructed from the denoted mappings in left-to-right order; so i
 supplied by more than one argument subform, its associated value will be given by the rightmost such
 subform, but its position in the ordering by the leftmost.
 @end defmac
+
+@hrule{}
 
 @c ----------------------------------------
 @node Replay-Map Operations
@@ -2693,6 +2757,7 @@ for example:
 @end example
 @end defmac
 
+@anchor{Type ch-2-relation}
 @deftp {Data type} ch-2-relation
 Functional binary relations implemented using CHAMP trees.  These print as:
 
@@ -2711,6 +2776,7 @@ for keys and values respectively (these default to @code{compare}).  A hash func
 defined for each comparison function using @href{Macro define-hash-function, @code{define-hash-function}}.
 @end defun
 
+@anchor{Macro ch-2-relation}
 @defmac ch-2-relation @r{&rest} subforms
 Constructor macro.  Constructs a ch-2-relation according to the supplied argument subforms.  See
 @href{Macro 2-relation, @code{2-relation}@comma{} above} for the interpretation of @var{subforms}.
@@ -2724,6 +2790,7 @@ synonym of @code{compare}).  See @href{Macro 2-relation, @code{2-relation}@comma
 interpretation of @var{subforms}.
 @end defmac
 
+@anchor{Macro wb-2-relation}
 @defmac wb-2-relation @r{&rest} subforms
 Constructor macro.  Constructs a wb-2-relation according to the supplied argument subforms.  See
 @href{Macro 2-relation, @code{2-relation}@comma{} above} for the interpretation of @var{subforms}.
@@ -2736,6 +2803,8 @@ the comparison functions to be used for keys and values respectively (you can us
 synonym of @code{compare}).  See @href{Macro 2-relation, @code{2-relation}@comma{} above} for the
 interpretation of @var{subforms}.
 @end defmac
+
+@hrule{}
 
 @c --------------------------------------------------------------------------------
 @node 2-Relation Operations
@@ -2892,9 +2961,18 @@ Makes a @code{transient-ch-2-relation} whose initial contents are those of @var{
 otherwise, the transient is not thread-safe.
 @end deffn
 
+@anchor{Type transient-ch-2-relation}
 @deftp {Data type} transient-ch-2-relation
-A transient CHAMP binary relation.
+A transient CHAMP binary relation.  These print simply as:
+
+@example
+#<TRANSIENT-CH-2-RELATION @i{id}>
+@end example
+
+where @i{id} is a serial number to identify the instance.
 @end deftp
+
+@hrule{}
 
 @c ----------------------------------------
 @node Transient-CH-2-Relation Operations
@@ -2975,6 +3053,7 @@ implementation of tuples.
 To use tuples, you first need to declare some tuple keys.  They can also be created dynamically, but
 this is less common.
 
+@anchor{Type tuple-key}
 @deftp {Data type} tuple-key
 A key in a tuple.  All tuple keys must be of this type.  These print as:
 
@@ -2983,6 +3062,7 @@ A key in a tuple.  All tuple keys must be of this type.  These print as:
 @end example
 @end deftp
 
+@anchor{Macro define-tuple-key}
 @defmac define-tuple-key name @r{&key (@var{type} 't) (@var{default} nil)} no-default? documentation
 Defines a tuple key named @var{name} as a @href{Macro deflex, global lexical variable}.  If
 @var{type} is supplied, @code{with} operations using this key will check that the supplied value is
@@ -3012,6 +3092,7 @@ The type of values associated with the key.
 The abstract class for FSet functional tuples.
 @end deftp
 
+@anchor{Type dyn-tuple}
 @deftp {Data type} dyn-tuple
 Functional tuples implemented as dynamic tuples.  These print as:
 
@@ -3124,6 +3205,8 @@ combination of these.  You should not consider them part of the stable API.  But
 been lying around for a long time, and a few people may have used them, so I will try not to change
 them without good reason.
 
+@hrule{}
+
 @c --------------------------------------------------------------------------------
 @node List Relations and Query Registries
 @subsection List Relations and Query Registries
@@ -3144,8 +3227,11 @@ patterns that match the row.
 @node Interval Sets
 @subsection Interval Sets
 
+@c &&& write me
 
 @c --------------------------------------------------------------------------------
 @node Bounded Sets
 @subsection Bounded Sets
+
+@c &&& write me
 

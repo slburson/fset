@@ -3946,10 +3946,10 @@ different bag implementations; it is not for public use.  `elt-fn' and
     (if (and (eq compare-fn (compare-fn s))
 	     (eq hash-fn (hash-set-org-compare-fn (ch-set-org s))))
 	(make-ch-bag (ch-set-tree-to-bag-tree (ch-set-contents s)) (ch-set-org s))
-      (gmap (:result ch-bag-pairs :compare-fn-name compare-fn-name)
+      (gmap (:result ch-bag :compare-fn-name compare-fn-name)
 	    nil (:arg ch-set s)))))
 
-(defmethod convert ((to-type (eql 'fset2:set)) (b ch-bag) &key)
+(define-convert-methods (set fset2:set) ((b ch-bag) &key)
   (make-ch-set (ch-bag-tree-to-set-tree (ch-bag-contents b)) (ch-bag-org b)))
 
 (defmethod convert ((to-type (eql 'ch-set)) (b ch-bag) &key compare-fn-name)
@@ -5589,7 +5589,7 @@ This is the default implementation of seqs in FSet."
 	       (format stream "Index ~D out of bounds for seq ~A, which has no default"
 		       (fset2:seq-bounds-error-index sbe) (fset2:seq-bounds-error-seq sbe))))))
 
-(define-wb-seq-methods (lookup fset2:lookup) ((s wb-seq) index)
+(define-wb-seq-methods (lookup fset2:lookup at-index) ((s wb-seq) index)
   (let ((val? val (if (typep index 'fixnum)
 		      (call-selected WB-Seq-Tree-Subscript WB-HT-Seq-Tree-Subscript
 				     (wb-seq-contents s) index)

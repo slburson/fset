@@ -189,13 +189,23 @@ default is `:preserve'.  \(b\) If supplied, `key-prefix' is prepended and
 		(unless (eq kev ':object-key)
 		  (error "Syntax error: expected object key; found ~S ~S" kev kval))
 		(let ((ev val (parse-value parser (1+ depth)))
-		      ((kval (if (eq (parser-object-type parser) 'tuple)
-				 (if (boundp kval) (symbol-value kval)
-				   (get-tuple-key kval))
-			       kval))))
+		      ((key (if (eq (parser-object-type parser) 'tuple)
+				(if (boundp kval) (symbol-value kval)
+				  (get-tuple-key kval))
+			      kval))))
 		  (unless (eq ev ':value)
 		    (error "Internal error: expected value; found ~S ~S" ev val))
-		  (setf (@ result kval) val))))))
+		  (setf (@ result key)
+			;; If we're parsing into tuples, we don't need to use `null', because
+			;; printing will emit `null' as needed, depending on the key type.
+			;; But if the key is of list type, convert `#[]' to `nil' also.
+			(if (eq (parser-object-type parser) 'tuple)
+			    (if (or (eq val 'null)
+				    (and (eq val (seq))   ; `eq' okay here since the `(seq)' call is above
+					 (subtypep (tuple-key-type key) 'list)))
+				nil
+			      val)
+			  val)))))))
 	((:end-array :end-object)
 	  event)))))
 
@@ -259,9 +269,9 @@ keyword symbol.  So you can write methods like
       (let ((type (tuple-key-type k))
 	    ;; Jzon lets you further customize this behavior by specializing `coerced-fields'.
 	    ;; A similar feature could be added here.
-	    ((v (or v (cond ((and (subtypep 'boolean type) (subtypep type 'boolean))
+	    ((v (or v (cond ((eq type 'boolean)
 			     nil)
-			    ((and (subtypep 'list type) (subtypep type 'list))
+			    ((eq type 'list)
 			     (seq))
 			    (t 'null))))))
 	(com.inuoe.jzon::write-property writer k v)))))

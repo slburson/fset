@@ -10,7 +10,51 @@ FSet provides a plethora of ways to iterate over a collection once you have crea
 @item the @code{at-index} operation
 @item the versatile GMap macro (described below)
 @item the popular Iterate macro
-@item there's even a third-party library, CL-Transducers, with  FSet support
+@item there's even a third-party library, @uref{https://github.com/fosskers/transducers, CL-Transducers}, with  FSet support
+@end itemize
+
+Just to give a taste of these, here's an example.  Suppose @code{nums} holds a seq of numbers, and
+you want to compute their sum.  Here are the ways you could do it:
+
+@example
+@r{;;; procedurally}
+(let ((sum 0))
+  (do-seq (n nums :value sum)
+    (incf sum n)))
+@r{;;; using `reduce'}
+(reduce #'+ nums)
+@r{;;; using a stateful iterator}
+(do ((it (iterator nums))
+     (sum 0 (+ sum (funcall it ':get))))
+    ((funcall it ':done?) sum))
+@r{;;; using a functional iterator}
+(do ((it (fun-iterator nums) (funcall it ':rest))
+     (sum 0 (+ sum (funcall it ':first))))
+    ((funcall it ':empty?) sum))
+@r{;;; using `at-index'}
+(let ((sum 0))
+  (dotimes (i (size nums) sum)
+    (incf sum (at-index nums i))))
+@r{;;; using GMap}
+(gmap (:result sum) :id (:arg seq nums))
+@r{;;; using Iterate}
+(iter (for n in-seq nums) (sum n))
+@r{;;; using CL-Transducers}
+(transduce #'pass #'+ nums)
+@end example
+
+I wouldn't recommend picking a favorite based just on this very simple example, but I can make a few
+general comments:
+
+@itemize
+@item
+If all you want is a reduction, as in this example, it's hard to beat @code{reduce} for elegance.
+@item
+Using an iterator manually is rather verbose; I don't recommend it unless you really need it.
+@item
+Iterate, though it reads somewhat procedurally, is concise and clear.
+@item
+GMap and CL-Transducers have a similar flavor, at least in this simple case.
 @end itemize
 
 Every collection has an iteration order that reflects how the elements or pairs are stored
@@ -20,10 +64,9 @@ elements and hash function will have the same iteration order --- it will appear
 glance.  For the WB collections, it's determined by their comparison function.  The default
 comparison function, @code{compare}, imposes an ordering that's designed more for performance than
 for usefulness to clients, but you can @href{Custom Comparison and Hash Functions, override} it.
-Also, there are ``replay'' collections that keep track of the order in which elements or keys were
-added, and use that order for iteration.  In any case, all of the different ways to iterate over a
-given collection will use the same ordering.
-@c &&& hrefs to replay sets/maps
+Also, there are @href{Replay Sets and Maps, ``replay'' collections} that keep track of the order in
+which elements or keys were added, and use that order for iteration.  In any case, all of the
+different ways to iterate over a given collection will use the same ordering.
 
 If performance is a concern, the procedural macros are the fastest way, but they can't always be
 used (for example, you can't use two instances of them to iterate over two collections in parallel).
@@ -31,6 +74,8 @@ The stateful iterators are the next fastest; the functional iterators are third.
 amortized constant time per element.  GMap uses the procedural iterators when possible, else the
 stateful iterators, so for the cases that fit naturally into its structure, you won't be able to
 improve on it by writing the iteration some other way.  Iterate uses the stateful iterators.
+
+@hrule{}
 
 @c ================================================================================
 @node Procedural Iteration Macros
@@ -58,8 +103,6 @@ operations on them are:
 @item @code{:more?} returns true if there are more elements remaining
 @item @code{:done?} returns true if there are @emph{not} more elements remaining (for convenience)
 @end itemize
-
-@c &&& example of creating, calling
 
 Specifically, on a set iterator or a non-pair bag iterator, @code{:get} returns two values.  If the
 iterator is not exhausted (there are more elements remaining), it returns the next element and a
@@ -105,8 +148,6 @@ are also implemented as closures, with these operations:
 @item @code{:more?} returns true if there are more elements remaining
 @item @code{:empty?} returns true if there are no more elements remaining
 @end itemize
-
-@c &&& example of creating, calling
 
 Specifically, on a set iterator or a non-pair bag iterator, @code{:first} returns two values.  If
 the iterator is not exhausted (there are more elements remaining), it returns the next element and a
@@ -235,12 +276,19 @@ interpret the symbol @code{:id} as equivalent to @code{#'values}; you can also u
 this, though I wouldn't really recommend it --- it's rather cryptic.  Finally, if only one value is
 involved, you can use @code{#'identity}.
 
-You can extend GMap too, but I won't go into that here; see the source.
+To get the best performance out of your @code{gmap} forms, make the argument types as specific as
+possible.  For instance, if you know the collection you want to iterate over is a CHAMP set, use
+argument type @code{ch-set} rather than @code{set} or the very generic @code{sequence}.
+
+GMap is extensible --- you can add your own argument and result types --- but I won't go into that
+here; see the source.
 
 In sum --- I know, there are other iteration macros out there that you're already familiar with; you
 may be understandably unenthusiastic about learning another one.  It's certainly not
 @emph{necessary} to use GMap along witih FSet.  But the two do fit together nicely, and GMap has a
 simple and familiar conceptual model, as I've just explained.  I hope you'll give it a try.
+
+@hrule{}
 
 @c --------------------------------------------------------------------------------
 @node GMap Base Argument Types
@@ -746,7 +794,7 @@ Consumes two values from the mapped function; returns a CHAMP binary relation of
 for keys and values respectively (these default to @code{compare}).
 @end deffn
 
-@deffn {GMap result type} ch-2-relation @ @r{&key} filterp key-compare-fn-name val-compare-fn-name
+@deffn {GMap result type} wb-2-relation @ @r{&key} filterp key-compare-fn-name val-compare-fn-name
 Consumes two values from the mapped function; returns a WB-tree binary relation of the pairs.
 @var{filterp}, if supplied, must take two arguments.  @var{key-compare-fn-name} and
 @var{val-compare-fn-name}, if supplied, must be symbols naming the comparison functions to be used
@@ -759,7 +807,7 @@ for keys and values respectively (these default to @code{compare}).
 @section Iterate
 
 Iterate support is provided by a separate ASDF system, FSet/Iterate, so as not to pull in Iterate as
-a dependency if you're not using it.
+a dependency if you're not using it.  To load it, do @code{(ql:quickload "fset/iterate")}.
 
 There are two symbol collisions between packages @code{fset/iterate} and @code{iterate} that you
 will need to deal with.  One is relatively straightforward: @code{fset/iterate} exports a different
@@ -787,7 +835,7 @@ With that in mind, I recommend adding the following to any packages in which you
 Iterate support:
 
 @example
-  (:shadowing-import-from :fset #:with)
+  (:shadowing-import-from :fset2 #:with)
   (:shadowing-import-from :fset/iterate #:unioning)
 @end example
 
@@ -879,7 +927,7 @@ replay sets.)
 Intersects sets into a result set.  If @var{init-val} is provided, the result will be of the same
 type and organization; otherwise, it will be of the same type and organization as the first set
 received, unless the iteration terminates without executing this clause at all, in which case the
-result will be the full set built on @code{ch-set}. @c &&& Ref to @code{full-set}
+result will be the @href{Function full-set, full set} built on @code{ch-set}.
 @end deffn
 
 @deffn {Iterate accumulator} {concating @var{expr}} @ @r{&optional into} var-spec
@@ -907,9 +955,3 @@ since there's no such thing as a ``full map''.  (There is a full binary relation
 function.)  So it may as well just return @code{nil}.  For the same reason, there's no point in it
 accepting an initial value; if you want to change organizations, just @code{convert} the result.]
 @end deffn
-
-@c ================================================================================
-@node CL-Transducers
-@section CL-Transducers
-
-@c &&& write me

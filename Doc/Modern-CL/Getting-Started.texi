@@ -5,10 +5,14 @@ This chapter offers a brief tutorial, followed by some small examples comparing 
 natively in CL with how they can be done with FSet.  It concludes with discussion of practical
 considerations that are likely to arise when you first start using FSet in a project.
 
+@hrule{}
+
 @include Tutorial.texi
 
 @c @include Examples.texi
 
+
+@c ================================================================================
 @node Using FSet
 @section Using FSet
 
@@ -38,6 +42,10 @@ This is clearly desirable for FSet-heavy code (see the @code{defpackage :fset2-u
 @code{defs.lisp} for an example of how to do this, including a list of symbols you will need to
 @code{shadowing-import} from either @code{fset2} or @code{cl}).
 
+@hrule{}
+
+
+@c ================================================================================
 @node Importing FSet Symbols
 @subsection Importing FSet Symbols
 
@@ -71,7 +79,7 @@ the @code{:shadowing-import-from} clause:
 			  #:search #:mismatch))
 @end example
 
-However, there's a downside to @code{:use}, causing many people to avoid it.  Because it imports all
+However, there's a downside to @code{:use}, leading many people to avoid it.  Because it imports all
 external symbols of the specified packages, it can cause name conflicts with your code.  This is
 especially true if you're adding FSet to an existing codebase, but even in a new one, there is a
 possibility that I might add new exports to package @code{fset2} at some point in the future that
@@ -81,7 +89,7 @@ you could upgrade FSet one day and have something break for this reason.
 Because of that, the generally recommended approach is to use an @code{:import-from} clause instead,
 to import only the symbols you are using or think you are likely to use --- or even the full export
 list as it stands at the moment.  The downside of @emph{that} is that the list may get quite long;
-package @code{fset2}, as of this writing, exports 326 symbols.  Still, you may prefer this approach,
+package @code{fset2}, as of this writing, exports 337 symbols.  Still, you may prefer this approach,
 to protect yourself against future exports.
 
 The next question is whether you want all the above shadowing-imports, which are shadowing builtin
@@ -155,6 +163,8 @@ The FSet operation (which applies to all FSet collections, not just seqs) is @co
 Use FSet sets.
 @end table
 
+
+@c ================================================================================
 @node Misc-Extensions
 @subsection Misc-Extensions
 

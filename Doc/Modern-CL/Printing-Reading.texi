@@ -1,0 +1,337 @@
+@node Printing and Reading
+@chapter Printing and Reading
+
+This chapter covers the printed representations of FSet collections, and two slightly different sets
+of reader macros that allow collection expressions to be written in a similar notation in your
+source code.
+
+This table summarizes the printed representations of the persistent FSet types.
+
+@anchor{Print syntax table}
+@multitable @columnfractions .15 .75 .1
+@item @b{type} @tab @b{printed form} @tab @b{notes}
+@item @href{Type wb-set, wb-set} @tab @code{#@{ @i{e0} @i{e1} @dots{} @}[@i{compare-fn}]} @tab 1, 3
+@item @href{Type ch-set, ch-set} @tab @code{##@{ @i{e0} @i{e1} @dots{} @}[@i{compare-fn}]} @tab 2, 3
+@item @href{Type complement-set, complement-set} @tab @code{~@i{set}} @tab 4
+@item @href{Type wb-map, wb-map} @tab @code{#@{| (@i{k0 v0}) (@i{k1 v1})
+@dots{} |@}[@i{key-compare-fn};@i{val-compare-fn}]/@i{default}} @tab 1, 5, 6
+@item @href{Type ch-map, ch-map} @tab @code{##@{| (@i{k0 v0}) (@i{k1 v1})
+@dots{} |@}[@i{key-compare-fn};@i{val-compare-fn}]/@i{default}} @tab 2, 5, 6
+@item @href{Type wb-bag, wb-bag} @tab @code{#@{% @i{e0} #%(@i{e1 m1}) @dots{} %@}[@i{compare-fn}]} @tab 1, 3
+@item @href{Type ch-bag, ch-bag} @tab @code{##@{% @i{e0} #%(@i{e1 m1}) @dots{} %@}[@i{compare-fn}]} @tab 2, 3
+@item @href{Type wb-seq, wb-seq} @tab @code{#[ @i{e0 e1} @dots{} ]/@i{default}} @tab 6, 7
+@item @href{Type ch-replay-set, ch-replay-set} @tab @code{##@{= @i{e0} @i{e1} @dots{} @}[@i{compare-fn}]} @tab 2, 3
+@item @href{Type ch-replay-map, ch-replay-map} @tab @code{##@{=| (@i{k0 v0}) (@i{k1 v1})
+@dots{} |@}[@i{key-compare-fn};@i{val-compare-fn}]/@i{default}} @tab 2, 5, 6
+@item @href{Type ch-2-relation, ch-2-relation} @tab @code{##@{+ (@i{k0 v0}) (@i{k1 v1})
+@dots{} +@}[@i{key-compare-fn};@i{val-compare-fn}]} @tab 2, 5
+@item @href{Type dyn-tuple, dyn-tuple} @tab @code{#~< (@i{k0 v0}) (@i{k1 v1}) @dots{} >} @tab
+@end multitable
+
+Notes:
+
+@enumerate
+@item @ilc{1}
+The single @code{#} indicates WB.
+@item @ilc{2}
+The double @code{#} indicates CHAMP.
+@item @ilc{3}
+The comparison function and its containing brackets are printed only if it is not @code{compare}.
+@item @ilc{4}
+That is, a tilde followed by the printed representation of the complemented set.
+@item @ilc{5}
+The comparison functions are printed only if they are not @code{compare}.  If both of them are
+@code{compare}, the brackets are also omitted.
+@item @ilc{6}
+The default, and the leading slash marking it, are printed only if it is not @code{nil}; if the
+collection has no default, @code{/[no default]} is printed.
+@item @ilc{7}
+Char seqs --- seqs containing only characters --- are printed as strings preceded by @code{#},
+possibly also suffixed with a slash and default, or @code{/[no default]}.  Within a non-char seq,
+runs of consecutive characters are printed as @code{#$} followed by the characters as a string.
+@end enumerate
+
+@hrule{}
+
+
+@c ================================================================================
+@node Reader Macros
+@section Reader Macros
+
+FSet supplies reader macros so that collection expressions can be written in source code in syntax
+similar to that in which they are printed.  I first wrote these years ago, thinking that I wanted to
+use them, but I never have; as things have turned out, I prefer simply calling the constructor
+macros, which are in ordinary, parenthesized Lisp syntax.  (Here are the constructor macros, for
+reference: @href{Macro set, @code{set}}, @href{Macro ch-set, @code{ch-set}}, @href{Macro wb-set,
+@code{wb-set}}, @href{Macro map, @code{map}}, @href{Macro ch-map, @code{ch-map}}, @href{Macro
+wb-map, @code{wb-map}}, @href{Macro bag, @code{bag}}, @href{Macro ch-bag, @code{ch-bag}},
+@href{Macro wb-bag, @code{wb-bag}}, @href{Macro seq, @code{seq}}, @href{Macro replay-set,
+@code{replay-set}}, @href{Macro replay-map, @code{replay-map}}, @href{Macro 2-relation,
+@code{2-relation}}, @href{Macro ch-2-relation, @code{ch-2-relation}}, and @href{Macro wb-2-relation,
+@code{wb-2-relation}}.)
+
+The reader macros come in two flavors, which I'll call the ``constructor'' type and the
+``rereading'' type.  The ``constructor'' reader macros expand to calls to the constructor macros.
+This means that symbols and lists within them will be evaluated.  I think this is probably the
+behavior that will be most often desired when writing code, but it means that printing an FSet
+collection and then reading it back is unlikely to have the desired effect, unless all of the
+elements of the collection are self-evaluating in Common Lisp: numbers, strings, and keyword
+symbols.
+
+The ``rereading'' reader macros are provided to handle the case where you want round-trip
+equivalence, so you can read a printed structure containing FSet collections, and get a structure
+@code{equal?} to the one you started with.
+
+There are three ways to use the reader macros.  The recommended way is using
+@uref{https://github.com/melisgl/named-readtables, Named-Readtables}:
+
+@example
+(named-readtables:in-readtable fset2:fset-readtable)
+;; or
+(named-readtables:in-readtable fset2:fset-rereading-readtable)
+@end example
+
+If you wish to make further customizations, and you're using Named-Readtables, the recommended
+approach is to supply one of these names in the @code{:merge} clause of a
+@code{named-readtables:defreadtable} form.
+
+If you don't want to use Named-Readtables, there are two other ways.  You can set or bind
+@code{*readtable*} to either @code{*fset-readtable*} or @code{*fset-rereading-readtable*}.  Or, if
+you have an existing, customized readtable that you want to add FSet reader macros to, call
+@code{fset-setup-readtable} or @code{fset-setup-rereading-readtable} on it.
+
+The syntax accepted by the rereading reader macros is, naturally, the same as that produced by
+printing; see the @href{Print syntax table, table above}.  The syntax accepted by the constructor
+reading macros is very similar, except that (as of this writing) they do not accept comparison
+functions or defaults.  They also accept the syntax @code{#$@var{expr}}; it reads as @code{($
+@var{expr})}, which is interpreted by the constructor macros as a union or splice, that treats the
+value of @var{expr} as a sub-collection of the same kind and uses its elements or pairs.
+
+
+@c ================================================================================
+@node JSON Printing and Parsing
+@section JSON Printing and Parsing
+
+FSet supports JSON printing and parsing by extending the existing
+@uref{https://github.com/Zulu-Inuoe/jzon, Jzon} library.  The support is in a separate system,
+FSet/Jzon, to avoid adding a dependency if you're not using it; to load it, do @code{ql:quickload
+"fset/jzon"}.
+
+FSet/Jzon parses JSON into FSet collections --- JSON arrays parse into FSet seqs, and by default,
+JSON objects parse into FSet replay maps --- and can also print these in JSON format.  Two other
+FSet representations for JSON objects are also available: plain maps and dynamic tuples.
+
+A potential problem area has to do with the treatment of null, empty, and false values.  On the one
+hand, JSON distinguishes these, as @code{null}, @code{[]}, and @code{false} respectively.  On the
+other, in Common Lisp, @code{nil} is often used for all three: a missing value, an empty list, or a
+false boolean value.  What to do about this depends on whether you're using a map representation for
+JSON objects or a tuple representation.  The reason this matters is that in the tuple case,
+slot-specific type information can be supplied to tell Jzon what to do; in the map case, it cannot.
+
+@itemize
+@item
+With the map representation, @code{null} will parse as @code{cl:null}, @code{[]} will parse as the
+empty seq, and @code{false} will parse as @code{nil}.  So your code that processes a parsed
+structure must handle @code{cl:null}; when generating structure for JSON printing, you must use
+@code{cl:null} as a value when you want it to print as JSON @code{null}, and the empty seq when you
+want it to print as @code{[]} --- which of course will happen naturally if you use seqs in place of
+lists.
+@item
+With the tuple representation, @code{[]} will still parse as the empty seq, but @code{null} will
+parse as @code{nil}.  FSet assumes that you've supplied the correct types for your @href{Macro
+define-tuple-key, tuple keys}; when printing, @code{nil} prints as @code{false} if the key is of
+boolean type, and as @code{null} otherwise.  So instead of having to generate the structure in an
+unnatural way (for CL), you just have to declare your key types.
+@end itemize
+
+FSet/Jzon uses the map representation by default because it's easier to get started with, but you
+might prefer tuples for serious work.  Tuples are also more space-efficient than maps, but this is
+unlikely to matter unless you are processing massive quantities of data.
+
+@hrule{}
+
+@c --------------------------------------------------------------------------------
+@node JSON Parsing
+@subsection JSON Parsing
+
+Refer to the @uref{https://github.com/Zulu-Inuoe/jzon, Jzon} documentation.  The FSet/Jzon parsing
+API exports many of the same names as Jzon, and is mostly used in the same way.  The exception is
+when the input contains, potentially, more than one top-level JSON value.  In this case, pass
+@code{:allow-multiple-content t} to @code{make-parser} or @code{with-parser}, as you would have with
+Jzon, but then call @code{parse-top-level} once for each top-level value you wish to parse.
+FSet/Jzon does not export @code{parse-next}.
+
+As mentioned, JSON arrays parse into FSet seqs.  For JSON objects, you have a choice:
+
+@itemize
+@item
+The default is to parse them into replay maps; these preserve the order of the keys of each object
+for printing purposes.
+@item
+If you want to use the map representation for objects, but you're parsing such a large JSON file
+that space is potentially an issue, you can use plain (non-replay) maps, which are somewhat smaller
+but don't preserve the key order.  You are unlikely to need this.
+@item
+Or you can use the tuple representation, as discussed above.
+@end itemize
+
+The object representation is controlled by the @var{object-type} keyword argument to
+@code{with-parser} or @code{make-parser}.  In the map case, the keys will be strings by default; to
+have them interned, pass an appropriate @var{key-package}, or use @var{key-fn} to transform them
+into whatever type you like.
+
+Tuples are FSet's most space-efficient and featureful representation of JSON objects, but require a
+bit more work to set up.  You will need a tuple key for each key in the JSON you're parsing.  The
+name of each tuple key should contain the corresponding JSON key string, normally upcased and with a
+prefix and/or suffix added; the use of a prefix and/or suffix is optional, but highly recommended.
+For example, if your JSON contains keys "size" and "color", the corresponding tuple key names could
+be @code{+JSON-SIZE+} and @code{+JSON-COLOR+} (written here in uppercase because that's how they'll
+print, but of course you can normally write them in lowercase in source code).  Thus the prefix is
+@code{"+JSON-"} and the suffix is @code{"+"}.  With that in mind, the steps are:
+
+@itemize
+@item
+For each key that you want to access in your program, write an `fset2:define-tuple-key` form.
+@item
+To @code{with-parser} or @code{make-parser}, pass @code{:object-type 'tuple}; for
+@code{:key-package}, the package containing the tuple key names; and for @code{:key-prefix} and
+@code{:key-suffix}, the prefix and suffix to use.  (If you're using a nonstandard reader case mode,
+or have mixed-case keys in your JSON input, you can also pass a @code{:key-case-mode} of
+@code{:downcase} or @code{:preserve}; @code{:upcase} is the default.)
+@end itemize
+
+On printing, the keys will be in the order in which they were declared, or if some keys were found
+in the input that had not been declared, the order in which they were first encountered.  (You can
+still call @code{fset2:define-tuple-key} on them after parsing, if you hadn't done it beforehand.)
+
+As mentioned above, parsing into tuples (but not maps) converts @code{null} into @code{nil}.  Also,
+since printing from tuples prints @code{[]} for @code{nil} when the key is of list type, parsing
+converts @code{[]} back to @code{nil} in this case.  So even though I recommend using seqs instead
+of lists for sequence-valued data, it's still safe to use lists (but only with tuples, not maps).
+
+@deftp {Data type} json-atom
+Re-exported from Jzon.
+@end deftp
+
+@deftp {Data type} json-element
+@code{(or json-atom seq map tuple)}
+@end deftp
+
+@defmac with-parser @r{(@var{var} @var{in} &rest @var{kwd-args}) &body} body
+Binds @var{var} around @var{body} to an FSet/Jzon parser that will read from @var{in}, which can
+be a vector, a stream, or a pathname.  The keyword arguments are passed unchanged to
+@code{make-parser}.  Calls @code{close-parser} on the parser before returning.
+@end defmac
+
+@defun make-parser in @r{&key} allow-comments allow-trailing-comma allow-multiple-content @r{(@var{max-string-length} 1048576)}@
+    @r{(@var{max-depth} 128)} @r{(@var{key-fn} (make-fset-string-pool))} @r{(@var{object-type} 'replay-map)}@
+    key-package @r{(@var{key-case-mode} ':upcase)} @r{(@var{key-prefix} "")} @r{(@var{key-suffix} "")}
+
+If @var{allow-comments} is true, comments as in C (@code{//} for single-line or @code{/* ... */} for block) will
+be accepted.  If @var{allow-trailing-comma}, a comma will be permitted after the last element of an
+array or object.  @var{max-string-length} limits the length of strings, and
+@var{max-depth} the maximum nesting depth; these help protect against DoS attacks.
+@var{key-fn} controls whether and how string pooling is done; the default uses an FSet set.
+
+The returned parser should be closed after use; see @code{close-parser}, and macro
+@code{with-parser} which closes it automatically.
+
+If @var{allow-multiple-content} is true, the input may contain multiple top-level JSON values, which
+you can read by calling @var{parse-top-level} multiple times.
+
+JSON arrays are returned as FSet seqs; JSON objects are returned according to @var{object-type},
+which can be @code{replay-map}, @code{map}, or @code{tuple} (symbols in package @code{fset2}).  If
+@var{key-package} is supplied, keys will be interned in this package; this option overrides
+@var{key-fn}.  If @var{object-type} is @code{tuple}, @var{key-package} is required, and may not be
+the CL keyword package.  If @var{key-package} is supplied: (a) @var{key-case-mode} can be any of
+@code{:upcase}, @code{:downcase}, or @code{:preserve} (the default is @code{:upcase}); (b) if
+supplied, @var{key-prefix} is prepended and @var{key-suffix} is appended to the case-converted key
+before interning.
+@end defun
+
+@defun close-parser parser
+Closes the parser.  If the input was specified as a pathname, closes the input stream.
+@end defun
+
+Other parsing-related symbols re-exported from Jzon are: @code{json-atom}, @code{json-error},
+@code{json-limit-error}, @code{json-parse-error}, @code{json-parse-limit-error}, and
+@code{json-eof-error}.
+
+@c --------------------------------------------------------------------------------
+@node JSON Printing
+@subsection JSON Printing
+
+For printing, FSet/Jzon mostly just re-exports symbols from Jzon; you invoke the printer in the same
+way, but methods have been added to print the FSet collections that the parser can produce.  So the
+tree you supply can contain anything that Jzon knows how to print, possibly with FSet collections
+mixed in.  The printing-related Jzon symbols re-exported are: @code{stringify},
+@code{json-write-error}, @code{json-write-limit-error}, @code{json-recursive-write-error},
+@code{coerced-fields}, @code{coerce-key}, @code{writer}, @code{make-writer}, @code{close-writer},
+and @code{with-writer}.
+
+The one new printing-related function concerns tuple keys.  As noted above, you may wish, when
+parsing JSON objects into tuples, to wrap the key strings with a prefix and/or suffix before
+interning them.  When printing, you will probably want to strip these off.  FSet/Jzon exports the
+generic function @code{coerce-tuple-key} (see below), which gives you a package-specific way to do
+that.
+
+Jzon has three different ways it can print @code{nil}, depending on the type of the class slot
+holding the value: @code{[]} for a list; @code{false} for a boolean; or @code{null} for all other
+types.  If you're using tuples to represent JSON objects, you can get the same effect by using the
+@code{:type} keyword argument to @href{Macro define-tuple-key, @code{define-tuple-key}}.  (Of
+course, an empty seq will always print as @code{[]}.)  Examples:
+
+@example
+(define-tuple-key +json-color+ :type (or null string))
+(define-tuple-key +json-visible?+ :type boolean)
+@end example
+
+@defun coerce-tuple-key key key-name-package-as-keyword
+Generic function that FSet/Jzon calls to turn a @code{tuple-key} into a string.
+@code{coerce-tuple-key} is called with the key as the first argument, and the key's name's package
+name, as a keyword symbol, as the second.  This arrangement allows you to write methods like
+
+@example
+(defmethod coerce-tuple-key (key (pkg (eql :my-package)))
+  (let ((name (string (tuple-key-name key))))
+    (assert (string= name "+JSON-" :end1 6))
+    (string-downcase (subseq name 6 (1- (length name))))))
+@end example
+
+which will reverse the effect of passing @code{"+JSON-"} as @var{key-prefix} and @code{"+"} as
+@var{key-suffix} to @code{make-parser} or @code{with-parser}.
+@end defun
+
+
+@c ================================================================================
+@node Compiler Externalization
+@section Compiler Externalization
+
+A Common Lisp compiler is required to be able to write compiled files containing representations of
+Lisp objects, a process called externalization or serialization.  It is standard for these
+representations to be in binary form, so that loading them is efficient; hence the common term
+``FASL files'', for ``FASt Load''.  While a full discussion of how to use this facility for
+externalizing arbitrary data is beyond the scope of this book, I can give some hints.
+
+A trick I have seen used is this: perform some long computation resulting in some data structures;
+write a temporary source file containing forms that reference those data structures; in the same
+Lisp session, invoke @code{compile-file} on that file, to produce a FASL file containing the desired
+data.
+
+The generated source file might contain forms that look like this:
+
+@example
+(defparameter *some-variable* #.(some-function))
+@end example
+
+Here the @code{#.} standard reader macro causes the following form to be evaluated at read time.
+@code{some-function} should return the object to be dumped; every object reachable from it will also
+be dumped automatically.  Bind @code{*read-eval*} to @code{t} around the call to
+@code{compile-file}; if it has been set to @code{nil}, the @code{#.} will cause an error.
+
+The following FSet classes have @code{make-load-form} methods, allowing them to be dumped in this
+way: @code{wb-set}, @code{ch-set}, @code{wb-bag}, @code{ch-bag}, @code{wb-map}, @code{ch-map},
+@code{wb-seq}, @code{complement-set}, @code{wb-replay-set}, @code{ch-replay-set},
+@code{wb-replay-map}, @code{ch-replay-map}, @code{wb-2-relation}, @code{ch-2-relation},
+@code{dyn-tuple}, @code{tuple-key}.
+

@@ -4,6 +4,10 @@
 This chapter makes some observations about types in programming languages that, frankly, I think all
 programmers should be familiar with.  I encourage everyone to read it.
 
+@hrule{}
+
+
+@c ================================================================================
 @node What Is a Functional Datatype?
 @section What Is a Functional Datatype?
 
@@ -114,6 +118,8 @@ referring to the fact that lists are often built backwards and then reversed in 
 @code{nreverse}; usually, once that reversal is done, the list is fully constructed.)  So Lisp lists
 are almost always used as a functional type, and the language supports this usage fairly well.
 
+
+@c ================================================================================
 @node Is Lisp a Functional Language?
 @section Is Lisp a Functional Language?
 
@@ -121,6 +127,8 @@ are almost always used as a functional type, and the language supports this usag
 Lisp is often referred to as one of the earliest functional languages, but the way the term
 ``functional'' is used has shifted over time.
 
+
+@c ================================================================================
 @node A Brief Introduction to Big-O
 @section A Brief Introduction to Big-O
 

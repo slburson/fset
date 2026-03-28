@@ -27,12 +27,9 @@ implementations of sets and maps from the older WB-tree collections to the newer
 The aspect of that change that is relevant to this tutorial is that the CHAMP types print with a
 double sharpsign, @code{##}; you will see this in the examples below.
 
-@menu
-* The Major FSet Types::
-* Nested collections::
-* Assignment and updating::
-@end menu
+@hrule{}
 
+@c --------------------------------------------------------------------------------
 @node The Major FSet Types
 @subsection The Major FSet Types
 FSet provides four major types: sets, maps, seqs, and bags.  Sets are the most basic: a set is an
@@ -51,15 +48,11 @@ highly recommend, assuming you have installed and loaded FSet, first do this:
 > @b{(in-package fset2-user)}
 @end example
 
-@menu
-* Sets Tutorial::
-* Maps Tutorial::
-* Seqs Tutorial::
-* Bags Tutorial::
-@end menu
+@hrule{}
 
+@c ----------------------------------------
 @node Sets Tutorial
-@subsubsection Sets
+@subsubsection Sets Tutorial
 The simplest way to create a set is with the function @code{empty-set}:
 
 @example
@@ -220,8 +213,10 @@ NIL
 T
 @end example
 
+@c ----------------------------------------
 @node Maps Tutorial
-@subsubsection Maps
+@subsubsection Maps Tutorial
+
 You can create an empty map with @code{empty-map}; @code{with} on a map takes two arguments:
 
 @example
@@ -367,8 +362,9 @@ M9
 ##@{| (B ##@{ 2 "x" @}) |@}/##@{ @}
 @end example
 
+@c ----------------------------------------
 @node Seqs Tutorial
-@subsubsection Seqs
+@subsubsection Seqs Tutorial
 Seq indexing is 0-origin, like indexing of CL sequences (@code{cl:elt} etc.).
 
 Seq creation can be done with @code{empty-seq} or the @code{seq} constructor macro:
@@ -470,8 +466,10 @@ Q3
 Seqs also support the generic CL sequence operations @code{find}, @code{position}, etc.  (Be sure to call the
 versions of these functions whose names are in the @code{fset2:} package.)
 
+@c ----------------------------------------
 @node Bags Tutorial
-@subsubsection Bags
+@subsubsection Bags Tutorial
+
 A bag (sometimes called a multiset) is much like a set except that it associates with each element a
 natural number (nonnegative integer) called the @strong{multiplicity}, which represents the number
 of occurrences of the element in the bag.  So, for instance, if you start with an empty bag and add an
@@ -517,6 +515,7 @@ each element, respectively; @code{bag-sum} and @code{bag-product} take their sum
 standard operation @code{size} returns the total multiplicity; to get the number of unique elements,
 use @code{set-size}.
 
+@c --------------------------------------------------------------------------------
 @node Nested collections
 @subsection Nested collections
 FSet fully supports nesting of collections.  Sets of sets, maps keyed by seqs, @dots{} all these
@@ -545,6 +544,7 @@ representation for each set, and use a CL hash table with @code{equal} as its te
 with FSet, you don't even have to think about it; just build the sets and put them in the map.  FSet
 handles the rest.
 
+@c --------------------------------------------------------------------------------
 @node Assignment and updating
 @subsection Assignment and updating
 FSet provides several macros which are handy for updating variables that hold collections.  (Their

@@ -6,7 +6,7 @@
   (:shadowing-import-from :fset2 #:set #:map)
   (:import-from :fset #:gensymx)
   (:import-from :fset2
-		#:seq #:replay-map #:tuple #:push-last #:@ #:convert #:includef #:get-tuple-key
+		#:seq #:replay-map #:tuple #:push-last #:@ #:convert #:includef #:get-tuple-key #:equal?
 		#:do-seq #:do-map #:do-tuple #:tuple-key #:tuple-key-name #:tuple-key-type #:char-seq?)
   ;; Exports of names defined in this system
   (:export #:json-element #:with-parser #:make-parser #:close-parser #:parse #:parse-top-level

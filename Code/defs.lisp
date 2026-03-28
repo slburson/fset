@@ -84,7 +84,7 @@
 	   #:substitute #:substitute-if #:substitute-if-not
 	   #:some #:every #:notany #:notevery
 	   #:search #:mismatch
-	   #:convert #:iterator
+	   #:convert #:iterator #:fun-iterator
 	   #:do-set #:do-bag #:do-bag-pairs #:do-map #:do-map-domain #:do-seq #:do-tuple
 	   #:adjoinf #:removef #:includef #:excludef
 	   #:unionf #:intersectf #:set-differencef #:map-unionf #:map-intersectf #:imagef #:updatef #:composef
@@ -186,7 +186,7 @@
   (:export #:collection #:set #:bag #:map #:seq #:tuple
 	   #:collection? #:set? #:bag? #:map? #:seq? #:char-seq? #:tuple?
 	   #:wb-set #:wb-bag #:wb-map #:wb-seq #:dyn-tuple
-	   #:ch-set #:ch-map
+	   #:ch-set #:ch-bag #:ch-map
 	   #:replay-set #:replay-set? #:wb-replay-set #:wb-replay-set? #:ch-replay-set #:ch-replay-set?
 	   #:replay-map #:replay-map? #:wb-replay-map #:wb-replay-map? #:ch-replay-map #:ch-replay-map?
 	   #:wb-custom-set #:wb-custom-bag #:wb-custom-map
@@ -235,7 +235,7 @@
 	   #:substitute #:substitute-if #:substitute-if-not
 	   #:some #:every #:notany #:notevery
 	   #:search #:mismatch
-	   #:convert #:iterator
+	   #:convert #:iterator #:fun-iterator
 	   #:do-set #:do-bag #:do-bag-pairs #:do-map #:do-map-domain #:do-seq #:do-tuple
 	   #:includef #:excludef #:unionf #:intersectf #:set-differencef
 	   #:map-unionf #:map-intersectf #:imagef #:updatef #:composef

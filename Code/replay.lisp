@@ -32,13 +32,6 @@
 (defmethod convert ((to-type (eql 'fset2:wb-seq)) (s replay-set) &key)
   (make-wb-seq (replay-set-ordering s) nil))
 
-(defmethod convert ((to-type (eql 'replay-set)) (l list) &key)
-  (gmap (:result replay-set) nil (:arg list l)))
-(defmethod convert ((to-type (eql 'replay-set)) (s seq) &key)
-  (gmap (:result replay-set) nil (:arg seq s)))
-(defmethod convert ((to-type (eql 'replay-set)) (s sequence) &key)
-  (gmap (:result replay-set) nil (:arg sequence s)))
-
 (defmethod iterator ((s replay-set) &key)
   (make-wb-seq-tree-iterator (replay-set-ordering s)))
 
@@ -303,6 +296,11 @@ result is that of `s1', filtered by membership in `s2'."
       (pprint-newline ':fill stream)
       (write x :stream stream))))
 
+(defmethod make-load-form ((s wb-replay-set) &optional environment)
+  (declare (ignore environment))
+  `(convert 'wb-replay-set ',(convert 'list s)
+	    :compare-fn-name ',(tree-set-org-compare-fn-name (wb-replay-set-org s))))
+
 
 ;;; ================
 ;;; CH-replay-sets
@@ -485,6 +483,13 @@ sets are printed as \"#{= ... }\"."
 (defmethod convert ((to-type (eql 'ch-replay-set)) (s sequence) &key compare-fn-name)
   (gmap (:result ch-replay-set :compare-fn-name compare-fn-name) nil (:arg sequence s)))
 
+(defmethod convert ((to-type (eql 'replay-set)) (l list) &key)
+  (gmap (:result replay-set) nil (:arg list l)))
+(defmethod convert ((to-type (eql 'replay-set)) (s seq) &key)
+  (gmap (:result replay-set) nil (:arg seq s)))
+(defmethod convert ((to-type (eql 'replay-set)) (s sequence) &key)
+  (gmap (:result replay-set) nil (:arg sequence s)))
+
 (defmethod with ((s ch-replay-set) value &optional (arg2 nil arg2?))
   (declare (ignore arg2))
   (check-two-arguments arg2? 'with 'ch-replay-set)
@@ -556,6 +561,11 @@ result is that of `s1', filtered by membership in `s2'."
       (write-char #\Space stream)
       (pprint-newline ':fill stream)
       (write x :stream stream))))
+
+(defmethod make-load-form ((s ch-replay-set) &optional environment)
+  (declare (ignore environment))
+  `(convert 'ch-replay-set ',(convert 'list s)
+	    :compare-fn-name ',(hash-set-org-compare-fn-name (ch-replay-set-org s))))
 
 
 ;;; ================================================================================
@@ -1002,6 +1012,12 @@ or `no-default?' is true."
       (let (#+sbcl (sb-pretty:*pprint-quote-with-syntactic-sugar* nil))
 	(write (list x y) :stream stream)))))
 
+(defmethod make-load-form ((m wb-replay-map) &optional environment)
+  (declare (ignore environment))
+  `(convert 'wb-replay-map ',(convert 'list m)
+	    :key-compare-fn-name ',(tree-map-org-key-compare-fn-name (wb-replay-map-org m))
+	    :val-compare-fn-name ',(tree-map-org-val-compare-fn-name (wb-replay-map-org m))))
+
 
 ;;; ================
 ;;; CH-replay-maps
@@ -1385,4 +1401,10 @@ or `no-default?' is true."
       ;; There might be a map entry for 'quote or 'function...
       (let (#+sbcl (sb-pretty:*pprint-quote-with-syntactic-sugar* nil))
 	(write (list x y) :stream stream)))))
+
+(defmethod make-load-form ((m ch-replay-map) &optional environment)
+  (declare (ignore environment))
+  `(convert 'ch-replay-map ',(convert 'list m)
+	    :key-compare-fn-name ',(hash-map-org-key-compare-fn-name (ch-replay-map-org m))
+	    :val-compare-fn-name ',(hash-map-org-val-compare-fn-name (ch-replay-map-org m))))
 

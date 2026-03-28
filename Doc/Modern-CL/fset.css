@@ -12,18 +12,20 @@
     --code-bg:     #ddeadd;
     --code-border: #aaccaa;
     --def-bg:      #c4d8c4;
+    color-scheme:  light;
 }
 
 :root[data-theme="dark"] {
     --bg:          #000050;
     --fg:          #c8d8f8;
     --link:        #80c0ff;
-    --link-visited:#c080ff;
+    --link-visited:#90a0ff;
     --nav-bg:      #00007a;
     --nav-border:  #2848c0;
     --code-bg:     #000080;
     --code-border: #2848c0;
     --def-bg:      #00005e;
+    color-scheme:  dark;
 }
 
 :root[data-theme="hc"] {
@@ -36,6 +38,7 @@
     --code-bg:     #000000;
     --code-border: #ffffff;
     --def-bg:      #000000;
+    color-scheme:  dark;
 }
 
 /* ── Base ────────────────────────────────────────────────────────────────── */
@@ -84,16 +87,24 @@ code.code, kbd, samp {
 
 /* ── var elements: monospace italic ──────────────────────────────────────── */
 
-pre, code, kbd, samp, var {
+:root[data-platform="firefox-linux"] pre,
+:root[data-platform="firefox-linux"] code,
+:root[data-platform="firefox-linux"] kbd,
+:root[data-platform="firefox-linux"] samp,
+:root[data-platform="firefox-linux"] var {
     font-size: 1.25em;
 }
 
-var.def-var-arguments .r {
+:root[data-platform="firefox-linux"] var.def-var-arguments .r {
     font-size: .8em;
 }
 
 /* Prevent compounding when these elements are nested */
-pre *, code *, kbd *, samp *, r * {
+:root[data-platform="firefox-linux"] pre *,
+:root[data-platform="firefox-linux"] code *,
+:root[data-platform="firefox-linux"] kbd *,
+:root[data-platform="firefox-linux"] samp *,
+:root[data-platform="firefox-linux"] r * {
     font-size: 1em;
 }
 

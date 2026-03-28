@@ -67,6 +67,8 @@
 	  (*package* (find-package :fset))
 	  (*print-readably* t))
       (dolist (x (list (seq) (set) (seq 1 2 3) (set 'a 'b 2)
+		       (seq 1 #\f #\o #\o 42 #\b #\a #\r)
+		       (seq #\f #\o #\o #\b #\a #\r)
 		       (wb-custom-set 'erapmoc 3 42)
 		       (ch-set 32 19)
 		       (ch-custom-set 'erapmoc 11 41)

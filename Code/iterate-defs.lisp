@@ -11,8 +11,8 @@
 
 (defpackage :FSet/Iterate
   (:nicknames :com.sympoiesis.fset/iterate)
-  (:use :cl :fset :iterate :new-let)
-  (:shadowing-import-from :fset
+  (:use :cl :fset2 :iterate :new-let)
+  (:shadowing-import-from :fset2
 			  ;; Exported by Iterate
 			  #:with
 			  ;; Shadowed type/constructor names
@@ -43,8 +43,8 @@
 
 (defpackage :FSet/Iterate/Test
   (:nicknames :com.sympoiesis.fset/iterate/test)
-  (:use :cl :fset :iterate :fset/iterate :new-let)
-  (:shadowing-import-from :fset
+  (:use :cl :fset2 :iterate :fset/iterate :new-let)
+  (:shadowing-import-from :fset2
 			  ;; Exported by Iterate
 			  #:with
 			  ;; Shadowed type/constructor names

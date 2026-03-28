@@ -32,6 +32,8 @@ For a fuller understanding, these topics will also be helpful:
 @item how CLOS generic functions work, including how to define methods with @code{defmethod}
 @end itemize
 
+
+@c ================================================================================
 @node Why I Wrote FSet
 @section Why I Wrote FSet
 
@@ -144,6 +146,8 @@ functional (and thus inevitably more expensive than imperative updates).
 Space overhead is reasonably small.
 @end itemize
 
+
+@c ================================================================================
 @node Benefits of Functional Collections
 @section Benefits of Functional Collections
 

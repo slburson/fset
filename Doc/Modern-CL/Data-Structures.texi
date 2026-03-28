@@ -32,6 +32,9 @@ point in the tree at which an update is to be applied, that node or leaf and all
 up to and including the root, are copied, with the necessary change being applied to the copy.  As
 such, operations on them have the same time complexities.
 
+@hrule{}
+
+
 @c ================================================================================
 @node Weight-Balanced Trees
 @section Weight-Balanced Trees
@@ -95,6 +98,8 @@ number of elements; this makes collisions more likely, as some subsets of the ke
 elements in common, but the time complexities are unaffected nonetheless, because of this WB-tree
 fallback feature.
 
+@hrule{}
+
 @c --------------------------------------------------------------------------------
 @node A Note on HAMT and Time Complexity
 @subsection A Note on HAMT and Time Complexity
@@ -155,6 +160,8 @@ A hash function's contract is simpler: it accepts an object and returns an integ
 is not required to be a nonnegative fixnum; any integer is permitted.)  When a hash function is used
 together with a comparison function, it must be the case that if the hash function returns distinct
 values on two objects, the comparison function must not return @code{:equal} on them.
+
+@hrule{}
 
 @c --------------------------------------------------------------------------------
 @node Which Elements are Compared or Hashed
@@ -257,6 +264,8 @@ bit-vectors, both compare the contents.)
 @code{compare} makes no effort to detect circularities in the structures it is comparing.  Putting
 cyclic structures in FSet collections is not supported.
 
+@hrule{}
+
 @c --------------------------------------------------------------------------------
 @node Cross-Type Comparisons
 @subsection Cross-Type Comparisons
@@ -324,6 +333,8 @@ of collection; I'll return to this below.
 
 For a non-collection class, there are two major cases, depending on whether you want your class to
 have value semantics or reference semantics: whether it is a pure value or a mutable object.
+
+@hrule{}
 
 @c --------------------------------------------------------------------------------
 @node Value Types
@@ -511,6 +522,8 @@ original value of the parameter.  For instance:
 	(b (fset2:unwrap-equivalent-node b)))
     ...))
 @end example
+
+@hrule{}
 
 @c --------------------------------------------------------------------------------
 @node Strict Weak Orderings
@@ -882,7 +895,7 @@ Each descriptor contains a vector of pairs of integers, implemented as bytes (bi
 fixnum; one integer is the key number, and the other is the index of the value in tuples using this
 descriptor.  Lookup is done by linear search through the vector for a pair whose key number matches
 the key being looked for.  For small tuples, cache effects make this quite fast.  For large ones
-(more than eight keys), FSet does something clever: it dynamically orders the descriptor vector so
+(more than eight keys), FSet does something clever: it dynamically reorders the descriptor vector so
 that frequently-used keys tend to migrate toward the front.  If the frequency of access of the
 different keys follows something like a power-law distribution, with some keys being accessed much
 more frequently than others --- not an unreasonable assumption --- then searches for keys beyond the

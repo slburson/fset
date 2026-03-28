@@ -6,7 +6,7 @@
 @syncodeindex fn cp
 @syncodeindex tp cp
 
-Version 0.2
+Version 0.3
 
 © 2026 Scott L. Burson
 
@@ -53,21 +53,14 @@ adapt, or build upon the material, you must license the modified material under 
 @contents
 
 @include Introduction.texi
-
 @include Getting-Started.texi
-
 @include Conceptual-Underpinnings.texi
-
 @include Design.texi
-
 @include Data-Structures.texi
-
 @include API-Reference.texi
-
 @include Iterating.texi
-
 @include Conversions.texi
-
+@include Printing-Reading.texi
 @include Recommendations.texi
 
 @node Index
@@ -164,16 +157,20 @@ Notes:
 () Should there be a separate Performance section? [no]
 
 Remaining to be done:
-  ( ) @code{convert}
-  ( ) GMap
-  ( ) Finish Iteration
-  ( ) Reader macros
-  ( ) JSON
+  (x) @code{convert}
+  (x) GMap
+  (x) Finish Iteration
+  (x) Reader macros
+  (x) JSON
   ( ) Statement on use of AI
   ( ) Fill out Recommendations chapter
   ( ) Scatter small examples?
+  ( ) Emacs patches/recommendations
   ( ) Lem case study
   ( ) Bounded sets (redo first?)
+
+For 2.4.0 release notes:
+  Parsing JSON into tuples will no longer use @code{null} as a value.
 
 Operations named by verbs:
 - lookup (but not a verb of modification) (1)
