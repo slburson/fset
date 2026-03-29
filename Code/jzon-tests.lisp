@@ -11,6 +11,7 @@
     (string-downcase (subseq str 6 (1- (length str))))))
 
 (defun test-fset/jzon ()
+  (format t "Testing FSet/Jzon...")
   (macrolet ((test (form)
                `(unless ,form
                   (error "Test failed: ~S" ',form))))
@@ -49,4 +50,4 @@
     ;; Check that the default method on `coerce-tuple-key' exists and does downcasing.
     (test (equal? (stringify (tuple (fset::+k0+ 3)))
 		  "{\"+k0+\":3}"))
-    "Passed."))
+    (format t "Passed.")))

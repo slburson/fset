@@ -284,11 +284,10 @@ However, the implementation tries very hard to prevent this."
 	 (setq +Master-Type-Ordering+ ',types))
        . ,(cl:reduce #'append
 		     (mapcar (lambda (type2)
-			       (and (not (subtypep type type2))
-				    `((defmethod compare ((a ,type2) (b ,type))
-					':less)
-				       (defmethod compare ((a ,type) (b ,type2))
-					 ':greater))))
+			       `((defmethod compare ((a ,type2) (b ,type))
+				   ':less)
+				 (defmethod compare ((a ,type) (b ,type2))
+				   ':greater)))
 			     prev-types)
 		     :from-end t))))
 

@@ -125,4 +125,4 @@
     (test (equal? (iter (for m in (list (map ('a 4) ('b 7) :no-default) (map ('a 8) ('c 42) :no-default)))
 		    (map-intersecting m combining-with #'+))
 		  (map ('a 12) :no-default))))
-  "Passed.")
+  (format t "Passed."))

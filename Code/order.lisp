@@ -176,12 +176,8 @@ This is the right choice for the vast majority of mutable classes."
 (define-cross-type-compare-methods array)
 (define-cross-type-compare-methods class)
 
-;;; FSet types
-(define-cross-type-compare-methods set)
-(define-cross-type-compare-methods bag)
-(define-cross-type-compare-methods map)
-(define-cross-type-compare-methods seq)
-(define-cross-type-compare-methods tuple)
+;;; We used to have forms here for the FSet abstract types (`set' etc.), but they have been
+;;; replaced with those for each concrete type.
 
 ;;; For users
 (define-cross-type-compare-methods identity-equality-mixin)

@@ -621,8 +621,8 @@ When done, returns `value'."
 			#'(lambda (,key-var ,value-var) . ,body)
 			#'(lambda () ,value))))
 
-(defmacro Do-Tuple-Pairs ((key-var value-var tuple-form &optional value-form)
-			  &body body)
+(defmacro Do-Dyn-Tuple-Pairs ((key-var value-var tuple-form &optional value-form)
+			      &body body)
   (let ((tuple-var (gensymx #:tuple-))
 	(desc-var (gensymx #:desc-))
 	(contents-var (gensymx #:contents-))
@@ -648,10 +648,10 @@ When done, returns `value'."
 	     . ,body))
 	 ,value-form))))
 
-(defmethod internal-do-tuple ((tup tuple) elt-fn value-fn)
+(defmethod internal-do-tuple ((tup dyn-tuple) elt-fn value-fn)
   (declare (optimize (speed 3) (safety 0))
 	   (type function elt-fn value-fn))
-  (Do-Tuple-Pairs (x y tup (funcall value-fn))
+  (Do-Dyn-Tuple-Pairs (x y tup (funcall value-fn))
     (funcall elt-fn x y)))
 
 (defun print-dyn-tuple (tuple stream level)
@@ -664,7 +664,7 @@ When done, returns `value'."
       (write (list (tuple-key-name key) val) :stream stream))
     (format stream " >")))
 
-(defmethod compare ((tup1 tuple) (tup2 tuple))
+(defmethod compare ((tup1 dyn-tuple) (tup2 dyn-tuple))
   ;; The ordering this imposes is not easily described, but is stable within a session.
   ;; If the key sets are equal, the values are compared in key order, which is the order
   ;; in which the keys were created in the session.  If the key sets aren't equal, we just
@@ -694,17 +694,17 @@ When done, returns `value'."
 	    (when (eq res ':unequal)
 	      (setq default ':unequal))))))))
 
-(defmethod hash-value ((tup tuple))
+(defmethod hash-value ((tup dyn-tuple))
   (or (dyn-tuple-hash-value tup)
       (let ((hash 0)
 	    (mult 1))
-	(Do-Tuple-Pairs (k v tup)
+	(Do-Dyn-Tuple-Pairs (k v tup)
 	  (hash-mixf hash (hash-multiply mult (hash-mix (key-hash-value k) (hash-value-fixnum v))))
 	  (setf mult (hash-multiply mult 13)))
 	(setf (dyn-tuple-hash-value tup) hash))))
 
 
-(defmethod with ((tuple tuple) key &optional (value nil value?))
+(defmethod with ((tuple dyn-tuple) key &optional (value nil value?))
   (check-three-arguments value? 'with 'tuple)
   (check-type key tuple-key)
   (Tuple-With tuple key value))
@@ -717,7 +717,7 @@ When done, returns `value'."
 		     (tuple-key-name (fset2:tuple-key-unbound-error-key tkue))
 		     (fset2:tuple-key-unbound-error-tuple tkue)))))
 
-(defmethod lookup ((tuple tuple) (key tuple-key))
+(defmethod lookup ((tuple dyn-tuple) (key tuple-key))
   (let ((val? val (Tuple-Lookup tuple key)))
     (if val? (values val t)
       (let ((default-fn (tuple-key-default key)))
@@ -725,7 +725,7 @@ When done, returns `value'."
 	(if (eq default-fn 'no-default)
 	    (error 'fset2:tuple-key-unbound-error :tuple tuple :key key)
 	  (values (and default-fn (funcall default-fn tuple)) nil))))))
-(defmethod fset2:lookup ((tuple tuple) (key tuple-key))
+(defmethod fset2:lookup ((tuple dyn-tuple) (key tuple-key))
   (let ((val? val (Tuple-Lookup tuple key)))
     (if val? (values val t)
       (let ((dflt (tuple-key-default key)))
@@ -733,10 +733,10 @@ When done, returns `value'."
 	    (error 'fset2:tuple-key-unbound-error :tuple tuple :key key)
 	  (values dflt nil))))))
 
-(defmethod size ((tuple tuple))
+(defmethod size ((tuple dyn-tuple))
   (size (Tuple-Desc-Key-Set (dyn-tuple-descriptor tuple))))
 
-(defmethod at-rank ((tup tuple) rank)
+(defmethod at-rank ((tup dyn-tuple) rank)
   (let ((desc (dyn-tuple-descriptor tup))
 	((size (size (Tuple-Desc-Key-Set desc)))
 	 (pairs (Tuple-Desc-Pairs desc)))
@@ -758,7 +758,7 @@ of calling `val-fn' on the value from `tuple1' and the value from `tuple2'.
 `val-fn' defaults to simply returning its second argument, so the entries in
 `tuple2' simply shadow those in `tuple1'."))
 
-(defmethod tuple-merge ((tup1 tuple) (tup2 tuple)
+(defmethod tuple-merge ((tup1 dyn-tuple) (tup2 dyn-tuple)
 			&optional (val-fn (fn (_v1 v2) v2)))
   ;;; Someday: better implementation.
   (let ((result tup1)
@@ -861,15 +861,15 @@ of calling `val-fn' on the value from `tuple1' and the value from `tuple2'.
 (defmethod fset2:image ((key tuple-key) (s seq) &key)
   (seq-image #'(lambda (x) (fset2:lookup x key)) s 'no-default))
 
-(defmethod restrict ((tup tuple) (s set))
-  (let ((result (empty-tuple)))
+(defmethod restrict ((tup dyn-tuple) (s set))
+  (let ((result (empty-dyn-tuple)))
     (do-tuple (k v tup)
       (when (contains? s k)
 	(setf (@ result k) v)))
     result))
 
-(defmethod restrict-not ((tup tuple) (s set))
-  (let ((result (empty-tuple)))
+(defmethod restrict-not ((tup dyn-tuple) (s set))
+  (let ((result (empty-dyn-tuple)))
     (do-tuple (k v tup)
       (unless (contains? s k)
 	(setf (@ result k) v)))
