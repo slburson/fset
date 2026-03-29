@@ -104,7 +104,7 @@
 	   ;; Bounded sets
 	   #:bounded-set #:make-bounded-set #:bounded-set-contents
 	   ;; Complement sets
-	   #:full-set
+	   #:complement-set #:complement-set? #:full-set
 	   ;; Relations
 	   #:relation #:relation? #:2-relation #:2-relation? #:wb-2-relation #:wb-2-relation?
 	   #:wb-custom-2-relation #:ch-2-relation #:ch-2-relation? #:ch-custom-2-relation
@@ -238,7 +238,7 @@
 	   #:convert #:iterator #:fun-iterator
 	   #:do-set #:do-bag #:do-bag-pairs #:do-map #:do-map-domain #:do-seq #:do-tuple
 	   #:includef #:excludef #:unionf #:intersectf #:set-differencef
-	   #:map-unionf #:map-intersectf #:imagef #:updatef #:composef
+	   #:map-unionf #:map-intersectf #:imagef #:updatef #:composef #:map-imagef
 	   #:define-tuple-key #:get-tuple-key #:tuple-key #:tuple-key-name #:tuple-key-type #:tuple-key?
 	   #:tuple-merge
 	   #:fset-setup-readtable #:*fset-readtable*
