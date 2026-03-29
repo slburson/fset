@@ -1213,10 +1213,6 @@ or `no-default?' is true."
     (nreverse result)))
 (defmethod convert ((to-type (eql 'vector)) (m ch-replay-map) &key (pair-fn #'cons))
   (convert 'vector (convert 'list m :pair-fn pair-fn)))
-(defmethod convert ((to-type (eql 'seq)) (m ch-replay-map) &key (pair-fn #'cons))
-  (convert 'seq (convert 'list m :pair-fn pair-fn)))
-(defmethod convert ((to-type (eql 'fset2:seq)) (m ch-replay-map) &key (pair-fn #'cons))
-  (convert 'fset2:seq (convert 'list m :pair-fn pair-fn)))
 
 (defmethod convert ((to-type (eql 'ch-replay-map)) (list list)
 		    &key (key-fn #'car) (value-fn #'cdr) default key-compare-fn-name val-compare-fn-name)

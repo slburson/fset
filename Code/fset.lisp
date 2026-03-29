@@ -3290,69 +3290,68 @@ different bag implementations; it is not for public use.  `elt-fn' and
 	(WB-Bag-Tree-Rev-Fun-Iter (wb-bag-contents s))
       (WB-Bag-Tree-Fun-Iter (wb-bag-contents s)))))
 
-(define-methods (filter fset2:filter) ((pred function) (b bag))
-  (bag-filter pred b))
+(define-methods (filter fset2:filter) ((pred function) (b wb-bag))
+  (wb-bag-filter pred b))
 
-(define-methods (filter fset2:filter) ((pred symbol) (b bag))
-  (bag-filter (coerce-to-function pred) b))
+(define-methods (filter fset2:filter) ((pred symbol) (b wb-bag))
+  (wb-bag-filter (coerce-to-function pred) b))
 
-(defmethod filter ((pred set) (b bag))
-  (bag-filter (fn (x) (lookup pred x)) b))
-(defmethod fset2:filter ((pred set) (b bag))
-  (bag-filter (fn (x) (fset2:lookup pred x)) b))
+(defmethod filter ((pred set) (b wb-bag))
+  (wb-bag-filter (fn (x) (lookup pred x)) b))
+(defmethod fset2:filter ((pred set) (b wb-bag))
+  (wb-bag-filter (fn (x) (fset2:lookup pred x)) b))
 
-(defmethod filter ((pred map) (b bag))
-  (bag-filter (fn (x) (lookup pred x)) b))
-(defmethod fset2:filter ((pred map) (b bag))
-  (bag-filter (fn (x) (fset2:lookup pred x)) b))
+(define-methods (filter fset2:filter) ((pred bag) (b wb-bag))
+  ;; Not quite the same as bag intersection.
+  (wb-bag-filter (fn (x) (contains? pred x)) b))
 
-(defun bag-filter (pred b)
+(defmethod filter ((pred map) (b wb-bag))
+  (wb-bag-filter (fn (x) (lookup pred x)) b))
+(defmethod fset2:filter ((pred map) (b wb-bag))
+  (wb-bag-filter (fn (x) (fset2:lookup pred x)) b))
+
+(defun wb-bag-filter (pred b)
   (declare (optimize (speed 3)))
-  (let ((result (empty-bag-like b))
+  (let ((org (wb-bag-org b))
+	(result nil)
 	(pred (coerce pred 'function)))
     (do-bag-pairs (x n b)
       (when (funcall pred x)
-	(setq result (with result x n))))
-    result))
+	(setq result (WB-Bag-Tree-With result x (tree-set-org-compare-fn org) n))))
+    (make-wb-bag result org)))
 
-(define-methods (filter fset2:filter) ((pred set) (b bag))
-  (bag-product (convert 'bag pred) b))
+(defmethod filter-pairs ((pred function) (b wb-bag))
+  (wb-bag-filter-pairs pred b))
 
-(define-methods (filter fset2:filter) ((pred bag) (b bag))
-  ;; Not quite the same as bag intersection.
-  (bag-filter (fn (x) (contains? pred x)) b))
+(defmethod filter-pairs ((pred symbol) (b wb-bag))
+  (wb-bag-filter-pairs (coerce-to-function pred) b))
 
-(defmethod filter-pairs ((pred function) (b bag))
-  (bag-filter-pairs pred b))
-
-(defmethod filter-pairs ((pred symbol) (b bag))
-  (bag-filter-pairs (coerce-to-function pred) b))
-
-(defun bag-filter-pairs (pred b)
-  (let ((result (empty-bag-like b)))
+(defun wb-bag-filter-pairs (pred b)
+  (let ((org (wb-bag-org b))
+	(result nil))
     (do-bag-pairs (x n b)
       (when (funcall pred x n)
-	(setq result (with result x n))))
-    result))
+	(setq result (WB-Bag-Tree-With result x (tree-set-org-compare-fn org) n))))
+    (make-wb-bag result org)))
 
-(define-methods (image fset2:image) ((fn function) (b bag) &key compare-fn-name)
-  (bag-image fn b compare-fn-name))
+(define-methods (image fset2:image) ((fn function) (b wb-bag) &key compare-fn-name)
+  (wb-bag-image fn b compare-fn-name))
 
-(define-methods (image fset2:image) ((fn symbol) (b bag) &key compare-fn-name)
-  (bag-image (coerce-to-function fn) b compare-fn-name))
+(define-methods (image fset2:image) ((fn symbol) (b wb-bag) &key compare-fn-name)
+  (wb-bag-image (coerce-to-function fn) b compare-fn-name))
 
-(defmethod image ((fn map) (b bag) &key compare-fn-name)
-  (bag-image (fn (x) (lookup fn x)) b compare-fn-name))
-(defmethod fset2:image ((fn map) (b bag) &key compare-fn-name)
-  (bag-image (fn (x) (fset2:lookup fn x)) b compare-fn-name))
+(defmethod image ((fn map) (b wb-bag) &key compare-fn-name)
+  (wb-bag-image (fn (x) (lookup fn x)) b compare-fn-name))
+(defmethod fset2:image ((fn map) (b wb-bag) &key compare-fn-name)
+  (wb-bag-image (fn (x) (fset2:lookup fn x)) b compare-fn-name))
 
-(define-methods (image fset2:image) ((fn set) (b bag) &key compare-fn-name)
-  (bag-image (fn (x) (contains? fn x)) b compare-fn-name))
+(define-methods (image fset2:image) ((fn set) (b wb-bag) &key compare-fn-name)
+  (wb-bag-image (fn (x) (contains? fn x)) b compare-fn-name))
 
-(define-methods (image fset2:image) ((fn bag) (b bag) &key compare-fn-name)
-  (bag-image (fn (x) (contains? fn x)) b compare-fn-name))
+(define-methods (image fset2:image) ((fn bag) (b wb-bag) &key compare-fn-name)
+  (wb-bag-image (fn (x) (contains? fn x)) b compare-fn-name))
 
-(defun bag-image (fn b compare-fn-name)
+(defun wb-bag-image (fn b compare-fn-name)
   (declare (type function fn))
   (let ((org (wb-bag-org (if compare-fn-name (empty-wb-bag compare-fn-name) b)))
 	(result nil))
@@ -3866,6 +3865,73 @@ different bag implementations; it is not for public use.  `elt-fn' and
       (ch-bag-tree-disjoint? (ch-bag-contents b1) (ch-bag-contents b2)
 			     (hash-set-org-hash-fn hsorg) (hash-set-org-compare-fn hsorg))
     (call-next-method)))
+
+(define-methods (filter fset2:filter) ((pred function) (b ch-bag))
+  (ch-bag-filter pred b))
+
+(define-methods (filter fset2:filter) ((pred symbol) (b ch-bag))
+  (ch-bag-filter (coerce-to-function pred) b))
+
+(defmethod filter ((pred set) (b ch-bag))
+  (ch-bag-filter (fn (x) (lookup pred x)) b))
+(defmethod fset2:filter ((pred set) (b ch-bag))
+  (ch-bag-filter (fn (x) (fset2:lookup pred x)) b))
+
+(define-methods (filter fset2:filter) ((pred bag) (b ch-bag))
+  ;; Not quite the same as bag intersection.
+  (ch-bag-filter (fn (x) (contains? pred x)) b))
+
+(defmethod filter ((pred map) (b ch-bag))
+  (ch-bag-filter (fn (x) (lookup pred x)) b))
+(defmethod fset2:filter ((pred map) (b ch-bag))
+  (ch-bag-filter (fn (x) (fset2:lookup pred x)) b))
+
+(defun ch-bag-filter (pred b)
+  (declare (optimize (speed 3)))
+  (let ((result (make-transient (empty-bag-like b)))
+	(pred (coerce pred 'function)))
+    (do-bag-pairs (x n b)
+      (when (funcall pred x)
+	(include! result x n)))
+    (make-persistent result)))
+
+(defmethod filter-pairs ((pred function) (b ch-bag))
+  (ch-bag-filter-pairs pred b))
+
+(defmethod filter-pairs ((pred symbol) (b ch-bag))
+  (ch-bag-filter-pairs (coerce-to-function pred) b))
+
+(defun ch-bag-filter-pairs (pred b)
+  (let ((result (make-transient (empty-bag-like b))))
+    (do-bag-pairs (x n b)
+      (when (funcall pred x n)
+	(include! result x n)))
+    (make-persistent result)))
+
+(define-methods (image fset2:image) ((fn function) (b ch-bag) &key compare-fn-name)
+  (ch-bag-image fn b compare-fn-name))
+
+(define-methods (image fset2:image) ((fn symbol) (b ch-bag) &key compare-fn-name)
+  (ch-bag-image (coerce-to-function fn) b compare-fn-name))
+
+(defmethod image ((fn map) (b ch-bag) &key compare-fn-name)
+  (ch-bag-image (fn (x) (lookup fn x)) b compare-fn-name))
+(defmethod fset2:image ((fn map) (b ch-bag) &key compare-fn-name)
+  (ch-bag-image (fn (x) (fset2:lookup fn x)) b compare-fn-name))
+
+(define-methods (image fset2:image) ((fn set) (b ch-bag) &key compare-fn-name)
+  (ch-bag-image (fn (x) (contains? fn x)) b compare-fn-name))
+
+(define-methods (image fset2:image) ((fn bag) (b ch-bag) &key compare-fn-name)
+  (ch-bag-image (fn (x) (contains? fn x)) b compare-fn-name))
+
+(defun ch-bag-image (fn b compare-fn-name)
+  (declare (type function fn))
+  (let ((result (make-transient (if compare-fn-name (empty-ch-bag compare-fn-name)
+				  (empty-bag-like b)))))
+    (do-bag-pairs (x n b)
+      (include! result (funcall fn x) n))
+    (make-persistent result)))
 
 (defmethod compare ((b1 ch-bag) (b2 ch-bag))
   (if-same-ch-bag-orgs (b1 b2 hsorg)
