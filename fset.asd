@@ -17,7 +17,7 @@ See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
   :homepage "https://gitlab.common-lisp.net/fset/fset/-/wikis/home"
   :source-control "https://github.com/slburson/fset"
   :license "BSD-2-Clause"
-  :depends-on ((:version :misc-extensions "4.2.3") :mt19937 :named-readtables :alexandria)
+  :depends-on ((:version :misc-extensions "4.2.4") :mt19937 :named-readtables :alexandria)
   :in-order-to ((test-op (test-op "fset/test")))
   :serial t
   :components

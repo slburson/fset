@@ -1120,12 +1120,25 @@ comparison function in the result, supply `compare-fn-name`."
 
 (gmap:def-arg-type ch-bag (bag)
   "Yields each element of `bag', as many times as its multiplicity."
-  ;; &&& I haven't written an internal non-pair ch-bag iterator.  OTOH, there's a driver.
-  `((the function (iterator ,bag))
-    #'(lambda (it) (funcall it ':done?))
-    #'(lambda (it) (funcall it ':get))
-    nil nil nil
-    (do-bag ,bag)))
+  ;; I haven't written an internal non-pair ch-bag iterator.  OTOH, there's a driver.
+  (let ((elt-var (gensymx #:elt-))
+	(n-var (gensymx #:n-)))
+    `((make-ch-bag-tree-pair-iterator-internal (ch-bag-contents ,bag))
+      (fn (it) (and (zerop ,n-var)
+		    (ch-bag-tree-pair-iterator-done? it)))
+      (fn (it)
+	(when (zerop ,n-var)
+	  (let ((elt mult (ch-bag-tree-pair-iterator-get it)))
+	    (setq ,elt-var elt)
+	    (setq ,n-var mult)))
+	(decf ,n-var)
+	,elt-var)
+      nil
+      ((,elt-var nil)
+       (,n-var 0))
+      nil
+      (do-bag ,bag)
+      nil)))
 
 (gmap:def-arg-type ch-bag-pairs (bag)
   "Yields each element of `bag' and its multiplicity as two values."
