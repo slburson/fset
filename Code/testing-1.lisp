@@ -520,7 +520,7 @@
 	     (tmp (with fm1 r v)))
 	(setq m1 (Alist-Assign m1 r v))
 	(unless (verify tmp)
-	  (error "Map verify failed (a) on iteration ~D, adding ~A -> ~A; ~D, ~D"
+	  (error "Map verify failed (b) on iteration ~D, adding ~A -> ~A; ~D, ~D"
 		 i r v m1 tmp))
 	(unless (= (size tmp) (length m1))
 	  (error "Map size or with failed (b) on iteration ~D, adding ~A -> ~A; ~D, ~D"

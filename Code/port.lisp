@@ -347,9 +347,9 @@
 ;;; (or at least, shouldn't!).  Similarly, wrapping the `defsubst' in a `let' won't work either.
 (defmacro defsubst (name params &body body)
   ;; These restrictions could be loosened with more work, but I think this will suffice for now.
-  (assert (every (fn (p) (and (symbolp p) (or (string= (symbol-name p) "")   ; lol, but we should check
-					      (not (eql (char (symbol-name p) 0) #\&)))))
-		 params))
+  (assert (cl:every (fn (p) (and (symbolp p) (or (string= (symbol-name p) "")   ; lol, but we should check
+						 (not (eql (char (symbol-name p) 0) #\&)))))
+		    params))
   `(progn
      #-allegro
      (declaim (inline ,name))   ; I think this needs to precede the `defun'

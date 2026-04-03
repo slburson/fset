@@ -1886,7 +1886,7 @@ or hash function, as `s'.  `s' can also be a bag."))
   (let ((found? rank (WB-Set-Tree-Rank (contents s) x (compare-fn s))))
     (values rank found?)))
 
-(define-wb-set-method at-rank ((s wb-set) (rank fixnum))
+(define-wb-set-method at-rank ((s wb-set) rank)
   (let ((contents (contents s))
 	((size (WB-Set-Tree-Size contents))))
     (unless (and (>= rank 0) (< rank size))

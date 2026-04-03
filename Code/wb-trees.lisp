@@ -13,8 +13,7 @@ Reference: Adams, Stephen.  "Implementing Sets Efficiently In a Functional
 Language", CSTR 92-10, Dept. of Electronics and Computer Science, University
 of Southampton, 1992.
 
-Also: https://www.cambridge.org/core/journals/journal-of-functional-programming/article/balancing-weightbalanced-trees/7281C4DE7E56B74F2D13F06E31DCBC5B
-And: https://arxiv.org/abs/1602.02120v4
+Also of interest: https://arxiv.org/abs/1602.02120v4
 
 We introduce two substantial complications into Adams' nice clean code.
 
@@ -60,9 +59,29 @@ do the comparison only once for each pair of values.
 ;;; It is assumed that this is no more than twice `WB-Tree-Max-Vector-Length'.
 (defconstant WB-Tree-Max-String-Length 16)
 
-;;; The factor by which one subtree may outweigh another.  See Adams.  Don't
-;;; change this unless you understand his analysis.
-(defconstant WB-Tree-Balance-Factor 4)
+;;; The factor by which one subtree may outweigh another.
+;;; Ref: https://www.cambridge.org/core/journals/journal-of-functional-programming/article/balancing-weightbalanced-trees/7281C4DE7E56B74F2D13F06E31DCBC5B
+(defconstant WB-Tree-Balance-Factor-Delta 2.5)  ; for choosing whether to rotate
+(defconstant WB-Tree-Balance-Factor-Gamma 1.5)  ; for choosing between single and double rotation
+;;; I tried imposing `Delta' as the limit, but it's too stringent.  The big problem is `Equivalent-Node's:
+;;; they're not allowed in leaf vectors, so they tend to distort the tree.  I believe they're rare
+;;; enough in practice that this is of no consequence, but for testing purposes, I generate a lot
+;;; of them, so I have to loosen the verification constraint back to what it used to be.  -- Turns
+;;; out that the leaf vectors can cause a little balance slop even for seqs, which have no
+;;; `Equivalent-Node's.  I tried 3, but it was still too tight.
+(defconstant WB-Tree-Balance-Factor-Limit 4)    ; imposed by verification
+
+;;; Even SBCL doesn't optimize (floor (* fixnum 5/2)) down to this.
+(defsubst WB-Tree-Balance-Delta-Fn (x)
+  (declare (optimize (speed 3) (safety 0))
+	   (fixnum x))
+  (the fixnum (+ (the fixnum (* x 2)) (ash x -1))))   ; 5/2 * x
+
+(defsubst WB-Tree-Balance-Gamma-Fn (x)
+  (declare (optimize (speed 3) (safety 0))
+	   (fixnum x))
+  (the fixnum (+ x (ash x -1))))   ; 3/2 * x
+
 
 
 ;;; ================================================================================
@@ -1129,16 +1148,14 @@ has the same contract.  `value' may be an `Equivalent-Set'."
 	((null right)
 	 (WB-Set-Tree-With left value cmp-fn))
 	((and (WB-Set-Tree-Node? left)
-	      (> (WB-Set-Tree-Size left)
-		 (the fixnum
-		   (* (WB-Set-Tree-Size right) WB-Tree-Balance-Factor))))
+	      (> (1+ (WB-Set-Tree-Size left))
+		 (WB-Tree-Balance-Delta-Fn (1+ (WB-Set-Tree-Size right)))))
 	 (WB-Set-Tree-Build-Node (WB-Set-Tree-Node-Value left)
 				 (WB-Set-Tree-Node-Left left)
 				 (WB-Set-Tree-Concat value (WB-Set-Tree-Node-Right left) right cmp-fn)))
 	((and (WB-Set-Tree-Node? right)
-	      (> (WB-Set-Tree-Size right)
-		 (the fixnum
-		   (* (WB-Set-Tree-Size left) WB-Tree-Balance-Factor))))
+	      (> (1+ (WB-Set-Tree-Size right))
+		 (WB-Tree-Balance-Delta-Fn (1+ (WB-Set-Tree-Size left)))))
 	 (WB-Set-Tree-Build-Node (WB-Set-Tree-Node-Value right)
 				 (WB-Set-Tree-Concat value left (WB-Set-Tree-Node-Left right) cmp-fn)
 				 (WB-Set-Tree-Node-Right right)))
@@ -1191,18 +1208,17 @@ or `Equivalent-Set' removed."
 	     (concatenate 'simple-vector left (vector value) right)
 	   (Make-WB-Set-Tree-Node value left right)))
 	(t
-	 (let ((sizl (WB-Set-Tree-Size left))
-	       (sizr (WB-Set-Tree-Size right)))
+	 (let ((wgtl (1+ (WB-Set-Tree-Size left)))
+	       (wgtr (1+ (WB-Set-Tree-Size right))))
+	   (declare (fixnum wgtl wgtr))
 	   ;; This code is subtly different from Adams's in order to create more
-	   ;; opportunities to coalesce adjacent short vectors.  &&& We won't really
-	   ;; know how well we're doing here, or how we might improve further, until
-	   ;; we have some real applications running and can gather some stats.
-	   (cond ((and (WB-Set-Tree-Node? left)
-		       (> sizl (the fixnum (* sizr WB-Tree-Balance-Factor))))
+	   ;; opportunities to coalesce adjacent short vectors.
+	   (cond ((and (WB-Set-Tree-Node? left) (> wgtl (WB-Tree-Balance-Delta-Fn wgtr)))
 		  (let ((ll (WB-Set-Tree-Node-Left left))
 			(rl (WB-Set-Tree-Node-Right left)))
 		    (if (or (null rl) (simple-vector-p rl)
-			    (<= (WB-Set-Tree-Size rl) (WB-Set-Tree-Size ll)))
+			    (< (1+ (WB-Set-Tree-Size rl))
+			       (WB-Tree-Balance-Gamma-Fn (1+ (WB-Set-Tree-Size ll)))))
 			(Make-WB-Set-Tree-Node (WB-Set-Tree-Node-Value left)
 					       ll
 					       (WB-Set-Tree-Build-Node value rl right))
@@ -1214,12 +1230,12 @@ or `Equivalent-Set' removed."
 					     (WB-Set-Tree-Build-Node
 					       value (WB-Set-Tree-Node-Right rl)
 					       right)))))
-		 ((and (WB-Set-Tree-Node? right)
-		       (> sizr (the fixnum (* sizl WB-Tree-Balance-Factor))))
+		 ((and (WB-Set-Tree-Node? right) (> wgtr (WB-Tree-Balance-Delta-Fn wgtl)))
 		  (let ((lr (WB-Set-Tree-Node-Left right))
 			(rr (WB-Set-Tree-Node-Right right)))
 		    (if (or (null lr) (simple-vector-p lr)
-			    (<= (WB-Set-Tree-Size lr) (WB-Set-Tree-Size rr)))
+			    (< (1+ (WB-Set-Tree-Size lr))
+			       (WB-Tree-Balance-Gamma-Fn (1+ (WB-Set-Tree-Size rr)))))
 			(Make-WB-Set-Tree-Node (WB-Set-Tree-Node-Value right)
 					       (WB-Set-Tree-Build-Node value left lr)
 					       rr)
@@ -1267,9 +1283,9 @@ or `Equivalent-Set' removed."
 		      (test (or (not (Equivalent-Node? value))
 				(> (length (Equivalent-Node-List value)) 1)))
 		      (test (or (<= sizr 4)
-				(<= sizl (* sizr WB-Tree-Balance-Factor))))
+				(<= sizl (* WB-Tree-Balance-Factor-Limit sizr))))
 		      (test (or (<= sizl 4)
-				(<= sizr (* sizl WB-Tree-Balance-Factor))))
+				(<= sizr (* WB-Tree-Balance-Factor-Limit sizl))))
 		      (rec (WB-Set-Tree-Node-Left tree) lo value)
 		      (rec (WB-Set-Tree-Node-Right tree) value hi)))))))))
 
@@ -1791,8 +1807,8 @@ to those members above `lo' and below `hi'."
 	(t
 	 (let ((size (if nodes-have-values? (1- size) size))
 	       ((subtree-max (min (1- size)
-				  (floor (* size (/ WB-Tree-Balance-Factor
-						    (1+ WB-Tree-Balance-Factor))))))))
+				  (floor (* size (/ WB-Tree-Balance-Factor-Delta
+						    (1+ WB-Tree-Balance-Factor-Delta))))))))
 	   (1+ (WB-Tree-True-Max-Depth subtree-max nodes-have-values?))))))
 
 (defconstant WB-Tree-Precomputed-Max-Depths 1000)
@@ -1819,8 +1835,7 @@ to those members above `lo' and below `hi'."
 	     size)
     (ceiling (* (1- (integer-length size))
 		;; constant:
-		(/ (log 2) (log (/ (+ 1 WB-Tree-Balance-Factor)
-				   WB-Tree-Balance-Factor)))))))
+		(/ (log 2) (log (/ (+ 1 WB-Tree-Balance-Factor-Delta) WB-Tree-Balance-Factor-Delta)))))))
 
 
 ;;; ================================================================================
@@ -3065,8 +3080,8 @@ between equal trees."
 	((null right)
 	 (WB-Bag-Tree-With left value cmp-fn count))
 	((and (WB-Bag-Tree-Node? left)
-	      (> (WB-Bag-Tree-Size left)
-		 (the fixnum (* (WB-Bag-Tree-Size right) WB-Tree-Balance-Factor))))
+	      (> (1+ (WB-Bag-Tree-Size left))
+		 (WB-Tree-Balance-Delta-Fn (1+ (WB-Bag-Tree-Size right)))))
 	 (WB-Bag-Tree-Build-Node (WB-Bag-Tree-Node-Value left)
 				 (WB-Bag-Tree-Node-Count left)
 				 (WB-Bag-Tree-Node-Left left)
@@ -3074,8 +3089,8 @@ between equal trees."
 						     (WB-Bag-Tree-Node-Right left)
 						     right cmp-fn)))
 	((and (WB-Bag-Tree-Node? right)
-	      (> (WB-Bag-Tree-Size right)
-		 (the fixnum (* (WB-Bag-Tree-Size left) WB-Tree-Balance-Factor))))
+	      (> (1+ (WB-Bag-Tree-Size right))
+		 (WB-Tree-Balance-Delta-Fn (1+ (WB-Bag-Tree-Size left)))))
 	 (WB-Bag-Tree-Build-Node (WB-Bag-Tree-Node-Value right)
 				 (WB-Bag-Tree-Node-Count right)
 				 (WB-Bag-Tree-Concat value count left (WB-Bag-Tree-Node-Left right) cmp-fn)
@@ -3134,14 +3149,15 @@ removed."
 	  (cons (concatenate 'simple-vector (car left) (vector value) (car right))
 		(concatenate 'simple-vector (cdr left) (vector count) (cdr right)))
 	(Make-WB-Bag-Tree-Node value count left right))
-    (let ((sizl (WB-Bag-Tree-Size left))
-	  (sizr (WB-Bag-Tree-Size right)))
-      (cond ((and (WB-Bag-Tree-Node? left)
-		  (> sizl (the fixnum (* sizr WB-Tree-Balance-Factor))))
+    (let ((wgtl (1+ (WB-Bag-Tree-Size left)))
+	  (wgtr (1+ (WB-Bag-Tree-Size right))))
+      (declare (fixnum wgtl wgtr))
+      (cond ((and (WB-Bag-Tree-Node? left) (> wgtl (WB-Tree-Balance-Delta-Fn wgtr)))
 	     (let ((ll (WB-Bag-Tree-Node-Left left))
 		   (rl (WB-Bag-Tree-Node-Right left)))
 	       (if (or (null rl) (consp rl)
-		       (<= (WB-Bag-Tree-Size rl) (WB-Bag-Tree-Size ll)))
+		       (< (1+ (WB-Bag-Tree-Size rl))
+			  (WB-Tree-Balance-Gamma-Fn (1+ (WB-Bag-Tree-Size ll)))))
 		   (Make-WB-Bag-Tree-Node (WB-Bag-Tree-Node-Value left)
 					  (WB-Bag-Tree-Node-Count left)
 					  ll
@@ -3156,12 +3172,12 @@ removed."
 					(WB-Bag-Tree-Build-Node
 					  value count (WB-Bag-Tree-Node-Right rl)
 					  right)))))
-	    ((and (WB-Bag-Tree-Node? right)
-		  (> sizr (the fixnum (* sizl WB-Tree-Balance-Factor))))
+	    ((and (WB-Bag-Tree-Node? right) (> wgtr (WB-Tree-Balance-Delta-Fn wgtl)))
 	     (let ((lr (WB-Bag-Tree-Node-Left right))
 		   (rr (WB-Bag-Tree-Node-Right right)))
 	       (if (or (null lr) (consp lr)
-		       (<= (WB-Bag-Tree-Size lr) (WB-Bag-Tree-Size rr)))
+		       (< (1+ (WB-Bag-Tree-Size lr))
+			  (WB-Tree-Balance-Gamma-Fn (1+ (WB-Bag-Tree-Size rr)))))
 		   (Make-WB-Bag-Tree-Node (WB-Bag-Tree-Node-Value right)
 					  (WB-Bag-Tree-Node-Count right)
 					  (WB-Bag-Tree-Build-Node value count left lr)
@@ -3183,7 +3199,7 @@ removed."
   (WB-Bag-Tree-Verify-Rng tree Hedge-Negative-Infinity Hedge-Positive-Infinity cmp-fn))
 
 (defun WB-Bag-Tree-Verify-Rng (tree lo hi cmp-fn)
-  (declare (type function cmp-fn))
+  (declare (type function cmp-fn) (optimize (debug 3)))
   (cond ((null tree) t)
 	((consp tree)
 	 (let ((len (length (car tree))))
@@ -3217,9 +3233,9 @@ removed."
 		(or (not (Equivalent-Node? value))
 		    (> (length (Equivalent-Node-List value)) 1))
 		(or (<= sizr 4)
-		    (<= sizl (* sizr WB-Tree-Balance-Factor)))
+		    (<= sizl (* WB-Tree-Balance-Factor-Limit sizr)))
 		(or (<= sizl 4)
-		    (<= sizr (* sizl WB-Tree-Balance-Factor)))
+		    (<= sizr (* WB-Tree-Balance-Factor-Limit sizl)))
 		(WB-Bag-Tree-Verify-Rng (WB-Bag-Tree-Node-Left tree) lo value cmp-fn)
 		(WB-Bag-Tree-Verify-Rng (WB-Bag-Tree-Node-Right tree) value hi cmp-fn))))))
 
@@ -5324,8 +5340,8 @@ between equal trees."
 	((null right)
 	 (WB-Map-Tree-With left key value key-cmp-fn (fn (_x _y) ':unequal)))
 	((and (WB-Map-Tree-Node? left)
-	      (> (WB-Map-Tree-Node-Size left)
-		 (the fixnum (* (WB-Map-Tree-Size right) WB-Tree-Balance-Factor))))
+	      (> (1+ (WB-Map-Tree-Node-Size left))
+		 (WB-Tree-Balance-Delta-Fn (1+ (WB-Map-Tree-Size right)))))
 	 (WB-Map-Tree-Build-Node (WB-Map-Tree-Node-Key left)
 				 (WB-Map-Tree-Node-Value left)
 				 (WB-Map-Tree-Node-Left left)
@@ -5333,8 +5349,8 @@ between equal trees."
 						     (WB-Map-Tree-Node-Right left)
 						     right key-cmp-fn)))
 	((and (WB-Map-Tree-Node? right)
-	      (> (WB-Map-Tree-Node-Size right)
-		 (the fixnum (* (WB-Map-Tree-Size left) WB-Tree-Balance-Factor))))
+	      (> (1+ (WB-Map-Tree-Node-Size right))
+		 (WB-Tree-Balance-Delta-Fn (1+ (WB-Map-Tree-Size left)))))
 	 (WB-Map-Tree-Build-Node (WB-Map-Tree-Node-Key right)
 				 (WB-Map-Tree-Node-Value right)
 				 (WB-Map-Tree-Concat key value left
@@ -5364,14 +5380,15 @@ between equal trees."
 	  (cons (concatenate 'simple-vector (car left) (vector key) (car right))
 		(concatenate 'simple-vector (cdr left) (vector value) (cdr right)))
 	(Make-WB-Map-Tree-Node key value left right))
-    (let ((sizl (WB-Map-Tree-Size left))
-	  (sizr (WB-Map-Tree-Size right)))
-      (cond ((and (WB-Map-Tree-Node? left)
-		  (> sizl (the fixnum (* sizr WB-Tree-Balance-Factor))))
+    (let ((wgtl (1+ (WB-Map-Tree-Size left)))
+	  (wgtr (1+ (WB-Map-Tree-Size right))))
+      (declare (fixnum wgtl wgtr))
+      (cond ((and (WB-Map-Tree-Node? left) (> wgtl (WB-Tree-Balance-Delta-Fn wgtr)))
 	     (let ((ll (WB-Map-Tree-Node-Left left))
 		   (rl (WB-Map-Tree-Node-Right left)))
 	       (if (or (null rl) (consp rl)
-		       (<= (WB-Map-Tree-Size rl) (WB-Map-Tree-Size ll)))
+		       (< (1+ (WB-Map-Tree-Size rl))
+			  (WB-Tree-Balance-Gamma-Fn (1+ (WB-Map-Tree-Size ll)))))
 		   (Make-WB-Map-Tree-Node (WB-Map-Tree-Node-Key left)
 					  (WB-Map-Tree-Node-Value left)
 					  ll
@@ -5385,12 +5402,12 @@ between equal trees."
 					  (WB-Map-Tree-Node-Left rl))
 					(WB-Map-Tree-Build-Node
 					  key value (WB-Map-Tree-Node-Right rl) right)))))
-	    ((and (WB-Map-Tree-Node? right)
-		  (> sizr (the fixnum (* sizl WB-Tree-Balance-Factor))))
+	    ((and (WB-Map-Tree-Node? right) (> wgtr (WB-Tree-Balance-Delta-Fn wgtl)))
 	     (let ((lr (WB-Map-Tree-Node-Left right))
 		   (rr (WB-Map-Tree-Node-Right right)))
 	       (if (or (null lr) (consp lr)
-		       (<= (WB-Map-Tree-Size lr) (WB-Map-Tree-Size rr)))
+		       (< (1+ (WB-Map-Tree-Size lr))
+			  (WB-Tree-Balance-Gamma-Fn (1+ (WB-Map-Tree-Size rr)))))
 		   (Make-WB-Map-Tree-Node (WB-Map-Tree-Node-Key right)
 					  (WB-Map-Tree-Node-Value right)
 					  (WB-Map-Tree-Build-Node key value left lr)
@@ -5436,12 +5453,11 @@ between equal trees."
 		(or (not (Equivalent-Node? key))
 		    (> (length (Equivalent-Node-List key)) 1))
 		(or (<= sizr 4)
-		    (<= sizl (* sizr WB-Tree-Balance-Factor)))
+		    (<= sizl (* WB-Tree-Balance-Factor-Limit sizr)))
 		(or (<= sizl 4)
-		    (<= sizr (* sizl WB-Tree-Balance-Factor)))
+		    (<= sizr (* WB-Tree-Balance-Factor-Limit sizl)))
 		(WB-Map-Tree-Verify-Rng (WB-Map-Tree-Node-Left tree) lo key key-cmp-fn)
 		(WB-Map-Tree-Verify-Rng (WB-Map-Tree-Node-Right tree) key hi key-cmp-fn))))))
-
 
 (defun WB-Map-Tree-Vector-Pair-Union (pr1 pr2 val-fn lo hi key-cmp-fn val-cmp-fn)
   (let ((new-pr any-equivalent? (Vector-Pair-Union pr1 pr2 val-fn lo hi key-cmp-fn val-cmp-fn)))
@@ -7573,14 +7589,14 @@ of the result are all characters, returns a string instead."
   (cond ((null left) right)
 	((null right) left)
 	((and (WB-Seq-Tree-Node? left)
-	      (> (WB-Seq-Tree-Size left)
-		 (the fixnum (* (WB-Seq-Tree-Size right) WB-Tree-Balance-Factor))))
+	      (> (1+ (WB-Seq-Tree-Size left))
+		 (WB-Tree-Balance-Delta-Fn (1+ (WB-Seq-Tree-Size right)))))
 	 (WB-Seq-Tree-Build-Node (WB-Seq-Tree-Node-Left left)
 				 (WB-Seq-Tree-Concat (WB-Seq-Tree-Node-Right left)
 						     right)))
 	((and (WB-Seq-Tree-Node? right)
-	      (> (WB-Seq-Tree-Size right)
-		 (the fixnum (* (WB-Seq-Tree-Size left) WB-Tree-Balance-Factor))))
+	      (> (1+ (WB-Seq-Tree-Size right))
+		 (WB-Tree-Balance-Delta-Fn (1+ (WB-Seq-Tree-Size left)))))
 	 (WB-Seq-Tree-Build-Node (WB-Seq-Tree-Concat left (WB-Seq-Tree-Node-Left right))
 				 (WB-Seq-Tree-Node-Right right)))
 	(t
@@ -7624,25 +7640,25 @@ may or may not be an HT tree."
 	     (concatenate 'simple-vector left right)
 	   (Make-WB-Seq-Tree-Node left right)))
 	(t
-	 (let ((sizl (WB-Seq-Tree-Size left))
-	       (sizr (WB-Seq-Tree-Size right)))
-	   (cond ((and (WB-Seq-Tree-Node? left)
-		       (> sizl (the fixnum (* sizr WB-Tree-Balance-Factor))))
+	 (let ((wgtl (1+ (WB-Seq-Tree-Size left)))
+	       (wgtr (1+ (WB-Seq-Tree-Size right))))
+	   (cond ((and (WB-Seq-Tree-Node? left) (> wgtl (WB-Tree-Balance-Delta-Fn wgtr)))
 		  (let ((ll (WB-Seq-Tree-Node-Left left))
 			(rl (WB-Seq-Tree-Node-Right left)))
 		    (if (or (null rl) (simple-string-p rl) (simple-vector-p rl)
-			    (<= (WB-Seq-Tree-Size rl) (WB-Seq-Tree-Size ll)))
+			    (< (1+ (WB-Seq-Tree-Size rl))
+			       (WB-Tree-Balance-Gamma-Fn (1+ (WB-Seq-Tree-Size ll)))))
 			(Make-WB-Seq-Tree-Node ll (WB-Seq-Tree-Build-Node rl right))
 		      (Make-WB-Seq-Tree-Node (WB-Seq-Tree-Build-Node
 					       ll (WB-Seq-Tree-Node-Left rl))
 					     (WB-Seq-Tree-Build-Node
 					       (WB-Seq-Tree-Node-Right rl) right)))))
-		 ((and (WB-Seq-Tree-Node? right)
-		       (> sizr (the fixnum (* sizl WB-Tree-Balance-Factor))))
+		 ((and (WB-Seq-Tree-Node? right) (> wgtr (WB-Tree-Balance-Delta-Fn wgtl)))
 		  (let ((lr (WB-Seq-Tree-Node-Left right))
 			(rr (WB-Seq-Tree-Node-Right right)))
 		    (if (or (null lr) (simple-string-p lr) (simple-vector-p lr)
-			    (<= (WB-Seq-Tree-Size lr) (WB-Seq-Tree-Size rr)))
+			    (< (1+ (WB-Seq-Tree-Size lr))
+			       (WB-Tree-Balance-Gamma-Fn (1+ (WB-Seq-Tree-Size rr)))))
 			(Make-WB-Seq-Tree-Node (WB-Seq-Tree-Build-Node left lr)
 					       rr)
 		      (Make-WB-Seq-Tree-Node (WB-Seq-Tree-Build-Node
@@ -8154,9 +8170,9 @@ may or may not be an HT tree."
 		    ;; here, instead of 4, because of `WB-Tree-Max-String-Length',
 		    ;; which makes the trees appear less balanced.
 		    (or (<= sizr 8)
-			(<= sizl (* sizr WB-Tree-Balance-Factor)))
+			(<= sizl (* WB-Tree-Balance-Factor-Limit sizr)))
 		    (or (<= sizl 8)
-			(<= sizr (* sizl WB-Tree-Balance-Factor)))
+			(<= sizr (* WB-Tree-Balance-Factor-Limit sizl)))
 		    (walk (WB-Seq-Tree-Node-Left tree))
 		    (walk (WB-Seq-Tree-Node-Right tree)))))))
     (walk-leaf (leaf)
@@ -8177,3 +8193,4 @@ may or may not be an HT tree."
 	       (or (and (<= (length leaf) WB-Tree-Max-Vector-Length)
 			(eq correct-type 'vector))
 		   (error "Vector leaf failed check"))))))))
+
