@@ -2972,7 +2972,19 @@
       (let ((frob4 (make-frob 1 2))
 	    (frob5 (make-frob 1.0 2)))
 	(test (eql ':unequal (compare-slots frob4 frob5 'a 'b)))
-	(test (eql ':unequal (compare-slots frob4 frob5 'b 'a)))))))
+	(test (eql ':unequal (compare-slots frob4 frob5 'b 'a)))))
+
+    ;; Test iterators on empty collections.
+    (test (funcall (iterator (wb-set)) ':done?))
+    (test (funcall (iterator (wb-bag)) ':done?))
+    (test (funcall (iterator (wb-map)) ':done?))
+    (test (funcall (iterator (wb-seq)) ':done?))
+    (test (funcall (fun-iterator (ch-set)) ':empty?))
+    (test (funcall (fun-iterator (ch-bag)) ':empty?))
+    (test (funcall (fun-iterator (ch-map)) ':empty?))
+    (test (funcall (fun-iterator (ch-set) :from-end? t) ':empty?))
+    (test (funcall (fun-iterator (ch-bag) :from-end? t) ':empty?))
+    (test (funcall (fun-iterator (ch-map) :from-end? t) ':empty?))))
 
 ;;; Outlined so SBCL constant propagation doesn't do the test at compile time.
 (defun hash-mix-func (a b)
