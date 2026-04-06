@@ -13,8 +13,7 @@
 ;;; "Bounded" is certainly not an ideal term, but I couldn't find anything better
 ;;; in Wikipedia's pages on topology.  "Set-in-discrete-topology" is just too long.
 (defstruct (bounded-set
-	     (:include set)
-	     (:constructor make-bounded-set-internal (universe set complement?))
+	     (:constructor make-bounded-set-internal (universe bitmap))
 	     (:predicate bounded-set?)
 	     (:print-function print-bounded-set)
 	     (:copier nil))
@@ -22,201 +21,170 @@
 called the \"universe\".  (Topologically, it is a set in the discrete topology
 on the universe.)"
   (universe nil :read-only t)
-  (set nil :read-only t)
-  ;; We go to some trouble to make sure that the `set' never contains more than
-  ;; half the `universe'.  This doesn't help asymptotic complexity, but does help
-  ;; with the constant factor.
-  (complement? nil :read-only t))
+  (bitmap 0 :read-only t))
 
-(defun make-bounded-set (universe set &optional complement?)
+(defun next-1-bit (n start-bit)
+  "The bit index of the first 1 bit of `n' where the index is at least `start-bit'.
+Null if there is no such bit.  `n' may be a bignum."
+  (declare (optimize (speed 3) (safety 0))
+	   (type unsigned-byte n)
+	   (type (and fixnum unsigned-byte) start-bit))
+  (if (typep n 'fixnum)
+      (let ((n (logandc2 n (1- (the fixnum (ash 1 start-bit))))))
+	(and (plusp n) (least-1-bit n)))
+    ;; We scan the bignum in fixnum-sized chunks.
+    (let ((chunk-len (integer-length most-positive-fixnum))
+	  (n-len (gen integer-length n))
+	  ((start-chunk start-bit (floor start-bit chunk-len))))
+      (do ((chunk-base (* start-chunk chunk-len) (+ chunk-base chunk-len))
+	   (start-bit start-bit 0)
+	   (n-chunks (ceiling n-len chunk-len)))
+	  ((> chunk-base n-len) nil)
+	(let ((cur-chunk (ldb (byte (- chunk-len start-bit) (+ chunk-base start-bit)) n)))
+	  (when (plusp cur-chunk)
+	    (return (+ chunk-base start-bit (least-1-bit cur-chunk)))))))))
+
+(defmacro do-bit-indices-gen ((idx-var val &optional result) &body body)
+  (let ((val-var (gensymx #:val-))
+	(start-bit-var (gensymx #:start-bit-)))
+    `(do ((,val-var ,val)
+	  (,start-bit-var 0))
+	 (nil)
+       (declare (fixnum ,start-bit-var))
+       (let ((,idx-var (next-1-bit ,val-var ,start-bit-var)))
+	 (declare (type (or null fixnum) ,idx-var))
+	 (unless ,idx-var
+	   (return ,result))
+	 (setq ,start-bit-var (1+ ,idx-var))
+	 . ,body))))
+
+(gmap:def-arg-type bit-indices (n)
+  (let ((n-var (gensymx #:n-))
+	(last-bit-var (gensymx #:last-bit-)))
+    `(nil  ; unused; we have to do the computation in the predicate
+       (fn (_x) (let ((next (next-1-bit ,n-var (1+ ,last-bit-var))))
+		  (null (and next (setq ,last-bit-var next)))))
+       (fn (_x) ,last-bit-var)
+       nil
+       ((,n-var ,n)
+	 (,last-bit-var -1))
+       nil
+       (do-bit-indices-gen ,n)
+       nil)))
+
+(defun make-bounded-set (universe set)
   (unless (subset? set universe)
     (error "Attempt to create a bounded-set whose set is not a subset of its universe"))
-  ;; Ensure that if the set is exactly half the size of the universe, we use the
-  ;; positive representation.
-  (if complement?
-      (if (<= (size universe) (* 2 (size set)))
-	  (make-bounded-set-internal universe (set-difference universe set) nil)
-	(make-bounded-set-internal universe set t))
-    (if (< (size universe) (* 2 (size set)))
-	(make-bounded-set-internal universe (set-difference universe set) t)
-      (make-bounded-set-internal universe set nil))))
+  (make-bounded-set-internal universe (gmap (:result sum) (fn (x) (ash 1 (index universe x)))
+					    (:arg set set))))
 
 (defun bounded-set-contents (bs)
-  (if (bounded-set-complement? bs)
-      (set-difference (bounded-set-universe bs) (bounded-set-set bs))
-    (bounded-set-set bs)))
+  (let ((u (bounded-set-universe bs)))
+    (if (wb-set? u)
+	(gmap (:result wb-set) (fn (i) (at-index u i)) (:arg bit-indices (bounded-set-bitmap bs)))
+      (gmap (:result ch-set) (fn (i) (at-index u i)) (:arg bit-indices (bounded-set-bitmap bs))))))
 
 (defmethod complement ((bs bounded-set))
-  (make-bounded-set-internal (bounded-set-universe bs) (bounded-set-set bs)
-			     (not (bounded-set-complement? bs))))
+  (make-bounded-set-internal (bounded-set-universe bs)
+			     (logxor (1- (ash 1 (size (bounded-set-universe bs))))
+				     (bounded-set-bitmap bs))))
 
 (defmethod empty? ((bs bounded-set))
-  (and (not (bounded-set-complement? bs))
-       (empty? (bounded-set-set bs))))
+  (zerop (bounded-set-bitmap bs)))
 
 (defmethod contains? ((bs bounded-set) x &optional (arg2 nil arg2?))
   (declare (ignore arg2))
   (check-two-arguments arg2? 'contains? 'bounded-set)
-  (if (bounded-set-complement? bs)
-      (not (contains? (bounded-set-set bs) x))
-    (contains? (bounded-set-set bs) x)))
+  (let ((idx (index (bounded-set-universe bs) x)))
+    (unless idx
+      (error "NIU: `contains?' on a `bounded-set' called on a value not in its universe"))
+    (logbitp idx (bounded-set-bitmap bs))))
 
 (defmethod arb ((bs bounded-set))
-  (if (bounded-set-complement? bs)
-      ;; Ugh
-      (do-set (x (bounded-set-universe bs))
-	(unless (contains? (bounded-set-set bs) x)
-	  (return x)))
-    (arb (bounded-set-set bs))))
+  (if (zerop (bounded-set-bitmap bs))
+      (values nil nil)
+    (values (at-index (bounded-set-universe bs) (next-1-bit (bounded-set-bitmap bs) 0)) t)))
 
 (defmethod size ((bs bounded-set))
-  (if (bounded-set-complement? bs)
-      (- (size (bounded-set-universe bs))
-	 (size (bounded-set-set bs)))
-    (size (bounded-set-set bs))))
+  (logcount (bounded-set-bitmap bs)))
 
-(defmethod with ((bs1 bounded-set) x &optional (arg2 nil arg2?))
+(defmethod with ((bs bounded-set) x &optional (arg2 nil arg2?))
   (declare (ignore arg2))
   (check-two-arguments arg2? 'with 'bounded-set)
-  (unless (contains? (bounded-set-universe bs1) x)
-    ;; Cultural note: this message is a reference to the drawing on the cover of MIT AI Lab Memo
-    ;; AIM-555 (1983), the TWENEX EMACS manual.  In turn, the quote is, as I recall, a play on a
-    ;; commonly encountered TECO error message, "NIB: you have addressed a character not in the
-    ;; buffer".
-    (error "NIU: You have addressed a planet not ...~@
-	    er, I mean, you have tried to add an element to a bounded-set~@
-	    that is not in its universe"))
-  (if (bounded-set-complement? bs1)
-      (make-bounded-set-internal (bounded-set-universe bs1)
-				 (less (bounded-set-set bs1) x)
-				 t)
-    (make-bounded-set (bounded-set-universe bs1) (with (bounded-set-set bs1) x))))
+  (let ((idx (index (bounded-set-universe bs) x)))
+    (unless idx
+      (error "NIU: `with' on a `bounded-set' called on a value not in its universe"))
+    (make-bounded-set-internal (bounded-set-universe bs) (logior (bounded-set-bitmap bs) (ash 1 idx)))))
 
-(defmethod less ((bs1 bounded-set) x &optional (arg2 nil arg2?))
+(defmethod less ((bs bounded-set) x &optional (arg2 nil arg2?))
   (declare (ignore arg2))
   (check-two-arguments arg2? 'less 'bounded-set)
-  (unless (contains? (bounded-set-universe bs1) x)
-    (error "NIU: You have addressed a planet not ...~@
-	    er, I mean, you have tried to remove an element from a bounded-set~@
-	    that is not in its universe"))
-  (if (bounded-set-complement? bs1)
-      (make-bounded-set (bounded-set-universe bs1) (with (bounded-set-set bs1) x) t)
-    (make-bounded-set-internal (bounded-set-universe bs1)
-			       (less (bounded-set-set bs1) x)
-			       nil)))
+  (let ((idx (index (bounded-set-universe bs) x)))
+    (unless idx
+      (error "NIU: `less' on a `bounded-set' called on a value not in its universe"))
+    (make-bounded-set-internal (bounded-set-universe bs) (logandc2 (bounded-set-bitmap bs) (ash 1 idx)))))
 
 (defmethod union ((bs1 bounded-set) (bs2 bounded-set) &key)
-  (unless (equal? (bounded-set-universe bs1) (bounded-set-universe bs2))
-    (error "Can't take the union of two bounded-sets with different universes"))
-  (let ((u (bounded-set-universe bs1))
-	(s1 (bounded-set-set bs1))
-	(s2 (bounded-set-set bs2)))
-    (if (bounded-set-complement? bs1)
-	(if (bounded-set-complement? bs2)
-	    (make-bounded-set-internal u (intersection s1 s2) t)
-	  (make-bounded-set-internal u (set-difference s1 s2) t))
-      (if (bounded-set-complement? bs2)
-	  (make-bounded-set-internal u (set-difference s2 s1) t)
-	(make-bounded-set u (union s1 s2))))))
+  (let ((u1 (bounded-set-universe bs1))
+	(u2 (bounded-set-universe bs2)))
+    (unless (or (eq u1 u2) (equal? u1 u2))
+      (error "Can't take the union of two bounded-sets with different universes"))
+    (make-bounded-set-internal u1 (logior (bounded-set-bitmap bs1) (bounded-set-bitmap bs2)))))
 
 (defmethod intersection ((bs1 bounded-set) (bs2 bounded-set) &key)
-  (unless (equal? (bounded-set-universe bs1) (bounded-set-universe bs2))
-    (error "Can't take the intersection of two bounded-sets with different universes"))
-  (let ((u (bounded-set-universe bs1))
-	(s1 (bounded-set-set bs1))
-	(s2 (bounded-set-set bs2)))
-    (if (bounded-set-complement? bs1)
-	(if (bounded-set-complement? bs2)
-	    (make-bounded-set u (union s1 s2) t)
-	  (make-bounded-set-internal u (set-difference s2 s1) nil))
-      (if (bounded-set-complement? bs2)
-	  (make-bounded-set-internal u (set-difference s1 s2) nil)
-	(make-bounded-set-internal u (intersection s1 s2) nil)))))
+  (let ((u1 (bounded-set-universe bs1))
+	(u2 (bounded-set-universe bs2)))
+    (unless (or (eq u1 u2) (equal? u1 u2))
+      (error "Can't take the intersection of two bounded-sets with different universes"))
+    (make-bounded-set-internal u1
+			       (logand (bounded-set-bitmap bs1) (bounded-set-bitmap bs2)))))
 
 (defmethod set-difference ((bs1 bounded-set) (bs2 bounded-set) &key)
-  (unless (equal? (bounded-set-universe bs1) (bounded-set-universe bs2))
-    (error "Can't take the set-difference of two bounded-sets with different universes"))
-  (let ((u (bounded-set-universe bs1))
-	(s1 (bounded-set-set bs1))
-	(s2 (bounded-set-set bs2)))
-    (if (bounded-set-complement? bs1)
-	(if (bounded-set-complement? bs2)
-	    (make-bounded-set-internal u (set-difference s2 s1) nil)
-	  (make-bounded-set u (union s1 s2) t))
-      (if (bounded-set-complement? bs2)
-	  (make-bounded-set-internal u (intersection s1 s2) nil)
-	(make-bounded-set-internal u (set-difference s1 s2) nil)))))
+  (let ((u1 (bounded-set-universe bs1))
+	(u2 (bounded-set-universe bs2)))
+    (unless (or (eq u1 u2) (equal? u1 u2))
+      (error "Can't take the set-difference of two bounded-sets with different universes"))
+    (make-bounded-set-internal u1
+			       (logandc2 (bounded-set-bitmap bs1) (bounded-set-bitmap bs2)))))
 
 (defmethod subset? ((bs1 bounded-set) (bs2 bounded-set))
-  (unless (equal? (bounded-set-universe bs1) (bounded-set-universe bs2))
-    (error "Can't do `subset?' on two bounded-sets with different universes"))
-  (let ((s1 (bounded-set-set bs1))
-	(s2 (bounded-set-set bs2)))
-    (if (bounded-set-complement? bs1)
-	(and (bounded-set-complement? bs2)
-	     (subset? s2 s1))
-      (if (bounded-set-complement? bs2)
-	  (disjoint? s1 s2)
-	(subset? s1 s2)))))
+  (let ((u1 (bounded-set-universe bs1))
+	(u2 (bounded-set-universe bs2)))
+    (unless (or (eq u1 u2) (equal? u1 u2))
+      (error "Can't do `subset?' on two bounded-sets with different universes"))
+    (zerop (logandc2 (bounded-set-bitmap bs1) (bounded-set-bitmap bs2)))))
 
 (defmethod disjoint? ((bs1 bounded-set) (bs2 bounded-set))
-  (unless (equal? (bounded-set-universe bs1) (bounded-set-universe bs2))
-    (error "Can't do `disjoint?' on two bounded-sets with different universes"))
-  (let ((s1 (bounded-set-set bs1))
-	(s2 (bounded-set-set bs2)))
-    (if (bounded-set-complement? bs1)
-	;; Note, we've ruled out the case where the two sets are mutual complements,
-	;; both in complement form.
-	(and (not (bounded-set-complement? bs2))
-	     (subset? s2 s1))
-      (if (bounded-set-complement? bs2)
-	  (subset? s1 s2)
-	(disjoint? s1 s2)))))
+  (let ((u1 (bounded-set-universe bs1))
+	(u2 (bounded-set-universe bs2)))
+    (unless (or (eq u1 u2) (equal? u1 u2))
+      (error "Can't do `disjoint?' on two bounded-sets with different universes"))
+    (zerop (logand (bounded-set-bitmap bs1) (bounded-set-bitmap bs2)))))
 
 (defmethod internal-do-set ((bs bounded-set) elt-fn value-fn)
   (declare (optimize (speed 3) (safety 0))
 	   (type function elt-fn value-fn))
-  (if (bounded-set-complement? bs)
-      ;; Should we form the complement?  That would cons -- but this is O(n log n).
-      (internal-do-set (bounded-set-universe bs)
-		       (lambda (x)
-			 (unless (contains? (bounded-set-set bs) x)
-			   (funcall elt-fn x)))
-		       value-fn)
-    (internal-do-set (bounded-set-set bs) elt-fn value-fn)))
+  (do-bit-indices-gen (idx (bounded-set-bitmap bs) (funcall value-fn))
+    (funcall elt-fn (at-index (bounded-set-universe bs) idx))))
 
 (defun print-bounded-set (bs stream level)
   (declare (ignore level))
-  (format stream "~:[+~;-~]" (bounded-set-complement? bs))
-  (write (bounded-set-set bs) :stream stream))
+  ;; I'm a lazy sod.  This is not readable since it doesn't include the universe.
+  (format stream "#/")
+  (write (bounded-set-contents bs) :stream stream))
 
 (defmethod compare ((bs1 bounded-set) (bs2 bounded-set))
   ;; We don't constrain the bounded-sets to have the same universes, since the
-  ;; FSet way is to let you mix absolutely any objects in sets.  (We feel no
-  ;; obligation to make the different-universe case be fast, though.)
-  (if (equal? (bounded-set-universe bs1) (bounded-set-universe bs2))
-      (let ((s1 (bounded-set-set bs1))
-	    (s2 (bounded-set-set bs2)))
-	(if (bounded-set-complement? bs1)
-	    (if (bounded-set-complement? bs2)
-		(compare s2 s1)
-	      ':greater)
-	  (if (bounded-set-complement? bs2)
-	      ':less
-	    (compare s1 s2))))
-    (compare (bounded-set-contents bs1) (bounded-set-contents bs2))))
+  ;; FSet way is to let you mix absolutely any objects in sets.  However, if
+  ;; the universes are different, we don't compare the contents.
+  (let ((uni-comp (compare (bounded-set-universe bs1) (bounded-set-universe bs2))))
+    (if (member uni-comp '(:less :greater))
+	uni-comp
+      (let ((bits-comp (compare (bounded-set-bitmap bs1) (bounded-set-bitmap bs2))))
+	(if (member bits-comp '(:less :greater))
+	    bits-comp
+	  uni-comp)))))  ; in case it's `:unequal'
 
-(defmethod compare ((bs bounded-set) (s set))
-  ;; Potentially slow, but unlikely to be used.
-  (compare (bounded-set-contents bs) s))
-
-(defmethod compare ((s set) (bs bounded-set))
-  ;; Potentially slow, but unlikely to be used.
-  (compare s (bounded-set-contents bs)))
-
-;;; Hmm... we have no way to say "a normal set" except to specify the
-;;; implementation.  Seems like we have a missing abstract class,
-;;; `enumerated-set' or some such.
-(defmethod convert ((to-type (eql 'wb-set)) (bs bounded-set) &key)
+(defmethod convert ((to-type (eql 'set)) (bs bounded-set) &key)
   (bounded-set-contents bs))
 
