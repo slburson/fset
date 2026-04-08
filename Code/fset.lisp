@@ -1536,16 +1536,13 @@ Also works on an FSet seq."))
 (define-methods (image fset2:image) ((fn symbol) (l list) &key)
   (mapcar (coerce fn 'function) l))
 
-(defmethod image ((fn map) (l list) &key)
+(define-methods (image fset2:image) ((fn map) (l list) &key)
   (mapcar (lambda (x) (lookup fn x)) l))
-(defmethod fset2:image ((fn map) (l list) &key)
-  (mapcar (lambda (x) (fset2:lookup fn x)) l))
 
-(defmethod image ((fn set) (l list) &key)
+(define-methods (image fset2:image) ((fn set) (l list) &key)
   (mapcar (lambda (x) (lookup fn x)) l))
-(defmethod fset2:image ((fn set) (l list) &key)
-  (mapcar (lambda (x) (fset2:lookup fn x)) l))
 
+;;; Only on bags does `fset2:lookup' return something different.
 (defmethod image ((fn bag) (l list) &key)
   (mapcar (lambda (x) (lookup fn x)) l))
 (defmethod fset2:image ((fn bag) (l list) &key)
@@ -1557,15 +1554,11 @@ Also works on an FSet seq."))
 (define-methods (image fset2:image) ((fn symbol) (l vector) &key)
   (cl:map 'vector (coerce fn 'function) l))
 
-(defmethod image ((fn map) (l vector) &key)
+(define-methods (image fset2:image) ((fn map) (l vector) &key)
   (cl:map 'vector (lambda (x) (lookup fn x)) l))
-(defmethod fset2:image ((fn map) (l vector) &key)
-  (cl:map 'vector (lambda (x) (fset2:lookup fn x)) l))
 
-(defmethod image ((fn set) (l vector) &key)
+(define-methods (image fset2:image) ((fn set) (l vector) &key)
   (cl:map 'vector (lambda (x) (lookup fn x)) l))
-(defmethod fset2:image ((fn set) (l vector) &key)
-  (cl:map 'vector (lambda (x) (fset2:lookup fn x)) l))
 
 (defmethod image ((fn bag) (l vector) &key)
   (cl:map 'vector (lambda (x) (lookup fn x)) l))
@@ -6048,6 +6041,14 @@ different seq implementations; it is not for public use.  `vec-fn' and
   (declare (optimize (speed 3) (safety 0)))
   (do-seq (y s)
     (when (equal? y x)
+      (return t))))
+
+(defmethod contains? ((s seq) x &optional (y nil y?))
+  (declare (optimize (speed 3) (safety 0))
+	   (ignore y))
+  (check-two-arguments y? 'contains? 'seq)
+  (do-seq (e s)
+    (when (equal? e x)
       (return t))))
 
 (define-methods (filter fset2:filter) ((fn function) (s seq))

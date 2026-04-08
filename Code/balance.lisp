@@ -79,3 +79,18 @@
 	       (right-depth right-size (WB-Seq-Tree-Total-Depth (WB-Seq-Tree-Node-Right tree))))
 	   (values (+ left-depth left-size right-depth right-size)
 		   (+ left-size right-size))))))
+
+(defmethod leaf-sizes ((s wb-seq))
+  (WB-Seq-Tree-Leaf-Sizes (wb-seq-contents s)))
+
+(defun WB-Seq-Tree-Leaf-Sizes (tree)
+  (cond ((null tree) (wb-bag))
+	((simple-vector-p tree)
+	 (wb-bag (length tree)))
+	((WB-HT-Seq-Tree? tree)
+	 (bag-sum (WB-Seq-Tree-Leaf-Sizes (WB-HT-Seq-Tree-Body tree))
+		  (bag (length (WB-HT-Seq-Tree-Head tree))
+		       (length (WB-HT-Seq-Tree-Tail tree)))))
+	(t
+	 (bag-sum (WB-Seq-Tree-Leaf-Sizes (WB-Seq-Tree-Node-Left tree))
+		  (WB-Seq-Tree-Leaf-Sizes (WB-Seq-Tree-Node-Right tree))))))
