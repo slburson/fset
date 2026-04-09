@@ -1656,7 +1656,10 @@ Also works on an FSet seq."))
 ;;; Functional deep update
 
 (defun update (fn coll &rest keys)
-  (declare (dynamic-extent fn))
+  "Old name of `updated'; deprecated."
+  (declare (dynamic-extent fn)))
+
+(defun updated (fn coll &rest keys)
   "Returns a new version of `coll' in which the element reached by doing chained
 `lookup's on `keys' is updated by `fn'.  An example will help a lot here:
 instead of writing
@@ -1665,31 +1668,16 @@ instead of writing
 
 you can write, equivalently
 
-  (setq foo (update #'1+ foo 'a 3 7))
+  (setq foo (updated #'1+ foo 'a 3 7))
 
 This is perhaps most useful in contexts where you don't want to do the `setq'
 anyway.  `fn' can be a function object, an fbound symbol, or a map."
-  (labels ((rec (fn coll keys)
-	     (if (null keys) (@ fn coll)
-	       (with coll (car keys) (rec fn (lookup coll (car keys)) (cdr keys))))))
+  (declare (dynamic-extent fn)
+	   (optimize (speed 3)))
+  (labels ((rec (fn x keys)
+	     (if (null keys) (@ fn x)
+	       (with x (car keys) (rec fn (lookup x (car keys)) (cdr keys))))))
     (rec (if (symbolp fn) (coerce fn 'function) fn) coll keys)))
-
-;;; If the `fn' is nontrivial, binds a variable to it with a `dynamic-extent' declaration.
-;;; (Really, should do this for `image', `filter', etc. etc.)
-;;; -- Actually, I'm not sure SBCL needs this.  It might be enough to add the declaration to
-;;; the `defun' (as I've now done).  Also, it makes a bigger difference here than for `image'
-;;; etc., because `fn' is called only once.
-(define-compiler-macro update (&whole form fn coll &rest keys)
-  (if (not (or (symbolp fn)
-	       (and (listp fn)
-		    (eq (car fn) 'function)
-		    (symbolp (cadr fn)))))
-      (let ((fn-var (gensymx #:fn-)))
-	`(let ((,fn-var ,fn))
-	   (declare (dynamic-extent ,fn-var))
-	   ; (expansion terminates because `fn-var' is a symbol)
-	   (update ,fn-var ,coll . ,keys)))
-    form))
 
 
 ;;; ================================================================================
