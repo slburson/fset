@@ -26,7 +26,7 @@ Space overhead is reasonably small
 
 Don't be daunted by the term ``set-theoretic''.  All I mean by it is that FSet collections are
 nestable: you can have sets of sets, maps keyed by seqs (FSet's sequences) or even sets of seqs,
-etc. etc., with no additional effort on your part.  While such types aren't often needed in
+@i{etc. etc.}, with no additional effort on your part.  While such types aren't often needed in
 application programming, they do show up sometimes in compiler work.
 
 The latter two properties drove the choice of data structures; see @ref{FSet Data Structures}.  The
@@ -51,8 +51,8 @@ frequently used functionally.  But, of course, cons cells sometimes are used as 
 arrays are usually used as mutable objects; the CL sequence functions, that abstract over lists and
 vectors, expect mutability; and hash tables are mutable objects.
 
-In @ref{Conceptual Underpinnings}, I explained what a functional datatype is, and pointed out that
-they can provide operations that can be conceptualized either as computing a new value for a
+In @ref{What Is a Functional Datatype?}, I explained what a functional datatype is, and pointed out
+that they can provide operations that can be conceptualized either as computing a new value for a
 collection and reassigning it to the variable holding it, or as a mutation to an unaliasable value.
 
 This means that FSet's update operations have to work differently from most CL builtins.  The
@@ -61,13 +61,13 @@ clearest example has to do with the behavior of @code{setf}.  (I'll say more abo
 have a CL vector @code{v}, you can set one of its elements using @code{setf} of @code{elt}:
 
 @example
-  (setf (elt v i) x)
+(setf (elt v i) x)
 @end example
 
 If, instead, you have an FSet seq @code{s}, you can write an expression that looks superficially similar:
 
 @example
-  (setf (lookup s i) x)
+(setf (lookup s i) x)
 @end example
 
 However, it means something quite different.  In the @code{elt} case, if there are other variables
@@ -113,15 +113,15 @@ So no matter how long you've been writing Common Lisp, learning FSet is not goin
 brain.
 
 The second major way in which FSet's design diverges somewhat from CL's has to do with semantic
-loading.  Lisp lists are semantically @emph{unloaded}.  A list can be used as a sequence; as a set, where order is
-unimportant and duplicates are not allowed; as a bag, where order is unimportant and duplicates
-@emph{are} allowed; as a map, in either alist or plist form; or in many other ways.  So, as a programmer
-writing code to do something with a list, you have to remember the intended semantics of this
-particular list.  Also, you have to remember what equivalence relation you intended to compare
-elements with.  Sometimes, the default of @code{eql} suffices, but often, you want to compare elements by
-their contents rather than their identity; in such cases, you have to pass in the equivalence
-relation every time you call @code{member}, @code{assoc}, @code{find}, etc.  But doing so violates
-the well-known ``DRY principle'' (Don't Repeat Yourself).
+loading.  Lisp lists are semantically @emph{unloaded}.  A list can be used as a sequence; as a set,
+where order is unimportant and duplicates are not allowed; as a bag, where order is unimportant and
+duplicates @emph{are} allowed; as a map, in either alist or plist form; or in many other ways.  So,
+as a programmer writing code to do something with a list, you have to remember the intended
+semantics of this particular list.  Also, you have to remember what equivalence relation you
+intended to compare elements with.  Sometimes, the default of @code{eql} suffices, but often, you
+want to compare elements by their contents rather than their identity; in such cases, you have to
+pass in the equivalence relation every time you call @code{member}, @code{assoc}, @code{find},
+@i{etc.}  But doing so violates the well-known ``DRY principle'' (Don't Repeat Yourself).
 
 In contrast, FSet collections are semantically @emph{loaded}: they carry their semantics, including the
 applicable equivalence relation, along with them, so you don't have to supply it at every call.  (CL
@@ -130,15 +130,16 @@ hash tables are like this too, so again, it's not a complete departure.)
 This semantic loading makes code that uses FSet more elegant, and practically eliminates bugs that
 can occur when a list is not used consistently across the program.  But it did cause one design
 quandary.  I wanted to provide shadowed versions of Lisp builtins like @code{find}, @code{position},
-@code{count}, etc. that would work on FSet collections but would bounce to the CL builtins if passed a
-list.  The catch was, FSet has its own default notion of equality; defaulting to @code{eql} didn't make
-sense.
+@code{count}, @i{etc.} that would work on FSet collections but would bounce to the CL builtins if
+passed a list.  The catch was, FSet has its own default notion of equality; defaulting to @code{eql}
+didn't make sense.
 
 I finally settled on this approach: While generic versions of a number of operations will be
-provided, it is critical for the user to understand that the purpose of this genericity is @strong{@emph{not}}
-so that you can write code that will actually be called on both Lisp sequences and the FSet types.
-Rather, the goal is more modest: to make familiar functionality accessible by familiar names, so
-that you can write FSet code without having to learn new names for @code{find} etc.
+provided, it is critical for the user to understand that the purpose of this genericity is
+@strong{@emph{not}} so that you can write code that will actually be called on both Lisp sequences
+and the FSet types.  Rather, the goal is more modest: to make familiar functionality accessible by
+familiar names, so that you can write FSet code without having to learn new names for @code{find}
+@i{etc.}
 
 One issue with this approach has to do with the Lisp names @code{first}, @code{rest}, @code{last},
 and @code{second} through @code{seventh}.  First, let's note the inconsistencies already in CL:
@@ -169,6 +170,7 @@ FSet does not, however, export any version of @code{rest}, or of @code{second} t
 @code{seventh}.  For @code{rest}, I think @code{less-first} is better because it participates in the
 symmetric structure shown above.
 
+@anchor{@code{head} and @code{tail}}
 (From the perspective of FSet, with its symmetric functional sequences, it strikes me as a little
 unfortunate that the names that caught on as modern replacements for @code{car} and @code{cdr} were
 @code{first} and @code{rest} instead of, say, @code{head} and @code{tail}.  @code{first} and
@@ -176,9 +178,9 @@ unfortunate that the names that caught on as modern replacements for @code{car} 
 @code{tail} more specifically suggest the structure of a list.  So FSet exports @code{head} and
 @code{tail} as synonyms for @code{car} and @code{cdr}.)
 
-Another issue: I mentioned above that generic-function versions of @code{find-if} etc. are provided.  They
-are, but they are not completely compatible when invoked on FSet types (they @emph{are} completely
-compatible when invoked on Lisp sequences).  The primary differences are:
+Another issue: I mentioned above that generic-function versions of @code{find-if} @i{etc.} are
+provided.  They are, but they are not completely compatible when invoked on FSet types (they
+@emph{are} completely compatible when invoked on Lisp sequences).  The primary differences are:
 
 @itemize
 @item
@@ -301,6 +303,9 @@ for string manipulation.
 @node The @code{@@} Macro
 @section The @code{@@} Macro
 
+@c &&& Rather think I should also have a defmac for this in the API reference, to which at least
+@c some of the current refs should point (though it should in turn point here).
+
 Common Lisp is a "Lisp-2", meaning a two-namespace Lisp in which a given name can have both a
 function binding and a value binding.  In a Lisp-1, like Scheme, it would be nice to set the FSet
 types up as objects that could be called as functions as well as having the various operations
@@ -315,7 +320,7 @@ What I can do, however, is give you a shorter name to type than @code{funcall}. 
 function; if so, it funcalls it (with the supplied arguments); otherwise it calls @code{lookup} on
 it.  So you can use it when writing higher-order code to make it accept a map as well as a unary
 Lisp function.  (Also, a seq behaves as a map from index to element, and a set behaves as a map from
-value to boolean.)
+value to boolean, and a bag behaves as a map from value to multiplicity.)
 
 Whether you want to use @code{@@} generally, in place of @code{lookup}, is a matter of taste.  Both
 are @code{setf}-able; though doing @code{(setf (@@ m x) y)} works only if @code{m} is an FSet
@@ -330,30 +335,6 @@ occasionally be annoying.  Adding this line to your init file (@code{~/.emacs} o
 @example
 (modify-syntax-entry ?@ "_" lisp-mode-syntax-table)
 @end example
-
-
-@c ================================================================================
-@node Map and Seq Defaults
-@section Map and Seq Defaults
-
-FSet maps and seqs both allow you to specify the value that will be returned by a @code{lookup} when
-the key or index is outside the domain of the collection.  This is a handy feature that
-significantly improves the elegance of certain kinds of code: you specify the default once, when
-creating the collection, rather than every place you access it.  Contrast a Lisp alist, where every
-access would look like @code{(or (cdr (assoc @i{x} @i{alist})) @i{default})}, or even a CL
-hashtable, where you'd have to supply the default as the third argument to every call to
-@code{gethash}.
-
-For convenience, and consistency with CL, the default default --- the value used as a default if you
-don't specify one --- is good old @code{nil}.  In a few cases, however, such as @code{compose} of a
-map with a function, the presence of any default is annoying, because the function being composed
-with has to accept the default value and produce a default for the result map.  So FSet also allows
-maps and seqs to have @emph{no} default.  When this option is used, @code{lookup} on the collection,
-given a key or index outside its domain, will signal an error.  You can use this as a convenient
-defensive programming mechanism in cases where you don't expect out-of-domain lookups.
-
-When a map or seq is printed that has a default other than @code{nil}, the default is printed at the
-end, separated by a slash; when it has no default, the string @code{/[no default]} is appended.
 
 
 @c ================================================================================
@@ -415,21 +396,11 @@ range values of an outer map are inner maps.  An FSet expression like
 @end example
 will have the effect of storing @code{value} under key @code{k2} of the inner map that's under key
 @code{k1} of the outer map.  Again, it will do this by constructing a new inner map and then a new
-outer map, and assigning the latter back to @code{m}.  (By the way, you can arrange for the inner
-maps to be created automatically as needed, by giving the outer map a default which is the empty
-map, as in:
-
-@example
-(let ((m (empty-map :default (empty-map))))
-  ...)
-@end example
-
-Then you can write the above @code{setf} expression without having to explicitly handle the case
-where the outer map doesn't yet have an entry for @code{k1}.)
+outer map, and assigning the latter back to @code{m}.
 
 Thus, @code{setf} expansion descends recursively through functional accessors in the place
 expression until it reaches a directly assignable inner place.  Usually, that's a variable
-reference, but there are other possibilities.
+reference, but it could also reference an array element or a slot of an object.
 
 CL also has a concept called a ``modify macro'', that abstracts expressions of the form:
 @example
@@ -451,3 +422,54 @@ is equivalent to
 
 
 @c &&& @code{subseq} collision
+
+
+@c ================================================================================
+@node Map and Seq Defaults
+@section Map and Seq Defaults
+
+FSet maps and seqs both allow you to specify the value that will be returned by a @code{lookup} when
+the key or index is outside the domain of the collection.  This is a handy feature that
+significantly improves the elegance of certain kinds of code: you specify the default once, when
+creating the collection, rather than every place you access it.  Contrast a Lisp alist, where every
+access would look like @code{(or (cdr (assoc @i{x} @i{alist})) @i{default})}, or even a CL
+hashtable, where you'd have to supply the default as the third argument to every call to
+@code{gethash}.
+
+For convenience, and consistency with CL, the default default --- the value used as a default if you
+don't specify one --- is good old @code{nil}.  In a few cases, however, such as @code{compose} of a
+map with a function, the presence of any default is annoying, because the function being composed
+with has to accept the default value and produce a default for the result map.  So FSet also allows
+maps and seqs to have @emph{no} default.  When this option is used, @code{lookup} on the collection,
+given a key or index outside its domain, will signal an error.  You can use this as a convenient
+defensive programming mechanism in cases where you don't expect out-of-domain lookups.
+
+When a map or seq is printed that has a default other than @code{nil}, the default is printed at the
+end, separated by a slash; when it has no default, the string @code{/[no default]} is appended.
+
+Map defaults are handy when you're using chained maps, as discussed in the previous section, since
+they let you arrange for the inner maps to be created automatically as needed.  This is done by
+giving the outer map a default which is the empty map.  Then you can use the @code{setf} expression
+shown in the previous section without further ado:
+
+@example
+(let ((m (empty-map :default (empty-map))))
+  @dots{}
+  (setf (@@ (@@ m k1) k2) value)
+  @dots{})
+@end example
+
+If you were doing something like this with CL hash tables, you would have to explicitly check,
+before doing the @code{setf}, that the outer map had an entry for @code{k1}, and if not, initialize
+it to the empty map; roughly:
+
+@example
+(@href{Macro mvlet, mvlet} ((inner found? (gethash k1 m)))
+  (unless found?
+    (setf inner (make-hash-table))
+    (setf (gethash k1 m) inner))
+  (setf (gethash k2 inner) value))
+@end example
+
+With FSet, the default on the outer map makes the explicit check unnecessary; the empty map is used
+automatically if @code{m} has no entry yet for @code{k1}.

@@ -9,7 +9,7 @@ least have been learning the language, who want to explore the benefits of moder
 
 There's a second audience, however, I also hope to reach, consisting not of people who expect to use
 Common Lisp or FSet, but rather designers of other languages and/or libraries for those languages.
-I refer such readers to the chapters @ref{Conceptual Underpinnings} and @ref{Recommendations for
+I refer such readers to the chapters @ref{Conceptual Background} and @ref{Recommendations for
 Language Designers}; the other chapters will still be worth reading, I think, but of less
 importance.
 
@@ -20,7 +20,7 @@ know, at the very least:
 @itemize
 @item how to run your chosen CL implementation and interact with its REPL
 @item what to do when an error brings up the debugger
-@item how to write Lisp functions (simple ones, at least) that operate on lists
+@item how to write simple Lisp functions that operate on lists
 @item the difference between a function and a macro (``Functions compute; macros translate.'' ---
 David A. Moon)
 @end itemize
@@ -52,7 +52,7 @@ unmatched, except by other members of the Lisp family.
 
 @item
 REPL-based development, with its usually immediate turnaround from editing to testing to debugging,
-makes for a productive and pleasurable developer experience.
+makes for a pleasurable and productive developer experience.
 
 @item
 CL's design largely avoids sacrificing elegance for performance, yet it was designed to be
@@ -71,15 +71,15 @@ code usually runs without modification.
 
 And second, CL is so malleable, because of its metaprogramming facilities, that most evolutions that
 would require changing the specification of a more conventional language can be accomplished in CL
-simply by writing a library.  This fact greatly alleviates the pressure that would otherwise be present
-to update the language.
+simply by writing a library.  This malleability greatly alleviates the pressure that would otherwise
+be present to update the language.
 
 That observation brings me to FSet.
 
 Lisp, as you probably know, was invented around a very simple yet general data structure, the
 externally-chained singly-linked list.  External (aka ``non-intrusive'') chaining means that the
 nodes of the list are distinct objects from the elements, so that an object can be an element of
-many different lists.  Thus, lists, in this sense, were perhaps the first arbitrary-sized
+many different lists.  Thus, lists, in this sense, were perhaps the first variable-sized
 collections; arrays already existed, of course, but they were of fixed size.  They were also among
 the first heterogeneously-typed collections, in that the elements did not all have to be of the same
 type; they could be symbols, numbers, or, recursively, other lists.
@@ -87,7 +87,7 @@ type; they could be symbols, numbers, or, recursively, other lists.
 And, lists were among the first functional collections.  By "functional" I mean that collections are
 not modified in place; operations we might normally think of as modifying an existing collection
 instead produce a new one with the requested change applied.  (I'll say more about this property
-below.)  @c &&& Note ref?
+below.)
 
 So it is not too strong to say that Lisp was invented to support the writing of programs on
 functional collections.  Yet for Lisp to become a practical programming language, this vision had to

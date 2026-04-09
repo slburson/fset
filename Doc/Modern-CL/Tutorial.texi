@@ -365,9 +365,10 @@ M9
 @c ----------------------------------------
 @node Seqs Tutorial
 @subsubsection Seqs Tutorial
-Seq indexing is 0-origin, like indexing of CL sequences (@code{cl:elt} etc.).
+Seq indexing is 0-origin, like indexing of CL sequences (@code{cl:elt} @i{etc.}).
 
-Seq creation can be done with @code{empty-seq} or the @code{seq} constructor macro:
+Seq creation can be done with @code{empty-seq} or the @code{seq} constructor macro.  A subform
+whose car is @code{$} causes @code{seq} to splice in a subsequence:
 
 @example
 > @b{(empty-seq)}
@@ -380,6 +381,19 @@ Q1
 Q2
 > q2
 #["x" 1 2 A "y"]
+@end example
+
+Characters in seqs are treated specially when printing.  Runs of two or more characters are printed
+as substrings marked by @code{#$}; if the seq consists entirely of characters, it is printed as a
+string preceded by @code{#}:
+
+@example
+> @b{(seq 1 #\h #\i 2)}
+#[ 1 #$"hi" 2 ]
+> @b{(seq #\h #\e #\l #\l #\o)}
+#"hello"
+> @b{(seq ($ "world"))}
+#"world"
 @end example
 
 Seqs have operations to access, add, and remove elements at the ends:
@@ -463,8 +477,8 @@ Q3
 #[ 2 A "x" 1 ]
 @end example
 
-Seqs also support the generic CL sequence operations @code{find}, @code{position}, etc.  (Be sure to call the
-versions of these functions whose names are in the @code{fset2:} package.)
+Seqs also support the generic CL sequence operations @code{find}, @code{position}, @i{etc.}  (Be
+sure to call the versions of these functions whose names are in the @code{fset2:} package.)
 
 @c ----------------------------------------
 @node Bags Tutorial

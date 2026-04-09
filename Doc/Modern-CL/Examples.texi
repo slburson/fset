@@ -1,0 +1,250 @@
+@node Examples
+@chapter Examples
+
+[NOTE: I am hoping to expand this chapter considerably in the future.  But this is a start.]
+
+In these examples, you can spot references to FSet macros and functions, because I have linked them
+to  their definitions.
+
+@hrule{}
+
+
+@c ================================================================================
+@node Histogram Construction
+@section Histogram Construction
+
+Suppose we have a sequence of numbers; I'll assume here they're in an FSet seq.  We want to
+calculate the data for a histogram, which divides the input axis into evenly-spaced buckets, then
+counts how many of the numbers fall into each bucket.  (We're just going to prepare the bucket
+counts; actually plotting the histogram is left as an exercise for the reader.)
+
+An easy way to do this is with an FSet bag.  Here's one way to write it:
+
+@example
+(in-package :fset2-user)
+
+(defun histogram-1 (nums bucket-width)
+  (let ((result (@href{Macro wb-bag, wb-bag})))
+    (@href{Macro do-seq, do-seq} (num nums)
+      (@href{Macro includef, includef} result (* bucket-width (floor num bucket-width))))
+    result))
+@end example
+
+I've used @code{wb-bag} instead of the default CHAMP bags so the result will be printed in
+increasing bucket order.
+
+Go ahead, try it now.  You can generate some sample data by doing this:
+
+@example
+(defparameter *nums* (@href{GMap, gmap} (:result @href{GMap result type seq, seq})
+                           (@href{Macro fn, fn} (_) (+ (random 100.0) (random 100.0) (random 100.0)))
+                           (:arg @href{GMap arg type index, index} 0 1000)))
+@end example
+
+By adding three uniformly-distributed random numbers, we should begin to approximate a normal
+distribution, better known as a bell curve.  Here's a sample result I got:
+
+@example
+FSET2-USER> @b{(histogram-1 *nums* 20.0)}
+#@{% #%(20.0 13) #%(40.0 16) #%(60.0 59) #%(80.0 96) #%(100.0 116) #%(120.0 141) #%(140.0 138)
+   #%(160.0 141) #%(180.0 106) #%(200.0 77) #%(220.0 57) #%(240.0 25) #%(260.0 15) %@}
+@end example
+
+In each pair, the first number is the bucket base; the second is the number of samples that fell in
+the bucket.  So, 13 samples were between 20.0 and 40.0, @i{etc.}.  You can get a more detailed view
+with a smaller bucket size; play with it!
+
+Personally, I would write it using @href{GMap, GMap}:
+
+@example
+(defun histogram-2 (nums bucket-width)
+  (@href{GMap, gmap} (:result @href{GMap result type wb-bag, wb-bag}) (@href{Macro fn, fn} (x) (* bucket-width (floor x bucket-width)))
+        (:arg @href{GMap arg type seq, seq} nums)))
+@end example
+
+
+@c ================================================================================
+@node Graph Walking
+@section Graph Walking
+
+This section presents a simple example of code that might be written to walk a (potentially cyclic)
+directed graph, calling a provided function on each node (presumably, the function has some useful
+side-effect).  First, here's one way it might be written in plain CL:
+
+@example
+(defun map-graph-nodes-cl-1 (fun graph)
+  (let ((seen (make-hash-table :test 'eq))
+        (workset (list (graph-start graph))))
+    (loop while workset
+      (let ((node (pop workset)))
+        (unless (gethash node seen)
+          (funcall fun node)
+          (setf (gethash node seen) t)
+          (dolist (succ (node-successors node))
+            (pushnew succ workset)))))))
+@end example
+
+Things to note about this:
+
+@itemize
+@item It uses a hash table to represent the ``seen'' set, but a list for the workset..
+@item It does some @code{nil} punning (@code{while workset}).
+@item @code{pop} removes the first element of the list and returns it.
+@item @code{pushnew} is O(@i{n}).
+@end itemize
+
+Even though the @code{seen} set uses a hash table, because of the linear-time @code{pushnew} used to
+update @code{workset}, this version will bog down on large graphs.  Of course, CL does give you ways
+to fix this, but the code gets more verbose:
+
+@example
+(defun map-graph-nodes-cl-2 (fun graph)
+  (let ((seen (make-hash-table :test 'eq))
+        (workset (make-hash-table :test 'eq)))
+    (setf (gethash (graph-start graph) workset) t)
+    (loop while (plusp (hash-table-count workset))
+      (let ((node (block arb
+                    (maphash (lambda (k v)
+                               (declare (ignore v))
+                               (return-from arb k))
+                             workset))))
+        (remhash node workset)
+        (unless (gethash node seen)
+          (funcall fun node)
+          (setf (gethash node seen) t)
+          (dolist (succ (node-successors node))
+            (setf (gethash succ workset) t)))))))
+@end example
+
+Here @code{workset} is also a hash table, instead of a list, but the code is noticeably longer,
+mostly because CL has no hash table operation like FSet's @href{Method arb (set), arb}; one has to
+be hacked up using @code{maphash} and a nonlocal return.
+
+Here's what it looks like using FSet --- elegant @emph{and} fast:
+
+@example
+(defun map-graph-nodes-fset (fun graph)
+  (let ((seen (@href{Macro set, set}))
+        (workset (@href{Macro set, set} (graph-start graph))))
+    (loop while (@href{Function nonempty?, nonempty?} workset)
+      (let ((node (@href{Method arb (set)} workset)))
+        (@href{Macro excludef, excludef} workset node)
+        (unless (@href{Method contains? (set), contains?} seen node)
+          (funcall fun node)
+          (@href{Macro includef, includef} seen node)
+          (@href{Macro unionf, unionf} workset
+                  (node-successors node)))))))
+@end example
+
+@c ================================================================================
+@node Case Study: CL-Cont
+@section Case Study: CL-Cont
+
+CL-Cont, originally by Slava Akhmechet, shows what code looks like when it's crying out for
+functional collections.  Some relevant snippets:
+
+@example
+(defstruct (call/cc-context (:conc-name ctx-))
+  "A structure that represents a context used during call/cc
+transformation."
+  (block-tags (make-hash-table))
+  (go-tags (make-hash-table))
+  (local-functions nil))
+
+(defun copy-hash-table (ht)
+  "Shallow hashtable copy."
+  (let ((nht (make-hash-table :size (hash-table-size ht))))
+    (maphash (lambda (key value)
+	       (setf (gethash key nht) value))
+	     ht)
+    nht))
+
+(defun copy-transformation-context (ctx)
+  "Copies transformation context. This is used for cases when the
+context has to be 'frozen' in time and used at a later transformation
+stage."
+  (let ((transf-env (copy-structure ctx)))
+    (setf (ctx-block-tags transf-env) (copy-hash-table (ctx-block-tags transf-env))
+	  (ctx-go-tags transf-env) (copy-hash-table (ctx-go-tags transf-env))
+	  (ctx-local-functions transf-env) (copy-list (ctx-local-functions transf-env)))
+    transf-env))
+@end example
+
+It's not at all unusual for compiler-related code, that is walking a tree maintaining environments
+mapping names to something, to be naturally expressed using persistent functional collections, and
+we see a clear example of that here.  Anytime you find yourself copying hash tables, you would
+probably be happier using a functional map.
+
+Here's some more CL-Cont code (with some less-relevant parts omitted):
+
+@example
+(defcpstransformer block (cons k-expr env)
+  ;; [...]
+  (let ((k (gensym)))
+    (unwind-protect
+	 (progn
+	   (push k (gethash (cadr cons) (ctx-block-tags *ctx*)))
+	   `(let ((,k ,k-expr))
+	      (declare (ignorable ,k))
+	      ,(expr-sequence->cps (cddr cons) k env)))
+      (pop (gethash (cadr cons) (ctx-block-tags *ctx*))))))
+
+(defcpstransformer return-from (cons k-expr env)
+  ;; [...]
+  (expr->cps (caddr cons) (or (car (gethash (cadr cons) (ctx-block-tags *ctx*)))
+			      (error "There is no block named ~A" (cadr cons)))
+	     env))
+@end example
+
+The context is passed via special variable @code{*ctx*}.  (I don't recommend the use of a special
+variable here --- better to make it an explicit parameter of the functions that reference it --- but
+let's leave that aside.)  The code uses @code{unwind-protect} to retract changes to the context on
+exiting a scope; this idiom is used in two other places.  The function
+@code{copy-transformation-context} that we saw above is used to package a snapshot of the context
+into a form invoking macro @code{transform-forms-in-env}, so that a subsequent expansion of this
+form will restart the transformation process using the captured context.  With persistent functional
+collections, neither the @code{unwind-protect} nor the copy is necessary.
+
+Here's what I would do to clean this up with FSet.
+
+First, delete the code in the first example box above: the @code{defstruct} of @code{call/cc-context},
+along with functions @code{copy-hash-table} and @code{copy-transformer-context}.
+
+Then replace those definitions with these:
+@example
+;;; Block-tags and go-tags are maps from names to continuation expressions.
+(@href{Macro define-tuple-key, define-tuple-key} +ctx-block-tags+ :default (@href{Macro map, map}))
+(@href{Macro define-tuple-key, define-tuple-key} +ctx-go-tags+ :default (@href{Macro map, map}))
+;;; Local-functions is just a set of function names locally bound.
+(@href{Macro define-tuple-key, define-tuple-key} +ctx-local-functions+ :default (@href{Macro set, set}))
+
+(defun make-call/cc-context ()
+  (@href{Macro tuple, tuple}))
+@end example
+
+Second, replace the transformer definitions shown above for @code{block} and @code{return-from} with
+these:
+
+@example
+(defcpstransformer block (cons k-expr env)
+  ;; [...]
+  (let ((k (gensym))
+	(*ctx* *ctx*))
+    (setf (@href{The @code{@@} Macro, @@} (@href{The @code{@@} Macro, @@} *ctx* +ctx-block-tags+) (cadr cons)) k)
+    `(let ((,k ,k-expr))
+       (declare (ignorable ,k))
+       ,(expr-sequence->cps (cddr cons) k env))))
+
+(defcpstransformer return-from (cons k-expr env)
+  ;; [...]
+  (expr->cps (caddr cons) (or (@href{The @code{@@} Macro, @@} (@href{The @code{@@} Macro, @@} *ctx* +ctx-block-tags+) (cadr cons))
+			      (error "There is no block named ~A" (cadr cons)))
+	     env))
+@end example
+
+Third, make similar changes to the two other places where @code{unwind-protect} is being used.
+
+And fourth and finally, simply replace calls to @code{copy-transformer-context} by their argument.
+
+
+

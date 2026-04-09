@@ -116,6 +116,7 @@ importing them.
 A generic function, with a method for functions that invokes the CL builtin.  Rarely used, but you
 may as well import it anyway.
 
+@anchor{@code{first} and @code{last}}
 @item @code{first}, @code{last}
 These are generic functions that return the first or last element of a sequence, which can be a Lisp
 sequence or an FSet seq.  These differ from the CL builtins in two ways: they work on more types
@@ -177,6 +178,7 @@ I use @code{mvlet}, @code{mvlet*}, and @code{fn} elsewhere in this book, so you'
 about them below.  The rest of the section can be skipped on first reading.
 @c &&& Maybe cut the other topics?
 
+@anchor{Macro mvlet}
 @defmac nvlet (binding-clause@dots{}) declaration@dots{} @r{&body} form@dots{}
 @defmacx nvlet* (binding-clause@dots{}) declaration@dots{} @r{&body} form@dots{}
 @defmacx nlet (binding-clause@dots{}) declaration@dots{} @r{&body} form@dots{}
@@ -283,10 +285,10 @@ since in my own projects.
 implementations of @code{mvlet} and @code{mvlet*}.)
 @end defmac
 
+@anchor{Macro fn}
 @defmac fn (parameter@dots{}) declaration@dots{} form@dots{}
-
 For very small lambda expressions, the six characters taken by the word @code{lambda} can be a
-significant fraction of the total.  If the body doesn't reference all the parameters, moreover,
+significant fraction of the total.  Additionally, if the body doesn't reference all the parameters,
 you'll want to add a @code{(declare (ignore ...))} for the unused ones, which adds to the verbosity.
 The @code{fn} macro helps with both annoyances.  Obviously, its name is quite short.  (Those willing
 to set foot on the slippery slope of Unicode could use @code{λ}, of course, but I've been afraid to

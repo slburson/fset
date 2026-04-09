@@ -1,5 +1,5 @@
-@node Conceptual Underpinnings
-@chapter Conceptual Underpinnings
+@node Conceptual Background
+@chapter Conceptual Background
 
 This chapter makes some observations about types in programming languages that, frankly, I think all
 programmers should be familiar with.  I encourage everyone to read it.
@@ -212,4 +212,84 @@ the input size grows @emph{without bound}.  So it's not something you can measur
 measurements must be made with specific, finite inputs.  It can be arrived at only by analysis of
 the algorithm in question.  The most that measurements can tell you is how the algorithm performs on
 a certain range of input sizes.
+
+
+@c ================================================================================
+@node The Common Lisp Object System
+@section The Common Lisp Object System
+
+This section is intended for readers unfamiliar with Common Lisp.  It is not a full treatment of
+CLOS, the Common Lisp Object System, but should provide enough background that you can understand
+the rest of this book.
+
+CLOS is unusual, among object-oriented languages, in several ways:
+
+@itemize
+@item
+Common Lisp was not designed from scratch as an object-oriented language; CLOS was added on to it
+relatively late in its evolution.  There were other OO extensions to Lisp that preceded it and
+influenced its design, notably Flavors on the MIT Lisp Machine and LOOPS in Xerox Interlisp-D.
+
+@item
+CLOS organizes functionality quite differently from most OO languages.  A class definition specifies
+only the class's data: its superclasses and slots (fields).  It does not specify the methods on the
+class.  Instead, @dfn{generic functions} abstract the notion of an operation that can be invoked on
+different classes; each method is associated with a generic function.
+
+Imagine a hierarchy of classes with methods in a mainstream OO language.  For each method, either it
+overrides a method of the same name in a superclass, or it does not; the latter we call root
+methods.  Consider a single root method and all the subclass methods that override it; that's the
+set of methods that forms a generic function.
+@item
+CLOS supports multiple dispatch.  Each method on a generic function has a list of @dfn{specializers}
+defining a list of parameter types on which the method is appiicable.  Invocation of a generic
+function on a list of arguments (conceptually) scans the methods of the generic function, to find
+the method whose specializers best match the types of the arguments, then dispatches to that method.
+(A caching mechanism makes this much cheaper, in practice, than it sounds.)
+
+The language spec has a detailed definition of what ``best match'' means here, but the short version
+is that since there are subtyping relationships involved, we want a method whose specializers are
+more specific to shadow one whose specializers are less specific, when the arguments are of the more
+specific types.  In the single-dispatch case, this generates the familiar overriding behavior of
+other OO languages: a method on a subclass overrides one of the same name on a superclass.
+@item
+The classes available to be specialized on are not limited to those the user has defined; CL defines
+a hierarchy of built-in classes that can also be used.  The class named @code{t} is the top of the
+hierarchy, the class of all objects.  When no specializer is explicitly given for a parameter of a
+method, the specializer defaults to @code{t}.
+
+CLOS also provides a way to specialize a method parameter on a symbol, so that the method will be
+called only when that specific symbol is passed.  FSet uses this for its generic function
+@href{Generic Function @code{convert}, @code{convert}}, to specify the intended conversion.
+@end itemize
+
+Here's the first line of a sample entry from the API Reference chapter:
+
+@deffn Method {find-if (t set)} @ pred s @r{&key} key
+@end deffn
+
+Here @code{find-if} is the generic function, and @code{(t set)} is the list of specializers.  This
+method will be invoked on a call whose second argument is a set.  The required parameters are
+@var{pred} and @code{s}; @code{s} will be bound to the set.
+
+For brevity, I have usually omitted trailing @code{t} specializers in this book, since they have no
+effect on method selection.
+
+Oh, maybe I should say a little about optional and keyword parameters.  CL has both of these, marked
+in parameter lists by @code{&optional} and @code{&key} respectively.  Optional parameters match
+arguments by position; for keyword parameters, the argument must be preceded by the parameter name
+as a keyword symbol (@i{i.e.}, preceded by a colon).  Both optional and keyword parameters may be
+given default values in the parameter list; the default default is @code{nil}.  Examples:
+
+@example
+(defun foo (x &optional y (z 0)) ...)
+(defun bar (x &key y (z 3)) ...)
+;;; some possible calls
+(foo 17)             ; x = 17, y = nil, z = 0
+(foo 17 42)          ; x = 17, y = 42, z = 0
+(foo 17 42 19)       ; x = 17, y = 42, z = 19
+(bar 22)             ; x = 22, y = nil, z = 3
+(bar 22 :z 7)        ; x = 22, y = nil, z = 7
+(bar 22 :z 7 :y 13)  ; x = 22, y = 13, z = 7
+@end example
 
