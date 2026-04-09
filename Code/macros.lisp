@@ -1412,7 +1412,7 @@ seq.  If `from-end?' is true, the elements will be yielded in reverse order."
 	     ((,seq-var ,seq))
 	     nil
 	     (do-wb-seq-tree-members-gen (wb-seq-contents ,seq-var)
-	       (or ,start 0) (or ,end (size ,seq-var)) t)
+	       ,(or start 0) ,(or end `(size ,seq-var)) t)
 	     ((,seq-var ,seq))))
 	  (t
 	   ;; Can't do much better than this if we don't statically know the direction.

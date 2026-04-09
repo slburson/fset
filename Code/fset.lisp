@@ -1657,7 +1657,8 @@ Also works on an FSet seq."))
 
 (defun update (fn coll &rest keys)
   "Old name of `updated'; deprecated."
-  (declare (dynamic-extent fn)))
+  (declare (dynamic-extent fn))
+  (apply #'updated fn coll keys))
 
 (defun updated (fn coll &rest keys)
   "Returns a new version of `coll' in which the element reached by doing chained
@@ -6389,10 +6390,15 @@ different seq implementations; it is not for public use.  `vec-fn' and
 
 ;;; TIL!  "Quaesitum" is Latin for "thing to be searched for".
 (defmethod search (quaesitum (in-seq seq) &key from-end test key (start1 0) (start2 0) end1 end2)
+  (seq-search (convert 'seq quaesitum) in-seq from-end test key start1 start2 end1 end2))
+
+(defmethod search ((quaesitum seq) in-seq &key from-end test key (start1 0) (start2 0) end1 end2)
+  (seq-search quaesitum (convert 'seq in-seq) from-end test key start1 start2 end1 end2))
+
+(defun seq-search (quaesitum in-seq from-end test key start1 start2 end1 end2)
   (declare (optimize (speed 3) (safety 1))
 	   (fixnum start1 start2))
-  (let ((quaesitum (convert 'seq quaesitum))
-	(test (if test (coerce-to-function test) #'equal?))
+  (let ((test (if test (coerce-to-function test) #'equal?))
 	(key (and key (coerce-to-function key)))
 	(q-size (size quaesitum))
 	(s-size (size in-seq))
@@ -6417,10 +6423,10 @@ different seq implementations; it is not for public use.  `vec-fn' and
 			(match-started? nil))
 		    (do-wb-seq-tree-members-gen (seq-elt (wb-seq-contents in-seq) start2 end2 nil)
 		      (when (> (the fixnum (+ start2 q-size)) end2)
-			(return-from search nil))
+			(return-from seq-search nil))
 		      (if (funcall test q-elt (apply-key seq-elt))
 			  (if (funcall q-it ':done?)
-			      (return-from search (the fixnum start2))
+			      (return-from seq-search (the fixnum start2))
 			    (setq q-elt (apply-key (funcall q-it ':get))
 				  match-started? t))
 			(progn
@@ -6437,10 +6443,10 @@ different seq implementations; it is not for public use.  `vec-fn' and
 		      (match-started? nil))
 		  (do-wb-seq-tree-members-gen (seq-elt (wb-seq-contents in-seq) start2 end2 t)
 		    (when (< (the fixnum (- end2 q-size)) start2)
-		      (return-from search nil))
+		      (return-from seq-search nil))
 		    (if (funcall test q-elt (apply-key seq-elt))
 			(if (funcall q-it ':done?)
-			    (return-from search (the fixnum (- end2 q-size)))
+			    (return-from seq-search (the fixnum (- end2 q-size)))
 			  (setq q-elt (apply-key (funcall q-it ':get))
 				match-started? t))
 		      (progn
@@ -6450,11 +6456,16 @@ different seq implementations; it is not for public use.  `vec-fn' and
 			  (return))))))))))))))
 
 (defmethod mismatch ((sequence-1 seq) sequence-2 &key from-end test key (start1 0) (start2 0) end1 end2)
+  (seq-mismatch sequence-1 (convert 'seq sequence-2) from-end test key start1 start2 end1 end2))
+
+(defmethod mismatch (sequence-1 (sequence-2 seq) &key from-end test key (start1 0) (start2 0) end1 end2)
+  (seq-mismatch (convert 'seq sequence-1) sequence-2 from-end test key start1 start2 end1 end2))
+
+(defun seq-mismatch (sequence-1 sequence-2 from-end test key start1 start2 end1 end2)
   (declare (optimize (speed 3) (safety 1))
 	   (fixnum start1 start2))
   (let ((test (if test (coerce-to-function test) #'equal?))
 	(key (and key (coerce-to-function key)))
-	(sequence-2 (convert 'seq sequence-2))
 	((size-1 (size sequence-1))
 	 (size-2 (size sequence-2))
 	 ((end1 (or end1 size-1))
@@ -6497,9 +6508,6 @@ different seq implementations; it is not for public use.  `vec-fn' and
 		  (unless (funcall test elt-1 elt-2)
 		    (return idx)))
 		(decf idx)))))))))
-
-(defmethod mismatch (sequence-1 (sequence-2 seq) &rest keyword-args)
-  (apply #'mismatch (convert 'seq sequence-1) sequence-2 keyword-args))
 
 
 (defun print-wb-seq (seq stream level)

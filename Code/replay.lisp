@@ -748,10 +748,27 @@ or `no-default?' is true."
       (values nil nil nil))))
 
 (defmethod first ((m wb-replay-map))
-  (at-index m 0))
+  (let ((key? key (wb-ht?-seq-tree-subscript (replay-map-ordering m) 0)))
+    (if key?
+	(let ((tmorg (wb-replay-map-org m))
+	      ((val? val (wb-map-tree-lookup (wb-replay-map-contents m) key
+					     (tree-map-org-key-compare-fn tmorg)))))
+	  (unless val?
+	    (error "Bug in wb-replay-map"))
+	  (values key val t))
+      (values nil nil nil))))
 
 (defmethod last ((m wb-replay-map))
-  (at-index m (1- (size m))))
+  (let ((tree (replay-map-ordering m))
+	((key? key (wb-ht?-seq-tree-subscript tree (1- (wb-ht?-seq-tree-size tree))))))
+    (if key?
+	(let ((tmorg (wb-replay-map-org m))
+	      ((val? val (wb-map-tree-lookup (wb-replay-map-contents m) key
+					     (tree-map-org-key-compare-fn tmorg)))))
+	  (unless val?
+	    (error "Bug in wb-replay-map"))
+	  (values key val t))
+      (values nil nil nil))))
 
 (defmethod least ((m wb-replay-map))
   (let ((tree (wb-replay-map-contents m)))
@@ -1140,10 +1157,27 @@ or `no-default?' is true."
       (values nil nil nil))))
 
 (defmethod first ((m ch-replay-map))
-  (at-index m 0))
+  (let ((key? key (wb-ht?-seq-tree-subscript (replay-map-ordering m) 0)))
+    (if key?
+	(let ((hmorg (ch-replay-map-org m))
+	      ((val? val (ch-map-tree-lookup (ch-replay-map-contents m) key
+					     (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)))))
+	  (unless val?
+	    (error "Bug in ch-replay-map"))
+	  (values key val t))
+      (values nil nil nil))))
 
 (defmethod last ((m ch-replay-map))
-  (at-index m (1- (size m))))
+  (let ((tree (replay-map-ordering m))
+	((key? key (wb-ht?-seq-tree-subscript tree (1- (wb-ht?-seq-tree-size tree))))))
+    (if key?
+	(let ((hmorg (ch-replay-map-org m))
+	      ((val? val (ch-map-tree-lookup (ch-replay-map-contents m) key
+					     (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)))))
+	  (unless val?
+	    (error "Bug in ch-replay-map"))
+	  (values key val t))
+      (values nil nil nil))))
 
 (defmethod index ((m ch-replay-map) key)
   "WARNING: linear-time operation!"
