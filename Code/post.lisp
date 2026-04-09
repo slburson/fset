@@ -34,6 +34,6 @@
 
 
 ;;; Must be last!
-#+FSet-Use-Package-Locks
+#+fset-use-package-locks
 (lock-fset-packages)
 

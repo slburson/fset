@@ -341,13 +341,13 @@
 			  #:search #:mismatch))
 
 
-(pushnew ':FSet *features*)
-(pushnew ':FSet2 *features*)
+(pushnew ':fset *features*)
+(pushnew ':fset2 *features*)
 
 ;;; The seq implementation uses strings for leaf vectors when possible.
 ;;; In some Lisp implementations, there are two kinds of strings.
 (when (not (typep (make-string 1 :element-type 'character :initial-element #\A)
 		  'base-string))
-  (pushnew ':FSet-Ext-Strings *features*))
+  (pushnew ':fset-ext-strings *features*))
 
 

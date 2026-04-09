@@ -58,10 +58,10 @@ each predicate.  (The name should recall `ecase' etc.)"
 duplicates `body' in one context where `var' holds a simple-base-string, and
 one where it doesn't.  If the feature is not set, this is just `progn'."
   (declare (ignorable var))
-  #+FSet-Ext-Strings
+  #+fset-ext-strings
   `(if (typep ,var 'simple-base-string) (progn . ,body)
      (progn . ,body))
-  #-FSet-Ext-Strings
+  #-fset-ext-strings
   `(progn . ,body))
 
 (defmacro split-cases-on-var ((var . values) &body body)
@@ -209,7 +209,7 @@ of `:compare-fn'.  For example:
 	  ,(rec accessors))))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (deflex +Master-Type-Ordering+ nil
+  (deflex +master-type-ordering+ nil
     "Keeps track of the types for which explicit cross-comparison methods have
 been generated, and against which subsequent such methods will be generated.
 This is a list in reverse order."))
@@ -261,27 +261,27 @@ However, the implementation tries very hard to prevent this."
     (error "Type name required, not ~S" type))
   ;; Have to add it to the list, if it's not there, at both expansion time and
   ;; load time.
-  (pushnew type +Master-Type-Ordering+)
-  (let ((types (member type +Master-Type-Ordering+))
+  (pushnew type +master-type-ordering+)
+  (let ((types (member type +master-type-ordering+))
 	((prev-types (cdr types))))
     `(progn
-       (let ((mto-len (length +Master-Type-Ordering+)))
+       (let ((mto-len (length +master-type-ordering+)))
 	 (unless (if (< mto-len ,(length types))
-		     (equal +Master-Type-Ordering+
+		     (equal +master-type-ordering+
 			    (cl:subseq ',prev-types (- ,(length prev-types) mto-len)))
-		   (equal (cl:subseq +Master-Type-Ordering+
+		   (equal (cl:subseq +master-type-ordering+
 				     (- mto-len ,(length types)))
 			  ',types))
 	   ;; This can happen if calls to this macro are compiled in a different
 	   ;; order on different occasions.
 	   (error "FSet master type ordering out of sync.~@
 		   See fset::define-cross-type-compare-methods.")))
-       (unless (member ',type +Master-Type-Ordering+)
+       (unless (member ',type +master-type-ordering+)
 	 ;; You might think we would set it to the full expansion-time value,
 	 ;; but that would cause problems if FSet is recompiled in a session
 	 ;; in which this macro has been invoked on other types -- it would cause
 	 ;; this fasl to contain symbols from those packages.
-	 (setq +Master-Type-Ordering+ ',types))
+	 (setq +master-type-ordering+ ',types))
        . ,(cl:reduce #'append
 		     (mapcar (lambda (type2)
 			       `((defmethod compare ((a ,type2) (b ,type))
@@ -401,7 +401,7 @@ this macro directly, to keep the `hash-value' and `compare' methods consistent."
 ;;; Macros related to fset.lisp
 
 ;;; See note above "FSet-Use-Package-Locks" in `port.lisp'.
-#+FSet-Use-Package-Locks
+#+fset-use-package-locks
 (progn
   (defmacro internal-with (&rest args)
     `(with . ,args))
@@ -442,7 +442,7 @@ this macro directly, to keep the `hash-value' and `compare' methods consistent."
   (defmacro internal-splice (&rest args)
     `(splice . ,args)))
 
-#-FSet-Use-Package-Locks
+#-fset-use-package-locks
 (progn
   (declaim (inline internal-with))
   (defun internal-with (coll x &optional (y nil y?))
@@ -841,7 +841,7 @@ iteration to the index of the current element of `seq'.  When done, returns
 			    ,@(and start? `(:start ,start))
 			    ,@(and end? `(:end ,end))
 			    ,@(and from-end?? `(:from-end? ,from-end?)))))
-    `(Do-WB-Seq-Tree-Members-Gen (,var (wb-seq-contents ,seq) ,(if start? start 0) ,(if end? end `(size ,seq))
+    `(do-wb-seq-tree-members-gen (,var (wb-seq-contents ,seq) ,(if start? start 0) ,(if end? end `(size ,seq))
 				       ,(and from-end?? from-end?) ,value)
        . ,body)))
 
@@ -972,23 +972,23 @@ If `:from-end?' is true, iterates in reverse order."
 
 (gmap:def-result-type set (&key filterp)
   "Returns a set of the values, optionally filtered by `filterp'."
-  `(nil #'(lambda (s x) (WB-Set-Tree-With s x #'compare)) #'make-wb-set ,filterp))
+  `(nil #'(lambda (s x) (wb-set-tree-with s x #'compare)) #'make-wb-set ,filterp))
 
 ;;; Faster than `set', if you know it's a `wb-set'.
 (gmap:def-gmap-arg-type wb-set (set)
   "Yields the elements of `set'."
-  `((Make-WB-Set-Tree-Iterator-Internal (wb-set-contents ,set))
-    #'WB-Set-Tree-Iterator-Done?
-    #'WB-Set-Tree-Iterator-Get
+  `((make-wb-set-tree-iterator-internal (wb-set-contents ,set))
+    #'wb-set-tree-iterator-done?
+    #'wb-set-tree-iterator-get
     nil nil nil
-    (Do-WB-Set-Tree-Members (wb-set-contents ,set))))
+    (do-wb-set-tree-members (wb-set-contents ,set))))
 
 (gmap:def-gmap-res-type wb-set (&key filterp compare-fn-name)
   "Returns a set of the values, optionally filtered by `filterp'.  If
 `compare-fn-name' is supplied, it specifies a custom ordering."
   (let ((org-var (gensymx #:org-))
 	(cf-var (gensymx #:cmp-)))
-    `(nil #'(lambda (s x) (WB-Set-Tree-With s x ,cf-var))
+    `(nil #'(lambda (s x) (wb-set-tree-with s x ,cf-var))
 	  #'(lambda (s)
 	      (if (eq ,cf-var #'compare)
 		  (make-wb-set s)
@@ -1060,17 +1060,17 @@ If `:from-end?' is true, iterates in reverse order."
 
 (gmap:def-gmap-arg-type wb-bag (bag)
   "Yields each element of `bag', as many times as its multiplicity."
-  `((Make-WB-Bag-Tree-Iterator-Internal (wb-bag-contents ,bag))
-    #'WB-Bag-Tree-Iterator-Done?
-    #'WB-Bag-Tree-Iterator-Get))  ; no `Do-WB-Bag-Tree-Elements'
+  `((make-wb-bag-tree-iterator-internal (wb-bag-contents ,bag))
+    #'wb-bag-tree-iterator-done?
+    #'wb-bag-tree-iterator-get))  ; no `Do-WB-Bag-Tree-Elements'
 
 (gmap:def-gmap-arg-type wb-bag-pairs (bag)
   "Yields each element of `bag' and its multiplicity as two values."
-  `((Make-WB-Bag-Tree-Pair-Iterator-Internal (wb-bag-contents ,bag))
-    #'WB-Bag-Tree-Pair-Iterator-Done?
-    (:values 2 #'WB-Bag-Tree-Pair-Iterator-Get)
+  `((make-wb-bag-tree-pair-iterator-internal (wb-bag-contents ,bag))
+    #'wb-bag-tree-pair-iterator-done?
+    (:values 2 #'wb-bag-tree-pair-iterator-get)
     nil nil nil
-    (Do-WB-Bag-Tree-Pairs (wb-bag-contents ,bag))))
+    (do-wb-bag-tree-pairs (wb-bag-contents ,bag))))
 
 (gmap:def-arg-type-synonym fun-bag fun-sequence)
 
@@ -1083,7 +1083,7 @@ If `:from-end?' is true, iterates in reverse order."
 (gmap:def-gmap-res-type bag (&key filterp)
   "Returns a bag of the values, optionally filtered by `filterp'."
   `(nil
-    #'(lambda (b x) (WB-Bag-Tree-With b x #'compare))
+    #'(lambda (b x) (wb-bag-tree-with b x #'compare))
     #'(lambda (b) (make-wb-bag b +fset-default-tree-set-org+))
     ,filterp))
 
@@ -1091,7 +1091,7 @@ If `:from-end?' is true, iterates in reverse order."
   "Consumes two values from the mapped function; returns a bag of the pairs.
 Note that `filterp', if supplied, must take two arguments."
   `(nil
-    (:consume 2 #'(lambda (b x n) (WB-Bag-Tree-With b x #'compare n)))
+    (:consume 2 #'(lambda (b x n) (wb-bag-tree-with b x #'compare n)))
     #'(lambda (b) (make-wb-bag b +fset-default-tree-set-org+))
     ,filterp))
 
@@ -1100,7 +1100,7 @@ Note that `filterp', if supplied, must take two arguments."
 non-default comparison function in the result, supply `compare-fn-name`."
   (let ((proto-var (gensymx #:prototype-))
 	(cf-var (gensymx #:cmp-)))
-    `(nil #'(lambda (s x) (WB-Bag-Tree-With s x ,cf-var))
+    `(nil #'(lambda (s x) (wb-bag-tree-with s x ,cf-var))
 	  #'(lambda (s) (make-wb-bag s (wb-bag-org ,proto-var)))
 	  ,filterp
 	  ((,proto-var (empty-wb-bag ,compare-fn-name))
@@ -1112,7 +1112,7 @@ Note that `filterp', if supplied, must take two arguments.  To use a non-default
 comparison function in the result, supply `compare-fn-name`."
   (let ((proto-var (gensymx #:prototype-))
 	(cf-var (gensymx #:cmp-)))
-    `(nil (:consume 2 #'(lambda (tree x n) (WB-Bag-Tree-With tree x ,cf-var n)))
+    `(nil (:consume 2 #'(lambda (tree x n) (wb-bag-tree-with tree x ,cf-var n)))
 	  #'(lambda (tree) (make-wb-bag tree (wb-bag-org ,proto-var)))
 	  ,filterp
 	  ((,proto-var (empty-wb-bag ,compare-fn-name))
@@ -1211,11 +1211,11 @@ return in this case\)."
 
 (gmap:def-gmap-arg-type wb-map (map)
   "Yields each pair of `map', as two values."
-  `((Make-WB-Map-Tree-Iterator-Internal (wb-map-contents ,map))
-    #'WB-Map-Tree-Iterator-Done?
-    (:values 2 #'WB-Map-Tree-Iterator-Get)
+  `((make-wb-map-tree-iterator-internal (wb-map-contents ,map))
+    #'wb-map-tree-iterator-done?
+    (:values 2 #'wb-map-tree-iterator-get)
     nil nil nil
-    (Do-WB-Map-Tree-Pairs (wb-map-contents ,map))))
+    (do-wb-map-tree-pairs (wb-map-contents ,map))))
 
 (gmap:def-arg-type-synonym fset2:wb-map wb-map)
 
@@ -1228,7 +1228,7 @@ return in this case\)."
 (gmap:def-result-type map (&key filterp default)
   "Consumes two values from the mapped function; returns a map of the pairs.
 Note that `filterp', if supplied, must take two arguments."
-  `(nil (:consume 2 #'(lambda (m x y) (WB-Map-Tree-With m x y #'compare #'compare)))
+  `(nil (:consume 2 #'(lambda (m x y) (wb-map-tree-with m x y #'compare #'compare)))
 	#'(lambda (tree) (make-wb-map tree +fset-default-tree-map-org+ ,default))
 	,filterp))
 
@@ -1247,7 +1247,7 @@ Note that `filterp', if supplied, must take two arguments."
   (let ((proto-var (gensymx #:prototype-))
 	(kcf-var (gensymx #:key-cmp-))
 	(vcf-var (gensymx #:val-cmp-)))
-    `(nil (:consume 2 #'(lambda (tree k v) (WB-Map-Tree-With tree k v ,kcf-var ,vcf-var)))
+    `(nil (:consume 2 #'(lambda (tree k v) (wb-map-tree-with tree k v ,kcf-var ,vcf-var)))
 	  #'(lambda (tree) (make-wb-map tree (wb-map-org ,proto-var) ,default))
 	  ,filterp
 	  ((,proto-var (empty-wb-map nil ,key-compare-fn-name ,val-compare-fn-name))
@@ -1261,7 +1261,7 @@ Note that `filterp', if supplied, must take two arguments."
   (let ((proto-var (gensymx #:prototype-))
 	(kcf-var (gensymx #:key-cmp-))
 	(vcf-var (gensymx #:val-cmp-)))
-    `(nil (:consume 2 #'(lambda (tree k v) (WB-Map-Tree-With tree k v ,kcf-var ,vcf-var)))
+    `(nil (:consume 2 #'(lambda (tree k v) (wb-map-tree-with tree k v ,kcf-var ,vcf-var)))
 	  #'(lambda (tree) (make-wb-map tree (wb-map-org ,proto-var)
 					(fset2-default ,default? ,default ,no-default?)))
 	  ,filterp
@@ -1395,23 +1395,23 @@ and defaults to 0, while `end' is exclusive and defaults to the size of the
 seq.  If `from-end?' is true, the elements will be yielded in reverse order."
   (let ((seq-var (gensymx #:seq-)))
     (cond ((null from-end?)
-	   `((Make-WB-Seq-Tree-Iterator-Internal (wb-seq-contents ,seq-var) ,start ,end)
-	     #'WB-Seq-Tree-Iterator-Done?
-	     #'WB-Seq-Tree-Iterator-Get
+	   `((make-wb-seq-tree-iterator-internal (wb-seq-contents ,seq-var) ,start ,end)
+	     #'wb-seq-tree-iterator-done?
+	     #'wb-seq-tree-iterator-get
 	     nil
 	     ((,seq-var ,seq))
 	     nil
-	     (Do-WB-Seq-Tree-Members-Gen (wb-seq-contents ,seq-var)
+	     (do-wb-seq-tree-members-gen (wb-seq-contents ,seq-var)
 	       ,(or start 0) ,(or end `(size ,seq-var)) nil)
 	     ((,seq-var ,seq))))
 	  ((eq from-end? 't)
-	   `((Make-WB-Seq-Tree-Rev-Iterator-Internal (wb-seq-contents ,seq-var) ,start ,end)
-	     #'WB-Seq-Tree-Rev-Iterator-Done?
-	     #'WB-Seq-Tree-Rev-Iterator-Get
+	   `((make-wb-seq-tree-rev-iterator-internal (wb-seq-contents ,seq-var) ,start ,end)
+	     #'wb-seq-tree-rev-iterator-done?
+	     #'wb-seq-tree-rev-iterator-get
 	     nil
 	     ((,seq-var ,seq))
 	     nil
-	     (Do-WB-Seq-Tree-Members-Gen (wb-seq-contents ,seq-var)
+	     (do-wb-seq-tree-members-gen (wb-seq-contents ,seq-var)
 	       (or ,start 0) (or ,end (size ,seq-var)) t)
 	     ((,seq-var ,seq))))
 	  (t
@@ -1461,7 +1461,7 @@ seq.  If `from-end?' is true, the elements will be yielded in reverse order."
 (gmap:def-arg-type-synonym dyn-tuple tuple)
 
 (gmap:def-gmap-res-type tuple (&key filterp)
-  `((empty-dyn-tuple) (:consume 2 #'Tuple-With) nil ,filterp))
+  `((empty-dyn-tuple) (:consume 2 #'tuple-with) nil ,filterp))
 
 (gmap:def-result-type-synonym dyn-tuple tuple)
 
@@ -1492,13 +1492,13 @@ Note that `filterp', if supplied, must take two arguments."
 	(kcf-var (gensymx #:key-cmp-))
 	(vcf-var (gensymx #:val-cmp-)))
     `(nil (:consume 2 #'(lambda (tree k v)
-			  (let ((ignore prev (WB-Map-Tree-Lookup tree k ,kcf-var))
-				((new (WB-Set-Tree-With prev v ,vcf-var))))
+			  (let ((ignore prev (wb-map-tree-lookup tree k ,kcf-var))
+				((new (wb-set-tree-with prev v ,vcf-var))))
 			    (declare (ignore ignore))
 			    (if (eq prev new) tree
 			      (progn
 				(incf ,size-var)
-				(WB-Map-Tree-With tree k new ,kcf-var #'eql-compare))))))
+				(wb-map-tree-with tree k new ,kcf-var #'eql-compare))))))
 	  #'(lambda (tree) (make-wb-2-relation ,size-var tree nil ,org-var))
 	  ,filterp
 	  ((,org-var (wb-2-relation-org (empty-wb-2-relation ,key-compare-fn-name ,val-compare-fn-name)))
@@ -1539,11 +1539,11 @@ Note that `filterp', if supplied, must take two arguments."
     (:values 2 #'(lambda (it) (funcall it ':get)))))
 
 (gmap:def-arg-type wb-list-relation (rel)
-  `((Make-WB-Set-Tree-Iterator-Internal (wb-list-relation-tuples ,rel))
-    #'WB-Set-Tree-Iterator-Done?
-    #'WB-Set-Tree-Iterator-Get
+  `((make-wb-set-tree-iterator-internal (wb-list-relation-tuples ,rel))
+    #'wb-set-tree-iterator-done?
+    #'wb-set-tree-iterator-get
     nil nil nil
-    (Do-WB-Set-Tree-Members (wb-list-relation-tuples ,rel))))
+    (do-wb-set-tree-members (wb-list-relation-tuples ,rel))))
 
 (gmap:def-arg-type ch-list-relation (rel)
   `((make-ch-set-tree-iterator-internal (ch-list-relation-tuples ,rel))
@@ -1563,7 +1563,7 @@ Note that `filterp', if supplied, must take two arguments."
     #'wb-seq-tree-iterator-done?
     #'wb-seq-tree-iterator-get
     nil nil nil
-    (Do-WB-Seq-Tree-Members (replay-set-ordering ,set))))
+    (do-wb-seq-tree-members (replay-set-ordering ,set))))
 
 ;;; CHAMP is the default now.
 (gmap:def-result-type replay-set (&key filterp)
