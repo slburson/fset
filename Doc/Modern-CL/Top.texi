@@ -6,7 +6,7 @@
 @syncodeindex fn cp
 @syncodeindex tp cp
 
-Version 0.4
+Version 1.0
 
 © 2026 Scott L. Burson
 
@@ -16,8 +16,13 @@ enables reusers to distribute, remix, adapt, and build upon the material in any 
 noncommercial purposes only, and only so long as attribution is given to the creator.  If you remix,
 adapt, or build upon the material, you must license the modified material under identical terms.
 
-This document contains no LLM-generated text --- zip, zero, nada.  (Yes, I do use em-dashes and
-semicolons; yes, I have written them all myself.)
+This document contains no LLM-generated text --- zero, zip, nada.  (Yes, I do use em-dashes and
+semicolons; yes, I have written every one myself.)
+
+For errors noticed or other suggestions, please file issues on
+@uref{https://gitlab.common-lisp.net/fset/fset/-/work_items, Common-Lisp.Net's GitLab instance} or
+@uref{https://github.com/slburson/fset/issues, GitHub}.
+
 
 @c ================================================================================
 
@@ -65,6 +70,7 @@ semicolons; yes, I have written them all myself.)
 @include Conversions.texi
 @include Printing-Reading.texi
 @include Recommendations.texi
+@include Afterword.texi
 
 @node Index
 @unnumbered Index

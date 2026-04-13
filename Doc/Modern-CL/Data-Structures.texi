@@ -270,9 +270,10 @@ cyclic structures in FSet collections is not supported.
 @node Cross-Type Comparisons
 @subsection Cross-Type Comparisons
 
-As @href{Mixed-Type Collections, mentioned previously}, @code{compare} allows you to use instances
-of different classes as elements of a set or bag, or keys of a map.  Instances of different classes
-are compared by class @emph{first}.  There are two ways this comparison can be performed:
+As @href{Abstract and Concrete Equality, mentioned previously}, @code{compare} allows you to use
+instances of different classes as elements of a set or bag, or keys of a map.  Instances of
+different classes are compared by class @emph{first}.  There are two ways this comparison can be
+performed:
 
 @itemize
 @item

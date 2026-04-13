@@ -53,6 +53,10 @@ highly recommend, assuming you have installed and loaded FSet, first do this:
 @c ----------------------------------------
 @node Sets Tutorial
 @subsubsection Sets Tutorial
+
+A set is an unordered collection of values without duplicates.  FSet imposes an ordering for its own
+purposes, but you should not expect that ordering to be predictable.
+
 The simplest way to create a set is with the function @code{empty-set}:
 
 @example
@@ -97,10 +101,10 @@ T
 @end example
 
 Note that @code{arb} is not guaranteed to give you any particular element, nor is its job to give you
-a "randomly selected" element.  Its only postcondition is to give you @emph{some} element of the set.
+a ``randomly selected'' element.  Its only postcondition is to give you @emph{some} element of the set.
 This contract may seem a bit odd, but it gives the implementation flexibility to return a
-"convenient" element.  And it's still usable in algorithms.  For one thing, if the set is a singleton
-(has size 1), then @code{arb} is guaranteed to return the only element.  For another, some "workset"
+``convenient'' element.  And it's still usable in algorithms.  For one thing, if the set is a singleton
+(has size 1), then @code{arb} is guaranteed to return the only element.  For another, some ``workset''
 algorithms don't need a particular element; they just need to pull some element out of the set on each
 loop iteration until it's empty.  (Example below.)
 
@@ -217,6 +221,10 @@ T
 @node Maps Tutorial
 @subsubsection Maps Tutorial
 
+A map is an unordered collection of keys without duplicates, each key having an associated value.
+(Other languages call this concept a ``hash'' or ``dict''.)  As with sets, FSet imposes an ordering
+on the keys for its own purposes, but you shouldn't expect this ordering to make sense.
+
 You can create an empty map with @code{empty-map}; @code{with} on a map takes two arguments:
 
 @example
@@ -248,7 +256,7 @@ NIL
 
 As you see, these functions return a second value indicating whether the key was in the map.  This
 is in case you're using @code{nil} as a range element; since such usage is rare, most of the time
-you can ignore the second value.  Also as you see, the "default default" for the primary value, when
+you can ignore the second value.  Also as you see, the ``default default'' for the primary value, when
 the key is not in the map, is @code{nil}.  The default can be changed, though, either by supplying
 an argument to @code{empty-map} when first creating the map, or later by using @code{with-default}:
 
@@ -365,6 +373,10 @@ M9
 @c ----------------------------------------
 @node Seqs Tutorial
 @subsubsection Seqs Tutorial
+
+A seq (pronounced ``seek'') is an ordered collection of elements, accessed by index rather than by
+value, like a CL vector.
+
 Seq indexing is 0-origin, like indexing of CL sequences (@code{cl:elt} @i{etc.}).
 
 Seq creation can be done with @code{empty-seq} or the @code{seq} constructor macro.  A subform
@@ -484,11 +496,11 @@ sure to call the versions of these functions whose names are in the @code{fset2:
 @node Bags Tutorial
 @subsubsection Bags Tutorial
 
-A bag (sometimes called a multiset) is much like a set except that it associates with each element a
+A bag (also called a multiset) is much like a set except that it associates with each element a
 natural number (nonnegative integer) called the @strong{multiplicity}, which represents the number
-of occurrences of the element in the bag.  So, for instance, if you start with an empty bag and add an
-element to it twice, the resulting bag will contain that element with multiplicity 2.  Removing the
-same element once leaves it in the bag with multiplicity 1.
+of occurrences of the element in the bag.  So, for instance, if you start with an empty bag and add
+an element to it twice, the resulting bag will contain that element with multiplicity 2.  Removing
+the same element once leaves it in the bag with multiplicity 1.
 
 The basics should be familiar by now (once you get used to the print syntax, at least; the @code{#%}
 inclusions are for elements with multiplicity greater than 1):

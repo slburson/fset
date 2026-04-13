@@ -123,9 +123,46 @@ are almost always used as a functional type, and the language supports this usag
 @node Is Lisp a Functional Language?
 @section Is Lisp a Functional Language?
 
-@c &&& Fill this out, or remove it.
 Lisp is often referred to as one of the earliest functional languages, but the way the term
-``functional'' is used has shifted over time.
+``functional'' is used has shifted over time.  Where it once referred to a language with first-class
+functions --- functions that can be assigned to variables and passed to and returned from other
+functions --- now, languages called ``functional'' are often @emph{pure} functional, that is,
+languages with no side-effects at all, such as Haskell.
+
+Also, when I refer to first-class functions, I should probably be putting ``functions'' in quotes.
+What we are used to calling functions in Lisp and many other languages are more correctly called
+procedures; they aren't functions in the mathematical sense, as they often have side-effects.
+
+I like to refer to Lisp as ``semi-functional''.  For programming in the small, Lisp allows code to
+be written functionally; of course, the whole point of FSet is to greatly expand the amount of such
+code that can be written.  But on a larger scale, Lisp programs tend to have some amount of state
+that gets updated as well.
+
+There are many languages in this ``semi-functional'' category: Scala, the ML family --- even Python
+can be used this way.
+
+I want to digress a bit here to ask a different question: can a program be considered functional if
+it uses local variable assignment?  In my view, yes: if the only side-effects it performs are
+assignments to local variables, for most purposes it can be considered functional code.
+
+At the machine-code level, after all, everything is side-effects: even a pure function in Haskell
+has to allocate and initialize a stack frame and store computed values in it, or at the @emph{very}
+least, modify machine registers.  We refer to a procedure as ``pure'' when it doesn't have any
+side-effects that are detectable @emph{at the level of the language semantics}.  But a procedure
+that assigns to local variables, but performs no other mutating operation, similarly lacks
+side-effects that are detectable by its callers.
+
+In fact, there exists an algorithm, the subject of
+@uref{https://homes.cs.washington.edu/~mernst/pubs/vdg-popl94.pdf, this 1994 paper} by Dan Weise
+@i{et al.}, that can take a procedure written with local assignment and mechanically convert it to a
+functional form.  (The paper doesn't describe its algorithm in those terms, but close examination
+will reveal that the Value Dependence Graph is easily reinterpreted as a functional form of the
+input program.)
+
+So although it can be a fun exercise to write an algorithm without assignment, typically using tail
+recursion instead, I don't think you're necessarily giving up on functional programming if you
+prefer to write with some local assignments.  This point will be worth keeping in mind when we turn
+to @ref{Quasi-Mutating Operators}.
 
 
 @c ================================================================================
@@ -145,21 +182,21 @@ same time complexity.  Time complexity abstracts away from these constant-factor
 focus on the dependence of running time on input size.
 
 Imagine, for example, that there is some function we want to compute on collections of some kind,
-and that we have two algorithms to do it.  One of these works by performing some simple operation on
+and that we have two algorithms to do it.  Algorithm A works by performing some simple operation on
 every pair of elements of the input.  If the collection is of size @i{n}, there are @i{n}@sup{2}
-such pairs; so the time taken by this algorithm must grow proportionally.  The other algorithm,
-let's suppose, performs a more complex operation on every element by itself; let's suppose for the
-moment that this more complex operation takes time independent of the size of the collection; so the
-time taken by the algorithm is proportional to the size of the input.
+such pairs; so the time taken by this algorithm must grow proportionally to that number.  Algorithm
+B performs a more complex operation on every element by itself; let's suppose that this more complex
+operation takes time independent of the size of the collection; so the time taken by the algorithm
+is proportional to @i{n}.
 
-Even if the first algorithm is faster for small inputs --- even if it's @emph{much} faster --- the
-fact that its running time grows as the square of the size of the input means that there @emph{must}
-exist an input large enough that the second algorithm will beat the first on that input; and as the
-input gets larger yet, the second algorithm's advantage will only grow.
+Even if algorithm A is faster for small inputs --- even if it's @emph{much} faster --- the fact that
+its running time grows as the square of the size of the input means that there @emph{must} exist an
+input large enough that algorithm B will beat A on that input; and as the input gets larger yet,
+algorithm B's advantage will only grow.
 
-We say that the first algorithm has quadratic or O(@i{n}@sup{2}) time complexity, and the second has
-linear or O(@i{n}) time complexity.  Some commonly encountered complexity classes --- including the
-ones used in this book --- are, in increasing order:
+We say that algorithm A has quadratic or O(@i{n}@sup{2}) time complexity, and B has linear or
+O(@i{n}) time complexity.  Some commonly encountered complexity classes --- including the ones used
+in this book --- are, in increasing order:
 
 @table @asis
 @item constant, O(1)
@@ -207,8 +244,8 @@ constant-factor differences are more important.  But usually, time complexity is
 consideration, because when programs are put to actual use, there tend to be at least a few users
 who run them on very large inputs.
 
-One more point, about the word ``asymptotic''.  This refers to the time taken by the algorithm as
-the input size grows @emph{without bound}.  So it's not something you can measure, because all
+One more point, about the word ``asymptotic'': this refers to the time taken by the algorithm as the
+input size grows @emph{without bound}.  So it's not something you can measure, because all
 measurements must be made with specific, finite inputs.  It can be arrived at only by analysis of
 the algorithm in question.  The most that measurements can tell you is how the algorithm performs on
 a certain range of input sizes.

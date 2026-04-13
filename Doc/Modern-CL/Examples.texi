@@ -87,7 +87,7 @@ side-effect).  First, here's one way it might be written in plain CL:
 Things to note about this:
 
 @itemize
-@item It uses a hash table to represent the ``seen'' set, but a list for the workset..
+@item It uses a hash table to represent the ``seen'' set, but a list for the workset.
 @item It does some @code{nil} punning (@code{while workset}).
 @item @code{pop} removes the first element of the list and returns it.
 @item @code{pushnew} is O(@i{n}).
@@ -127,7 +127,7 @@ Here's what it looks like using FSet --- elegant @emph{and} fast:
   (let ((seen (@href{Macro set, set}))
         (workset (@href{Macro set, set} (graph-start graph))))
     (loop while (@href{Function nonempty?, nonempty?} workset)
-      (let ((node (@href{Method arb (set)} workset)))
+      (let ((node (@href{Method arb (set), arb} workset)))
         (@href{Macro excludef, excludef} workset node)
         (unless (@href{Method contains? (set), contains?} seen node)
           (funcall fun node)
@@ -170,8 +170,8 @@ stage."
     transf-env))
 @end example
 
-It's not at all unusual for compiler-related code, that is walking a tree maintaining environments
-mapping names to something, to be naturally expressed using persistent functional collections, and
+It's not at all unusual for compiler-related code, which walks a tree maintaining environments
+mapping names to something, to be naturally expressed using persistent functional collections; and
 we see a clear example of that here.  Anytime you find yourself copying hash tables, you would
 probably be happier using a functional map.
 

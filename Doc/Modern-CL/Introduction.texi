@@ -1,8 +1,5 @@
 @node Introduction and Obligatory Hype
-@chapter Introduction and Obligatory Hype
-
-@node Whom This Book is For
-@section Whom This Book is For
+@unnumbered Introduction and Obligatory Hype
 
 This book has two intended audiences.  The larger one is Common Lisp programmers, or people who at
 least have been learning the language, who want to explore the benefits of modern functional collections.  
@@ -31,6 +28,8 @@ For a fuller understanding, these topics will also be helpful:
 @item how to define classes with @code{defclass} or @code{deftype}
 @item how CLOS generic functions work, including how to define methods with @code{defmethod}
 @end itemize
+
+@hrule{}
 
 
 @c ================================================================================

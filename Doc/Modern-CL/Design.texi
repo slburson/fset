@@ -242,35 +242,62 @@ recommend placing these types in FSet collections.
 @hrule{}
 
 @c --------------------------------------------------------------------------------
-@node Mixed-Type Collections
-@subsection Mixed-Type Collections
+@node Abstract and Concrete Equality
+@subsection Abstract and Concrete Equality
 
-@code{compare} allows you to use instances of different classes as elements of a set or bag, or keys
-of a map.  This works by ordering the classes: for any two distinct classes C1 and C2, either all
-instances of C1 will compare as less than all instances of C2, or conversely.
+A collection type considered abstractly can have multiple concrete implementations.  This is true
+even in bare Common Lisp: a sequence can be implemented as either a list or a vector.  FSet adds a
+third sequence type, plus two implementations each of sets, maps, bags, and others.  The question
+then arises: how does equality testing of collections deal with this?  Can two sequences, for
+example, of different implementations be equal?
 
-In particular, this means that a list and a vector, or a list and an FSet seq, or a seq and a
-vector, are never equal according to @code{equal?}, even if they have the same elements in the same
-order.  Similarly, two FSet collections of the same abstract type but different implementations,
-such as @code{ch-set} and @code{wb-set}, are never considered equal, even if they have the same
-contents.  In fact, even two @code{wb-set}s with different ordering relations, or two @code{ch-set}s
-with different hash functions, cannot be equal.  This is in contrast to collections in Clojure, for
-instance, which are compared abstractly: a list and a seq with the same elements in the same order
-are equal.
+Some languages, including notably Java, followed by the JVM languages Scala and Clojure, take an
+abstract view of equality: two sequences are equal if they contain the same elements in the same
+order, independent of what subtype of @code{List} each one is implemented as.  Similarly, two sets
+are equal if they are of the same size and each element of one is also an element of the other.  And
+so on.
 
-There are two reasons for this choice.  One is consistency with @code{cl:equal}, as noted above.
-But the stronger reason is that FSet collections are nestable @emph{and} also have an ordered
-implementation.  Consider: if you have a set of sets, for example, then FSet has to be able to
-compare two of the inner sets.  If they use the same ordering relation, this is straightforward: we
-consider them as sequences and order them first by size and then lexicographically.  But if they use
-different ordering relations, we have to pick one of those --- not arbitrarily, but in some
-consistent way --- and convert the other collection into this ordering before doing the comparison.
-It's much too much work to be doing behind the scenes where the user isn't aware of it.
+The alternative is a concrete view of equality: for two objects to be equal, they must first be of
+the same class.  This is how CL's @code{equal} works: a list and a vector are automatically unequal;
+their contents are not considered.
 
-In a hashing-only design, where we only need to know whether two collections are equal or unequal,
-abstract comparison would be simpler: two sets of equal size could be compared just by iterating
-over one set and checking that the other contains every element.  This is how Clojure and, indeed,
-Java do it.  It's the need for ordering that throws a wrench into the works.
+The attractiveness of the abstract definition is obvious.  For FSet, however, it would run into a
+snag.  One of FSet's design desiderata is that collections must be nestable without additional work.
+Since some of FSet's collections --- the WB-tree sets, maps, @i{etc.} --- are implemented as ordered
+binary trees, that means that there must exist a consistent ordering over all FSet types.  Consider
+two sets with the same internal ordering relation: FSet can order the sets first by size and then
+lexicographically, as if they were sequences.
+
+But FSet also has hash-based implementations, which necessarily keep their elements in a different
+order (and even within an implementation, you can @href{Custom Comparison and Hash Functions,
+customize} the ordering).  What would happen, for instance, if we had a WB-tree set, whose elements
+included both WB-tree sets and hash-based sets?  Using abstract equality, we would have to consider
+two sets equal if they have the same elements.  But for our ordering relation to be transitive, it
+would have to order sets with different internal orders identically.  The only way to do that would
+be to convert them to a canonical internal order before comparing them, which would be very
+expensive --- too expensive to consider.
+
+So FSet must use concrete equality, like @code{cl:equal}.  This means that a list and a vector, or a
+list and an FSet seq, or a seq and a vector, are never equal according to @code{equal?}, even if
+they have the same elements in the same order.  Similarly, two FSet collections of the same abstract
+type but different implementations, such as @code{ch-set} and @code{wb-set}, are never considered
+equal, even if they have the same contents.  In fact, even two @code{wb-set}s with different
+ordering relations, or two @code{ch-set}s with different hash functions, cannot be equal.
+
+Either choice, arguably, carries a potential for confusion.  Consider: what should happen if you try
+to make a set that contains both the list @code{(a b c)} and the vector @code{#(a b c)}?  If FSet
+used abstract equality, the set would wind up containing only one of those (the first one added,
+presumably, though it might not always be clear which one that is).  I can certainly imagine that
+behavior being surprising to someone intentionally using lists and vectors to represent different
+kinds of things.  With concrete equality, the set would contain both of them; but this behavior
+would also be surprising to someone thinking of these as abstract sequences that just happen to be
+represented differently.
+
+I don't think there's a perfect solution here.  Concrete equality was the path of least resistance
+for FSet, so that's the way I've gone.
+
+@c --------------------------------------------------------------------------------
+
 
 
 @c ================================================================================

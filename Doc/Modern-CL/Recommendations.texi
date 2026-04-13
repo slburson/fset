@@ -7,6 +7,8 @@ perspective.
 
 @hrule{}
 
+
+@c ================================================================================
 @node Features of FSet
 @section Features of FSet
 
@@ -78,10 +80,12 @@ waste this space.
 The WB-tree implementations, including that of seqs, use heterogeneous trees: instead of having tree
 nodes all the way down to the leaves, they keep the lowest two to four levels of the tree in
 bounded-length vectors.  This saves a lot of space on small collections; for example, an 8-element
-set made entirely of tree nodes would take an estimated 37 words, but in FSet, it's just 11 words.
+set made entirely of tree nodes would take an estimated 37 words, but in FSet, it's just 11 words,
+assuming no alignment padding.
 @end itemize
 
-FSet has several semantic features that I would recommend to language and library designers:
+Turning to semantic features, FSet has several that I would recommend to language and library
+designers:
 
 @itemize
 @item
@@ -126,7 +130,7 @@ collections implementations I have looked at allow strict weak orderings, though
 Before I critique other languages and  libraries, I think it's only fair to say a little about what
 aspects of FSet I would @emph{not} encourage others to duplicate.
 
-@strong{WB-trees are obsolete}
+@subheading WB-trees are obsolete
 
 Perhaps the most prominent is that weight-balanced trees (WB-trees) are considered obsolete; the
 consensus seems to be that, even among ordered tree data structures, there are alternatives that
@@ -157,7 +161,7 @@ FSet's WB-trees, that operation is as fast per element as it would be with RRB-t
 changing data structures for FSet has not seemed urgent.  Still, for a new library, RRB-trees would
 probably be the recommended option.
 
-@strong{Overgrown or overengineered in places}
+@subheading Overgrown or overengineered in places
 
 It's not too unusual an experience for me to look at some part of FSet that I have written and
 wonder whether anyone has ever used it.  The poster child for this phenomenon is probably the
@@ -173,13 +177,13 @@ was excessively fussy, though on the other hand, I don't see the point of removi
 this with any of the other types; they already have more space overhead, anyway, so the relative
 benefit would have been even smaller.)
 
-@strong{Some features are historical}
+@subheading Some features are historical
 
 The WB-tree implementations of replay sets and maps are clearly obsolete and I should probably
 remove them, in favor of the CHAMP versions.  Iteration order is not an issue with the replay types,
 because it's controlled by the client anyway.
 
-@strong{No laziness}
+@subheading No laziness
 
 FSet has no lazy collections, though it does define an iterator protocol --- two of them, actually,
 one @href{Stateful Iterators, stateful} and one @href{Functional Iterators, functional} --- that can
@@ -218,7 +222,7 @@ semantics.  An opportunity lost, I'd call that.)
 @node Critiques of Other Libraries
 @section Critiques of Other Libraries
 
-Here I take a look at some functional collections packages for other popular languages, from an FSet
+Here I take a look at some functional collections libraries for other popular languages, from an FSet
 perspective.
 
 @hrule{}
@@ -227,16 +231,19 @@ perspective.
 @node Clojure
 @subsection Clojure
 
-Rich Hickey's creation of Clojure has been massively impactful in popularizing functional
-collections.  Looking over its API from an FSet point of view, it is hard to find much to criticize.
-Our choices of operation names are somewhat different --- for @code{with} and @code{less}, Clojure
-uses @code{conj} and @code{disj} on sets and @code{assoc} and @code{dissoc} on maps.  But in terms
-of functionality, there's a lot of overlap.
+Rich Hickey's creation of @uref{https://clojure.org/, Clojure} has been massively impactful in
+popularizing functional collections.  Looking over its API from an FSet point of view, it is hard to
+find much to criticize.  Our choices of operation names are somewhat different --- for @code{with}
+and @code{less}, Clojure uses @code{conj} and @code{disj} on sets and @code{assoc} and @code{dissoc}
+on maps.  But in terms of functionality, there's a lot of overlap.
 
 Clojure tries harder than Common Lisp does to enforce a mostly-functional style; it doesn't permit
 assigning new values to existing local variables.  But it's not completely pure: there are
 references that can be updated within transactions.  For that purpose there is @code{alter}, which
 is a general @href{Quasi-Mutating Operators, quasi-mutating operator}.
+
+One significant difference is that Clojure uses @href{Abstract and Concrete Equality, abstract
+equality} while FSet, following Common Lisp, uses concrete equality.
 
 Clojure does not have as rich a collection of map-combining operators as FSet.  Clojure's
 @code{merge} is like @href{Method map-union (map map), @code{map-union}}, except that there is no
@@ -251,7 +258,7 @@ written.
 @node Scheme (R6RS)
 @subsection Scheme (R6RS)
 
-R6RS Scheme has mutable hash tables and ... that seems to be it.
+@uref{https://www.r6rs.org/, R6RS Scheme} has mutable hash tables and ... that seems to be it.
 
 Well, wait: there's a little more to be said.  Strings are immutable.  Functional point update
 operations are not provided, presumably out of time complexity concerns, but @code{string-append}
@@ -268,29 +275,39 @@ the same pair type.  So you can't absolutely count on your lists not getting mut
 Like CL, Scheme has a ``deep equality'' predicate @code{equal?}.  This is very similar to CL's
 @code{equal}, except that it compares vectors by content, even though they're mutable.
 
+@c --------------------------------------------------------------------------------
 @node Racket
 @subsection Racket
 
-Racket improves on Scheme by making immutable and mutable pairs distinct types, the latter being
-constructed with @code{mcons}, accessed with @code{mcar}, @i{etc.}  Racket also has both immutable
-and mutable strings, vectors, and hash tables.  Bravo!  But of its immutable types, only hash tables
-have any functional update operators; the others are merely protected from mutation.
+@uref{https://racket-lang.org/, Racket} improves on Scheme by making immutable and mutable pairs
+distinct types, the latter being constructed with @code{mcons}, accessed with @code{mcar}, @i{etc.}
+Racket also has both immutable and mutable strings, vectors, and hash tables.  Bravo!  But of its
+immutable types, only hash tables have any functional update operators; the others are merely
+protected from mutation.
 
 Racket also has an equality predicate, @code{equal-always?}, that compares immutable objects of the
 same type by content, and mutable ones by identity, as I have argued one should.  However, its use
 is not encouraged; the name is too long for frequent use, and the manual
 @uref{https://docs.racket-lang.org/reference/Equality.html, says} ``@code{equal?} is preferred for
-most uses''.  But @code{equal?} compares mutable objects by content, as in Scheme.  (I suppose they
-don't want to be too incompatible with Scheme.)
+most uses''.  But @code{equal?} compares mutable objects by content, as in Scheme.
 
-I think what Racket shows is that there's more to well-designed functional collections than mere
-immutability.  In order to provide good support for functional programming, all the relevant data
-structures need to be designed for that purpose.  For instance, Racket could add a functional
-insertion operation on vectors and strings; but of course it would be O(@i{n}).
+What I wish here is that Racket would rename @code{equal?} to @code{currently-equal?}, then rename
+@code{equal-always?} to @code{equal?}.  But I suppose such an incompatible change was off the table
+even in the early days of Racket, since it was intended to be upward-compatible with Scheme.  Short
+of that, I think they should at least find a shorter name for @code{equal-always?}, and encourage
+people to use it.  Coming up with a good name is not trivial, though.  Maybe give a nod to Henry
+Baker and go with @code{egal?}.
+
+More broadly, I think what Racket shows is that there's more to well-designed functional collections
+than mere immutability.  Racket takes some helpful steps in the functional-programming direction,
+but doesn't fully embrace the paradigm.
 
 @c --------------------------------------------------------------------------------
 @node Haskell
 @subsection Haskell
+
+@uref{https://www.haskell.org/, Haskell} is, to my knowledge, the most widely used pure functional
+language.
 
 As one might expect, Haskell is well supplied with functional collections.  I found sets, maps, and
 sequences in a Containers package, bags in a Multiset package, and binary relations in a Relation
@@ -301,47 +318,67 @@ just don't know what the package is called.
 
 All of the types I found seem to be generously supplied with operations.  Very impressive!
 
-A few minor differences 
+I did notice a few minor differences between FSet's approach and Haskell's.  These are not all
+criticisms of Haskell, and even if they were, they would be quite minor; FSet and Haskell clearly
+have considerable overlap in our philosophies.
 
-@c Man, they have a lot of operations!  I thought I had gone overboard!
-@c Maps use @code{insert} and @code{delete}
-@c Maps have a bunch of interesting update ops like @code{adjust} (similar to my @code{update})
-@c    --- they also have an @code{update}
-@c Map @code{lookup} returns a @code{Maybe}, but @code{!} errors on missing key; there's also
-@c   @code{findWithDefault}
-@c Map @code{unionWith} is like map union, but applies the combining function to every matching
-@c   pair and doesn't assume idempotence
-@c Map @code{differenceWith} has a discard option, but @code{intersectionWith} doesn't
-@c Map @code{mergeWithKey} is closer to my map union, but passes common subtrees to a supplied
-@c   function (!!); it's now deprecated, because doing this could break things
-@c @code{mapWithKey} is @code{map-image}; amusing they use ``map'' in both senses
-@c Ah, look!  @code{restrictKeys} and @code{withoutKeys}!
-@c @code{partition} on maps --- good idea
-@c left preference on union and intersection!
+The idea of a default associated with a map doesn't seem to have occurred to them.  @code{Data.Map}
+has several lookup operations: @code{lookup} which returns a @code{Maybe} to handle the missing-key
+case; @code{!}, which errors on a missing key; and @code{findWithDefault}, that lets you supply a
+default at lookup time.
+
+They have several flavors of map union.  @code{unionWith} is closest to FSet's @code{map-union},
+though it doesn't require or assume an idempotent value-combining function; the potential
+optimization by doing so doesn't seem to have occurred to them.  They have map intersection and
+difference as well, and even the map difference has a flavor that accepts a combining function.
+
+Their map type has a @code{map} operation, which FSet calls @code{compose}; amusing that they use
+the word ``map'' in both senses.  @code{mapWithKey} corresponds to FSet's @code{map-image}.
+
+Their union and intersection operations, on both sets and maps, implement @href{Left Preference,
+left preference}.  As I said --- there's lots of commonality here.
+
+On the whole, I'd say FSet still has a little bit to teach Haskell, but also quite a lot to learn
+from it.
 
 @c --------------------------------------------------------------------------------
 @node Scala
 @subsection Scala
 
-@c No quasi-mutating operators
-@c No map defaults; @code{getOrElse}; oh, but there's a @code{PartialFunction} concept that handles
-@c   the partial/total distinction
-@c @code{apply} method to let you treat a map as a function
-@c @code{get} returns @code{Option[Value]}; @code{apply} throws exception on out-of-domain key
-@c @code{+} and @code{-} for @code{with} and @code{less}
-@c @code{++} is map union, though you can't supply @code{val-fn}
+@uref{https://www.scala-lang.org/, Scala} is a multiparadigm language like Common Lisp; though it's
+statically typed, it seems to have been influenced by Lisp in some ways --- it's
+expression-oriented, for instance, and comes with a REPL.  It might be my language of choice if I
+weren't so fond of Common Lisp.  Though it's not pure like Haskell, it does have good support for
+the functional style.
+
+Being a language, not just a library, Scala could have added @href{Quasi-Mutating Operators,
+quasi-mutating operators}, but doesn't have them.
+
+Immutable maps have a @code{withDefault} method, although it takes a function to compute the default
+rather than just the default value.  This is more powerful in some ways, yet it limits what the
+implementation can do with the default; for example, FSet's @code{map-difference} will tell you if
+the first argument map has a default different from the second's.  Scala wouldn't be able to do this.
+
+But Scala's map combining operations are impoverished compared to both Haskell's and FSet's; it has
+neither intersection nor difference operations, and its map union operation can only do shadowing of
+values in the left operand by those in the right one; there's no provision for a value-combining function.
+
+These are fairly minor points, though.  Overall, it looks like Scala's functional collections seem
+nearly as well built out as Haskell's.
+
+Like Clojure and Java, Scala uses @href{Abstract and Concrete Equality, abstract equality}.
 
 @c --------------------------------------------------------------------------------
 @node Google Guava
 @subsection Google Guava
 
-Google's Guava library for Java includes some immutable collection classes.  These make for a good
-example of why I avoid the term ``immutable'', because these collections are @emph{only} immutable:
-there are constructors so you can create them, but there are no sublinear-time functional update
-operations to make new ones out of existing ones.  So they're not intended for use in functional
-algorithms.  They do have some software-engineering advantages over Java's standard stateful
-collections, such as being good things to pass across interfaces, but though I agree that that's
-valuable, to me it's only one of several desirable qualities of functional collections.
+Google's Guava library for Java includes some immutable collection classes.  I mention them as a
+good example of why I avoid the term ``immutable'', because these collections are @emph{only}
+immutable: there are constructors so you can create them, but there are no sublinear-time functional
+update operations to make new ones out of existing ones.  So they're not intended for use in
+functional algorithms.  They do have some software-engineering advantages over Java's standard
+stateful collections, such as being good things to pass across interfaces, but though I agree that
+that's valuable, to me it's only one of several desirable qualities of functional collections.
 
 @c --------------------------------------------------------------------------------
 @node Python
@@ -361,7 +398,7 @@ possibility of mutating a set element or map key --- good to see.
 I see no sign of an immutable map class in the base library (there's no @code{frozendict}).
 
 However, there is a library called Pyrsistent that seems popular and provides functional sets, maps,
-bags (!), and sequences.  It has something called ``evolvers'' which appear to be what Clojure and
+bags, and sequences.  It has something called ``evolvers'' which appear to be what Clojure and
 FSet call ``transients''.  They support the standard mutation protocols, so you can pass one to
 legacy code that expects a mutable collection and mutates it, and then obtain a persistent copy on
 return --- a cute feature.  Their functional-record class @code{PRecord} has some interesting
@@ -370,14 +407,8 @@ features, including typed fields and general invariants.
 The @code{transform} method seems to be a quasi-mutating operator, though I don't yet understand how
 it works.
 
-Oh, @code{PVector}, their sequence class, has the same problem as Clojure's base vectors:
-linear-time insertion, deletion, and concatenation.  The @code{PMap} implementation is just a hash
-table implemented on top of that; seems like it wouldn't perform as well as CHAMP (but hey, this is
-Python anyway).  And @code{PSet} is built on top of @code{PMap}.
+@code{PVector}, their sequence class, has linear-time insertion, deletion, and concatenation; this
+could be improved on.  The @code{PMap} implementation is just a hash table implemented on top of
+that; I expect it wouldn't perform as well as CHAMP (but hey, this is Python anyway).  And
+@code{PSet} is built on top of @code{PMap}, rather than being implemented separately.
 
-@c --------------------------------------------------------------------------------
-@node C++
-@subsection C++
-
-As I @href{What Is a Functional Datatype?, discussed previously}, strange as it may sound, the
-collections in the C++ standard library actually have functional semantics.

@@ -25,6 +25,8 @@ This table summarizes the printed representations of the persistent FSet types.
 @dots{} |@}[@i{key-compare-fn};@i{val-compare-fn}]/@i{default}} @tab 2, 5, 6
 @item @href{Type ch-2-relation, ch-2-relation} @tab @code{##@{+ (@i{k0 v0}) (@i{k1 v1})
 @dots{} +@}[@i{key-compare-fn};@i{val-compare-fn}]} @tab 2, 5
+@item @href{Type wb-2-relation, wb-2-relation} @tab @code{#@{+ (@i{k0 v0}) (@i{k1 v1})
+@dots{} +@}[@i{key-compare-fn};@i{val-compare-fn}]} @tab 1, 5
 @item @href{Type dyn-tuple, dyn-tuple} @tab @code{#~< (@i{k0 v0}) (@i{k1 v1}) @dots{} >} @tab
 @end multitable
 
