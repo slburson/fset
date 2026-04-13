@@ -54,6 +54,19 @@
     color-scheme:  dark;
 }
 
+:root[data-theme="ember"] {
+    --bg:          #1c1b19;
+    --fg:          #d8d0c0;
+    --link:        #e08060;
+    --link-visited:#8a9868;
+    --nav-bg:      #2e2d2a;
+    --nav-border:  #c09058;
+    --code-bg:     #222120;
+    --code-border: #7890a0;
+    --def-bg:      #252422;
+    color-scheme:  dark;
+}
+
 /* ── Base ────────────────────────────────────────────────────────────────── */
 
 body {

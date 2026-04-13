@@ -1,8 +1,8 @@
 /* FSet book theme switcher */
 
 (function () {
-    var THEMES = ['bright', 'light', 'dark', 'hc'];
-    var LABELS = { bright: 'Bright', light: 'Light', dark: 'Dark', hc: 'High Contrast' };
+    var THEMES = ['bright', 'light', 'dark', 'hc', 'ember'];
+    var LABELS = { bright: 'Bright', light: 'Light', dark: 'Dark', hc: 'High Contrast', ember: 'Ember' };
     var STORAGE_KEY = 'modern-cl-theme';
 
     // Map our logical names to data-theme attribute values (light = default, no attribute).
