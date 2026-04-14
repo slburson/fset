@@ -89,7 +89,7 @@ you could upgrade FSet one day and have something break for this reason.
 Because of that, the generally recommended approach is to use an @code{:import-from} clause instead,
 to import only the symbols you are using or think you are likely to use --- or even the full export
 list as it stands at the moment.  The downside of @emph{that} is that the list may get quite long;
-package @code{fset2}, as of this writing, exports 337 symbols.  Still, you may prefer this approach,
+package @code{fset2}, as of this writing, exports 339 symbols.  Still, you may prefer this approach,
 to protect yourself against future exports.
 
 The next question is whether you want all the above shadowing-imports, which are shadowing builtin
@@ -98,15 +98,21 @@ of importing it and to decide whether you want to.
 
 @table @asis
 @item @code{set}
-A no-brainer: import @code{fset2:set}. The CL @code{set} is archaic, deprecated in the ANSI CL spec,
+A no-brainer: import @code{fset2:set}.  The CL @code{set} is archaic, deprecated in the ANSI CL spec,
 and easily replaced with @code{(setf (symbol-value @dots{})  @dots{})}, which is stylistically
 preferable anyway. @code{fset2:set} names both a type and a constructor macro for that type.
 
 @item @code{map}
 This one is a little harder, because @code{cl:map} has perfectly legitimate uses, though it's rarer
-than @code{mapcar}. Personally, I never use it because I use @href{GMap, my GMap macro}
-instead, but others might miss it. (FSet has a similar operation called @code{image}.) Again,
-@code{fset2:map} names both a type and a constructor macro.
+than @code{mapcar}.  But maps are probably the most important FSet type; not importing
+@code{fset2:map}, which again names both the type and its constructor macro, will make writing
+idiomatic FSet code less pleasant.
+
+What I do, and recommend, is to import @code{fset2:map}, and then use @href{GMap, my GMap macro} as
+an even more general replacement for @code{cl:map}.  If you don't want to do that, one alternative
+is to use the implementation-specific types/constructor macros @code{ch-map} and @code{wb-map}; at
+least those names are shorter than including the package prefix on @code{fset2:map}, and of course
+they don't shadow anything from CL.
 
 @item @code{union}, @code{intersection}, @code{set-difference}
 These are generic functions, with methods for lists that invoke the CL builtins.  I recommend
@@ -116,12 +122,13 @@ importing them.
 A generic function, with a method for functions that invokes the CL builtin.  Rarely used, but you
 may as well import it anyway.
 
+@anchor{@code{first} and @code{last}}
 @item @code{first}, @code{last}
 These are generic functions that return the first or last element of a sequence, which can be a Lisp
 sequence or an FSet seq.  These differ from the CL builtins in two ways: they work on more types
 than lists, and @code{last} returns the last @emph{element} of its argument, unlike @code{cl:last},
-which returns the last @emph{cons} (the cons whose @code{car} is the last element).
-@xref{Divergences from Common Lisp} for further discussion.  I recommend importing them, though if
+which returns the last @emph{cons} (the cons whose @code{car} is the last element).  See
+@ref{Divergences from Common Lisp} for further discussion.  I recommend importing them, though if
 you have any existing calls to CL @code{last}. you'll have to either change them to @code{lastcons}
 (which is a better name anyway; FSet exports this) or add an explicit @code{cl:} qualifier.
 
@@ -169,17 +176,20 @@ Use FSet sets.
 @subsection Misc-Extensions
 
 @uref{https://gitlab.common-lisp.net/misc-extensions/misc-extensions/,Misc-Extensions} is a small
-library of macros that is used by FSet and which FSet users might also find handy to use in their
+library of macros that I used in FSet and which FSet users might also find handy to use in their
 code.  One of these is an extensible iteration macro called @href{GMap, GMap}.  The rest are
 discussed here.
 
-I use @code{mvlet}, @code{mvlet*}, and @code{fn} elsewhere in this book, so you'll want to read
-about them below.  The rest of the section can be skipped on first reading.
-@c &&& Maybe cut the other topics?
+Of these, @code{mvlet} and @code{mvlet*} are especially useful for dealing with FSet's
+API, which makes heavy use of multiple values.  @code{fn} is handy for writing higher-order code in
+general (though experienced CLers are probably using some similar macro already).  The remainder,
+well, have a look --- maybe you'll see something you like.
 
+@anchor{Macro mvlet}
 @defmac nvlet (binding-clause@dots{}) declaration@dots{} @r{&body} form@dots{}
 @defmacx nvlet* (binding-clause@dots{}) declaration@dots{} @r{&body} form@dots{}
 @defmacx nlet (binding-clause@dots{}) declaration@dots{} @r{&body} form@dots{}
+Exported from package @code{misc-extensions.new-let}.
 
 For writing code in a mostly-functional style, Common Lisp's multiple-value feature is extremely
 useful (I make heavy use of it both internally within FSet and in the API).  But the most important
@@ -199,8 +209,7 @@ The two that I expect most people will want to use are @code{mvlet} and @code{mv
 @code{mvlet}, like @code{cl:let}, makes all bindings in parallel, so the init-forms can refer to
 variables of the same names in the containing scope.  @code{mvlet*}, like @code{cl:let*}, makes them
 sequentially, so each init-form can refer to any of the variables bound in the preceding clauses.
-Except for being able to bind multiple values, they are almost perfectly upward-compatible with the
-CL operators, with a minor caveat I will return to below.
+Except for being able to bind multiple values, they are upward-compatible with the CL operators.
 
 @code{nlet} generalizes the other two by making it possible to do any combination of parallel and
 sequential binding.  It allows the binding clauses to be nested to indicate sequential binding: more
@@ -283,15 +292,17 @@ since in my own projects.
 implementations of @code{mvlet} and @code{mvlet*}.)
 @end defmac
 
+@anchor{Macro fn}
 @defmac fn (parameter@dots{}) declaration@dots{} form@dots{}
+Exported from package @code{misc-extensions.new-let}.
 
 For very small lambda expressions, the six characters taken by the word @code{lambda} can be a
-significant fraction of the total.  If the body doesn't reference all the parameters, moreover,
+significant fraction of the total.  Additionally, if the body doesn't reference all the parameters,
 you'll want to add a @code{(declare (ignore ...))} for the unused ones, which adds to the verbosity.
 The @code{fn} macro helps with both annoyances.  Obviously, its name is quite short.  (Those willing
 to set foot on the slippery slope of Unicode could use @code{λ}, of course, but I've been afraid to
-go there yet, lest my code wind up as an unintelligible mass of obscure mathematical symbols and cat
-emojis.) Also, you can use either a bare @code{_} or a name beginning with @code{_} as a parameter
+go there, lest my code wind up as an unintelligible mass of obscure mathematical symbols and cat
+emojis 🙀.) Also, you can use either a bare @code{_} or a name beginning with @code{_} as a parameter
 name, to indicate an ignored parameter; @code{fn} automatically inserts the required @code{ignore}
 declaration.
 
@@ -303,14 +314,15 @@ probably-unintelligible compiler error.  Just delete the @code{#'}.
 @defmac deflex var @r{&optional} val doc
 Declares @code{var} as a global lexical (non-special) variable, and if @code{val} is supplied and
 @code{var} is not already bound, initializes it to @code{val}.  @code{doc}, if supplied, is taken as
-a documentation string.  Locally binding the same name creates a new lexical variable, with no
-effect on the global one.
+a documentation string.  If the same name is later locally bound (@i{e.g.}  witih @code{let}), that
+will create a new lexical variable, with no effect on the global one.
 @end defmac
 
 @defmac deflex-reinit var val  @r{&optional} doc
-Declares @code{var} as a global lexical (non-special) variable and initializes it to @code{val}.
-@code{doc}, if supplied, is taken as a documentation string.  Locally binding the same name creates
-a new lexical variable, with no effect on the global one.
+Declares @code{var} as a global lexical (non-special) variable and sets it to @code{val}; so if
+@code{var} was already initialized, this reinitializes it, unlike plain @code{deflex}..  @code{doc},
+if supplied, is taken as a documentation string.  If the same name is later locally bound (@i{e.g.}
+witih @code{let}), that will create a new lexical variable, with no effect on the global one.
 @end defmac
 
 @defmac isetq var val@dots{}
@@ -350,7 +362,6 @@ There are also @code{rflet} and @code{rmacrolet}, but they're rarely useful.
 
 @anchor{Succinct Class Definitions With @code{define-class}}
 @defmac define-class name (superclass@dots{}) (slot-specifier@dots{}) class-option@dots{}
-@end defmac
 
 As everyone knows, @code{defclass} forms tend to be rather verbose and repetitive:
 
@@ -413,3 +424,65 @@ I think it's actually easier to understand:
 Let me emphasize: you can still use the @code{defclass} slot options in any case where the above
 features do not do what you want; for instance, if you want a different reader/accessor name for a
 particular slot than what @code{define-class} would have used.
+@end defmac
+
+
+@c ================================================================================
+@node Emacs Customizations
+@section Emacs Customizations
+
+This section contains a few customizations I have in my @code{.emacs/init.el} file related to FSet
+and Misc-Extensions.  I have been using these with Emacs 30.0.50, but they're unlikely to be
+version-sensitive.  Use whichever ones you like.
+
+For FSet:
+
+@example
+;;; Don't indent these like `with-open-file' even though they begin with `with'.
+(put 'with-default 'common-lisp-indent-function '(nil nil))
+(put 'without-default 'common-lisp-indent-function '(nil nil))
+;;; Treat `@@' as a symbol.  (See @ref{The @code{@@} Macro}.)
+(modify-syntax-entry ?\@@ "_" lisp-mode-syntax-table)
+@end example
+
+For Misc-Extensions:
+
+@example
+(put 'deflex 'common-lisp-indent-function '(4 4 2))
+(put 'deflex-reinit 'common-lisp-indent-function '(4 4 2))
+(put 'rlabels 'common-lisp-indent-function '(4 &rest (&whole 2 (&whole 4 &rest 1) &body)))
+
+;;; `define-class' needs some code support along with its indent info.
+;;; We put the slots at 2 because there might be a doc string in that position.
+(put 'define-class 'common-lisp-indent-function
+     '(6 (&whole 4 &rest 1) &rest (&whole 2 &rest (&whole 1 &rest 2))))
+
+;;; This fixes the face of doc strings in `define-class'.
+(defun lisp-string-after-doc-keyword-p (listbeg startpos)
+  "Return non-nil if `:documentation' symbol ends at STARTPOS inside a list.
+`:doc' can also be used.
+
+LISTBEG is the position of the start of the innermost list
+containing STARTPOS."
+  (and listbeg                          ; We are inside a Lisp form.
+       (or (save-excursion
+             (goto-char startpos)
+             (ignore-errors
+               (progn (backward-sexp 1)
+                      (looking-at ":documentation\\_>\\|:doc\\_>"))))
+	   ;; Detects a class doc string in `define-class/model'.
+	   (save-excursion
+	     (goto-char listbeg)
+	     (forward-char)
+	     (looking-at "define-class"))
+	   ;; Detects doc strings in `define-class/model' slot options.
+	   (save-excursion
+	     (goto-char listbeg)
+	     (ignore-errors
+	       (backward-up-list)
+	       (backward-sexp)
+	       (if (looking-at "\"")
+		   (backward-sexp 3)
+		 (backward-sexp 2))
+	       (looking-at "define-class"))))))
+@end example

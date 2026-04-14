@@ -111,22 +111,22 @@ sets are printed as \"#{= ... }\"."
       (values nil nil))))
 
 (defmethod first ((s wb-replay-set))
-  (let ((val? val (WB-HT?-Seq-Tree-Subscript (replay-set-ordering s) 0)))
+  (let ((val? val (wb-ht?-seq-tree-subscript (replay-set-ordering s) 0)))
     (values val val?)))
 
 (defmethod last ((s wb-replay-set))
   (let ((tree (replay-set-ordering s))
-	((val? val (WB-HT?-Seq-Tree-Subscript tree (1- (WB-HT?-Seq-Tree-Size tree))))))
+	((val? val (wb-ht?-seq-tree-subscript tree (1- (wb-ht?-seq-tree-size tree))))))
     (values val val?)))
 
 (defmethod least ((s wb-replay-set))
   (let ((tree (wb-replay-set-contents s)))
-    (if tree (values (WB-Set-Tree-Least tree) t)
+    (if tree (values (wb-set-tree-least tree) t)
       (values nil nil))))
 
 (defmethod greatest ((s wb-replay-set))
   (let ((tree (wb-replay-set-contents s)))
-    (if tree (values (WB-Set-Tree-Greatest tree) t)
+    (if tree (values (wb-set-tree-greatest tree) t)
         (values nil nil))))
 
 (defmethod index ((s wb-replay-set) x)
@@ -748,10 +748,27 @@ or `no-default?' is true."
       (values nil nil nil))))
 
 (defmethod first ((m wb-replay-map))
-  (at-index m 0))
+  (let ((key? key (wb-ht?-seq-tree-subscript (replay-map-ordering m) 0)))
+    (if key?
+	(let ((tmorg (wb-replay-map-org m))
+	      ((val? val (wb-map-tree-lookup (wb-replay-map-contents m) key
+					     (tree-map-org-key-compare-fn tmorg)))))
+	  (unless val?
+	    (error "Bug in wb-replay-map"))
+	  (values key val t))
+      (values nil nil nil))))
 
 (defmethod last ((m wb-replay-map))
-  (at-index m (1- (size m))))
+  (let ((tree (replay-map-ordering m))
+	((key? key (wb-ht?-seq-tree-subscript tree (1- (wb-ht?-seq-tree-size tree))))))
+    (if key?
+	(let ((tmorg (wb-replay-map-org m))
+	      ((val? val (wb-map-tree-lookup (wb-replay-map-contents m) key
+					     (tree-map-org-key-compare-fn tmorg)))))
+	  (unless val?
+	    (error "Bug in wb-replay-map"))
+	  (values key val t))
+      (values nil nil nil))))
 
 (defmethod least ((m wb-replay-map))
   (let ((tree (wb-replay-map-contents m)))
@@ -790,7 +807,7 @@ or `no-default?' is true."
       (values key val))))
 
 (defmethod size ((m wb-replay-map))
-  (WB-Map-Tree-Size (wb-replay-map-contents m)))
+  (wb-map-tree-size (wb-replay-map-contents m)))
 
 (defmethod convert ((to-type (eql 'fset2:replay-map)) (m replay-map) &key)
   m)
@@ -804,7 +821,7 @@ or `no-default?' is true."
 	  (val-compare-fn (tree-map-org-val-compare-fn proto-tmorg)))))
     (let ((contents nil))
       (do-map (k v m)
-	(setq contents (WB-Map-Tree-With contents k v key-compare-fn val-compare-fn)))
+	(setq contents (wb-map-tree-with contents k v key-compare-fn val-compare-fn)))
       (make-wb-replay-map contents (replay-map-ordering m) proto-tmorg (if default? default (map-default m))))))
 
 (define-convert-methods (wb-replay-map fset2:wb-replay-map)
@@ -821,7 +838,7 @@ or `no-default?' is true."
 	m
       (let ((contents nil))
 	(do-map (k v m)
-	  (setq contents (WB-Map-Tree-With contents k v key-compare-fn val-compare-fn)))
+	  (setq contents (wb-map-tree-with contents k v key-compare-fn val-compare-fn)))
 	(make-wb-replay-map contents (replay-map-ordering m) proto-tmorg (if default? default (map-default m)))))))
 
 (define-convert-methods (map fset2:map) ((m wb-replay-map) &key (default nil default?))
@@ -1140,10 +1157,27 @@ or `no-default?' is true."
       (values nil nil nil))))
 
 (defmethod first ((m ch-replay-map))
-  (at-index m 0))
+  (let ((key? key (wb-ht?-seq-tree-subscript (replay-map-ordering m) 0)))
+    (if key?
+	(let ((hmorg (ch-replay-map-org m))
+	      ((val? val (ch-map-tree-lookup (ch-replay-map-contents m) key
+					     (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)))))
+	  (unless val?
+	    (error "Bug in ch-replay-map"))
+	  (values key val t))
+      (values nil nil nil))))
 
 (defmethod last ((m ch-replay-map))
-  (at-index m (1- (size m))))
+  (let ((tree (replay-map-ordering m))
+	((key? key (wb-ht?-seq-tree-subscript tree (1- (wb-ht?-seq-tree-size tree))))))
+    (if key?
+	(let ((hmorg (ch-replay-map-org m))
+	      ((val? val (ch-map-tree-lookup (ch-replay-map-contents m) key
+					     (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)))))
+	  (unless val?
+	    (error "Bug in ch-replay-map"))
+	  (values key val t))
+      (values nil nil nil))))
 
 (defmethod index ((m ch-replay-map) key)
   "WARNING: linear-time operation!"

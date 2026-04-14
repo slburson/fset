@@ -49,10 +49,10 @@ taken by their tree nodes, with little or no impact on time performance.
 
 FSet has WB-tree implementations of sets, maps, bags, and seqs, named @code{wb-set}, @code{wb-map},
 @code{wb-bag}, and @code{wb-seq} respectively.  Point updates --- inserting an element or pair,
-removing one, updating the value associated with a map key, etc. --- take O(log @i{n}) time.  On
+removing one, updating the value associated with a map key, @i{etc.} --- take O(log @i{n}) time.  On
 seqs, subsequence and concatenation also take O(log @i{n}) time.  Operatiions that combine two trees
-in some way --- @code{union}, @code{intersection}, etc. --- take O(@i{n}) time in general, though
-under certain specific circumstances this can be reduced to O(log @i{n}).
+in some way --- @code{union}, @code{intersection}, @i{etc.} --- take O(@i{n}) time in general,
+though under certain specific circumstances this can be reduced to O(log @i{n}).
 
 For sets, maps, and bags --- the @dfn{setlike} types --- FSet explicitly provides for the case where
 two elements or keys are incomparable, meaning that they're not equal, but the comparison function
@@ -74,14 +74,14 @@ invented by Phil Bagwell in 2001 [&&& ref; see Steindorfer].
 CHAMP, like HAMT, is hash-based, rather than ordering-based.  FSet's CHAMP collections are
 significantly faster than the WB-tree collections at simple operations such as element/key updates
 and lookups, and several times faster at operations that combine two collections in some way:
-equality testing, union, intersection, etc.  However, CHAMP is appropriate only for setlike types;
-there's no CHAMP alternative to the WB-tree seqs.
+equality testing, union, intersection, @i{etc.}  However, CHAMP is appropriate only for setlike
+types; there's no CHAMP alternative to the WB-tree seqs.
 
 So FSet has CHAMP implementations of sets, maps, and bags, named @code{ch-set}, @code{ch-map}, and
 @code{ch-bag} respectively.  As with the WB-tree types, point updates take O(log @i{n}) time, but
 the constant factors are smaller.  The combining operations --- @code{union}, @code{intersection},
-etc. --- are @emph{much} faster on CHAMP; a factor of 4 seems to be typical, and I've seen it go as
-high as 10.
+@i{etc.} --- are @emph{much} faster on CHAMP; a factor of 4 seems to be typical, and I've seen it go
+as high as 10.
 
 One downside is that the order in which CHAMP yields elements during iteration is a rather complex
 function of their hash values.  This ordering will appear random --- it isn't actually random, but
@@ -214,7 +214,7 @@ In most cases, comparison of collections --- strings, vectors, arrays, and other
 implementation may support; and FSet collections themselves --- starts by comparing the sizes of the
 two collections, and if they're different, considering the smaller collection as less than the
 larger one, independent of their contents.  Thus, all two-character strings compare less than all
-three-character strings, etc.  This approach improves performance over the more familiar
+three-character strings, @i{etc.}  This approach improves performance over the more familiar
 lexicographic (dictionary-style) comparison, in which length comes into play only when the shorter
 string is an initial substring (prefix) of the longer one.  However, it does make the ordering less
 natural for human perusal.  (Lists are compared lexicographically, though, because finding the
@@ -270,9 +270,10 @@ cyclic structures in FSet collections is not supported.
 @node Cross-Type Comparisons
 @subsection Cross-Type Comparisons
 
-As @href{Mixed-Type Collections, mentioned previously}, @code{compare} allows you to use instances
-of different classes as elements of a set or bag, or keys of a map.  Instances of different classes
-are compared by class @emph{first}.  There are two ways this comparison can be performed:
+As @href{Abstract and Concrete Equality, mentioned previously}, @code{compare} allows you to use
+instances of different classes as elements of a set or bag, or keys of a map.  Instances of
+different classes are compared by class @emph{first}.  There are two ways this comparison can be
+performed:
 
 @itemize
 @item
@@ -416,13 +417,13 @@ easier: just include @code{identity-equality-mixin} as a superclass; FSet handle
 @subsection Left Preference
 
 FSet has several operations that combine two collections into a third: @href{Method union (set set),
-union}, @href{Method intersection (set set), intersection}, @href{Method map-union (map map),
-map-union}, @href{Method map-intersection (map map), map-intersection}, @href{Method union (bag
-bag), bag union}, @href{Method intersection (bag bag), bag intersection}, @href{Method bag-sum (bag
-bag), bag sum}, and @href{Method bag-product (bag bag), bag product}.  All of these implement
-@dfn{left preference}: for any case where equal elements or map keys appear in both collections, the
-result will use the one from the left operand.  This also applies to equal values associated with a
-given map key.
+@code{union}}, @href{Method intersection (set set), @code{intersection}}, @href{Method map-union
+(map map), @code{map-union}}, @href{Method map-intersection (map map), @code{map-intersection}},
+@href{Method union (bag bag), bag @code{union}}, @href{Method intersection (bag bag), bag
+@code{intersection}}, @href{Method bag-sum (bag bag), @code{bag-sum}}, and @href{Method bag-product
+(bag bag), @code{bag-product}}.  All of these implement @dfn{left preference}: for any case where
+equal elements or map keys appear in both collections, the result will use the one from the left
+operand.  This also applies to equal values associated with a given map key.
 
 The motivation for FSet offering this guarantee has to do with the fact that if you're using
 @code{define-equality-slots} for your class, there's no requirement that you include all the slots
@@ -499,11 +500,11 @@ use the specified hashing function also.
 
 Once you've written a custom comparison function, and for CHAMP, associated a custom hashing
 function with it, you can supply the comparison function's name to various constructor functions and
-macros; for details, see @ref{FSet API Reference}.  For sets and bags, a single comparison
-function is required; for maps and binary relations, two are needed, one for keys (domain elements)
-and the other for values (range elements).  In all cases, they are specified as function
-@emph{names}, i.e., symbols, rather than CL function objects; this is so they can be printed out in
-a reasonable way.
+macros; for details, see @ref{FSet API Reference}.  For sets and bags, a single comparison function
+is required; for maps and binary relations, two are needed, one for keys (domain elements) and the
+other for values (range elements).  In all cases, they are specified as function @emph{names},
+@i{i.e.}, symbols, rather than CL function objects; this is so they can be printed out in a
+reasonable way.
 
 FSet assumes that any two objects that are @code{eql} also compare @code{:equal}.  Be sure not to
 use @code{eq} to compare characters or numbers.
@@ -689,8 +690,7 @@ These FSet functions are sometimes useful for compare-functions for WB-collectio
 @deffnx Method {compare-lexicographically (vector vector)} @ @r{&key} @r{(@var{val-compare-fn} #'compare)}
 @deffnx Method {compare-lexicographically (seq seq)} @ @r{&key} @r{(@var{val-compare-fn} #'compare)}
 A generic function with methods to compare strings, lists, or vectors lexicographically.  In the
-case of lists and vectors, you can optionally supply a function to compare the individual values
-(elements) with.
+case of lists and vectors, you can optionally supply a function to compare their elements with.
 @end deffn
 
 @defun compare-strings-lexicographically a b
@@ -726,7 +726,7 @@ transients are useful primarily for the specific scenario of populating a new co
 else --- but of course, populating a new collection is very common.
 
 Transients are mutable objects.  Instead of the usual FSet functional update operations ---
-@code{with}, @code{less}, etc. --- you update them using operations such as @code{include!},
+@code{with}, @code{less}, @i{etc.} --- you update them using operations such as @code{include!},
 @code{exclude!}, and @code{(setf lookup!)}.  @code{include!} and @code{exclude!} correspond to
 @code{with} and @code{less}, or perhaps more clearly, to @code{includef} and @code{excludef}, which
 expand to @code{with} and @code{less} respectively.  Be sure you understand the semantic

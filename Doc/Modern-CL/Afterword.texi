@@ -1,0 +1,29 @@
+@node Afterword
+@unnumbered Afterword
+
+It has been an interesting experience working on FSet and this book over the last eight months or
+so, while LLM-driven programming has exploded onto the scene.  As I promised on the title page, this
+book contains no LLM-generated text whatsoever.  I wasn't going to use an LLM to generate any code
+for FSet either, but at one point, curiosity got the better of me and I had Claude Code try to write
+one function (@code{ch-bag-tree-less}).  I checked it meticulously; it was very close to correct,
+but not perfect.  At that point, I was almost done with the major coding anyway, so I went back to
+doing it by hand.
+
+Programming manually has come to feel a little quixotic, but I'm still glad I did it.  It's clear
+that LLMs don't yet have the design sense of a skilled human.  Writing this book, I came across a
+number of points where I thought improving the code was a better choice than documenting its current
+behavior, so I made those improvements; I don't think an LLM, at least in early 2026, would have had
+the judgment to know when to do that, and if I weren't writing the book myself, I might not have
+noticed the issues in the first place.
+
+At the very least, FSet can be my small contribution to the world's human-generated training data.
+
+FSet is now faster, better tested and debugged@footnote{I thank Paul Dietz for his help writing
+tests.}, more feature-complete, and with this book, much better documented than it has been for the
+bulk of its nearly-two-decade history.
+
+I think FSet makes writing Common Lisp easier and more enjoyable.  I hope it not only finds wider
+use within the Common Lisp community, but also helps grow that community by attracting people who
+have not yet discovered the pleasures of the language.
+
+--- Scott L. Burson, April 2026

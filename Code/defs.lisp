@@ -66,7 +66,7 @@
 	   #:set-difference #:set-difference-2 #:bag-difference
 	   #:subset? #:proper-subset? #:disjoint? #:subbag? #:proper-subbag?
 	   #:filter #:filter-pairs #:partition
-	   #:image #:reduce #:domain #:range #:update
+	   #:image #:reduce #:domain #:range #:updated #:update
 	   #:with-default #:default
 	   #:non-char-seq-error #:non-char-seq-error-seq
 	   #:map-union #:map-intersection #:map-difference-2 #:map-image
@@ -214,7 +214,7 @@
 	   #:set-difference #:set-difference-2 #:bag-difference
 	   #:subset? #:proper-subset #:disjoint? #:subbag? #:proper-subbag?
 	   #:filter #:filter-pairs #:partition
-	   #:image #:reduce #:domain #:range #:update
+	   #:image #:reduce #:domain #:range #:updated #:update
 	   #:with-default #:without-default #:default #:clear-default
 	   #:lookup-error #:map-domain-error #:map-domain-error-map #:map-domain-error-key
 	   #:seq-bounds-error #:seq-bounds-error-seq #:seq-bounds-error-index
@@ -341,13 +341,13 @@
 			  #:search #:mismatch))
 
 
-(pushnew ':FSet *features*)
-(pushnew ':FSet2 *features*)
+(pushnew ':fset *features*)
+(pushnew ':fset2 *features*)
 
 ;;; The seq implementation uses strings for leaf vectors when possible.
 ;;; In some Lisp implementations, there are two kinds of strings.
 (when (not (typep (make-string 1 :element-type 'character :initial-element #\A)
 		  'base-string))
-  (pushnew ':FSet-Ext-Strings *features*))
+  (pushnew ':fset-ext-strings *features*))
 
 

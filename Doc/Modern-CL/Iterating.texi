@@ -238,7 +238,7 @@ example) from lists or vectors, GMap has many other argument generators, e.g., @
 integer subrange; @code{hash-table} for the pairs of a hash table; or @code{file-chars} or
 @code{file-lines} for the contents of a file.  Similarly, GMap has more result collector types,
 e.g., @code{and} (provides the functionality of @code{cl:every}), @code{or} (ditto for
-@code{cl:some}), @code{sum}, @code{max}/@code{min}, etc.
+@code{cl:some}), @code{sum}, @code{max}/@code{min}, @i{etc.}
 
 FSet builds on these by adding argument generators and result collectors for its collections.  (GMap
 predated FSet and can be used without it; I will list the ``base'' GMap features separately from
@@ -328,6 +328,7 @@ Yields the successive tails (cdrs) of @var{list}, starting with @var{list} itsel
 improper.
 @end deffn
 
+@anchor{GMap arg type index}
 @deffn {GMap arg type} index @r{&optional} start stop @r{&key} incr @r{(@var{fixnums?} t)}
 Yields integers in the interval [@var{start}, @var{stop}) if @var{incr} (which defaults to 1) is
 positive; or in the interval [@var{stop}, @var{start}) if @var{incr} is negative.  Specifically, in
@@ -354,25 +355,25 @@ multiplied by @var{base} on each iteration.
 @deffn {GMap arg type} vector vec @r{&key} start stop incr
 Yields elements of vector @var{vec}.  @var{start} and @var{stop} may be supplied to select a
 subsequence of @var{vec}; @var{incr} may be supplied (it must be positive) to select every second
-element etc.  For performance, you may prefer @code{simple-vector}.
+element @i{etc.}  For performance, you may prefer @code{simple-vector}.
 @end deffn
 
 @deffn {GMap arg type} simple-vector vec @r{&key} start stop incr
 Yields elements of vector @var{vec}, which is assumed to be simple, and whose size is assumed to be
 a fixnum.  @var{start} and @var{stop} may be supplied to select a subsequence of @var{vec};
-@var{incr} may be supplied (it must be positive) to select every second element etc.
+@var{incr} may be supplied (it must be positive) to select every second element @i{etc.}
 @end deffn
 
 @deffn {GMap arg type} string str @r{&key} start stop incr
 Yields elements of string @var{str}.  @var{start} and @var{stop} may be supplied to select a
 subsequence of @var{vec}; @var{incr} may be supplied (it must be positive) to select every second
-element etc.  For performance, you may prefer @var{simple-string}.
+element @i{etc.}  For performance, you may prefer @var{simple-string}.
 @end deffn
 
 @deffn {GMap arg type} simple-string str @r{&key} start stop incr
 Yields elements of string @var{str}, which is assumed to be simple, and whose size is assumed to be
 a fixnum.  @var{start} and @var{stop} may be supplied to select a subsequence of @var{str};
-@var{incr} may be supplied (it must be positive) to select every second element etc.
+@var{incr} may be supplied (it must be positive) to select every second element @i{etc.}
 @end deffn
 
 @deffn {GMap arg type} array ary @r{&key} start stop incr
@@ -532,12 +533,12 @@ in row-major order.
 @node GMap FSet Argument Types
 @subsection GMap FSet Argument Types
 
-Many of these come in both generic (@code{set}, @code{bag}, etc.) and implementation-specific
-(@code{ch-set}, @code{wb-set}, etc.) flavors.  In the past, there were performance reasons to prefer
-the specific ones when the implementation were known, but that is mostly no longer the case.  The one
-situation in which you might notice a difference is when doing parallel iteration over two or more
-collections; even then, the difference will be small.  So I recommend sticking with the generic
-ones; I have documented the specific ones here just for completeness.
+Many of these come in both generic (@code{set}, @code{bag}, @i{etc.}) and implementation-specific
+(@code{ch-set}, @code{wb-set}, @i{etc.}) flavors.  In the past, there were performance reasons to
+prefer the specific ones when the implementation were known, but that is mostly no longer the case.
+The one situation in which you might notice a difference is when doing parallel iteration over two
+or more collections; even then, the difference will be small.  So I recommend sticking with the
+generic ones; I have documented the specific ones here just for completeness.
 
 @deffn {GMap arg type} sequence seq
 Yields the elements of @var{seq}, which can be of any CL sequence type as well as an FSet seq, or a
@@ -589,6 +590,7 @@ Yields each element of @var{b} repeatedly, as many times as its multiplicity.
 Yields each element of @var{b} and its multiplicity as two values.
 @end deffn
 
+@anchor{GMap arg type seq}
 @deffn {GMap arg type} seq @ @r{&key} start end from-end?
 @deffnx {GMap arg type} wb-seq @ @r{&key} start end from-end?
 Yields the elements of @var{seq}.  The keyword parameters @var{start} and @var{end} can be supplied
@@ -700,6 +702,7 @@ Returns a CHAMP bag of the values, optionally filtered by @var{filterp}.  @var{c
 be supplied to specify a custom organization.
 @end deffn
 
+@anchor{GMap result type wb-bag}
 @deffn {GMap result type} wb-bag @ @r{&key} filterp compare-fn-name
 Returns a WB-bag of the values, optionally filtered by @var{filterp}.  @var{compare-fn-name} can be
 supplied to specify a custom ordering.
@@ -732,6 +735,7 @@ supplied, returns the full set, which contains every value with multiplicity 1; 
 full-set, @code{full-set}}.)
 @end deffn
 
+@anchor{GMap result type seq}
 @deffn {GMap result type} seq @ @r{&key} filterp
 @deffnx {GMap result type} wb-seq @ @r{&key} filterp
 Returns a seq of the values, optionally filtered by @var{filterp}.

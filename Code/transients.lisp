@@ -749,10 +749,29 @@ Note that this requires making an O(n) copy of the set."
 	(values nil nil nil)))))
 
 (defmethod first ((trm transient-ch-replay-map))
-  (at-index trm 0))
+  (with-lock-maybe ((transient-lock trm))
+    (let ((key? key (wb-ht?-seq-tree-subscript (transient-replay-map-ordering trm) 0)))
+      (if key?
+	  (let ((hmorg (transient-ch-replay-map-org trm))
+		((val? val (ch-map-tree-lookup (transient-ch-replay-map-contents trm) key
+					       (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)))))
+	    (unless val?
+	      (error "Bug in transient-ch-replay-map"))
+	    (values key val t))
+	(values nil nil nil)))))
 
 (defmethod last ((trm transient-ch-replay-map))
-  (at-index trm (1- (size trm))))
+  (with-lock-maybe ((transient-lock trm))
+    (let ((tree (transient-replay-map-ordering trm))
+	  ((key? key (wb-ht?-seq-tree-subscript tree (1- (wb-ht?-seq-tree-size tree))))))
+      (if key?
+	  (let ((hmorg (transient-ch-replay-map-org trm))
+		((val? val (ch-map-tree-lookup (transient-ch-replay-map-contents trm) key
+					       (hash-map-org-key-hash-fn hmorg) (hash-map-org-key-compare-fn hmorg)))))
+	    (unless val?
+	      (error "Bug in transient-ch-replay-map"))
+	    (values key val t))
+	(values nil nil nil)))))
 
 (defmethod index ((trm transient-ch-replay-map) key)
   "WARNING: linear-time operation!"

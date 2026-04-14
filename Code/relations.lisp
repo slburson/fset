@@ -188,32 +188,32 @@ values."
 (defmethod arb ((rel wb-2-relation))
   (let ((tree (wb-2-relation-map0 rel)))
     (if tree
-	(let ((key val (WB-Map-Tree-Arb-Pair tree)))
-	  (values key (WB-Set-Tree-Arb val) t))
+	(let ((key val (wb-map-tree-arb-pair tree)))
+	  (values key (wb-set-tree-arb val) t))
       (values nil nil nil))))
 
 (defmethod contains? ((rel wb-2-relation) x &optional (y nil y?))
   (check-three-arguments y? 'contains? 'wb-2-relation)
   (let ((org (wb-2-relation-org rel))
-	((found? set-tree (WB-Map-Tree-Lookup (wb-2-relation-map0 rel) x (tree-map-org-key-compare-fn org)))))
-    (and found? (WB-Set-Tree-Contains? set-tree y (tree-map-org-val-compare-fn org)))))
+	((found? set-tree (wb-map-tree-lookup (wb-2-relation-map0 rel) x (tree-map-org-key-compare-fn org)))))
+    (and found? (wb-set-tree-contains? set-tree y (tree-map-org-val-compare-fn org)))))
 
 (defmethod domain-contains? ((rel wb-2-relation) x)
   (let ((org (wb-2-relation-org rel)))
     ;; Wrap in `(not (null ...))' so we don't expose the internal set tree.
-    (not (null (WB-Map-Tree-Lookup (wb-2-relation-map0 rel) x (tree-map-org-key-compare-fn org))))))
+    (not (null (wb-map-tree-lookup (wb-2-relation-map0 rel) x (tree-map-org-key-compare-fn org))))))
 
 (defmethod range-contains? ((rel wb-2-relation) x)
   (wb-2-relation-get-inverse rel)
   (let ((org (wb-2-relation-org rel)))
     ;; Wrap in `(not (null ...))' so we don't expose the internal set tree.
-    (not (null (WB-Map-Tree-Lookup (wb-2-relation-map1 rel) x (tree-map-org-key-compare-fn org))))))
+    (not (null (wb-map-tree-lookup (wb-2-relation-map1 rel) x (tree-map-org-key-compare-fn org))))))
 
 ;;; Note that `(setf (lookup rel x) y)' is the same as `(includef rel x y)'.
 (define-methods (lookup fset2:lookup) ((rel wb-2-relation) x)
   "Returns the set of values that the relation pairs `x' with."
   (let ((org (wb-2-relation-org rel))
-	((found? set-tree (WB-Map-Tree-Lookup (wb-2-relation-map0 rel) x (tree-map-org-key-compare-fn org)))))
+	((found? set-tree (wb-map-tree-lookup (wb-2-relation-map0 rel) x (tree-map-org-key-compare-fn org)))))
     ;; We don't go through `empty-wb-set' here, because that would retrieve the current
     ;; `symbol-function' of the `key-compare-fn-name', which might have been changed since
     ;; the relation was created.
@@ -222,16 +222,16 @@ values."
 (defmethod lookup-inv ((rel wb-2-relation) y)
   (wb-2-relation-get-inverse rel)
   (let ((org (wb-2-relation-org rel))
-	((found? set-tree (WB-Map-Tree-Lookup (wb-2-relation-map1 rel) y (tree-map-org-val-compare-fn org)))))
+	((found? set-tree (wb-map-tree-lookup (wb-2-relation-map1 rel) y (tree-map-org-val-compare-fn org)))))
     (make-wb-set (and found? set-tree) (wb-2-relation-domain-set-org rel))))
 
 (defmethod domain ((rel wb-2-relation))
-  (make-wb-set (WB-Map-Tree-Domain (wb-2-relation-map0 rel))
+  (make-wb-set (wb-map-tree-domain (wb-2-relation-map0 rel))
 	       (wb-2-relation-domain-set-org rel)))
 
 (defmethod range ((rel wb-2-relation))
   (wb-2-relation-get-inverse rel)
-  (make-wb-set (WB-Map-Tree-Domain (wb-2-relation-map1 rel))
+  (make-wb-set (wb-map-tree-domain (wb-2-relation-map1 rel))
 	       (wb-2-relation-range-set-org rel)))
 
 ;;; There was an `at-rank' that just operated on `map0', making no attempt to compute the
@@ -277,14 +277,14 @@ values."
 
 (defun wb-2-relation-compute-inverse (map0 org)
   (let ((map1 nil))
-    (Do-WB-Map-Tree-Pairs (x s map0)
-      (Do-WB-Set-Tree-Members (y s)
-	(let ((ignore prev (WB-Map-Tree-Lookup map1 y (tree-map-org-val-compare-fn org))))
+    (do-wb-map-tree-pairs (x s map0)
+      (do-wb-set-tree-members (y s)
+	(let ((ignore prev (wb-map-tree-lookup map1 y (tree-map-org-val-compare-fn org))))
 	  (declare (ignore ignore))
-	  ;; The `val-cmp-fn' for `WB-Map-Tree-With' is comparing set trees, not elements.
+	  ;; The `val-cmp-fn' for `wb-map-tree-with' is comparing set trees, not elements.
 	  ;; `eql-compare' suffices for this (actually, in this case, we could use `(constantly ':unequal)',
 	  ;; since `x' values are unique).
-	  (setq map1 (WB-Map-Tree-With map1 y (WB-Set-Tree-With prev x (tree-map-org-key-compare-fn org))
+	  (setq map1 (wb-map-tree-with map1 y (wb-set-tree-with prev x (tree-map-org-key-compare-fn org))
 				       (tree-map-org-val-compare-fn org) #'eql-compare)))))
     map1))
 
@@ -302,7 +302,7 @@ values."
 (defmethod least ((rel wb-2-relation))
   (let ((tree (wb-2-relation-map0 rel)))
     (if tree
-	(let ((key vals (WB-Map-Tree-Least-Pair tree))
+	(let ((key vals (wb-map-tree-least-pair tree))
 	      (org (wb-2-relation-org rel)))
 	  (values key (make-wb-set vals (make-tree-set-org (tree-map-org-val-compare-fn-name org)
 							   (tree-map-org-val-compare-fn org)))
@@ -312,7 +312,7 @@ values."
 (defmethod greatest ((rel wb-2-relation))
   (let ((tree (wb-2-relation-map0 rel)))
     (if tree
-	(let ((key vals (WB-Map-Tree-Greatest-Pair tree))
+	(let ((key vals (wb-map-tree-greatest-pair tree))
 	      (org (wb-2-relation-org rel)))
 	  (values key (make-wb-set vals (make-tree-set-org (tree-map-org-val-compare-fn-name org)
 							   (tree-map-org-val-compare-fn org)))
@@ -326,27 +326,27 @@ values."
   (let ((org (wb-2-relation-org rel))
 	((map0-cmp-fn (tree-map-org-key-compare-fn org))
 	 (map1-cmp-fn (tree-map-org-val-compare-fn org))
-	 ((found? set-tree (WB-Map-Tree-Lookup (wb-2-relation-map0 rel) x map0-cmp-fn))))
+	 ((found? set-tree (wb-map-tree-lookup (wb-2-relation-map0 rel) x map0-cmp-fn))))
 	(map1 (wb-2-relation-map1 rel)))
     (if found?
-	(let ((new-set-tree (WB-Set-Tree-With set-tree y map1-cmp-fn)))
+	(let ((new-set-tree (wb-set-tree-with set-tree y map1-cmp-fn)))
 	  (if (eq new-set-tree set-tree)
 	      rel			; `y' was already there
 	    (make-wb-2-relation (1+ (wb-2-relation-size rel))
-				(WB-Map-Tree-With (wb-2-relation-map0 rel) x new-set-tree map0-cmp-fn #'eql-compare)
+				(wb-map-tree-with (wb-2-relation-map0 rel) x new-set-tree map0-cmp-fn #'eql-compare)
 				(if (eq map1 'no-inverse) map1
-				  (let ((ignore set-tree-1 (WB-Map-Tree-Lookup map1 y map1-cmp-fn)))
+				  (let ((ignore set-tree-1 (wb-map-tree-lookup map1 y map1-cmp-fn)))
 				    (declare (ignore ignore))
-				    (WB-Map-Tree-With map1 y (WB-Set-Tree-With set-tree-1 x map0-cmp-fn)
+				    (wb-map-tree-with map1 y (wb-set-tree-with set-tree-1 x map0-cmp-fn)
 						      map1-cmp-fn #'eql-compare)))
 				org)))
       (make-wb-2-relation (1+ (wb-2-relation-size rel))
-			  (WB-Map-Tree-With (wb-2-relation-map0 rel) x (WB-Set-Tree-With nil y map1-cmp-fn)
+			  (wb-map-tree-with (wb-2-relation-map0 rel) x (wb-set-tree-with nil y map1-cmp-fn)
 					    map0-cmp-fn #'eql-compare)
 			  (if (eq map1 'no-inverse) map1
-			    (let ((ignore set-tree-1 (WB-Map-Tree-Lookup map1 y map1-cmp-fn)))
+			    (let ((ignore set-tree-1 (wb-map-tree-lookup map1 y map1-cmp-fn)))
 			      (declare (ignore ignore))
-			      (WB-Map-Tree-With map1 y (WB-Set-Tree-With set-tree-1 x map0-cmp-fn)
+			      (wb-map-tree-with map1 y (wb-set-tree-with set-tree-1 x map0-cmp-fn)
 						map1-cmp-fn #'eql-compare)))
 			  org))))
 
@@ -357,24 +357,24 @@ values."
   (let ((org (wb-2-relation-org rel))
 	((map0-cmp-fn (tree-map-org-key-compare-fn org))
 	 (map1-cmp-fn (tree-map-org-val-compare-fn org))
-	 ((found? set-tree (WB-Map-Tree-Lookup (wb-2-relation-map0 rel) x map0-cmp-fn))))
+	 ((found? set-tree (wb-map-tree-lookup (wb-2-relation-map0 rel) x map0-cmp-fn))))
 	(map1 (wb-2-relation-map1 rel)))
     (if (not found?)
 	rel
-      (let ((new-set-tree (WB-Set-Tree-Less set-tree y map1-cmp-fn)))
+      (let ((new-set-tree (wb-set-tree-less set-tree y map1-cmp-fn)))
 	(if (eq new-set-tree set-tree)
 	    rel
 	  (make-wb-2-relation (1- (wb-2-relation-size rel))
 			      (if new-set-tree
-				  (WB-Map-Tree-With (wb-2-relation-map0 rel) x new-set-tree map0-cmp-fn #'eql-compare)
-				(WB-Map-Tree-Less (wb-2-relation-map0 rel) x map0-cmp-fn))
+				  (wb-map-tree-with (wb-2-relation-map0 rel) x new-set-tree map0-cmp-fn #'eql-compare)
+				(wb-map-tree-less (wb-2-relation-map0 rel) x map0-cmp-fn))
 			      (if (eq map1 'no-inverse) map1
-				(let ((ignore set-tree (WB-Map-Tree-Lookup map1 y map1-cmp-fn))
-				      ((new-set-tree (WB-Set-Tree-Less set-tree x map0-cmp-fn))))
+				(let ((ignore set-tree (wb-map-tree-lookup map1 y map1-cmp-fn))
+				      ((new-set-tree (wb-set-tree-less set-tree x map0-cmp-fn))))
 				  (declare (ignore ignore))
 				  (if new-set-tree
-				      (WB-Map-Tree-With map1 y new-set-tree map1-cmp-fn #'eql-compare)
-				    (WB-Map-Tree-Less map1 y map1-cmp-fn))))
+				      (wb-map-tree-with map1 y new-set-tree map1-cmp-fn #'eql-compare)
+				    (wb-map-tree-less map1 y map1-cmp-fn))))
 			      org))))))
 
 (defmethod union ((rel1 wb-2-relation) (rel2 wb-2-relation) &key)
@@ -382,12 +382,12 @@ values."
       (let ((new-size (+ (wb-2-relation-size rel1) (wb-2-relation-size rel2)))
 	    (map0-cmp-fn (tree-map-org-key-compare-fn org))
 	    (map1-cmp-fn (tree-map-org-val-compare-fn org))
-	    ((new-map0 (WB-Map-Tree-Union (wb-2-relation-map0 rel1) (wb-2-relation-map0 rel2)
+	    ((new-map0 (wb-map-tree-union (wb-2-relation-map0 rel1) (wb-2-relation-map0 rel2)
 					  (lambda (s1 s2)
-					    (let ((s (WB-Set-Tree-Union s1 s2 map1-cmp-fn)))
+					    (let ((s (wb-set-tree-union s1 s2 map1-cmp-fn)))
 					      (decf new-size
-						    (- (+ (WB-Set-Tree-Size s1) (WB-Set-Tree-Size s2))
-						       (WB-Set-Tree-Size s)))
+						    (- (+ (wb-set-tree-size s1) (wb-set-tree-size s2))
+						       (wb-set-tree-size s)))
 					      s))
 					  ;; Passing `(constantly ':unequal)' forces the previous lambda
 					  ;; to be called whenever keys match.
@@ -398,8 +398,8 @@ values."
 			 (progn
 			   (wb-2-relation-get-inverse rel1)
 			   (wb-2-relation-get-inverse rel2)
-			   (WB-Map-Tree-Union (wb-2-relation-map1 rel1) (wb-2-relation-map1 rel2)
-					      (fn (a b) (WB-Set-Tree-Union a b map0-cmp-fn))
+			   (wb-map-tree-union (wb-2-relation-map1 rel1) (wb-2-relation-map1 rel2)
+					      (fn (a b) (wb-set-tree-union a b map0-cmp-fn))
 					      map1-cmp-fn (constantly ':unequal)))))))
 	(make-wb-2-relation new-size new-map0 new-map1 org))
     (call-next-method)))
@@ -409,11 +409,11 @@ values."
       (let ((new-size 0)
 	    (map0-cmp-fn (tree-map-org-key-compare-fn org))
 	    (map1-cmp-fn (tree-map-org-val-compare-fn org))
-	    ((new-map0 (WB-Map-Tree-Intersect (wb-2-relation-map0 rel1)
+	    ((new-map0 (wb-map-tree-intersect (wb-2-relation-map0 rel1)
 					      (wb-2-relation-map0 rel2)
 					      (lambda (s1 s2)
-						(let ((s (WB-Set-Tree-Intersect s1 s2 map1-cmp-fn)))
-						  (incf new-size (WB-Set-Tree-Size s))
+						(let ((s (wb-set-tree-intersect s1 s2 map1-cmp-fn)))
+						  (incf new-size (wb-set-tree-size s))
 						  (values s (and (null s) ':no-value))))
 					      map0-cmp-fn (constantly ':unequal)))
 	     (new-map1 (if (and (eq (wb-2-relation-map1 rel1) 'no-inverse)
@@ -422,9 +422,9 @@ values."
 			 (progn
 			   (wb-2-relation-get-inverse rel1)
 			   (wb-2-relation-get-inverse rel2)
-			   (WB-Map-Tree-Intersect (wb-2-relation-map1 rel1) (wb-2-relation-map1 rel2)
+			   (wb-map-tree-intersect (wb-2-relation-map1 rel1) (wb-2-relation-map1 rel2)
 						  (lambda (s1 s2)
-						    (let ((s (WB-Set-Tree-Intersect s1 s2 map0-cmp-fn)))
+						    (let ((s (wb-set-tree-intersect s1 s2 map0-cmp-fn)))
 						      (values s (and (null s) ':no-value))))
 						  map1-cmp-fn (constantly ':unequal)))))))
 	(make-wb-2-relation new-size new-map0 new-map1 org))
@@ -456,29 +456,29 @@ values."
 	(new-map0 nil)
 	(new-map1 'no-inverse)
 	(new-size 0))
-    (Do-WB-Map-Tree-Pairs (x ys map0a)
-      (Do-WB-Set-Tree-Members (y ys)
-	(let ((s? s (WB-Map-Tree-Lookup map0b y cmp-fn-0b)))
+    (do-wb-map-tree-pairs (x ys map0a)
+      (do-wb-set-tree-members (y ys)
+	(let ((s? s (wb-map-tree-lookup map0b y cmp-fn-0b)))
 	  (when s?
-	    (let ((ignore prev (WB-Map-Tree-Lookup new-map0 x cmp-fn-0a))
-		  ((new (WB-Set-Tree-Union prev s cmp-fn-1b))))
+	    (let ((ignore prev (wb-map-tree-lookup new-map0 x cmp-fn-0a))
+		  ((new (wb-set-tree-union prev s cmp-fn-1b))))
 	      (declare (ignore ignore))
-	      (incf new-size (- (WB-Set-Tree-Size new) (WB-Set-Tree-Size prev)))
-	      (setq new-map0 (WB-Map-Tree-With new-map0 x new cmp-fn-0a #'eql-compare)))))))
+	      (incf new-size (- (wb-set-tree-size new) (wb-set-tree-size prev)))
+	      (setq new-map0 (wb-map-tree-with new-map0 x new cmp-fn-0a #'eql-compare)))))))
     (unless (and (eq map1a 'no-inverse) (eq map1b 'no-inverse))
       (when (eq map1a 'no-inverse)
 	(setq map1a (wb-2-relation-get-inverse rela)))
       (when (eq map1b 'no-inverse)
 	(setq map1b (wb-2-relation-get-inverse relb)))
       (setq new-map1 nil)
-      (Do-WB-Map-Tree-Pairs (x ys map1b)
-	(Do-WB-Set-Tree-Members (y ys)
-	  (let ((s? s (WB-Map-Tree-Lookup map1a y cmp-fn-1a)))
+      (do-wb-map-tree-pairs (x ys map1b)
+	(do-wb-set-tree-members (y ys)
+	  (let ((s? s (wb-map-tree-lookup map1a y cmp-fn-1a)))
 	    (when s?
-	      (let ((ignore prev (WB-Map-Tree-Lookup new-map1 x cmp-fn-1b)))
+	      (let ((ignore prev (wb-map-tree-lookup new-map1 x cmp-fn-1b)))
 		(declare (ignore ignore))
 		(setq new-map1
-		      (WB-Map-Tree-With new-map1 x (WB-Set-Tree-Union prev s cmp-fn-0a)
+		      (wb-map-tree-with new-map1 x (wb-set-tree-union prev s cmp-fn-0a)
 					cmp-fn-1b #'eql-compare))))))))
     (make-wb-2-relation new-size new-map0 new-map1
 			(make-tree-map-org cmp-fn-0a-name cmp-fn-0a cmp-fn-1b-name cmp-fn-1b))))
@@ -508,9 +508,9 @@ values."
 	 ((new-map0 (gmap (:result wb-map)
 			  (fn (x ys)
 			    (let ((result nil))
-			      (Do-WB-Set-Tree-Members (y ys)
-				(setq result (WB-Set-Tree-With result (@ fn y) (tree-map-org-val-compare-fn org))))
-			      (incf new-size (WB-Set-Tree-Size result))
+			      (do-wb-set-tree-members (y ys)
+				(setq result (wb-set-tree-with result (@ fn y) (tree-map-org-val-compare-fn org))))
+			      (incf new-size (wb-set-tree-size result))
 			      (values x result)))
 			  (:arg wb-map (make-wb-map (wb-2-relation-map0 rel) rel-org nil)))))))
     (make-wb-2-relation new-size (wb-map-contents new-map0) 'no-inverse org)))
@@ -520,8 +520,8 @@ values."
 
 
 (defmethod internal-do-2-relation ((rel wb-2-relation) elt-fn value-fn)
-  (Do-WB-Map-Tree-Pairs (x y-set (wb-2-relation-map0 rel) (funcall value-fn))
-    (Do-WB-Set-Tree-Members (y y-set)
+  (do-wb-map-tree-pairs (x y-set (wb-2-relation-map0 rel) (funcall value-fn))
+    (do-wb-set-tree-members (y y-set)
       (funcall elt-fn x y))))
 
 (defmethod convert ((to-type (eql '2-relation)) (rel 2-relation) &key)
@@ -536,11 +536,11 @@ values."
 	rel
       (let ((map0 nil)
 	    (size 0))
-	(Do-WB-Map-Tree-Pairs (x ys (wb-2-relation-map0 rel))
-	  (Do-WB-Set-Tree-Members (y ys)
-	    (let ((ignore prev (WB-Map-Tree-Lookup map0 x key-compare-fn)))
+	(do-wb-map-tree-pairs (x ys (wb-2-relation-map0 rel))
+	  (do-wb-set-tree-members (y ys)
+	    (let ((ignore prev (wb-map-tree-lookup map0 x key-compare-fn)))
 	      (declare (ignore ignore))
-	      (setq map0 (WB-Map-Tree-With map0 x (WB-Set-Tree-With prev y val-compare-fn)
+	      (setq map0 (wb-map-tree-with map0 x (wb-set-tree-with prev y val-compare-fn)
 					   key-compare-fn #'eql-compare)))
 	    (incf size)))
 	(make-wb-2-relation size map0 (if (eq (wb-2-relation-map1 rel) 'no-inverse) 'no-inverse
@@ -566,7 +566,7 @@ values."
 	(result nil)
 	(pair-fn (coerce pair-fn 'function)))
     (do-2-relation (x y rel)
-      (setq result (WB-Set-Tree-With result (funcall pair-fn x y) (tree-set-org-compare-fn set-org))))
+      (setq result (wb-set-tree-with result (funcall pair-fn x y) (tree-set-org-compare-fn set-org))))
     (make-wb-set result set-org)))
 
 ;;; I've made the default conversions between maps and 2-relations use the
@@ -604,11 +604,11 @@ explicitly overridden in the call."
 						      (compare-fn-name v)))))
 	((compose-org (wb-2-relation-org (empty-wb-2-relation (tree-map-org-key-compare-fn-name (wb-map-org m))
 							      vcfn-name)))
-	 (new-tree (WB-Map-Tree-Compose (wb-map-contents m)
+	 (new-tree (wb-map-tree-compose (wb-map-contents m)
 					(fn (s)
 					  (let ((s (wb-set-contents
 						     (convert 'wb-set s :compare-fn-name vcfn-name))))
-					    (incf size (WB-Set-Tree-Size s))
+					    (incf size (wb-set-tree-size s))
 					    s))))))
     (convert 'wb-2-relation (make-wb-2-relation size new-tree 'no-inverse compose-org)
 	     :key-compare-fn-name (or kcfn-name (tree-map-org-key-compare-fn-name compose-org))
@@ -616,8 +616,8 @@ explicitly overridden in the call."
 
 (defun wb-map-to-wb-2-relation (m key-compare-fn-name val-compare-fn-name)
   (let ((map-org (wb-map-org m))
-	((new-tree (WB-Map-Tree-Compose (wb-map-contents m)
-					(fn (x) (WB-Set-Tree-With nil x (tree-map-org-val-compare-fn map-org)))))))
+	((new-tree (wb-map-tree-compose (wb-map-contents m)
+					(fn (x) (wb-set-tree-with nil x (tree-map-org-val-compare-fn map-org)))))))
     (convert 'wb-2-relation (make-wb-2-relation (size m) new-tree 'no-inverse map-org)
 	     :key-compare-fn-name (or key-compare-fn-name (tree-map-org-key-compare-fn-name map-org))
 	     :val-compare-fn-name (or val-compare-fn-name (tree-map-org-val-compare-fn-name map-org)))))
@@ -680,7 +680,7 @@ corresponding range values.  If the val-compare-fn of the relation is not
 	  ((new-contents
 	     ;; The `convert' is because the val-compare-fn may have been redefined (or at least
 	     ;; recompiled; we can't tell the difference).  We may have to rebuild the set trees.
-	     (WB-Map-Tree-Compose (wb-2-relation-map0 rel)
+	     (wb-map-tree-compose (wb-2-relation-map0 rel)
 				  (fn (tree)
 				    (convert 'wb-set (make-wb-set tree set-org) :compare-fn-name vcfn-nm))))))))
     (make-wb-map new-contents
@@ -693,10 +693,10 @@ corresponding range values.  If the val-compare-fn of the relation is not
   (let ((m0 nil)
 	(key-compare-fn (tree-map-org-key-compare-fn (wb-2-relation-org rel)))
 	(size 0))
-    (Do-WB-Map-Tree-Pairs (x s (wb-2-relation-map0 rel))
-      (when (> (WB-Set-Tree-Size s) 1)
-	(setq m0 (WB-Map-Tree-With m0 x s key-compare-fn #'eql-compare))
-	(incf size (WB-Set-Tree-Size s))))
+    (do-wb-map-tree-pairs (x s (wb-2-relation-map0 rel))
+      (when (> (wb-set-tree-size s) 1)
+	(setq m0 (wb-map-tree-with m0 x s key-compare-fn #'eql-compare))
+	(incf size (wb-set-tree-size s))))
     (make-wb-2-relation size m0 'no-inverse (wb-2-relation-org rel))))
 
 (defun print-wb-2-relation (rel stream level)
@@ -717,34 +717,34 @@ corresponding range values.  If the val-compare-fn of the relation is not
       (write (list x y) :stream stream))))
 
 (defmethod iterator ((rel wb-2-relation) &key)
-  (let ((outer (Make-WB-Map-Tree-Iterator-Internal (wb-2-relation-map0 rel)))
+  (let ((outer (make-wb-map-tree-iterator-internal (wb-2-relation-map0 rel)))
 	(cur-dom-elt nil)
 	(inner nil))
     (flet ((done? ()
-	     (and (WB-Map-Tree-Iterator-Done? outer)
-		  (or (null inner) (WB-Set-Tree-Iterator-Done? inner)))))
+	     (and (wb-map-tree-iterator-done? outer)
+		  (or (null inner) (wb-set-tree-iterator-done? inner)))))
       (lambda (op)
 	(ecase op
 	  (:get (if (done?) (values nil nil nil)
 		  (progn
-		    (when (or (null inner) (WB-Set-Tree-Iterator-Done? inner))
-		      (let ((dom-elt inner-tree (WB-Map-Tree-Iterator-Get outer)))
+		    (when (or (null inner) (wb-set-tree-iterator-done? inner))
+		      (let ((dom-elt inner-tree (wb-map-tree-iterator-get outer)))
 			(setq cur-dom-elt dom-elt)
 			(assert inner-tree)	; must be nonempty
-			(setq inner (Make-WB-Set-Tree-Iterator-Internal inner-tree))))
-		    (values cur-dom-elt (WB-Set-Tree-Iterator-Get inner) t))))
+			(setq inner (make-wb-set-tree-iterator-internal inner-tree))))
+		    (values cur-dom-elt (wb-set-tree-iterator-get inner) t))))
 	  (:done? (done?))
 	  (:more? (not (done?))))))))
 
 (defmethod fun-iterator ((rel wb-2-relation) &key from-end?)
-  (rlabels (walk-outer (if from-end? (WB-Map-Tree-Rev-Fun-Iter (wb-2-relation-map0 rel))
-			 (WB-Map-Tree-Fun-Iter (wb-2-relation-map0 rel))))
+  (rlabels (walk-outer (if from-end? (wb-map-tree-rev-fun-iter (wb-2-relation-map0 rel))
+			 (wb-map-tree-fun-iter (wb-2-relation-map0 rel))))
     (walk-outer (outer)
       (if (funcall outer ':empty?) outer
 	(let ((cur-dom-elt inner-tree (funcall outer ':first)))
 	  (walk-inner (funcall outer ':rest) cur-dom-elt
-		      (if from-end? (WB-Set-Tree-Rev-Fun-Iter inner-tree)
-			(WB-Set-Tree-Fun-Iter inner-tree))))))
+		      (if from-end? (wb-set-tree-rev-fun-iter inner-tree)
+			(wb-set-tree-fun-iter inner-tree))))))
     (walk-inner (outer cur-dom-elt inner)
       (if (funcall inner ':empty?) (walk-outer outer)
 	(lambda (op)
@@ -761,9 +761,9 @@ corresponding range values.  If the val-compare-fn of the relation is not
 	(cond ((< a-size b-size) ':less)
 	      ((> a-size b-size) ':greater)
 	      (t
-	       (WB-Map-Tree-Compare (wb-2-relation-map0 a) (wb-2-relation-map0 b)
+	       (wb-map-tree-compare (wb-2-relation-map0 a) (wb-2-relation-map0 b)
 				    (tree-map-org-key-compare-fn org)
-				    (fn (a b) (WB-Set-Tree-Compare a b (tree-map-org-val-compare-fn org)))))))
+				    (fn (a b) (wb-set-tree-compare a b (tree-map-org-val-compare-fn org)))))))
     (let ((a-kcfn-name (tree-map-org-key-compare-fn-name (wb-2-relation-org a)))
 	  (a-vcfn-name (tree-map-org-val-compare-fn-name (wb-2-relation-org a)))
 	  (b-kcfn-name (tree-map-org-key-compare-fn-name (wb-2-relation-org b)))
@@ -783,11 +783,11 @@ corresponding range values.  If the val-compare-fn of the relation is not
   (let ((result 0)
 	(i 0)
 	(mult 1))
-    (Do-WB-Map-Tree-Pairs (x ys (wb-2-relation-map0 rel))
+    (do-wb-map-tree-pairs (x ys (wb-2-relation-map0 rel))
       (hash-mixf result (hash-multiply mult (hash-value-fixnum x)))
       (setq mult (hash-multiply mult 13))
       (let ((j 0))
-	(Do-WB-Set-Tree-Members (y ys)
+	(do-wb-set-tree-members (y ys)
 	  (hash-mixf result (hash-multiply mult (hash-value-fixnum y)))
 	  (setq mult (hash-multiply mult 3))
 	  (when (= (incf j) 8)
@@ -1663,19 +1663,19 @@ be able to compare both tuples \(lists\) and their elements."
   (null (wb-list-relation-tuples rel)))
 
 (defmethod size ((rel wb-list-relation))
-  (WB-Set-Tree-Size (wb-list-relation-tuples rel)))
+  (wb-set-tree-size (wb-list-relation-tuples rel)))
 
 (defmethod arb ((rel wb-list-relation))
-  (WB-Set-Tree-Arb (wb-list-relation-tuples rel)))
+  (wb-set-tree-arb (wb-list-relation-tuples rel)))
 
 (defmethod at-rank ((rel wb-list-relation) rank)
   (let ((tuples (wb-list-relation-tuples rel))
-	((size (WB-Set-Tree-Size tuples))))
+	((size (wb-set-tree-size tuples))))
     (unless (and (>= rank 0) (< rank size))
       (error 'simple-type-error :datum rank :expected-type `(integer 0 (,size))
 	     :format-control "Rank ~D out of bounds on ~A"
 	     :format-arguments (list rank rel)))
-    (WB-Set-Tree-Rank-Element tuples rank)))
+    (wb-set-tree-rank-element tuples rank)))
 
 (defmethod convert ((to-type (eql 'set)) (rel wb-list-relation) &key)
   (convert 'wb-set rel))
@@ -1695,7 +1695,7 @@ be able to compare both tuples \(lists\) and their elements."
 (defmethod contains? ((rel wb-list-relation) tuple &optional (arg2 nil arg2?))
   (declare (ignore arg2))
   (check-two-arguments arg2? 'contains? 'wb-list-relation)
-  (WB-Set-Tree-Contains? (wb-list-relation-tuples rel) tuple
+  (wb-set-tree-contains? (wb-list-relation-tuples rel) tuple
 			 (tlrorg-tuple-compare-fn (wb-list-relation-org rel))))
 
 (defmethod query ((rel wb-list-relation) pattern &optional (metapattern nil metapattern?))
@@ -1716,16 +1716,16 @@ be able to compare both tuples \(lists\) and their elements."
 	    (let ((reduced-tuple (reduced-tuple pattern mask))
 		  (org (wb-list-relation-org rel))
 		  ((tuple-compare-fn (tlrorg-tuple-compare-fn org))
-		   (index? index (WB-Map-Tree-Lookup (wb-list-relation-read-indices rel)
+		   (index? index (wb-map-tree-lookup (wb-list-relation-read-indices rel)
 						     mask (tlrorg-index-compare-fn org)))))
 	      (if index?
-		  (make-wb-set (nth-value 1 (WB-Map-Tree-Lookup index reduced-tuple tuple-compare-fn))
+		  (make-wb-set (nth-value 1 (wb-map-tree-lookup index reduced-tuple tuple-compare-fn))
 			       (wb-list-relation-result-org rel))
 		(let ((index-results
 			(gmap (:result list :filterp (fn (x) (not (eq x 'none))))
 			      (fn (index i pat-elt)
 				(if (logbitp i mask)
-				    (nth-value 1 (WB-Map-Tree-Lookup index (list pat-elt) tuple-compare-fn))
+				    (nth-value 1 (wb-map-tree-lookup index (list pat-elt) tuple-compare-fn))
 				  'none))
 			      (:arg seq (get-indices rel mask))
 			      (:arg index 0)
@@ -1734,8 +1734,8 @@ be able to compare both tuples \(lists\) and their elements."
 		  ;; circumstances -- e.g. if the result set is much smaller
 		  ;; than the smallest of `index-results'.
 		  (if index-results
-		      (make-wb-set (reduce (fn (a b) (WB-Set-Tree-Intersect a b tuple-compare-fn))
-					   (sort index-results #'< :key #'WB-Set-Tree-Size))
+		      (make-wb-set (reduce (fn (a b) (wb-set-tree-intersect a b tuple-compare-fn))
+					   (sort index-results #'< :key #'wb-set-tree-size))
 				   (wb-list-relation-result-org rel))
 		    ;; Completely uninstantiated pattern
 		    (convert 'wb-set rel)))))))))))
@@ -1762,17 +1762,17 @@ be able to compare both tuples \(lists\) and their elements."
 		      (gmap (:result list :filterp (fn (x) (not (eq x 'none))))
 			    (fn (index i pat-elt)
 			      (if (logbitp i mask)
-				  (gmap (:result nil nil (fn (a b) (WB-Set-Tree-Union a b tuple-compare-fn)))
+				  (gmap (:result nil nil (fn (a b) (wb-set-tree-union a b tuple-compare-fn)))
 					(fn (pat-elt-elt)
-					  (nth-value 1 (WB-Map-Tree-Lookup index (list pat-elt-elt) tuple-compare-fn)))
+					  (nth-value 1 (wb-map-tree-lookup index (list pat-elt-elt) tuple-compare-fn)))
 					(:arg set pat-elt))
 				'none))
 			    (:arg seq (get-indices rel mask))
 			    (:arg index 0)
 			    (:arg list pattern))))))
 	      (if index-results
-		  (make-wb-set (reduce (fn (a b) (WB-Set-Tree-Intersect a b tuple-compare-fn))
-				       (sort index-results #'< :key #'WB-Set-Tree-Size))
+		  (make-wb-set (reduce (fn (a b) (wb-set-tree-intersect a b tuple-compare-fn))
+				       (sort index-results #'< :key #'wb-set-tree-size))
 			       (wb-list-relation-result-org rel))
 		(convert 'wb-set rel)))))))))
 
@@ -1796,14 +1796,14 @@ be able to compare both tuples \(lists\) and their elements."
 			      (let ((restricted (if (eq pat-elt '?) restrict-set
 						  (intersection pat-elt restrict-set))))
 				(values (if (eq pat-elt '?) '?
-					  (gmap (:result nil nil (fn (a b) (WB-Set-Tree-Union a b tuple-compare-fn)))
+					  (gmap (:result nil nil (fn (a b) (wb-set-tree-union a b tuple-compare-fn)))
 						(fn (pat-elt-elt)
-						  (nth-value 1 (WB-Map-Tree-Lookup index (list pat-elt-elt)
+						  (nth-value 1 (wb-map-tree-lookup index (list pat-elt-elt)
 										   tuple-compare-fn)))
 						(:arg set pat-elt)))
-					(gmap (:result nil nil (fn (a b) (WB-Set-Tree-Union a b tuple-compare-fn)))
+					(gmap (:result nil nil (fn (a b) (wb-set-tree-union a b tuple-compare-fn)))
 					      (fn (pat-elt-elt)
-						(nth-value 1 (WB-Map-Tree-Lookup index (list pat-elt-elt)
+						(nth-value 1 (wb-map-tree-lookup index (list pat-elt-elt)
 										 tuple-compare-fn)))
 					      (:arg set restricted)))))
 			    (:arg list pattern)
@@ -1814,13 +1814,13 @@ be able to compare both tuples \(lists\) and their elements."
 	      ;; of the partial results we get this way.  That is, each element of `restricted-results'
 	      ;; might be much smaller than any of `full-results' or even their intersection, so that
 	      ;; materializing that intersection might be much more expensive than doing this.
-	      (make-wb-set (gmap (:result nil nil (fn (a b) (WB-Set-Tree-Union a b tuple-compare-fn)))
+	      (make-wb-set (gmap (:result nil nil (fn (a b) (wb-set-tree-union a b tuple-compare-fn)))
 				 (fn (i)
 				   (let ((results (with full-results i (@ restricted-results i))))
 				     (reduce (fn (a b)
-					       (WB-Set-Tree-Intersect a b tuple-compare-fn))
+					       (wb-set-tree-intersect a b tuple-compare-fn))
 					     (sort (filter (fn (x) (not (eq x '?))) results)
-						   #'< :key #'WB-Set-Tree-Size))))
+						   #'< :key #'wb-set-tree-size))))
 				 (:arg index 0 (length pattern)))
 			   (wb-list-relation-result-org rel)))))))))
 
@@ -1849,7 +1849,7 @@ Indices are returned as internal wb-map trees."
 	 (tuple-compare-fn (tlrorg-tuple-compare-fn org))
 	 ((ex-inds (gmap (:result seq)
 			 (fn (i) (and (logbitp i mask)
-				      (nth-value 1 (WB-Map-Tree-Lookup (wb-list-relation-read-indices rel)
+				      (nth-value 1 (wb-map-tree-lookup (wb-list-relation-read-indices rel)
 								       (ash 1 i) index-compare-fn))))
 			 (:arg index 0 (arity rel))))
 	  ((unindexed (gmap (:result list)
@@ -1869,11 +1869,11 @@ Indices are returned as internal wb-map trees."
 			;; If we called `reduced-tuple', we'd get `(list tuple-elt)'.
 			;; (includef (@ (svref new-indices i) (list tuple-elt)) tuple)
 			(let ((key (list tuple-elt))
-			      ((ignore rt-set (WB-Map-Tree-Lookup (svref new-indices i) key tuple-compare-fn))))
+			      ((ignore rt-set (wb-map-tree-lookup (svref new-indices i) key tuple-compare-fn))))
 			  (declare (ignore ignore))
 			  (setf (svref new-indices i)
-				(WB-Map-Tree-With (svref new-indices i) key
-						  (WB-Set-Tree-With rt-set tuple tuple-compare-fn)
+				(wb-map-tree-with (svref new-indices i) key
+						  (wb-set-tree-with rt-set tuple tuple-compare-fn)
 						  tuple-compare-fn #'eql-compare)))))
 		(:arg list tuple)
 		(:arg list unindexed)
@@ -1886,7 +1886,7 @@ Indices are returned as internal wb-map trees."
 	  (gmap nil (fn (unind i new-index)
 		      (when unind
 			;; (setf (@ indices (ash 1 i)) new-index)
-			(setq indices (WB-Map-Tree-With indices (ash 1 i) new-index index-compare-fn #'eql-compare))))
+			(setq indices (wb-map-tree-with indices (ash 1 i) new-index index-compare-fn #'eql-compare))))
 		(:arg list unindexed)
 		(:arg index 0)
 		(:arg vector new-indices))
@@ -1907,22 +1907,22 @@ Indices are returned as internal wb-map trees."
     (unless (and (listp tuple) (= (length tuple) arity))
       (error "Length of tuple, ~D, does not equal arity, ~D"
 	     (length tuple) arity))
-    (if (WB-Set-Tree-Contains? (wb-list-relation-tuples rel) tuple tuple-compare-fn)
+    (if (wb-set-tree-contains? (wb-list-relation-tuples rel) tuple tuple-compare-fn)
 	rel
-      (make-wb-list-relation arity (WB-Set-Tree-With (wb-list-relation-tuples rel) tuple tuple-compare-fn)
+      (make-wb-list-relation arity (wb-set-tree-with (wb-list-relation-tuples rel) tuple tuple-compare-fn)
 			     ;; (image (lambda (mask rt-map)
 			     ;;          (let ((rt (reduced-tuple tuple mask)))
 			     ;;		   (values mask (with rt-map rt (with (@ rt-map rt) tuple)))))
 			     ;;        (wb-list-relation-indices rel))
 			     (let ((result nil))
-			       (Do-WB-Map-Tree-Pairs (mask rt-map (wb-list-relation-indices rel) result)
+			       (do-wb-map-tree-pairs (mask rt-map (wb-list-relation-indices rel) result)
 				 (let ((rt (reduced-tuple tuple mask))
-				       ((ignore rt-set (WB-Map-Tree-Lookup rt-map rt tuple-compare-fn))
-					((new-rt-set (WB-Set-Tree-With rt-set tuple tuple-compare-fn))
+				       ((ignore rt-set (wb-map-tree-lookup rt-map rt tuple-compare-fn))
+					((new-rt-set (wb-set-tree-with rt-set tuple tuple-compare-fn))
 					 ((new-inner-map
-					    (WB-Map-Tree-With rt-map rt new-rt-set tuple-compare-fn #'eql-compare))))))
+					    (wb-map-tree-with rt-map rt new-rt-set tuple-compare-fn #'eql-compare))))))
 				   (declare (ignore ignore))
-				   (setq result (WB-Map-Tree-With result mask new-inner-map
+				   (setq result (wb-map-tree-with result mask new-inner-map
 								  index-compare-fn #'eql-compare)))))
 			     org))))
 
@@ -1937,22 +1937,22 @@ Indices are returned as internal wb-map trees."
     (unless (and (listp tuple) (= (length tuple) arity))
       (error "Length of tuple, ~D, does not equal arity, ~D"
 	     (length tuple) arity))
-    (if (not (WB-Set-Tree-Contains? (wb-list-relation-tuples rel) tuple tuple-compare-fn))
+    (if (not (wb-set-tree-contains? (wb-list-relation-tuples rel) tuple tuple-compare-fn))
 	rel
-      (make-wb-list-relation arity (WB-Set-Tree-Less (wb-list-relation-tuples rel) tuple tuple-compare-fn)
+      (make-wb-list-relation arity (wb-set-tree-less (wb-list-relation-tuples rel) tuple tuple-compare-fn)
 			     ;; (image (lambda (mask rt-map)
 			     ;; 	 (let ((rt (reduced-tuple tuple mask)))
 			     ;; 	   (values mask (with rt-map rt (less (@ rt-map rt) tuple)))))
 			     ;;        (wb-list-relation-indices rel))
 			     (let ((result nil))
-			       (Do-WB-Map-Tree-Pairs (mask rt-map (wb-list-relation-indices rel) result)
+			       (do-wb-map-tree-pairs (mask rt-map (wb-list-relation-indices rel) result)
 				 (let ((rt (reduced-tuple tuple mask))
-				       ((ignore rt-set (WB-Map-Tree-Lookup rt-map rt tuple-compare-fn))
-					((new-rt-set (WB-Set-Tree-Less rt-set tuple tuple-compare-fn))
+				       ((ignore rt-set (wb-map-tree-lookup rt-map rt tuple-compare-fn))
+					((new-rt-set (wb-set-tree-less rt-set tuple tuple-compare-fn))
 					 ((new-inner-map
-					    (WB-Map-Tree-With rt-map rt new-rt-set tuple-compare-fn #'eql-compare))))))
+					    (wb-map-tree-with rt-map rt new-rt-set tuple-compare-fn #'eql-compare))))))
 				   (declare (ignore ignore))
-				   (setq result (WB-Map-Tree-With result mask new-inner-map
+				   (setq result (wb-map-tree-with result mask new-inner-map
 								  index-compare-fn #'eql-compare)))))
 			     org))))
 
@@ -1972,7 +1972,7 @@ positions in the original pattern."
 
 
 (defmethod internal-do-list-relation ((rel wb-list-relation) elt-fn value-fn)
-  (Do-WB-Set-Tree-Members (tuple (wb-list-relation-tuples rel)
+  (do-wb-set-tree-members (tuple (wb-list-relation-tuples rel)
 				 (funcall value-fn))
     (funcall elt-fn tuple)))
 
@@ -2363,7 +2363,7 @@ Indices are returned as internal ch-map trees."
 			     (let ((result nil))
 			       (do-ch-map-tree-pairs (mask rt-map (ch-list-relation-indices rel) result)
 				 (let ((rt (reduced-tuple tuple mask))
-				       ((ignore rt-set (ch-Map-Tree-Lookup rt-map rt tuple-hash-fn tuple-compare-fn))
+				       ((ignore rt-set (ch-map-tree-lookup rt-map rt tuple-hash-fn tuple-compare-fn))
 					((new-rt-set (ch-set-tree-less rt-set tuple tuple-hash-fn tuple-compare-fn))
 					 ((new-inner-map
 					    (ch-map-tree-with rt-map rt new-rt-set tuple-hash-fn tuple-compare-fn

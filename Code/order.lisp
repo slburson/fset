@@ -240,7 +240,7 @@ This is the right choice for the vast majority of mutable classes."
 	  ;; be "unequal" in two cases: uninterned symbols of the same name;
 	  ;; symbols of the same name in packages one of which has the name that
 	  ;; the other had before `rename-package' was done on it.
-	  (let ((comp (Compare-Strings (symbol-name a) (symbol-name b))))
+	  (let ((comp (compare-strings (symbol-name a) (symbol-name b))))
 	    (if (eq comp ':equal) ':unequal
 	      comp))
 	pkg-comp))))
@@ -249,9 +249,9 @@ This is the right choice for the vast majority of mutable classes."
 ;;; Strings
 
 (defmethod compare ((a string) (b string))
-  (Compare-Strings a b))
+  (compare-strings a b))
 
-(defun Compare-Strings (a b)
+(defun compare-strings (a b)
   (declare (optimize (speed 3) (safety 1))
 	   (type string a b))
   (if (eq a b) ':equal
@@ -341,7 +341,7 @@ This is the right choice for the vast majority of mutable classes."
 
 ;;; Packages (needed for symbols)
 
-(deflex +Package-Original-Name+ (make-hash-table #+sbcl :synchronized #+sbcl t)
+(deflex +package-original-name+ (make-hash-table #+sbcl :synchronized #+sbcl t)
   "FSet uses this to protect itself from the effects of `rename-package',
 which could otherwise change the ordering of packages, and thus of symbols,
 and thus of types named by those symbols.")
@@ -356,8 +356,8 @@ and thus of types named by those symbols.")
   (if (eq a b)
       ':equal
     (flet ((pkg-name (pkg)
-	     (or (gethash pkg +Package-Original-Name+)
-		 (setf (gethash pkg +Package-Original-Name+)
+	     (or (gethash pkg +package-original-name+)
+		 (setf (gethash pkg +package-original-name+)
 		       (package-name pkg)))))
       (let ((a-name (pkg-name a))
 	    (b-name (pkg-name b))

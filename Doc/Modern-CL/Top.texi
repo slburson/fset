@@ -1,12 +1,12 @@
-@settitle Modern Common Lisp with FSet (DRAFT)
+@settitle Modern Common Lisp with FSet
 
 @node Top
-@top Modern Common Lisp with FSet (DRAFT)
+@top Modern Common Lisp with FSet
 
 @syncodeindex fn cp
 @syncodeindex tp cp
 
-Version 0.3
+Version 1.0 (for FSet v2.4.2)
 
 © 2026 Scott L. Burson
 
@@ -15,6 +15,13 @@ This document is published under the Creative Commons
 enables reusers to distribute, remix, adapt, and build upon the material in any medium or format for
 noncommercial purposes only, and only so long as attribution is given to the creator.  If you remix,
 adapt, or build upon the material, you must license the modified material under identical terms.
+
+This document contains no LLM-generated text --- zero, zip, nada.  (Yes, I do use em-dashes and
+semicolons; yes, I have written every one myself.)
+
+For errors noticed or other suggestions, please file issues on
+@uref{https://gitlab.common-lisp.net/fset/fset/-/work_items, Common-Lisp.Net's GitLab instance} or
+@uref{https://github.com/slburson/fset/issues, GitHub}.
 
 
 @c ================================================================================
@@ -54,7 +61,8 @@ adapt, or build upon the material, you must license the modified material under 
 
 @include Introduction.texi
 @include Getting-Started.texi
-@include Conceptual-Underpinnings.texi
+@include Examples.texi
+@include Conceptual-Background.texi
 @include Design.texi
 @include Data-Structures.texi
 @include API-Reference.texi
@@ -62,6 +70,7 @@ adapt, or build upon the material, you must license the modified material under 
 @include Conversions.texi
 @include Printing-Reading.texi
 @include Recommendations.texi
+@include Afterword.texi
 
 @node Index
 @unnumbered Index
@@ -74,10 +83,10 @@ Introduction
   Benefits of Functional Collections
 Getting Started
   Tutorial
-  Examples
   Using FSet
   Misc-Extensions
-Conceptual Underpinnings  ; ``Foundations''?
+Examples
+Conceptual Background
   What is a Functional Datatype?
   Is Lisp a Functional Language?
   A Brief Introduction to Big-O
@@ -190,7 +199,7 @@ Operations named by verbs:
 - find etc.; count etc. (CL; not verbs of modification)  (1)
 - remove (CL; cf. 'delete')  (3)
 - substitute (CL; cf. 'nsubstitute')  (3)
-- update  (7)
+- update  --> updated (7)
 
 @end ignore
 

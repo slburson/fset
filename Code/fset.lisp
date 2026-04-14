@@ -1536,16 +1536,13 @@ Also works on an FSet seq."))
 (define-methods (image fset2:image) ((fn symbol) (l list) &key)
   (mapcar (coerce fn 'function) l))
 
-(defmethod image ((fn map) (l list) &key)
+(define-methods (image fset2:image) ((fn map) (l list) &key)
   (mapcar (lambda (x) (lookup fn x)) l))
-(defmethod fset2:image ((fn map) (l list) &key)
-  (mapcar (lambda (x) (fset2:lookup fn x)) l))
 
-(defmethod image ((fn set) (l list) &key)
+(define-methods (image fset2:image) ((fn set) (l list) &key)
   (mapcar (lambda (x) (lookup fn x)) l))
-(defmethod fset2:image ((fn set) (l list) &key)
-  (mapcar (lambda (x) (fset2:lookup fn x)) l))
 
+;;; Only on bags does `fset2:lookup' return something different.
 (defmethod image ((fn bag) (l list) &key)
   (mapcar (lambda (x) (lookup fn x)) l))
 (defmethod fset2:image ((fn bag) (l list) &key)
@@ -1557,15 +1554,11 @@ Also works on an FSet seq."))
 (define-methods (image fset2:image) ((fn symbol) (l vector) &key)
   (cl:map 'vector (coerce fn 'function) l))
 
-(defmethod image ((fn map) (l vector) &key)
+(define-methods (image fset2:image) ((fn map) (l vector) &key)
   (cl:map 'vector (lambda (x) (lookup fn x)) l))
-(defmethod fset2:image ((fn map) (l vector) &key)
-  (cl:map 'vector (lambda (x) (fset2:lookup fn x)) l))
 
-(defmethod image ((fn set) (l vector) &key)
+(define-methods (image fset2:image) ((fn set) (l vector) &key)
   (cl:map 'vector (lambda (x) (lookup fn x)) l))
-(defmethod fset2:image ((fn set) (l vector) &key)
-  (cl:map 'vector (lambda (x) (fset2:lookup fn x)) l))
 
 (defmethod image ((fn bag) (l vector) &key)
   (cl:map 'vector (lambda (x) (lookup fn x)) l))
@@ -1663,7 +1656,11 @@ Also works on an FSet seq."))
 ;;; Functional deep update
 
 (defun update (fn coll &rest keys)
+  "Old name of `updated'; deprecated."
   (declare (dynamic-extent fn))
+  (apply #'updated fn coll keys))
+
+(defun updated (fn coll &rest keys)
   "Returns a new version of `coll' in which the element reached by doing chained
 `lookup's on `keys' is updated by `fn'.  An example will help a lot here:
 instead of writing
@@ -1672,31 +1669,16 @@ instead of writing
 
 you can write, equivalently
 
-  (setq foo (update #'1+ foo 'a 3 7))
+  (setq foo (updated #'1+ foo 'a 3 7))
 
 This is perhaps most useful in contexts where you don't want to do the `setq'
 anyway.  `fn' can be a function object, an fbound symbol, or a map."
-  (labels ((rec (fn coll keys)
-	     (if (null keys) (@ fn coll)
-	       (with coll (car keys) (rec fn (lookup coll (car keys)) (cdr keys))))))
+  (declare (dynamic-extent fn)
+	   (optimize (speed 3)))
+  (labels ((rec (fn x keys)
+	     (if (null keys) (@ fn x)
+	       (with x (car keys) (rec fn (lookup x (car keys)) (cdr keys))))))
     (rec (if (symbolp fn) (coerce fn 'function) fn) coll keys)))
-
-;;; If the `fn' is nontrivial, binds a variable to it with a `dynamic-extent' declaration.
-;;; (Really, should do this for `image', `filter', etc. etc.)
-;;; -- Actually, I'm not sure SBCL needs this.  It might be enough to add the declaration to
-;;; the `defun' (as I've now done).  Also, it makes a bigger difference here than for `image'
-;;; etc., because `fn' is called only once.
-(define-compiler-macro update (&whole form fn coll &rest keys)
-  (if (not (or (symbolp fn)
-	       (and (listp fn)
-		    (eq (car fn) 'function)
-		    (symbolp (cadr fn)))))
-      (let ((fn-var (gensymx #:fn-)))
-	`(let ((,fn-var ,fn))
-	   (declare (dynamic-extent ,fn-var))
-	   ; (expansion terminates because `fn-var' is a symbol)
-	   (update ,fn-var ,coll . ,keys)))
-    form))
 
 
 ;;; ================================================================================
@@ -1860,40 +1842,40 @@ or hash function, as `s'.  `s' can also be a bag."))
   (null (contents s)))
 
 (define-wb-set-method size ((s wb-set))
-  (WB-Set-Tree-Size (contents s)))
+  (wb-set-tree-size (contents s)))
 
 (define-wb-set-method set-size ((s wb-set))
-  (WB-Set-Tree-Size (contents s)))
+  (wb-set-tree-size (contents s)))
 
 (define-wb-set-method arb ((s wb-set))
   (let ((tree (contents s)))
-    (if tree (values (WB-Set-Tree-Arb tree) t)
+    (if tree (values (wb-set-tree-arb tree) t)
       (values nil nil))))
 
 (define-wb-set-method contains? ((s wb-set) x &optional (y nil y?))
   (declare (ignore y))
   (check-two-arguments y? 'contains? 'wb-set)
-  (WB-Set-Tree-Contains? (contents s) x (compare-fn s)))
+  (wb-set-tree-contains? (contents s) x (compare-fn s)))
 
 ;;; Note, first value is `t' or `nil'.
 (define-wb-set-methods (lookup fset2:lookup) ((s wb-set) key)
-  (WB-Set-Tree-Find-Equal (contents s) key (compare-fn s)))
+  (wb-set-tree-find-equal (contents s) key (compare-fn s)))
 
 (define-wb-set-method rank ((s wb-set) x)
-  (let ((found? rank (WB-Set-Tree-Rank (contents s) x (compare-fn s))))
+  (let ((found? rank (wb-set-tree-rank (contents s) x (compare-fn s))))
     (values (if found? rank (1- rank)) found?)))
 (define-wb-set-method fset2:rank ((s wb-set) x)
-  (let ((found? rank (WB-Set-Tree-Rank (contents s) x (compare-fn s))))
+  (let ((found? rank (wb-set-tree-rank (contents s) x (compare-fn s))))
     (values rank found?)))
 
 (define-wb-set-method at-rank ((s wb-set) rank)
   (let ((contents (contents s))
-	((size (WB-Set-Tree-Size contents))))
+	((size (wb-set-tree-size contents))))
     (unless (and (>= rank 0) (< rank size))
       (error 'simple-type-error :datum rank :expected-type `(integer 0 (,size))
 	     :format-control "Rank ~D out of bounds on ~A"
 	     :format-arguments (list rank s)))
-    (WB-Set-Tree-Rank-Element contents rank)))
+    (wb-set-tree-rank-element contents rank)))
 
 (defmethod index ((s wb-set) x)
   (let ((rank found? (rank s x)))
@@ -1904,19 +1886,19 @@ or hash function, as `s'.  `s' can also be a bag."))
 
 (define-wb-set-method least ((s wb-set))
   (let ((tree (contents s)))
-    (if tree (values (WB-Set-Tree-Least tree) t)
+    (if tree (values (wb-set-tree-least tree) t)
       (values nil nil))))
 
 (define-wb-set-method greatest ((s wb-set))
   (let ((tree (contents s)))
-    (if tree (values (WB-Set-Tree-Greatest tree) t)
+    (if tree (values (wb-set-tree-greatest tree) t)
         (values nil nil))))
 
 (define-wb-set-method with ((s wb-set) value &optional (arg2 nil arg2?))
   (declare (ignore arg2))
   (check-two-arguments arg2? 'with 'wb-set)
   (let ((contents (contents s))
-	((new-contents (WB-Set-Tree-With contents value (compare-fn s)))))
+	((new-contents (wb-set-tree-with contents value (compare-fn s)))))
     (if (eq new-contents contents)
 	s
       (make s new-contents))))
@@ -1925,28 +1907,28 @@ or hash function, as `s'.  `s' can also be a bag."))
   (declare (ignore arg2))
   (check-two-arguments arg2? 'less 'wb-set)
   (let ((contents (contents s))
-	((new-contents (WB-Set-Tree-Less contents value (compare-fn s)))))
+	((new-contents (wb-set-tree-less contents value (compare-fn s)))))
     (if (eq new-contents contents)
 	s
       (make s new-contents))))
 
 (define-wb-set-method split-from ((s wb-set) value)
-  (let ((new-contents (WB-Set-Tree-Split-Above (contents s) value (compare-fn s))))
-    (make s (if (WB-Set-Tree-Contains? (contents s) value (compare-fn s))
-		(WB-Set-Tree-With new-contents value (compare-fn s))
+  (let ((new-contents (wb-set-tree-split-above (contents s) value (compare-fn s))))
+    (make s (if (wb-set-tree-contains? (contents s) value (compare-fn s))
+		(wb-set-tree-with new-contents value (compare-fn s))
 	      new-contents))))
 
 (define-wb-set-method split-above ((s wb-set) value)
-  (make s (WB-Set-Tree-Split-Above (contents s) value (compare-fn s))))
+  (make s (wb-set-tree-split-above (contents s) value (compare-fn s))))
 
 (define-wb-set-method split-through ((s wb-set) value)
-  (let ((new-contents (WB-Set-Tree-Split-Below (contents s) value (compare-fn s))))
-    (make s (if (WB-Set-Tree-Contains? (contents s) value (compare-fn s))
- 		(WB-Set-Tree-With new-contents value (compare-fn s))
+  (let ((new-contents (wb-set-tree-split-below (contents s) value (compare-fn s))))
+    (make s (if (wb-set-tree-contains? (contents s) value (compare-fn s))
+ 		(wb-set-tree-with new-contents value (compare-fn s))
 	      new-contents))))
 
 (define-wb-set-method split-below ((s wb-set) value)
-  (make s (WB-Set-Tree-Split-Below (contents s) value (compare-fn s))))
+  (make s (wb-set-tree-split-below (contents s) value (compare-fn s))))
 
 (defmethod union ((s1 set) (s2 set) &key)
   "Fallback method for mixed implementations."
@@ -1957,7 +1939,7 @@ or hash function, as `s'.  `s' can also be a bag."))
 
 (define-wb-set-method union ((s1 wb-set) (s2 wb-set) &key)
   (if-same-compare-fns (s1 s2)
-      (make s1 (WB-Set-Tree-Union (contents s1) (contents s2) (compare-fn s1)))
+      (make s1 (wb-set-tree-union (contents s1) (contents s2) (compare-fn s1)))
     (call-next-method)))
 
 (defmethod intersection ((s1 set) (s2 set) &key)
@@ -1970,7 +1952,7 @@ or hash function, as `s'.  `s' can also be a bag."))
 
 (define-wb-set-method intersection ((s1 wb-set) (s2 wb-set) &key)
   (if-same-compare-fns (s1 s2)
-      (make s1 (WB-Set-Tree-Intersect (contents s1) (contents s2) (compare-fn s1)))
+      (make s1 (wb-set-tree-intersect (contents s1) (contents s2) (compare-fn s1)))
     (call-next-method)))
 
 (defmethod set-difference ((s1 set) (s2 set) &key)
@@ -1982,7 +1964,7 @@ or hash function, as `s'.  `s' can also be a bag."))
 
 (define-wb-set-method set-difference ((s1 wb-set) (s2 wb-set) &key)
   (if-same-compare-fns (s1 s2)
-      (make s1 (WB-Set-Tree-Diff (contents s1) (contents s2) (compare-fn s1)))
+      (make s1 (wb-set-tree-diff (contents s1) (contents s2) (compare-fn s1)))
     (call-next-method)))
 
 ;;; Intended for internal use by `complement-sets.lisp'.  This returns `s2 - s1', but the
@@ -1997,7 +1979,7 @@ or hash function, as `s'.  `s' can also be a bag."))
 
 (define-wb-set-method set-difference-rev ((s1 wb-set) (s2 wb-set))
   (if-same-compare-fns (s1 s2)
-      (make s1 (WB-Set-Tree-Diff (contents s2) (contents s1) (compare-fn s1)))
+      (make s1 (wb-set-tree-diff (contents s2) (contents s1) (compare-fn s1)))
     (call-next-method)))
 
 (defmethod set-difference-2 ((s1 set) (s2 set))
@@ -2012,7 +1994,7 @@ or hash function, as `s'.  `s' can also be a bag."))
 
 (define-wb-set-method set-difference-2 ((s1 wb-set) (s2 wb-set))
   (if-same-compare-fns (s1 s2)
-      (let ((newc1 newc2 (WB-Set-Tree-Diff-2 (contents s1) (contents s2) (compare-fn s1))))
+      (let ((newc1 newc2 (wb-set-tree-diff-2 (contents s1) (contents s2) (compare-fn s1))))
 	(values (make s1 newc1) (make s2 newc2)))
     (call-next-method)))
 
@@ -2024,7 +2006,7 @@ or hash function, as `s'.  `s' can also be a bag."))
 
 (define-wb-set-method subset? ((s1 wb-set) (s2 wb-set))
   (if-same-compare-fns (s1 s2)
-      (WB-Set-Tree-Subset? (contents s1) (contents s2) (compare-fn s1))
+      (wb-set-tree-subset? (contents s1) (contents s2) (compare-fn s1))
     (call-next-method)))
 
 (defun proper-subset? (sub super)
@@ -2044,7 +2026,7 @@ a subset of `super' and the two are not equal."
 
 (define-wb-set-method disjoint? ((s1 wb-set) (s2 wb-set))
   (if-same-compare-fns (s1 s2)
-      (WB-Set-Tree-Disjoint? (contents s1) (contents s2) (compare-fn s1))
+      (wb-set-tree-disjoint? (contents s1) (contents s2) (compare-fn s1))
     (call-next-method)))
 
 (defmethod compare ((s1 wb-set) (s2 wb-set))
@@ -2068,7 +2050,7 @@ a subset of `super' and the two are not equal."
 ;;; I.e., it doesn't cover the mixed cases.
 (define-wb-set-method compare ((s1 wb-set) (s2 wb-set))
   (if-same-compare-fns (s1 s2)
-      (WB-Set-Tree-Compare (contents s1) (contents s2) (compare-fn s1))
+      (wb-set-tree-compare (contents s1) (contents s2) (compare-fn s1))
     (call-next-method)))
 
 (define-wb-set-method hash-value ((s wb-set))
@@ -2095,16 +2077,16 @@ for the possibility of different set implementations; it is not for public use.
 (define-wb-set-method internal-do-set ((s wb-set) elt-fn value-fn)
   (declare (optimize (speed 3) (safety 0))
 	   (type function elt-fn value-fn))
-  (Do-WB-Set-Tree-Members (x (contents s) (funcall value-fn))
+  (do-wb-set-tree-members (x (contents s) (funcall value-fn))
     (funcall elt-fn x)))
 
 (define-wb-set-method iterator ((s wb-set) &key)
-  (Make-WB-Set-Tree-Iterator (contents s)))
+  (make-wb-set-tree-iterator (contents s)))
 
 (define-wb-set-method fun-iterator ((s wb-set) &key from-end?)
   (if from-end?
-      (WB-Set-Tree-Rev-Fun-Iter (contents s))
-    (WB-Set-Tree-Fun-Iter (contents s))))
+      (wb-set-tree-rev-fun-iter (contents s))
+    (wb-set-tree-fun-iter (contents s))))
 
 (define-wb-set-methods (filter fset2:filter) ((pred function) (s wb-set))
   (make s (wb-set-filter pred (contents s) (compare-fn s))))
@@ -2123,7 +2105,7 @@ for the possibility of different set implementations; it is not for public use.
   (let ((result nil))
     (do-wb-set-tree-members (x contents)
       (when (funcall pred x)
-	(setq result (WB-Set-Tree-With result x compare-fn))))
+	(setq result (wb-set-tree-with result x compare-fn))))
     result))
 
 ;;; A set is another kind of boolean-valued map.
@@ -2156,8 +2138,8 @@ for the possibility of different set implementations; it is not for public use.
 	(result-2 nil))
     (do-wb-set-tree-members (x contents)
       (if (funcall pred x)
-	  (setq result-1 (WB-Set-Tree-With result-1 x compare-fn))
-	(setq result-2 (WB-Set-Tree-With result-2 x compare-fn))))
+	  (setq result-1 (wb-set-tree-with result-1 x compare-fn))
+	(setq result-2 (wb-set-tree-with result-2 x compare-fn))))
     (values result-1 result-2)))
 
 (define-wb-set-methods (image fset2:image) ((fn function) (s wb-set) &key compare-fn-name)
@@ -2183,7 +2165,7 @@ for the possibility of different set implementations; it is not for public use.
   (let ((org (wb-set-org (empty-wb-set compare-fn-name)))
 	(result nil))
     (do-wb-set-tree-members (x contents)
-      (setq result (WB-Set-Tree-With result (funcall fn x) (tree-set-org-compare-fn org))))
+      (setq result (wb-set-tree-with result (funcall fn x) (tree-set-org-compare-fn org))))
     (make-wb-set result org)))
 
 (defmethod reduce ((fn function) (s set) &key key (initial-value nil init?))
@@ -2223,13 +2205,13 @@ for the possibility of different set implementations; it is not for public use.
   (convert-to-wb-set s nil
     (let ((tree nil))
       (do-set (x s tree)
-	(setq tree (WB-Set-Tree-With tree x compare-fn))))))
+	(setq tree (wb-set-tree-with tree x compare-fn))))))
 
 (define-wb-set-method convert ((to-type (eql 'wb-set)) (s wb-set) &key compare-fn-name)
   (convert-to-wb-set s (eq compare-fn (compare-fn s))
     (let ((tree nil))
       (do-wb-set-tree-members (x (contents s) tree)
-	(setq tree (WB-Set-Tree-With tree x compare-fn))))))
+	(setq tree (wb-set-tree-with tree x compare-fn))))))
 
 (defmethod convert ((to-type (eql 'list)) (s set) &key)
   (declare (optimize (speed 3)))
@@ -2257,8 +2239,8 @@ for the possibility of different set implementations; it is not for public use.
 
 (defun wb-set-from-list (l input-sorted? compare-fn)
   (if input-sorted?
-      (WB-Set-Tree-From-Sorted-Iterable (the function (iterator l)) (length l) compare-fn)
-    (WB-Set-Tree-From-List l compare-fn)))
+      (wb-set-tree-from-sorted-iterable (the function (iterator l)) (length l) compare-fn)
+    (wb-set-tree-from-list l compare-fn)))
 
 (defmethod convert ((to-type (eql 'set)) (s seq) &key input-sorted?)
   (make-wb-set (wb-set-from-sequence s input-sorted? #'compare)))
@@ -2276,8 +2258,8 @@ for the possibility of different set implementations; it is not for public use.
 
 (defun wb-set-from-sequence (s input-sorted? compare-fn)
   (if input-sorted?
-      (WB-Set-Tree-From-Sorted-Iterable (the function (iterator s)) (size s) compare-fn)
-    (WB-Set-Tree-From-Iterable (the function (iterator s)) compare-fn)))
+      (wb-set-tree-from-sorted-iterable (the function (iterator s)) (size s) compare-fn)
+    (wb-set-tree-from-iterable (the function (iterator s)) compare-fn)))
 
 (defmethod find (item (s set) &key key test)
   (declare (optimize (speed 3) (safety 0)))
@@ -2806,42 +2788,42 @@ or hash function, as `b'.  `b' can also be a set."))
 (defmethod arb ((b wb-bag))
   (let ((tree (wb-bag-contents b)))
     (if tree
-	(let ((val mult (WB-Bag-Tree-Arb-Pair tree)))
+	(let ((val mult (wb-bag-tree-arb-pair tree)))
 	  (values val mult t))
       (values nil 0 nil))))
 
 (defmethod contains? ((b wb-bag) x &optional (multiplicity 1))
-  (>= (WB-Bag-Tree-Multiplicity (wb-bag-contents b) x (tree-set-org-compare-fn (wb-bag-org b)))
+  (>= (wb-bag-tree-multiplicity (wb-bag-contents b) x (tree-set-org-compare-fn (wb-bag-org b)))
       multiplicity))
 
 (defmethod lookup ((b wb-bag) x)
-  (let ((mult value-found (WB-Bag-Tree-Multiplicity (wb-bag-contents b) x
+  (let ((mult value-found (wb-bag-tree-multiplicity (wb-bag-contents b) x
 						    (tree-set-org-compare-fn (wb-bag-org b)))))
     (if (plusp mult)
 	(values t value-found)
       (values nil nil))))
 (defmethod fset2:lookup ((b wb-bag) x)
-  (WB-Bag-Tree-Multiplicity (wb-bag-contents b) x
+  (wb-bag-tree-multiplicity (wb-bag-contents b) x
 			    (tree-set-org-compare-fn (wb-bag-org b))))
 
 (defmethod rank ((b wb-bag) x)
   "Returns the rank in the set ordering, i.e. the upper bound is the `set-size'."
-  (let ((found? rank (WB-Bag-Tree-Rank (wb-bag-contents b) x (tree-set-org-compare-fn (wb-bag-org b)))))
+  (let ((found? rank (wb-bag-tree-rank (wb-bag-contents b) x (tree-set-org-compare-fn (wb-bag-org b)))))
     (values (if found? rank (1- rank)) found?)))
 (defmethod fset2:rank ((b wb-bag) x)
   "Returns the rank in the set ordering, i.e. the upper bound is the `set-size'."
-  (let ((found? rank (WB-Bag-Tree-Rank (wb-bag-contents b) x (tree-set-org-compare-fn (wb-bag-org b)))))
+  (let ((found? rank (wb-bag-tree-rank (wb-bag-contents b) x (tree-set-org-compare-fn (wb-bag-org b)))))
     (values rank found?)))
 
 (defmethod at-rank ((s wb-bag) rank)
   "Takes the rank in the set ordering, i.e. the upper bound is the `set-size'."
   (let ((contents (wb-bag-contents s))
-	((size (WB-Bag-Tree-Size contents))))
+	((size (wb-bag-tree-size contents))))
     (unless (and (>= rank 0) (< rank size))
       (error 'simple-type-error :datum rank :expected-type `(integer 0 (,size))
 	     :format-control "Rank ~D out of bounds on ~A"
 	     :format-arguments (list rank s)))
-    (WB-Bag-Tree-Rank-Pair contents rank)))
+    (wb-bag-tree-rank-pair contents rank)))
 
 (defmethod index ((b wb-bag) x)
   (let ((rank found? (rank b x)))
@@ -2853,26 +2835,26 @@ or hash function, as `b'.  `b' can also be a set."))
 (defmethod least ((b wb-bag))
   (let ((tree (wb-bag-contents b)))
     (if tree
-	(let ((val mult (WB-Bag-Tree-Least-Pair tree)))
+	(let ((val mult (wb-bag-tree-least-pair tree)))
 	  (values val mult t))
       (values nil nil nil))))
 
 (defmethod greatest ((m wb-bag))
   (let ((tree (wb-bag-contents m)))
     (if tree
-	(let ((val mult (WB-Bag-Tree-Greatest-Pair tree)))
+	(let ((val mult (wb-bag-tree-greatest-pair tree)))
 	  (values val mult t))
       (values nil nil nil))))
 
 (defmethod size ((b wb-bag))
-  (WB-Bag-Tree-Total-Count (wb-bag-contents b)))
+  (wb-bag-tree-total-count (wb-bag-contents b)))
 
 (defmethod set-size ((b wb-bag))
-  (WB-Bag-Tree-Size (wb-bag-contents b)))
+  (wb-bag-tree-size (wb-bag-contents b)))
 
 ;;; Alas, `count' is taken.
 (defmethod multiplicity ((b wb-bag) x)
-  (WB-Bag-Tree-Multiplicity (wb-bag-contents b) x (tree-set-org-compare-fn (wb-bag-org b))))
+  (wb-bag-tree-multiplicity (wb-bag-contents b) x (tree-set-org-compare-fn (wb-bag-org b))))
 
 (defmethod multiplicity ((s set) x)
   (let ((found? found-elt (lookup s x)))
@@ -2881,41 +2863,41 @@ or hash function, as `b'.  `b' can also be a set."))
 (defmethod with ((b wb-bag) value &optional (multiplicity 1))
   (assert (and (integerp multiplicity) (not (minusp multiplicity))))
   (if (zerop multiplicity) b
-    (make-wb-bag (WB-Bag-Tree-With (wb-bag-contents b) value (tree-set-org-compare-fn (wb-bag-org b))
+    (make-wb-bag (wb-bag-tree-with (wb-bag-contents b) value (tree-set-org-compare-fn (wb-bag-org b))
 				   multiplicity)
 		 (wb-bag-org b))))
 
 (defmethod less ((b wb-bag) value &optional (multiplicity 1))
   (assert (and (integerp multiplicity) (not (minusp multiplicity))))
   (if (zerop multiplicity) b
-    (make-wb-bag (WB-Bag-Tree-Less (wb-bag-contents b) value (tree-set-org-compare-fn (wb-bag-org b))
+    (make-wb-bag (wb-bag-tree-less (wb-bag-contents b) value (tree-set-org-compare-fn (wb-bag-org b))
 				   multiplicity)
 		 (wb-bag-org b))))
 
 (defmethod split-from ((b wb-bag) value)
   (let ((compare-fn (tree-set-org-compare-fn (wb-bag-org b)))
-	((new-contents (WB-Bag-Tree-Split-Above (wb-bag-contents b) value compare-fn))
-	 (count (WB-Bag-Tree-Multiplicity (wb-bag-contents b) value compare-fn))))
+	((new-contents (wb-bag-tree-split-above (wb-bag-contents b) value compare-fn))
+	 (count (wb-bag-tree-multiplicity (wb-bag-contents b) value compare-fn))))
     (make-wb-bag (if (plusp count)
-		     (WB-Bag-Tree-With new-contents value compare-fn count)
+		     (wb-bag-tree-with new-contents value compare-fn count)
 		   new-contents)
 		 (wb-bag-org b))))
 
 (defmethod split-above ((b wb-bag) value)
-  (make-wb-bag (WB-Bag-Tree-Split-Above (wb-bag-contents b) value (tree-set-org-compare-fn (wb-bag-org b)))
+  (make-wb-bag (wb-bag-tree-split-above (wb-bag-contents b) value (tree-set-org-compare-fn (wb-bag-org b)))
 	       (wb-bag-org b)))
 
 (defmethod split-through ((b wb-bag) value)
   (let ((compare-fn (tree-set-org-compare-fn (wb-bag-org b)))
-	((new-contents (WB-Bag-Tree-Split-Below (wb-bag-contents b) value compare-fn))
-	 (count (WB-Bag-Tree-Multiplicity (wb-bag-contents b) value compare-fn))))
+	((new-contents (wb-bag-tree-split-below (wb-bag-contents b) value compare-fn))
+	 (count (wb-bag-tree-multiplicity (wb-bag-contents b) value compare-fn))))
     (make-wb-bag (if (plusp count)
-		     (WB-Bag-Tree-With new-contents value compare-fn count)
+		     (wb-bag-tree-with new-contents value compare-fn count)
 		   new-contents)
 		 (wb-bag-org b))))
 
 (defmethod split-below ((b wb-bag) value)
-  (make-wb-bag (WB-Bag-Tree-Split-Below (wb-bag-contents b) value (tree-set-org-compare-fn (wb-bag-org b)))
+  (make-wb-bag (wb-bag-tree-split-below (wb-bag-contents b) value (tree-set-org-compare-fn (wb-bag-org b)))
 	       (wb-bag-org b)))
 
 (defmethod union ((b1 bag) (b2 bag) &key)
@@ -2931,7 +2913,7 @@ or hash function, as `b'.  `b' can also be a set."))
 
 (defmethod union ((b1 wb-bag) (b2 wb-bag) &key)
   (if-same-wb-bag-orgs (b1 b2 tsorg)
-      (make-wb-bag (WB-Bag-Tree-Union (wb-bag-contents b1) (wb-bag-contents b2) (tree-set-org-compare-fn tsorg))
+      (make-wb-bag (wb-bag-tree-union (wb-bag-contents b1) (wb-bag-contents b2) (tree-set-org-compare-fn tsorg))
 		   tsorg)
     (call-next-method)))
 
@@ -2947,7 +2929,7 @@ or hash function, as `b'.  `b' can also be a set."))
   (let ((scmp (wb-set-compare-fn s))
 	(bcmp (tree-set-org-compare-fn (wb-bag-org b))))
     (if (eq scmp bcmp)
-	(make-wb-bag (WB-Bag-Tree-Union (wb-bag-contents b) (WB-Set-Tree-To-Bag-Tree (wb-set-contents s))
+	(make-wb-bag (wb-bag-tree-union (wb-bag-contents b) (wb-set-tree-to-bag-tree (wb-set-contents s))
 					bcmp)
 		     (wb-bag-org b))
       (call-next-method))))
@@ -2967,7 +2949,7 @@ or hash function, as `b'.  `b' can also be a set."))
   (let ((scmp (wb-set-compare-fn s))
 	(bcmp (tree-set-org-compare-fn (wb-bag-org b))))
     (if (eq scmp bcmp)
-	(make-wb-bag (WB-Bag-Tree-Union (WB-Set-Tree-To-Bag-Tree (wb-set-contents s))
+	(make-wb-bag (wb-bag-tree-union (wb-set-tree-to-bag-tree (wb-set-contents s))
 					(wb-bag-contents b) bcmp)
 		     (wb-set-org s))
       (call-next-method))))
@@ -2984,7 +2966,7 @@ or hash function, as `b'.  `b' can also be a set."))
 
 (defmethod bag-sum ((b1 wb-bag) (b2 wb-bag))
   (if-same-wb-bag-orgs (b1 b2 tsorg)
-      (make-wb-bag (WB-Bag-Tree-Sum (wb-bag-contents b1) (wb-bag-contents b2) (tree-set-org-compare-fn tsorg))
+      (make-wb-bag (wb-bag-tree-sum (wb-bag-contents b1) (wb-bag-contents b2) (tree-set-org-compare-fn tsorg))
 		   tsorg)
     (call-next-method)))
 
@@ -3000,8 +2982,8 @@ or hash function, as `b'.  `b' can also be a set."))
   (let ((scmp (wb-set-compare-fn s))
 	(bcmp (tree-set-org-compare-fn (wb-bag-org b))))
     (if (eq scmp bcmp)
-	(make-wb-bag (WB-Bag-Tree-Sum (wb-bag-contents b)
-				      (WB-Set-Tree-To-Bag-Tree (wb-set-contents s)) bcmp)
+	(make-wb-bag (wb-bag-tree-sum (wb-bag-contents b)
+				      (wb-set-tree-to-bag-tree (wb-set-contents s)) bcmp)
 		     (wb-bag-org b))
       (call-next-method))))
 
@@ -3018,7 +3000,7 @@ or hash function, as `b'.  `b' can also be a set."))
   (let ((scmp (wb-set-compare-fn s))
 	(bcmp (tree-set-org-compare-fn (wb-bag-org b))))
     (if (eq scmp bcmp)
-	(make-wb-bag (WB-Bag-Tree-Sum (WB-Set-Tree-To-Bag-Tree (wb-set-contents s))
+	(make-wb-bag (wb-bag-tree-sum (wb-set-tree-to-bag-tree (wb-set-contents s))
 				      (wb-bag-contents b) bcmp)
 		     (wb-set-org s))
       (call-next-method))))
@@ -3032,7 +3014,7 @@ or hash function, as `b'.  `b' can also be a set."))
 
 (defmethod intersection ((b1 wb-bag) (b2 wb-bag) &key)
   (if-same-wb-bag-orgs (b1 b2 tsorg)
-      (make-wb-bag (WB-Bag-Tree-Intersect (wb-bag-contents b1) (wb-bag-contents b2)
+      (make-wb-bag (wb-bag-tree-intersect (wb-bag-contents b1) (wb-bag-contents b2)
 					  (tree-set-org-compare-fn tsorg))
 		   tsorg)
     (call-next-method)))
@@ -3050,7 +3032,7 @@ or hash function, as `b'.  `b' can also be a set."))
   (let ((scmp (wb-set-compare-fn s))
 	(bcmp (tree-set-org-compare-fn (wb-bag-org b))))
     (if (eq scmp bcmp)
-	(make-wb-set (WB-Set-Tree-Intersect (WB-Bag-Tree-To-Set-Tree (wb-bag-contents b))
+	(make-wb-set (wb-set-tree-intersect (wb-bag-tree-to-set-tree (wb-bag-contents b))
 					    (wb-set-contents s) bcmp)
 		     (wb-bag-org b))
       (call-next-method))))
@@ -3067,7 +3049,7 @@ or hash function, as `b'.  `b' can also be a set."))
   (let ((scmp (wb-set-compare-fn s))
 	(bcmp (tree-set-org-compare-fn (wb-bag-org b))))
     (if (eq scmp bcmp)
-	(make-wb-set (WB-Set-Tree-Intersect (wb-set-contents s) (WB-Bag-Tree-To-Set-Tree (wb-bag-contents b))
+	(make-wb-set (wb-set-tree-intersect (wb-set-contents s) (wb-bag-tree-to-set-tree (wb-bag-contents b))
 					    bcmp)
 		     (wb-set-org s))
       (call-next-method))))
@@ -3083,7 +3065,7 @@ or hash function, as `b'.  `b' can also be a set."))
 
 (defmethod bag-product ((b1 wb-bag) (b2 wb-bag))
   (if-same-wb-bag-orgs (b1 b2 tsorg)
-      (make-wb-bag (WB-Bag-Tree-Product (wb-bag-contents b1) (wb-bag-contents b2)
+      (make-wb-bag (wb-bag-tree-product (wb-bag-contents b1) (wb-bag-contents b2)
 					(tree-set-org-compare-fn tsorg))
 		   tsorg)
     (call-next-method)))
@@ -3100,7 +3082,7 @@ or hash function, as `b'.  `b' can also be a set."))
   (let ((scmp (wb-set-compare-fn s))
 	(bcmp (tree-set-org-compare-fn (wb-bag-org b))))
     (if (eq scmp bcmp)
-	(make-wb-bag (WB-Bag-Tree-Product (wb-bag-contents b) (WB-Set-Tree-To-Bag-Tree (wb-set-contents s))
+	(make-wb-bag (wb-bag-tree-product (wb-bag-contents b) (wb-set-tree-to-bag-tree (wb-set-contents s))
 					  bcmp)
 		     (wb-bag-org b))
       (call-next-method))))
@@ -3118,7 +3100,7 @@ or hash function, as `b'.  `b' can also be a set."))
   (let ((scmp (wb-set-compare-fn s))
 	(bcmp (tree-set-org-compare-fn (wb-bag-org b))))
     (if (eq scmp bcmp)
-	(make-wb-bag (WB-Bag-Tree-Product (WB-Set-Tree-To-Bag-Tree (wb-set-contents s))
+	(make-wb-bag (wb-bag-tree-product (wb-set-tree-to-bag-tree (wb-set-contents s))
 					  (wb-bag-contents b) bcmp)
 		     (wb-set-org s))
       (call-next-method))))
@@ -3132,7 +3114,7 @@ or hash function, as `b'.  `b' can also be a set."))
 
 (defmethod bag-difference ((b1 wb-bag) (b2 wb-bag))
   (if-same-wb-bag-orgs (b1 b2 tsorg)
-      (make-wb-bag (WB-Bag-Tree-Diff (wb-bag-contents b1) (wb-bag-contents b2)
+      (make-wb-bag (wb-bag-tree-diff (wb-bag-contents b1) (wb-bag-contents b2)
 				     (tree-set-org-compare-fn tsorg))
 		   tsorg)
     (call-next-method)))
@@ -3148,8 +3130,8 @@ or hash function, as `b'.  `b' can also be a set."))
   (let ((scmp (wb-set-compare-fn s))
 	(bcmp (tree-set-org-compare-fn (wb-bag-org b))))
     (if (eq scmp bcmp)
-	(make-wb-bag (WB-Bag-Tree-Diff (wb-bag-contents b)
-				       (WB-Set-Tree-To-Bag-Tree (wb-set-contents s)) bcmp)
+	(make-wb-bag (wb-bag-tree-diff (wb-bag-contents b)
+				       (wb-set-tree-to-bag-tree (wb-set-contents s)) bcmp)
 		     (wb-bag-org b))
       (call-next-method))))
 
@@ -3165,8 +3147,8 @@ or hash function, as `b'.  `b' can also be a set."))
   (let ((scmp (wb-set-compare-fn s))
 	(bcmp (tree-set-org-compare-fn (wb-bag-org b))))
     (if (eq scmp bcmp)
-	(make-wb-set (WB-Set-Tree-Diff (wb-set-contents s)
-				       (WB-Bag-Tree-To-Set-Tree (wb-bag-contents b)) bcmp)
+	(make-wb-set (wb-set-tree-diff (wb-set-contents s)
+				       (wb-bag-tree-to-set-tree (wb-bag-contents b)) bcmp)
 		     (wb-set-org s))
       (call-next-method))))
 
@@ -3178,7 +3160,7 @@ or hash function, as `b'.  `b' can also be a set."))
 
 (defmethod subbag? ((b1 wb-bag) (b2 wb-bag))
   (if-same-wb-bag-orgs (b1 b2 tsorg)
-      (WB-Bag-Tree-Subbag? (wb-bag-contents b1) (wb-bag-contents b2) (tree-set-org-compare-fn tsorg))
+      (wb-bag-tree-subbag? (wb-bag-contents b1) (wb-bag-contents b2) (tree-set-org-compare-fn tsorg))
     (call-next-method)))
 
 (defmethod subbag? ((s set) (b bag))
@@ -3214,7 +3196,7 @@ multiplicity, but the two bags are not equal."
 
 (defmethod disjoint? ((b1 wb-bag) (b2 wb-bag))
   (if-same-wb-bag-orgs (b1 b2 tsorg)
-      (WB-Bag-Tree-Disjoint? (wb-bag-contents b1) (wb-bag-contents b2) (tree-set-org-compare-fn tsorg))
+      (wb-bag-tree-disjoint? (wb-bag-contents b1) (wb-bag-contents b2) (tree-set-org-compare-fn tsorg))
     (call-next-method)))
 
 (defmethod disjoint? ((b bag) (s set))
@@ -3235,7 +3217,7 @@ multiplicity, but the two bags are not equal."
 
 (defmethod compare ((b1 wb-bag) (b2 wb-bag))
   (if-same-wb-bag-orgs (b1 b2 tsorg)
-      (WB-Bag-Tree-Compare (wb-bag-contents b1) (wb-bag-contents b2) (tree-set-org-compare-fn tsorg))
+      (wb-bag-tree-compare (wb-bag-contents b1) (wb-bag-contents b2) (tree-set-org-compare-fn tsorg))
     ;; See `define-wb-set-method compare' above.
     (let ((b1-cfn-name (tree-set-org-compare-fn-name (wb-bag-org b1)))
 	  (b2-cfn-name (tree-set-org-compare-fn-name (wb-bag-org b2)))
@@ -3273,22 +3255,22 @@ different bag implementations; it is not for public use.  `elt-fn' and
 (defmethod internal-do-bag-pairs ((b wb-bag) elt-fn value-fn)
   (declare (optimize (speed 3) (safety 0))
 	   (type function elt-fn value-fn))
-  (Do-WB-Bag-Tree-Pairs (x n (wb-bag-contents b) (funcall value-fn))
+  (do-wb-bag-tree-pairs (x n (wb-bag-contents b) (funcall value-fn))
     (funcall elt-fn x n)))
 
 (defmethod iterator ((b wb-bag) &key pairs?)
   (if pairs?
-      (Make-WB-Bag-Tree-Pair-Iterator (wb-bag-contents b))
-    (Make-WB-Bag-Tree-Iterator (wb-bag-contents b))))
+      (make-wb-bag-tree-pair-iterator (wb-bag-contents b))
+    (make-wb-bag-tree-iterator (wb-bag-contents b))))
 
 (defmethod fun-iterator ((s wb-bag) &key pairs? from-end?)
   (if pairs?
       (if from-end?
-	  (WB-Bag-Tree-Pair-Rev-Fun-Iter (wb-bag-contents s))
-	(WB-Bag-Tree-Pair-Fun-Iter (wb-bag-contents s)))
+	  (wb-bag-tree-pair-rev-fun-iter (wb-bag-contents s))
+	(wb-bag-tree-pair-fun-iter (wb-bag-contents s)))
     (if from-end?
-	(WB-Bag-Tree-Rev-Fun-Iter (wb-bag-contents s))
-      (WB-Bag-Tree-Fun-Iter (wb-bag-contents s)))))
+	(wb-bag-tree-rev-fun-iter (wb-bag-contents s))
+      (wb-bag-tree-fun-iter (wb-bag-contents s)))))
 
 (define-methods (filter fset2:filter) ((pred function) (b wb-bag))
   (wb-bag-filter pred b))
@@ -3317,7 +3299,7 @@ different bag implementations; it is not for public use.  `elt-fn' and
 	(pred (coerce pred 'function)))
     (do-bag-pairs (x n b)
       (when (funcall pred x)
-	(setq result (WB-Bag-Tree-With result x (tree-set-org-compare-fn org) n))))
+	(setq result (wb-bag-tree-with result x (tree-set-org-compare-fn org) n))))
     (make-wb-bag result org)))
 
 (defmethod filter-pairs ((pred function) (b wb-bag))
@@ -3331,7 +3313,7 @@ different bag implementations; it is not for public use.  `elt-fn' and
 	(result nil))
     (do-bag-pairs (x n b)
       (when (funcall pred x n)
-	(setq result (WB-Bag-Tree-With result x (tree-set-org-compare-fn org) n))))
+	(setq result (wb-bag-tree-with result x (tree-set-org-compare-fn org) n))))
     (make-wb-bag result org)))
 
 (define-methods (image fset2:image) ((fn function) (b wb-bag) &key compare-fn-name)
@@ -3356,7 +3338,7 @@ different bag implementations; it is not for public use.  `elt-fn' and
   (let ((org (wb-bag-org (if compare-fn-name (empty-wb-bag compare-fn-name) b)))
 	(result nil))
     (do-bag-pairs (x n b)
-      (setq result (WB-Bag-Tree-With result (funcall fn x) (tree-set-org-compare-fn org) n)))
+      (setq result (wb-bag-tree-with result (funcall fn x) (tree-set-org-compare-fn org) n)))
     (make-wb-bag result org)))
 
 (defmethod reduce ((fn function) (b bag) &key key (initial-value nil init?) pairs?)
@@ -3394,36 +3376,36 @@ different bag implementations; it is not for public use.  `elt-fn' and
   (convert-to-wb-bag b nil
     (let ((tree nil))
       (do-bag-pairs (x n b tree)
-	(setq tree (WB-Bag-Tree-With tree x compare-fn n))))))
+	(setq tree (wb-bag-tree-with tree x compare-fn n))))))
 
 (defmethod convert ((to-type (eql 'wb-bag)) (b wb-bag) &key compare-fn-name)
   (convert-to-wb-bag b (eq compare-fn (tree-set-org-compare-fn (wb-bag-org b)))
     (let ((tree nil))
       (do-wb-bag-tree-pairs (x n (wb-bag-contents b) tree)
-	(setq tree (WB-Bag-Tree-With tree x compare-fn n))))))
+	(setq tree (wb-bag-tree-with tree x compare-fn n))))))
 
 (define-convert-methods (set fset2:set) ((b wb-bag) &key)
-  (make-wb-set (WB-Bag-Tree-To-Set-Tree (wb-bag-contents b)) (wb-bag-org b)))
+  (make-wb-set (wb-bag-tree-to-set-tree (wb-bag-contents b)) (wb-bag-org b)))
 
 (defmethod convert ((to-type (eql 'wb-set)) (b wb-bag) &key compare-fn-name)
   (convert-to-wb-set b nil
     (if (eq compare-fn (tree-set-org-compare-fn (wb-bag-org b)))
-	(WB-Bag-Tree-To-Set-Tree (wb-bag-contents b))
+	(wb-bag-tree-to-set-tree (wb-bag-contents b))
       (let ((result nil))
 	(do-wb-bag-tree-pairs (x n (wb-bag-contents b) result)
 	  (declare (ignore n))
-	  (setq result (WB-Set-Tree-With result x compare-fn)))))))
+	  (setq result (wb-set-tree-with result x compare-fn)))))))
 
 (defmethod convert ((to-type (eql 'bag)) (s wb-set) &key)
-  (make-wb-bag (WB-Set-Tree-To-Bag-Tree (wb-set-contents s)) (wb-set-org s)))
+  (make-wb-bag (wb-set-tree-to-bag-tree (wb-set-contents s)) (wb-set-org s)))
 
 (defmethod convert ((to-type (eql 'wb-bag)) (s wb-set) &key compare-fn-name)
   (convert-to-wb-bag s nil
     (if (eq compare-fn (wb-set-compare-fn s))
-	(WB-Set-Tree-To-Bag-Tree (wb-set-contents s))
+	(wb-set-tree-to-bag-tree (wb-set-contents s))
       (let ((result nil))
 	(do-wb-set-tree-members (x (wb-set-contents s) result)
-	  (setq result (WB-Bag-Tree-With result x compare-fn)))))))
+	  (setq result (wb-bag-tree-with result x compare-fn)))))))
 
 (defmethod convert ((to-type (eql 'bag)) (s set) &key)
   (wb-bag-from-set s))
@@ -3433,7 +3415,7 @@ different bag implementations; it is not for public use.  `elt-fn' and
   (convert-to-wb-bag s nil
     (let ((tree nil))
       (do-set (x s tree)
-	(setq tree (WB-Bag-Tree-With tree x compare-fn))))))
+	(setq tree (wb-bag-tree-with tree x compare-fn))))))
 
 (defmethod convert ((to-type (eql 'list)) (b bag) &key pairs?)
   (declare (optimize (speed 3) (safety 0)))
@@ -3465,8 +3447,8 @@ different bag implementations; it is not for public use.  `elt-fn' and
 (defun wb-bag-from-list (l input-sorted? pairs? &optional compare-fn-name)
   (convert-to-wb-bag l nil
     (if input-sorted?
-	(WB-Bag-Tree-From-Sorted-Iterable (the function (iterator l)) (length l) pairs? compare-fn)
-      (WB-Bag-Tree-From-List l pairs? compare-fn))))
+	(wb-bag-tree-from-sorted-iterable (the function (iterator l)) (length l) pairs? compare-fn)
+      (wb-bag-tree-from-list l pairs? compare-fn))))
 
 (defmethod convert ((to-type (eql 'bag)) (s seq) &key input-sorted? pairs?)
   (wb-bag-from-sequence s input-sorted? pairs?))
@@ -3483,8 +3465,8 @@ different bag implementations; it is not for public use.  `elt-fn' and
 (defun wb-bag-from-sequence (s input-sorted? pairs? &optional compare-fn-name)
   (convert-to-wb-bag s nil
     (if input-sorted?
-	(WB-Bag-Tree-From-Sorted-Iterable (the function (iterator s)) (size s) pairs? compare-fn)
-      (WB-Bag-Tree-From-Iterable (the function (iterator s)) pairs? compare-fn))))
+	(wb-bag-tree-from-sorted-iterable (the function (iterator s)) (size s) pairs? compare-fn)
+      (wb-bag-tree-from-iterable (the function (iterator s)) pairs? compare-fn))))
 
 (defmethod find (item (b bag) &key key test)
   (declare (optimize (speed 3) (safety 0)))
@@ -4239,30 +4221,30 @@ or hash functions, as `m'."))
 (defmethod arb ((m wb-map))
   (let ((tree (wb-map-contents m)))
     (if tree
-	(let ((key val (WB-Map-Tree-Arb-Pair tree)))
+	(let ((key val (wb-map-tree-arb-pair tree)))
 	  (values key val t))
       (values nil nil nil))))
 
 (defmethod least ((m wb-map))
   (let ((tree (wb-map-contents m)))
     (if tree
-	(let ((key val (WB-Map-Tree-Least-Pair tree)))
+	(let ((key val (wb-map-tree-least-pair tree)))
 	  (values key val t))
       (values nil nil nil))))
 
 (defmethod greatest ((m wb-map))
   (let ((tree (wb-map-contents m)))
     (if tree
-	(let ((key val (WB-Map-Tree-Greatest-Pair tree)))
+	(let ((key val (wb-map-tree-greatest-pair tree)))
 	  (values key val t))
       (values nil nil nil))))
 
 (defmethod size ((m wb-map))
-  (WB-Map-Tree-Size (wb-map-contents m)))
+  (wb-map-tree-size (wb-map-contents m)))
 
 (defmethod contains? ((m wb-map) x &optional (y nil y?))
   (let ((comp (wb-map-org m))
-	((val? val (WB-Map-Tree-Lookup (wb-map-contents m) x (tree-map-org-key-compare-fn comp)))))
+	((val? val (wb-map-tree-lookup (wb-map-contents m) x (tree-map-org-key-compare-fn comp)))))
     (if y? (and val? (equal?-cmp val y (tree-map-org-val-compare-fn comp)))
       val?)))
 
@@ -4281,7 +4263,7 @@ or hash functions, as `m'."))
 ;;; Even though FSet 1 code will never generate a map with no default, we could have a mixed
 ;;; FSet 1/2 codebase, so we should still check for that in `fset:lookup'.
 (define-methods (lookup fset2:lookup) ((m wb-map) key)
-  (let ((val? val mkey (WB-Map-Tree-Lookup (wb-map-contents m) key
+  (let ((val? val mkey (wb-map-tree-lookup (wb-map-contents m) key
 					   (tree-map-org-key-compare-fn (wb-map-org m)))))
     ;; Our internal convention is the reverse of the external one.
     (values (if val? val
@@ -4292,22 +4274,22 @@ or hash functions, as `m'."))
 	    val? mkey)))
 
 (defmethod rank ((m wb-map) x)
-  (let ((found? rank (WB-Map-Tree-Rank (wb-map-contents m) x
+  (let ((found? rank (wb-map-tree-rank (wb-map-contents m) x
 				       (tree-map-org-key-compare-fn (wb-map-org m)))))
     (values (if found? rank (1- rank)) found?)))
 (defmethod fset2:rank ((m wb-map) x)
-  (let ((found? rank (WB-Map-Tree-Rank (wb-map-contents m) x
+  (let ((found? rank (wb-map-tree-rank (wb-map-contents m) x
 				       (tree-map-org-key-compare-fn (wb-map-org m)))))
     (values rank found?)))
 
 (defmethod at-rank ((m wb-map) rank)
   (let ((contents (wb-map-contents m))
-	((size (WB-Map-Tree-Size contents))))
+	((size (wb-map-tree-size contents))))
     (unless (and (>= rank 0) (< rank size))
       (error 'simple-type-error :datum rank :expected-type `(integer 0 (,size))
 	     :format-control "Rank ~D out of bounds on ~A"
 	     :format-arguments (list rank m)))
-    (WB-Map-Tree-Rank-Pair contents rank)))
+    (wb-map-tree-rank-pair contents rank)))
 
 (defmethod index ((m wb-map) x)
   (let ((rank found? (rank m x)))
@@ -4320,7 +4302,7 @@ or hash functions, as `m'."))
   (check-three-arguments value? 'with 'wb-map)
   (let ((contents (wb-map-contents m))
 	(tmorg (wb-map-org m))
-	((new-contents (WB-Map-Tree-With contents key value (tree-map-org-key-compare-fn tmorg)
+	((new-contents (wb-map-tree-with contents key value (tree-map-org-key-compare-fn tmorg)
 					 (tree-map-org-val-compare-fn tmorg)))))
     (if (eq new-contents contents)
 	m
@@ -4331,7 +4313,7 @@ or hash functions, as `m'."))
   (check-two-arguments arg2? 'less 'wb-map)
   (let ((contents (wb-map-contents m))
 	(tmorg (wb-map-org m))
-	((new-contents range-val (WB-Map-Tree-Less contents key (tree-map-org-key-compare-fn tmorg)))))
+	((new-contents range-val (wb-map-tree-less contents key (tree-map-org-key-compare-fn tmorg)))))
     (if (eq new-contents contents)
 	m
       (values (make-wb-map new-contents tmorg (map-default m)) range-val))))
@@ -4339,32 +4321,32 @@ or hash functions, as `m'."))
 (defmethod split-from ((m wb-map) key)
   (let ((tmorg (wb-map-org m))
 	((key-compare-fn (tree-map-org-key-compare-fn tmorg))
-	 ((new-contents (WB-Map-Tree-Split-Above (wb-map-contents m) key key-compare-fn))
-	  (val? val (WB-Map-Tree-Lookup (wb-map-contents m) key key-compare-fn)))))
-    (make-wb-map (if val? (WB-Map-Tree-With new-contents key val key-compare-fn (tree-map-org-val-compare-fn tmorg))
+	 ((new-contents (wb-map-tree-split-above (wb-map-contents m) key key-compare-fn))
+	  (val? val (wb-map-tree-lookup (wb-map-contents m) key key-compare-fn)))))
+    (make-wb-map (if val? (wb-map-tree-with new-contents key val key-compare-fn (tree-map-org-val-compare-fn tmorg))
 		   new-contents)
 		 tmorg (map-default m))))
 
 (defmethod split-above ((m wb-map) key)
-  (make-wb-map (WB-Map-Tree-Split-Above (wb-map-contents m) key (tree-map-org-key-compare-fn (wb-map-org m)))
+  (make-wb-map (wb-map-tree-split-above (wb-map-contents m) key (tree-map-org-key-compare-fn (wb-map-org m)))
 	       (wb-map-org m) (map-default m)))
 
 (defmethod split-through ((m wb-map) key)
   (let ((tmorg (wb-map-org m))
 	((key-compare-fn (tree-map-org-key-compare-fn tmorg))
-	 ((new-contents (WB-Map-Tree-Split-Below (wb-map-contents m) key key-compare-fn))
-	  (val? val (WB-Map-Tree-Lookup (wb-map-contents m) key key-compare-fn)))))
-    (make-wb-map (if val? (WB-Map-Tree-With new-contents key val key-compare-fn (tree-map-org-val-compare-fn tmorg))
+	 ((new-contents (wb-map-tree-split-below (wb-map-contents m) key key-compare-fn))
+	  (val? val (wb-map-tree-lookup (wb-map-contents m) key key-compare-fn)))))
+    (make-wb-map (if val? (wb-map-tree-with new-contents key val key-compare-fn (tree-map-org-val-compare-fn tmorg))
 		   new-contents)
 		 tmorg (map-default m))))
 
 (defmethod split-below ((m wb-map) key)
-  (make-wb-map (WB-Map-Tree-Split-Below (wb-map-contents m) key (tree-map-org-key-compare-fn (wb-map-org m)))
+  (make-wb-map (wb-map-tree-split-below (wb-map-contents m) key (tree-map-org-key-compare-fn (wb-map-org m)))
 	       (wb-map-org m) (map-default m)))
 
 (defmethod domain ((m wb-map))
   (let ((tmorg (wb-map-org m)))
-    (make-wb-set (WB-Map-Tree-Domain (wb-map-contents m))
+    (make-wb-set (wb-map-tree-domain (wb-map-contents m))
 		 ;; We don't go through `empty-wb-set' here, because that would retrieve the current
 		 ;; `symbol-function' of the `key-compare-fn-name', which might have been changed since
 		 ;; the map was created.
@@ -4378,7 +4360,7 @@ or hash functions, as `m'."))
 (defmethod compare ((map1 wb-map) (map2 wb-map))
   (if-same-wb-map-orgs (map1 map2 tmorg)
       (let ((val-compare-fn (tree-map-org-val-compare-fn tmorg))
-	    ((comp (WB-Map-Tree-Compare (wb-map-contents map1) (wb-map-contents map2)
+	    ((comp (wb-map-tree-compare (wb-map-contents map1) (wb-map-contents map2)
 					(tree-map-org-key-compare-fn tmorg) val-compare-fn))))
 	(if (member comp '(:less :greater))
 	    comp
@@ -4427,16 +4409,16 @@ symbols."))
 (defmethod internal-do-map ((m wb-map) elt-fn value-fn)
   (declare (optimize (speed 3) (safety 0))
 	   (type function elt-fn value-fn))
-  (Do-WB-Map-Tree-Pairs (x y (wb-map-contents m) (funcall value-fn))
+  (do-wb-map-tree-pairs (x y (wb-map-contents m) (funcall value-fn))
     (funcall elt-fn x y)))
 
 (defmethod iterator ((m wb-map) &key)
-  (Make-WB-Map-Tree-Iterator (wb-map-contents m)))
+  (make-wb-map-tree-iterator (wb-map-contents m)))
 
 (defmethod fun-iterator ((s wb-map) &key from-end?)
   (if from-end?
-      (WB-Map-Tree-Rev-Fun-Iter (wb-map-contents s))
-    (WB-Map-Tree-Fun-Iter (wb-map-contents s))))
+      (wb-map-tree-rev-fun-iter (wb-map-contents s))
+    (wb-map-tree-fun-iter (wb-map-contents s))))
 
 (define-methods (filter fset2:filter) ((pred function) (m wb-map))
   (wb-map-filter pred m))
@@ -4452,7 +4434,7 @@ symbols."))
 	(result nil))
     (do-map (x y m)
       (when (funcall pred x y)
-	(setq result (WB-Map-Tree-With result x y key-compare-fn val-compare-fn))))
+	(setq result (wb-map-tree-with result x y key-compare-fn val-compare-fn))))
     (make-wb-map result tmorg (map-default m))))
 
 (defmethod image ((fn function) (m wb-map) &key key-compare-fn-name val-compare-fn-name)
@@ -4476,7 +4458,7 @@ symbols."))
 	(result nil))
     (do-wb-map-tree-pairs (x y (wb-map-contents m))
       (let ((new-x new-y (funcall fn x y)))
-	(setq result (WB-Map-Tree-With result new-x new-y (tree-map-org-key-compare-fn res-org)
+	(setq result (wb-map-tree-with result new-x new-y (tree-map-org-key-compare-fn res-org)
 				       (tree-map-org-val-compare-fn res-org)))))
     (make-wb-map result res-org default)))
 
@@ -4506,12 +4488,12 @@ symbols."))
 	(result nil))
     (do-map (key val m)
       (declare (ignore key))
-      (setq result (WB-Set-Tree-With result val (tree-map-org-val-compare-fn tmorg))))
+      (setq result (wb-set-tree-with result val (tree-map-org-val-compare-fn tmorg))))
     (make-wb-set result (wb-set-org set-prototype))))
 
 (defmethod domain-contains? ((m wb-map) x)
   (let ((tmorg (wb-map-org m)))
-    (WB-Map-Tree-Lookup (wb-map-contents m) x (tree-map-org-key-compare-fn tmorg))))
+    (wb-map-tree-lookup (wb-map-contents m) x (tree-map-org-key-compare-fn tmorg))))
 
 (defmethod range-contains? ((m map) x)
   (let ((vcfn (val-compare-fn m)))
@@ -4556,7 +4538,7 @@ symbols."))
 (defmethod map-union ((m1 wb-map) (m2 wb-map)
 		      &optional (val-fn (fn (_v1 v2) v2)))
   (if-same-wb-map-orgs (m1 m2 tmorg)
-      (make-wb-map (WB-Map-Tree-Union (wb-map-contents m1) (wb-map-contents m2)
+      (make-wb-map (wb-map-tree-union (wb-map-contents m1) (wb-map-contents m2)
 				      (coerce val-fn 'function) (tree-map-org-key-compare-fn tmorg)
 				      (tree-map-org-val-compare-fn tmorg))
 		   tmorg (let ((dflt1 (map-default m1))
@@ -4566,7 +4548,7 @@ symbols."))
 (defmethod fset2:map-union ((m1 wb-map) (m2 wb-map)
 			    &optional (val-fn (fn (_v1 v2) v2)))
   (if-same-wb-map-orgs (m1 m2 tmorg)
-      (make-wb-map (WB-Map-Tree-Union (wb-map-contents m1) (wb-map-contents m2)
+      (make-wb-map (wb-map-tree-union (wb-map-contents m1) (wb-map-contents m2)
 				      (coerce val-fn 'function) (tree-map-org-key-compare-fn tmorg)
 				      (tree-map-org-val-compare-fn tmorg))
 		   tmorg (map-union-default m1 m2 val-fn))
@@ -4607,7 +4589,7 @@ symbols."))
 (defmethod map-intersection ((m1 wb-map) (m2 wb-map)
 			     &optional (val-fn (fn (_v1 v2) v2)))
   (if-same-wb-map-orgs (m1 m2 tmorg)
-      (make-wb-map (WB-Map-Tree-Intersect (wb-map-contents m1) (wb-map-contents m2)
+      (make-wb-map (wb-map-tree-intersect (wb-map-contents m1) (wb-map-contents m2)
 					  (coerce val-fn 'function) (tree-map-org-key-compare-fn tmorg)
 					  (tree-map-org-val-compare-fn tmorg))
 		   tmorg (let ((dflt1 (map-default m1))
@@ -4617,7 +4599,7 @@ symbols."))
 (defmethod fset2:map-intersection ((m1 wb-map) (m2 wb-map)
 				   &optional (val-fn (fn (_v1 v2) v2)))
   (if-same-wb-map-orgs (m1 m2 tmorg)
-      (make-wb-map (WB-Map-Tree-Intersect (wb-map-contents m1) (wb-map-contents m2)
+      (make-wb-map (wb-map-tree-intersect (wb-map-contents m1) (wb-map-contents m2)
 					  (coerce val-fn 'function) (tree-map-org-key-compare-fn tmorg)
 					  (tree-map-org-val-compare-fn tmorg))
 		   tmorg (map-intersection-default m1 m2 val-fn))
@@ -4649,7 +4631,7 @@ symbols."))
 
 (defmethod map-difference ((m1 wb-map) (m2 wb-map))
   (if-same-wb-map-orgs (m1 m2 tmorg)
-      (make-wb-map (WB-Map-Tree-Diff (wb-map-contents m1) (wb-map-contents m2)
+      (make-wb-map (wb-map-tree-diff (wb-map-contents m1) (wb-map-contents m2)
 				     (tree-map-org-key-compare-fn tmorg)
 				     (tree-map-org-val-compare-fn tmorg))
 		   tmorg (map-difference-default m1 m2))
@@ -4689,7 +4671,7 @@ symbols."))
 
 (defmethod map-difference-2 ((m1 wb-map) (m2 wb-map))
   (if-same-wb-map-orgs (m1 m2 tmorg)
-      (let ((newc1 newc2 (WB-Map-Tree-Diff-2 (wb-map-contents m1) (wb-map-contents m2)
+      (let ((newc1 newc2 (wb-map-tree-diff-2 (wb-map-contents m1) (wb-map-contents m2)
 					     (tree-map-org-key-compare-fn tmorg)
 					     (tree-map-org-val-compare-fn tmorg))))
 	(values (make-wb-map newc1 tmorg (map-default m1))
@@ -4697,7 +4679,7 @@ symbols."))
     (call-next-method)))
 (defmethod fset2:map-difference-2 ((m1 wb-map) (m2 wb-map))
   (if-same-wb-map-orgs (m1 m2 tmorg)
-      (let ((newc1 newc2 (WB-Map-Tree-Diff-2 (wb-map-contents m1) (wb-map-contents m2)
+      (let ((newc1 newc2 (wb-map-tree-diff-2 (wb-map-contents m1) (wb-map-contents m2)
 					     (tree-map-org-key-compare-fn tmorg)
 					     (tree-map-org-val-compare-fn tmorg)))
 	    (dflt1 dflt2 (map-difference-2-defaults m1 m2)))
@@ -4717,7 +4699,7 @@ symbols."))
   (let ((tmorg (wb-map-org m))
 	(tsorg (wb-set-org s)))
     (if (eq (tree-map-org-key-compare-fn tmorg) (tree-set-org-compare-fn tsorg))
-	(make-wb-map (WB-Map-Tree-Restrict (wb-map-contents m) (wb-set-contents s)
+	(make-wb-map (wb-map-tree-restrict (wb-map-contents m) (wb-set-contents s)
 					   (tree-map-org-key-compare-fn tmorg))
 		     tmorg (map-default m))
       (call-next-method))))
@@ -4734,7 +4716,7 @@ symbols."))
   (let ((tmorg (wb-map-org m))
 	(tsorg (wb-set-org s)))
     (if (eq (tree-map-org-key-compare-fn tmorg) (tree-set-org-compare-fn tsorg))
-	(make-wb-map (WB-Map-Tree-Restrict-Not (wb-map-contents m) (wb-set-contents s)
+	(make-wb-map (wb-map-tree-restrict-not (wb-map-contents m) (wb-set-contents s)
 					       (tree-map-org-key-compare-fn tmorg))
 		     tmorg (map-default m))
       (call-next-method))))
@@ -4763,7 +4745,7 @@ symbols."))
 to `compare'."
   (if (and (empty? map1) (eq (map-default map1) 'no-default))
       map1
-    (make-wb-map (WB-Map-Tree-Compose (wb-map-contents map1)
+    (make-wb-map (wb-map-tree-compose (wb-map-contents map1)
 				      ;; This can fail if `map2' is an FSet 2 map with no default.
 				      (fn (x) (lookup map2 x)))
 		 (wb-map-org (empty-wb-map nil (key-compare-fn-name map1) val-compare-fn-name))
@@ -4774,7 +4756,7 @@ to `compare'."
 to `compare'."
   (if (and (empty? map1) (eq (map-default map1) 'no-default))
       map1
-    (make-wb-map (WB-Map-Tree-Compose (wb-map-contents map1) (fn (x) (fset2:lookup map2 x)))
+    (make-wb-map (wb-map-tree-compose (wb-map-contents map1) (fn (x) (fset2:lookup map2 x)))
 		 (wb-map-org (empty-wb-map nil (key-compare-fn-name map1) val-compare-fn-name))
 		 (let ((dflt1 (map-default map1)))
 		   (if (eq dflt1 'no-default) 'no-default
@@ -4792,7 +4774,7 @@ to `compare'."
 
 (defun wb-map-fn-compose (m fn val-compare-fn-name)
   (declare (type function fn))
-  (make-wb-map (WB-Map-Tree-Compose (wb-map-contents m) fn)
+  (make-wb-map (wb-map-tree-compose (wb-map-contents m) fn)
 	       (wb-map-org (empty-wb-map nil (key-compare-fn-name m) val-compare-fn-name))
 	       (let ((dflt1 (map-default m)))
 		 (if (eq dflt1 'no-default) 'no-default
@@ -4810,15 +4792,15 @@ to `compare'."
 		      (eq val-compare-fn (tree-map-org-val-compare-fn m-tmorg))))
 	     (equal?-cmp default (map-default m) val-compare-fn)))
     (let ((tree nil))
-      (Do-WB-Map-Tree-Pairs (k v (wb-map-contents m) tree)
-	(setq tree (WB-Map-Tree-With tree k v key-compare-fn val-compare-fn))))))
+      (do-wb-map-tree-pairs (k v (wb-map-contents m) tree)
+	(setq tree (wb-map-tree-with tree k v key-compare-fn val-compare-fn))))))
 
 (define-convert-methods (wb-map fset2:wb-map)
 			((m map) &key key-compare-fn-name val-compare-fn-name (default (map-default m)))
   (convert-to-wb-map m default nil
     (let ((tree nil))
       (do-map (k v m tree)
-	(setq tree (WB-Map-Tree-With tree k v key-compare-fn val-compare-fn))))))
+	(setq tree (wb-map-tree-with tree k v key-compare-fn val-compare-fn))))))
 
 (defmethod convert ((to-type (eql 'list)) (m map) &key (pair-fn #'cons))
   (let ((result nil))
@@ -4842,7 +4824,7 @@ to `compare'."
 (defmethod convert ((to-type (eql 'set)) (m map) &key (pair-fn #'cons))
   (let ((result nil))
     (do-map (key val m)
-      (setq result (WB-Set-Tree-With result (funcall pair-fn key val) #'compare)))
+      (setq result (wb-set-tree-with result (funcall pair-fn key val) #'compare)))
     (make-wb-set result)))
 (defmethod convert ((to-type (eql 'fset2:set)) (m map) &key (pair-fn #'cons))
   (let ((result (make-transient (empty-ch-set))))
@@ -4884,12 +4866,12 @@ to `compare'."
     (let ((key-fn (coerce key-fn 'function))
 	  (value-fn (coerce value-fn 'function)))
       (cond (input-sorted?
-	     (WB-Map-Tree-From-Sorted-Iterable (iterator s) (size s) key-fn value-fn
+	     (wb-map-tree-from-sorted-iterable (iterator s) (size s) key-fn value-fn
 					       key-compare-fn val-compare-fn))
 	    ((listp s)
-	     (WB-Map-Tree-From-List s key-fn value-fn key-compare-fn val-compare-fn))
+	     (wb-map-tree-from-list s key-fn value-fn key-compare-fn val-compare-fn))
 	    (t
-	     (WB-Map-Tree-From-Iterable (iterator s) key-fn value-fn
+	     (wb-map-tree-from-iterable (iterator s) key-fn value-fn
 					key-compare-fn val-compare-fn))))))
 
 (define-convert-methods (map) ((b bag) &key default)
@@ -4901,7 +4883,7 @@ to `compare'."
   (convert-to-wb-map b default nil
     (let ((tree nil))
       (do-bag-pairs (x n b tree)
-	(setq tree (WB-Map-Tree-With tree x n key-compare-fn val-compare-fn))))))
+	(setq tree (wb-map-tree-with tree x n key-compare-fn val-compare-fn))))))
 
 (defmethod convert ((to-type (eql 'map)) (ht hash-table) &key default)
   (convert 'wb-map ht :default default))
@@ -4910,7 +4892,7 @@ to `compare'."
   (convert-to-wb-map ht default nil
     (let ((tree nil))
       (maphash (lambda (k v)
-		 (setq tree (WB-Map-Tree-With tree k v key-compare-fn val-compare-fn)))
+		 (setq tree (wb-map-tree-with tree k v key-compare-fn val-compare-fn)))
 	       ht)
       tree)))
 
@@ -5618,7 +5600,7 @@ This is the default implementation of seqs in FSet."
 
 (declaim (inline make-wb-seq))
 (defun make-wb-seq (contents default)
-  (if (WB-HT-Seq-Tree? contents)
+  (if (wb-ht-seq-tree? contents)
       (make-wb-ht-seq contents default)
     (raw-make-wb-seq contents default)))
 
@@ -5637,11 +5619,11 @@ This is the default implementation of seqs in FSet."
   (make-wb-seq (wb-seq-contents s) 'no-default))
 
 (define-wb-seq-method size ((s wb-seq))
-  (n-values 1 (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size
+  (n-values 1 (call-selected wb-seq-tree-size wb-ht-seq-tree-size
 			     (wb-seq-contents s))))
 
 (define-wb-seq-method char-seq? ((s wb-seq))
-  (let ((size chars? (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size
+  (let ((size chars? (call-selected wb-seq-tree-size wb-ht-seq-tree-size
 				    (wb-seq-contents s))))
     (declare (ignore size))
     chars?))
@@ -5657,7 +5639,7 @@ This is the default implementation of seqs in FSet."
 
 (define-wb-seq-methods (lookup fset2:lookup at-index) ((s wb-seq) index)
   (let ((val? val (if (typep index 'fixnum)
-		      (call-selected WB-Seq-Tree-Subscript WB-HT-Seq-Tree-Subscript
+		      (call-selected wb-seq-tree-subscript wb-ht-seq-tree-subscript
 				     (wb-seq-contents s) index)
 		    (values nil nil))))
     (values (if val? val
@@ -5676,7 +5658,7 @@ This is the default implementation of seqs in FSet."
 		       (fset2:empty-seq-error-seq sbe))))))
 
 (define-wb-seq-method first ((s wb-seq))
-  (let ((val? val (call-selected WB-Seq-Tree-Subscript WB-HT-Seq-Tree-Subscript
+  (let ((val? val (call-selected wb-seq-tree-subscript wb-ht-seq-tree-subscript
 				 (wb-seq-contents s) 0)))
     (values (if val? val
 	      (let ((dflt (seq-default s)))
@@ -5687,8 +5669,8 @@ This is the default implementation of seqs in FSet."
 
 (define-wb-seq-method last ((s wb-seq))
   (let ((tree (wb-seq-contents s))
-	((val? val (call-selected WB-Seq-Tree-Subscript WB-HT-Seq-Tree-Subscript
-				  tree (1- (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size tree))))))
+	((val? val (call-selected wb-seq-tree-subscript wb-ht-seq-tree-subscript
+				  tree (1- (call-selected wb-seq-tree-size wb-ht-seq-tree-size tree))))))
     (values (if val? val
 	      (let ((dflt (seq-default s)))
 		(if (eq dflt 'no-default)
@@ -5697,45 +5679,45 @@ This is the default implementation of seqs in FSet."
 	    val?)))
 
 (define-wb-seq-method with-first ((s wb-seq) val)
-  (make-wb-seq (call-selected WB-Seq-Tree-Insert WB-HT-Seq-Tree-Insert (wb-seq-contents s) 0 val)
+  (make-wb-seq (call-selected wb-seq-tree-insert wb-ht-seq-tree-insert (wb-seq-contents s) 0 val)
 	       (seq-default s)))
 
 (define-wb-seq-method with-last ((s wb-seq) val)
   (let ((tree (wb-seq-contents s)))
-    (make-wb-seq (call-selected WB-Seq-Tree-Append WB-HT-Seq-Tree-Append tree val)
+    (make-wb-seq (call-selected wb-seq-tree-append wb-ht-seq-tree-append tree val)
 		 (seq-default s))))
 
 (define-wb-seq-method less-first ((s wb-seq))
   (let ((tree (wb-seq-contents s)))
-    (make-wb-seq (call-selected WB-Seq-Tree-Subseq WB-HT-Seq-Tree-Subseq
-				tree 1 (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size tree))
+    (make-wb-seq (call-selected wb-seq-tree-subseq wb-ht-seq-tree-subseq
+				tree 1 (call-selected wb-seq-tree-size wb-ht-seq-tree-size tree))
 		 (seq-default s))))
 
 (define-wb-seq-method less-last ((s wb-seq))
   (let ((tree (wb-seq-contents s)))
-    (make-wb-seq (call-selected WB-Seq-Tree-Subseq WB-HT-Seq-Tree-Subseq
-				tree 0 (1- (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size tree)))
+    (make-wb-seq (call-selected wb-seq-tree-subseq wb-ht-seq-tree-subseq
+				tree 0 (1- (call-selected wb-seq-tree-size wb-ht-seq-tree-size tree)))
 		 (seq-default s))))
 
 (define-wb-seq-method with ((s wb-seq) idx &optional (val nil val?))
   (check-three-arguments val? 'with 'wb-seq)
   (let ((tree (wb-seq-contents s))
-	((size (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size tree))))
+	((size (call-selected wb-seq-tree-size wb-ht-seq-tree-size tree))))
     (when (< idx -1)
       (when (eq (seq-default s) 'no-default)
 	(error 'fset2:seq-bounds-error :seq s :index idx))
-      (setq tree (WB-HT?-Seq-Tree-Concat (WB-Seq-Tree-Fill (- -1 idx) (seq-default s)) tree))
+      (setq tree (wb-ht?-seq-tree-concat (wb-seq-tree-fill (- -1 idx) (seq-default s)) tree))
       (setq idx -1))
     (when (> idx size)
       (when (eq (seq-default s) 'no-default)
 	(error 'fset2:seq-bounds-error :seq s :index idx))
-      (setq tree (WB-HT?-Seq-Tree-Concat tree (WB-Seq-Tree-Fill (- idx size) (seq-default s))))
+      (setq tree (wb-ht?-seq-tree-concat tree (wb-seq-tree-fill (- idx size) (seq-default s))))
       (setq size idx))
     (make-wb-seq (if (= idx -1)
-		     (WB-HT?-Seq-Tree-Insert tree 0 val)
+		     (wb-ht?-seq-tree-insert tree 0 val)
 		   (if (= idx size)
-		       (WB-HT?-Seq-Tree-Insert tree idx val)
-		     (WB-HT?-Seq-Tree-With tree idx val)))
+		       (wb-ht?-seq-tree-insert tree idx val)
+		     (wb-ht?-seq-tree-with tree idx val)))
 		 (seq-default s))))
 
 (define-wb-seq-method insert ((s wb-seq) idx val)
@@ -5744,21 +5726,21 @@ This is the default implementation of seqs in FSet."
 
 (define-wb-seq-method inserted ((s wb-seq) idx val)
   (let ((tree (wb-seq-contents s))
-	((size (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size tree))))
+	((size (call-selected wb-seq-tree-size wb-ht-seq-tree-size tree))))
     (when (< idx 0)
       (when (eq (seq-default s) 'no-default)
 	(error 'fset2:seq-bounds-error :seq s :index idx))
-      (setq tree (call-selected WB-Seq-Tree-Concat WB-HT?-Seq-Tree-Concat
-				(WB-Seq-Tree-Fill (- idx) (seq-default s))
+      (setq tree (call-selected wb-seq-tree-concat wb-ht?-seq-tree-concat
+				(wb-seq-tree-fill (- idx) (seq-default s))
 				tree))
       (setq idx 0))
     (when (> idx size)
       (when (eq (seq-default s) 'no-default)
 	(error 'fset2:seq-bounds-error :seq s :index idx))
-      (setq tree (call-selected WB-Seq-Tree-Concat WB-HT?-Seq-Tree-Concat tree
-				(WB-Seq-Tree-Fill (- idx size) (seq-default s))))
+      (setq tree (call-selected wb-seq-tree-concat wb-ht?-seq-tree-concat tree
+				(wb-seq-tree-fill (- idx size) (seq-default s))))
       (setq size idx))
-    (make-wb-seq (call-selected WB-Seq-Tree-Insert WB-HT-Seq-Tree-Insert tree idx val)
+    (make-wb-seq (call-selected wb-seq-tree-insert wb-ht-seq-tree-insert tree idx val)
 		 (seq-default s))))
 
 (define-wb-seq-method splice ((s wb-seq) idx subseq)
@@ -5767,32 +5749,32 @@ This is the default implementation of seqs in FSet."
 
 (define-wb-seq-method spliced ((s wb-seq) idx subseq)
   (let ((tree (wb-seq-contents s))
-	((size (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size tree)))
+	((size (call-selected wb-seq-tree-size wb-ht-seq-tree-size tree)))
 	(subseq-tree (wb-seq-contents (convert 'wb-seq subseq))))
     (when (< idx 0)
       (when (eq (seq-default s) 'no-default)
 	(error 'fset2:seq-bounds-error :seq s :index idx))
-      (setq tree (WB-HT?-Seq-Tree-Concat (WB-Seq-Tree-Fill (- idx) (seq-default s))
+      (setq tree (wb-ht?-seq-tree-concat (wb-seq-tree-fill (- idx) (seq-default s))
 					 tree))
       (setq idx 0))
     (when (> idx size)
       (when (eq (seq-default s) 'no-default)
 	(error 'fset2:seq-bounds-error :seq s :index idx))
-      (setq tree (WB-HT?-Seq-Tree-Concat tree (WB-Seq-Tree-Fill (- idx size) (seq-default s)))))
+      (setq tree (wb-ht?-seq-tree-concat tree (wb-seq-tree-fill (- idx size) (seq-default s)))))
     ;; `subseq-tree' could be an HT tree.
-    (make-wb-seq (WB-HT?-Seq-Tree-Concat (WB-HT?-Seq-Tree-Concat (WB-HT?-Seq-Tree-Subseq tree 0 idx)
+    (make-wb-seq (wb-ht?-seq-tree-concat (wb-ht?-seq-tree-concat (wb-ht?-seq-tree-subseq tree 0 idx)
 								 subseq-tree)
-					(WB-HT?-Seq-Tree-Subseq tree idx (WB-HT?-Seq-Tree-Size tree)))
+					(wb-ht?-seq-tree-subseq tree idx (wb-ht?-seq-tree-size tree)))
 		 (seq-default s))))
 
 (define-wb-seq-method less ((s wb-seq) idx &optional (arg2 nil arg2?))
   (declare (ignore arg2))
   (check-two-arguments arg2? 'less 'wb-seq)
   (let ((tree (wb-seq-contents s))
-	((size (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size
+	((size (call-selected wb-seq-tree-size wb-ht-seq-tree-size
 			      tree))))
     (if (and (>= idx 0) (< idx size))
-	(make-wb-seq (call-selected WB-Seq-Tree-Remove WB-HT-Seq-Tree-Remove
+	(make-wb-seq (call-selected wb-seq-tree-remove wb-ht-seq-tree-remove
 				    tree idx)
 		     (seq-default s))
       s)))
@@ -5800,21 +5782,21 @@ This is the default implementation of seqs in FSet."
 (defmethod concat ((s1 seq) &rest seqs)
   (let ((tree (wb-seq-contents s1)))
     (dolist (seq seqs)
-      (setq tree (WB-HT?-Seq-Tree-Concat tree (wb-seq-contents (convert 'seq seq)))))
+      (setq tree (wb-ht?-seq-tree-concat tree (wb-seq-contents (convert 'seq seq)))))
     (make-wb-seq tree (seq-default s1))))
 
 (define-wb-seq-method subseq ((s wb-seq) start &optional end)
   (let ((tree (wb-seq-contents s))
- 	((size (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size tree))
+ 	((size (call-selected wb-seq-tree-size wb-ht-seq-tree-size tree))
 	 ((start (max 0 (min start size)))
 	  (end (max start (if end (min end size) size))))))
     (if (and (= start 0) (= end size))
 	s
-      (make-wb-seq (call-selected WB-Seq-Tree-Subseq WB-HT-Seq-Tree-Subseq tree start end)
+      (make-wb-seq (call-selected wb-seq-tree-subseq wb-ht-seq-tree-subseq tree start end)
 		   (seq-default s)))))
 
 (define-wb-seq-method reverse ((s wb-seq))
-  (make-wb-seq (call-selected WB-Seq-Tree-Reverse WB-HT-Seq-Tree-Reverse (wb-seq-contents s))
+  (make-wb-seq (call-selected wb-seq-tree-reverse wb-ht-seq-tree-reverse (wb-seq-contents s))
 	       (seq-default s)))
 
 (defmethod sort ((s wb-seq) pred &key key)
@@ -5828,7 +5810,7 @@ This is the default implementation of seqs in FSet."
 (define-wb-seq-method domain ((s wb-seq))
   (let ((n (size s))
 	(i 0))
-    (make-wb-set (WB-Set-Tree-From-Sorted-Iterable (lambda (op)
+    (make-wb-set (wb-set-tree-from-sorted-iterable (lambda (op)
 						     (ecase op
 						       (:get (postincf i))
 						       (:more? (< i n))
@@ -5839,10 +5821,10 @@ This is the default implementation of seqs in FSet."
   (convert 'set s))
 
 (defmethod convert ((to-type (eql 'list)) (s wb-seq) &key)
-  (WB-Seq-Tree-To-List (wb-seq-contents s)))
+  (wb-seq-tree-to-list (wb-seq-contents s)))
 
 (defmethod convert ((to-type (eql 'vector)) (s wb-seq) &key)
-  (WB-Seq-Tree-To-Vector (wb-seq-contents s)))
+  (wb-seq-tree-to-vector (wb-seq-contents s)))
 
 (define-condition non-char-seq-error (error)
     ((seq :initarg :seq :reader non-char-seq-error-seq))
@@ -5855,22 +5837,22 @@ This is the default implementation of seqs in FSet."
 (defmethod convert ((to-type (eql 'string)) (s wb-seq) &key)
   (unless (char-seq? s)
     (error 'non-char-seq-error :seq s))
-  (WB-Seq-Tree-To-String (wb-seq-contents s)))
+  (wb-seq-tree-to-string (wb-seq-contents s)))
 
 (defmethod convert ((to-type (eql 'base-string)) (s wb-seq) &key)
   (unless (char-seq? s)
     (error 'non-char-seq-error :seq s))
-  (WB-Seq-Tree-To-String (wb-seq-contents s) 'base-char))
+  (wb-seq-tree-to-string (wb-seq-contents s) 'base-char))
 
 (define-convert-methods (seq fset2:seq wb-seq fset2:wb-seq) ((s wb-seq) &key)
   s)
 
 (define-convert-methods (seq wb-seq fset2:seq fset2:wb-seq) ((vec vector) &key default)
-  (make-wb-seq (WB-Seq-Tree-From-Vector vec) default))
+  (make-wb-seq (wb-seq-tree-from-vector vec) default))
 
 (define-convert-methods (seq wb-seq fset2:seq fset2:wb-seq) ((l list) &key reverse? default)
-  (make-wb-seq (if reverse? (WB-Seq-Tree-From-List-Reverse l)
-		 (WB-Seq-Tree-From-List l))
+  (make-wb-seq (if reverse? (wb-seq-tree-from-list-reverse l)
+		 (wb-seq-tree-from-list l))
 	       default))
 
 (define-convert-methods (seq wb-seq fset2:seq fset2:wb-seq) ((s set) &key default)
@@ -5951,7 +5933,7 @@ This is the default implementation of seqs in FSet."
 ;;; elements but different defaults compared `:equal'.  While that was clearly a bug,
 ;;; there is a remote chance that someone has inadvertently depended on this behavior.
 (defmethod compare ((s1 wb-seq) (s2 wb-seq))
-  (let ((comp (WB-Seq-Tree-Compare (wb-seq-contents s1) (wb-seq-contents s2) #'compare)))
+  (let ((comp (wb-seq-tree-compare (wb-seq-contents s1) (wb-seq-contents s2) #'compare)))
     (if (member comp '(:less :greater))
 	comp
       (let ((def-comp (compare (seq-default s1) (seq-default s2))))
@@ -5962,7 +5944,7 @@ This is the default implementation of seqs in FSet."
 	    ':equal))))))
 
 (defun compare-seqs-lexicographically (a b &optional (val-compare-fn #'compare))
-  (WB-Seq-Tree-Compare-Lexicographically (wb-seq-contents a) (wb-seq-contents b) val-compare-fn))
+  (wb-seq-tree-compare-lexicographically (wb-seq-contents a) (wb-seq-contents b) val-compare-fn))
 
 (defmethod hash-value ((s wb-seq))
   ;; Currently doing bounded hashing, but &&& am considering changing it to do caching
@@ -5978,7 +5960,7 @@ This is the default implementation of seqs in FSet."
     result))
 
 (defmethod compare-lexicographically ((s1 wb-seq) (s2 wb-seq) &key (val-compare-fn #'compare))
-  (WB-Seq-Tree-Compare (wb-seq-contents s1) (wb-seq-contents s2) val-compare-fn
+  (wb-seq-tree-compare (wb-seq-contents s1) (wb-seq-contents s2) val-compare-fn
 		       :lexicographic? t))
 
 (defgeneric internal-do-seq (seq elt-fn value-fn index?
@@ -5997,36 +5979,36 @@ not symbols."))
   (declare (optimize (speed 3) (safety 0))
 	   (type function elt-fn value-fn))
   (unless end
-    (setq end (call-selected WB-Seq-Tree-Size WB-HT-Seq-Tree-Size
+    (setq end (call-selected wb-seq-tree-size wb-ht-seq-tree-size
 			     (wb-seq-contents s))))
   (assert (and (typep start 'fixnum) (typep end 'fixnum)))
   (if index?
       (if from-end?
 	  (let ((i end))
 	    (declare (type fixnum i))
-	    (Do-WB-Seq-Tree-Members-Gen (x (wb-seq-contents s) start end from-end?
+	    (do-wb-seq-tree-members-gen (x (wb-seq-contents s) start end from-end?
 					   (funcall value-fn))
 	      (decf i)
 	      (funcall elt-fn x i)))
 	(let ((i start))
 	  (declare (type fixnum i))
-	  (Do-WB-Seq-Tree-Members-Gen (x (wb-seq-contents s) start end from-end?
+	  (do-wb-seq-tree-members-gen (x (wb-seq-contents s) start end from-end?
 					 (funcall value-fn))
 	    (funcall elt-fn x i)
 	    (incf i))))
-    (Do-WB-Seq-Tree-Members-Gen (x (wb-seq-contents s) start end from-end?
+    (do-wb-seq-tree-members-gen (x (wb-seq-contents s) start end from-end?
 				     (funcall value-fn))
 	(funcall elt-fn x))))
 
 (defmethod iterator ((s wb-seq) &key start end from-end?)
   (if from-end?
-      (Make-WB-Seq-Tree-Rev-Iterator (wb-seq-contents s) start end)
-    (Make-WB-Seq-Tree-Iterator (wb-seq-contents s) start end)))
+      (make-wb-seq-tree-rev-iterator (wb-seq-contents s) start end)
+    (make-wb-seq-tree-iterator (wb-seq-contents s) start end)))
 
 (defmethod fun-iterator ((s wb-seq) &key from-end?)
   (if from-end?
-      (WB-Seq-Tree-Rev-Fun-Iter (wb-seq-contents s))
-    (WB-Seq-Tree-Fun-Iter (wb-seq-contents s))))
+      (wb-seq-tree-rev-fun-iter (wb-seq-contents s))
+    (wb-seq-tree-fun-iter (wb-seq-contents s))))
 
 (defgeneric internal-do-seq-chunks (seq vec-fn value-fn)
   (:documentation
@@ -6038,7 +6020,7 @@ different seq implementations; it is not for public use.  `vec-fn' and
 `value-fn' must be function objects, not symbols."))
 
 (defmethod internal-do-seq-chunks (seq vec-fn value-fn)
-  (Do-WB-Seq-Tree-Leaves (v (wb-seq-contents seq) (funcall value-fn))
+  (do-wb-seq-tree-leaves (v (wb-seq-contents seq) (funcall value-fn))
     (funcall vec-fn v)))
 
 (defmethod domain-contains? ((s seq) x)
@@ -6048,6 +6030,14 @@ different seq implementations; it is not for public use.  `vec-fn' and
   (declare (optimize (speed 3) (safety 0)))
   (do-seq (y s)
     (when (equal? y x)
+      (return t))))
+
+(defmethod contains? ((s seq) x &optional (y nil y?))
+  (declare (optimize (speed 3) (safety 0))
+	   (ignore y))
+  (check-two-arguments y? 'contains? 'seq)
+  (do-seq (e s)
+    (when (equal? e x)
       (return t))))
 
 (define-methods (filter fset2:filter) ((fn function) (s seq))
@@ -6074,7 +6064,7 @@ different seq implementations; it is not for public use.  `vec-fn' and
     (do-seq (x s)
       (when (funcall fn x)
 	(push x result)))
-    (make-wb-seq (WB-Seq-Tree-From-List (nreverse result))
+    (make-wb-seq (wb-seq-tree-from-list (nreverse result))
 		 (seq-default s))))
 
 (define-methods (partition fset2:partition) ((fn function) (s seq))
@@ -6103,9 +6093,9 @@ different seq implementations; it is not for public use.  `vec-fn' and
       (if (funcall fn x)
 	  (push x result-1)
 	(push x result-2)))
-    (values (make-wb-seq (WB-Seq-Tree-From-List (nreverse result-1))
+    (values (make-wb-seq (wb-seq-tree-from-list (nreverse result-1))
 			 (seq-default s))
-	    (make-wb-seq (WB-Seq-Tree-From-List (nreverse result-2))
+	    (make-wb-seq (wb-seq-tree-from-list (nreverse result-2))
 			 (seq-default s)))))
 
 (defmethod sort-and-group ((s seq) pred &key key)
@@ -6162,7 +6152,7 @@ different seq implementations; it is not for public use.  `vec-fn' and
 						      (fset2:lookup fn (seq-default s))))))
 
 (defun seq-image (fn s default)
-  (make-wb-seq (WB-HT?-Seq-Tree-Image (wb-seq-contents s) fn) default))
+  (make-wb-seq (wb-ht?-seq-tree-image (wb-seq-contents s) fn) default))
 
 (defmethod reduce ((fn function) (s seq)
 		   &key key (initial-value nil init?)
@@ -6400,10 +6390,15 @@ different seq implementations; it is not for public use.  `vec-fn' and
 
 ;;; TIL!  "Quaesitum" is Latin for "thing to be searched for".
 (defmethod search (quaesitum (in-seq seq) &key from-end test key (start1 0) (start2 0) end1 end2)
+  (seq-search (convert 'seq quaesitum) in-seq from-end test key start1 start2 end1 end2))
+
+(defmethod search ((quaesitum seq) in-seq &key from-end test key (start1 0) (start2 0) end1 end2)
+  (seq-search quaesitum (convert 'seq in-seq) from-end test key start1 start2 end1 end2))
+
+(defun seq-search (quaesitum in-seq from-end test key start1 start2 end1 end2)
   (declare (optimize (speed 3) (safety 1))
 	   (fixnum start1 start2))
-  (let ((quaesitum (convert 'seq quaesitum))
-	(test (if test (coerce-to-function test) #'equal?))
+  (let ((test (if test (coerce-to-function test) #'equal?))
 	(key (and key (coerce-to-function key)))
 	(q-size (size quaesitum))
 	(s-size (size in-seq))
@@ -6426,12 +6421,12 @@ different seq implementations; it is not for public use.  `vec-fn' and
 		(loop
 		  (let ((q-elt (apply-key (funcall q-it ':get)))
 			(match-started? nil))
-		    (Do-WB-Seq-Tree-Members-Gen (seq-elt (wb-seq-contents in-seq) start2 end2 nil)
+		    (do-wb-seq-tree-members-gen (seq-elt (wb-seq-contents in-seq) start2 end2 nil)
 		      (when (> (the fixnum (+ start2 q-size)) end2)
-			(return-from search nil))
+			(return-from seq-search nil))
 		      (if (funcall test q-elt (apply-key seq-elt))
 			  (if (funcall q-it ':done?)
-			      (return-from search (the fixnum start2))
+			      (return-from seq-search (the fixnum start2))
 			    (setq q-elt (apply-key (funcall q-it ':get))
 				  match-started? t))
 			(progn
@@ -6446,12 +6441,12 @@ different seq implementations; it is not for public use.  `vec-fn' and
 	      (loop
 		(let ((q-elt (apply-key (funcall q-it ':get)))
 		      (match-started? nil))
-		  (Do-WB-Seq-Tree-Members-Gen (seq-elt (wb-seq-contents in-seq) start2 end2 t)
+		  (do-wb-seq-tree-members-gen (seq-elt (wb-seq-contents in-seq) start2 end2 t)
 		    (when (< (the fixnum (- end2 q-size)) start2)
-		      (return-from search nil))
+		      (return-from seq-search nil))
 		    (if (funcall test q-elt (apply-key seq-elt))
 			(if (funcall q-it ':done?)
-			    (return-from search (the fixnum (- end2 q-size)))
+			    (return-from seq-search (the fixnum (- end2 q-size)))
 			  (setq q-elt (apply-key (funcall q-it ':get))
 				match-started? t))
 		      (progn
@@ -6461,11 +6456,16 @@ different seq implementations; it is not for public use.  `vec-fn' and
 			  (return))))))))))))))
 
 (defmethod mismatch ((sequence-1 seq) sequence-2 &key from-end test key (start1 0) (start2 0) end1 end2)
+  (seq-mismatch sequence-1 (convert 'seq sequence-2) from-end test key start1 start2 end1 end2))
+
+(defmethod mismatch (sequence-1 (sequence-2 seq) &key from-end test key (start1 0) (start2 0) end1 end2)
+  (seq-mismatch (convert 'seq sequence-1) sequence-2 from-end test key start1 start2 end1 end2))
+
+(defun seq-mismatch (sequence-1 sequence-2 from-end test key start1 start2 end1 end2)
   (declare (optimize (speed 3) (safety 1))
 	   (fixnum start1 start2))
   (let ((test (if test (coerce-to-function test) #'equal?))
 	(key (and key (coerce-to-function key)))
-	(sequence-2 (convert 'seq sequence-2))
 	((size-1 (size sequence-1))
 	 (size-2 (size sequence-2))
 	 ((end1 (or end1 size-1))
@@ -6508,9 +6508,6 @@ different seq implementations; it is not for public use.  `vec-fn' and
 		  (unless (funcall test elt-1 elt-2)
 		    (return idx)))
 		(decf idx)))))))))
-
-(defmethod mismatch (sequence-1 (sequence-2 seq) &rest keyword-args)
-  (apply #'mismatch (convert 'seq sequence-1) sequence-2 keyword-args))
 
 
 (defun print-wb-seq (seq stream level)

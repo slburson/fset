@@ -7,11 +7,11 @@ specifies the target type of the conversion, and the second argument being the c
 converted.  (This is the opposite order from @code{cl:coerce}.)  Many methods have additional
 keyword parameters to further specify details of the conversion.
 
-When @code{to-type} is one of the abstract types -- @code{set}, @code{bag}, @code{map} etc. -- the
+When @code{to-type} is one of the abstract types -- @code{set}, @code{bag}, @code{map} @i{etc.} -- the
 only guarantee is that @code{convert} will return an instance of the requested type.  The choices of
 implementation and organization are up to FSet, and there's no option to request a specific
 organization.  In contrast, when @code{to-type} is one of the concrete types -- @code{wb-set},
-@code{ch-set}, @code{wb-map}, etc. -- the @code{convert} method accepts keyword arguments specifying
+@code{ch-set}, @code{wb-map}, @i{etc.} -- the @code{convert} method accepts keyword arguments specifying
 the organization (e.g.  @code{compare-fn-name}), and guarantees to return a collection of that type
 and organization; including the case where no organization is specified, in which @code{convert} is
 guaranteed to return a collection of the default organization (the one using @code{fset:compare}).
@@ -207,9 +207,9 @@ Notes:
 Identity conversion, provided for convenience.  (If the method also accepts an organization, then it
 performs the identity conversion only if the organization of the argument matches that requested.)
 @item @ilc{1}
-Constructs the WB-tree implementation of its type (@code{wb-set} etc.).
+Constructs the WB-tree implementation of its type (@code{wb-set} @i{etc.}).
 @item @ilc{2}
-Constructs the CHAMP implementation of its type (@code{ch-set} etc.).
+Constructs the CHAMP implementation of its type (@code{ch-set} @i{etc.}).
 @item @ilc{3}
 Has keyword parameter @var{pairs?}.  If true, treats the input elements as pairs (represented as
 conses) of a value and a count (multiplicity).
