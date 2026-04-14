@@ -690,8 +690,7 @@ These FSet functions are sometimes useful for compare-functions for WB-collectio
 @deffnx Method {compare-lexicographically (vector vector)} @ @r{&key} @r{(@var{val-compare-fn} #'compare)}
 @deffnx Method {compare-lexicographically (seq seq)} @ @r{&key} @r{(@var{val-compare-fn} #'compare)}
 A generic function with methods to compare strings, lists, or vectors lexicographically.  In the
-case of lists and vectors, you can optionally supply a function to compare the individual values
-(elements) with.
+case of lists and vectors, you can optionally supply a function to compare their elements with.
 @end deffn
 
 @defun compare-strings-lexicographically a b

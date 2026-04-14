@@ -1,12 +1,12 @@
-@settitle Modern Common Lisp with FSet (DRAFT)
+@settitle Modern Common Lisp with FSet
 
 @node Top
-@top Modern Common Lisp with FSet (DRAFT)
+@top Modern Common Lisp with FSet
 
 @syncodeindex fn cp
 @syncodeindex tp cp
 
-Version 1.0
+Version 1.0 (for FSet v2.4.2)
 
 © 2026 Scott L. Burson
 
