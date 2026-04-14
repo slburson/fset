@@ -904,7 +904,7 @@ argument subforms.  Each argument subform can be a list of the form (`key-expr'
 `value-expr'), denoting a mapping from the value of `key-expr' to the value of
 `value-expr'; or a list of the form ($ `expression'), in which case the
 expression must evaluate to a 2-relation, all of whose mappings will be
-included in the result.  Also, each of 'key-expr' and 'value-expr' can be of the
+included in the result.  Also, each of `key-expr' and `value-expr' can be of the
 form ($ `expression'), in which case the expression must evaluate to a set, and
 the elements of the set are used individually to form pairs; for example, the
 result of
@@ -912,7 +912,7 @@ result of
   (2-relation (($ (set 1 2)) ($ (set 'a 'b))))
 
 contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
-  (expand-2-relation-constructor-form '2-relation 'empty-2-relation args))
+  (expand-2-relation-constructor-form '2-relation 'empty-2-relation 'ch-custom-map args))
 
 (defmacro wb-2-relation (&rest args)
   "Constructs a wb-2-relation according to the supplied argument subforms.
@@ -920,7 +920,7 @@ Each argument subform can be a list of the form (`key-expr' `value-expr'),
 denoting a mapping from the value of `key-expr' to the value of `value-expr';
 or a list of the form ($ `expression'), in which case the expression must
 evaluate to a 2-relation, all of whose mappings will be included in the
-result.  Also, each of 'key-expr' and 'value-expr' can be of the
+result.  Also, each of `key-expr' and `value-expr' can be of the
 form ($ `expression'), in which case the expression must evaluate to a set, and
 the elements of the set are used individually to form pairs; for example, the
 result of
@@ -928,7 +928,7 @@ result of
   (wb-2-relation (($ (set 1 2)) ($ (set 'a 'b))))
 
 contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
-  (expand-2-relation-constructor-form 'wb-2-relation 'empty-wb-2-relation args))
+  (expand-2-relation-constructor-form 'wb-2-relation 'empty-wb-2-relation 'wb-custom-map args))
 
 (defmacro wb-custom-2-relation (key-compare-fn-name val-compare-fn-name &rest args)
   "Constructs a wb-2-relation with a custom ordering, according to the supplied
@@ -936,7 +936,7 @@ argument subforms.  Each argument subform can be a list of the form \(`key-expr'
 `value-expr'\), denoting a mapping from the value of `key-expr' to the value of
 `value-expr'; or a list of the form ($ `expression'), in which case the
 expression must evaluate to a 2-relation, all of whose mappings will be included
-in the result.  Also, each of 'key-expr' and 'value-expr' can be of the form
+in the result.  Also, each of `key-expr' and `value-expr' can be of the form
 \($ `expression'\), in which case the expression must evaluate to a set, and
 the elements of the set are used individually to form pairs; for example, the
 result of
@@ -944,7 +944,7 @@ result of
   (wb-custom-2-relation 'key-cmp 'val-cmp (($ (set 1 2)) ($ (set 'a 'b))))
 
 contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
-  (expand-2-relation-constructor-form 'wb-2-relation 'empty-wb-2-relation args
+  (expand-2-relation-constructor-form 'wb-2-relation 'empty-wb-2-relation 'wb-custom-map args
 				      key-compare-fn-name val-compare-fn-name))
 
 (defmacro ch-2-relation (&rest args)
@@ -953,7 +953,7 @@ Each argument subform can be a list of the form (`key-expr' `value-expr'),
 denoting a mapping from the value of `key-expr' to the value of `value-expr';
 or a list of the form ($ `expression'), in which case the expression must
 evaluate to a 2-relation, all of whose mappings will be included in the
-result.  Also, each of 'key-expr' and 'value-expr' can be of the
+result.  Also, each of `key-expr' and `value-expr' can be of the
 form ($ `expression'), in which case the expression must evaluate to a set, and
 the elements of the set are used individually to form pairs; for example, the
 result of
@@ -961,7 +961,7 @@ result of
   (ch-2-relation (($ (set 1 2)) ($ (set 'a 'b))))
 
 contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
-  (expand-2-relation-constructor-form 'ch-2-relation 'empty-ch-2-relation args))
+  (expand-2-relation-constructor-form 'ch-2-relation 'empty-ch-2-relation 'ch-custom-map args))
 
 (defmacro ch-custom-2-relation (key-compare-fn-name val-compare-fn-name &rest args)
   "Constructs a ch-2-relation with a custom ordering, according to the supplied
@@ -971,7 +971,7 @@ respectively.  Each argument subform can be a list of the form \(`key-expr'
 `value-expr'\), denoting a mapping from the value of `key-expr' to the value of
 `value-expr'; or a list of the form ($ `expression'), in which case the
 expression must evaluate to a 2-relation, all of whose mappings will be included
-in the result.  Also, each of 'key-expr' and 'value-expr' can be of the form
+in the result.  Also, each of `key-expr' and `value-expr' can be of the form
 \($ `expression'\), in which case the expression must evaluate to a set, and
 the elements of the set are used individually to form pairs; for example, the
 result of
@@ -979,10 +979,10 @@ result of
   (ch-custom-2-relation 'key-cmp 'val-cmp (($ (set 1 2)) ($ (set 'a 'b))))
 
 contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
-  (expand-2-relation-constructor-form 'ch-2-relation 'empty-ch-2-relation args
+  (expand-2-relation-constructor-form 'ch-2-relation 'empty-ch-2-relation 'ch-custom-map args
 				      key-compare-fn-name val-compare-fn-name))
 
-(defun expand-2-relation-constructor-form (type-name empty-fn subforms
+(defun expand-2-relation-constructor-form (type-name empty-fn map-cons subforms
 					   &optional key-compare-fn-name val-compare-fn-name)
   (let ((empty-form `(,empty-fn . ,(and (or key-compare-fn-name val-compare-fn-name)
 					`(,key-compare-fn-name ,val-compare-fn-name)))))
@@ -1008,7 +1008,8 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
 					     (gmap (:result union)
 						   (fn (,key-var)
 						     (convert ',type-name
-							      (map (,key-var ,vals-var))
+							      (,map-cons ,key-compare-fn-name ,val-compare-fn-name
+									 (,key-var ,vals-var))
 							      :from-type 'map-to-sets))
 						   (:arg set ,(cadar subform))))))))
 			 ((and (listp (car subform)) (eq (caar subform) '$))
@@ -1025,7 +1026,8 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
 			  (recur (cdr subforms)
 				 `(union ,result
 					 (convert ',type-name
-						  (map (,(car subform) ,(cadadr subform)))
+						  (,map-cons ,key-compare-fn-name ,val-compare-fn-name
+							     (,(car subform) ,(cadadr subform)))
 						  :from-type 'map-to-sets))))
 			 (t
 			  (recur (cdr subforms)
