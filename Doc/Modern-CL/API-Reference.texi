@@ -3941,5 +3941,18 @@ I never used this, though I once thought I was going to; it should be considered
 @subsection Bounded Sets
 
 In some cases, when you're working with sets, you can know in advance that the sets you're building
-are all subsets (not necessarily proper) of some set you 
+are all subsets (not necessarily proper) of some set you can compute; call this set the
+``universe''.  If you're also going to be doing a lot of bulk set operations --- union,
+intersection, and/or set-difference --- you can take advantage of knowing the universe to get very
+fast implementations of these operations.  Bounded sets make it easy to do so.
+
+To create a bounded set, you supply the universe and a subset thereof (again, not necessarily a
+proper subset).  The subset is converted to a bit vector, represented as a Lisp integer.  CL's
+builtin operations @code{logior}, @code{logand}, and @code{logandc2} are then used to compute
+unions, intersections, and set-differences between bounded sets which all have the same universe.
+
+To get maximum performance, make sure you use only one instance of each universe set (it can be
+either a @code{ch-set} or a @code{wb-set}), which you use to create the bounded sets.  The
+operations have to first check that the two sets have the same universe, and this check is much
+faster if they're @code{eq} than if they're distinct but equal.  
 

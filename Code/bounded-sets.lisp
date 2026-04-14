@@ -127,14 +127,14 @@ Null if there is no such bit.  `n' may be a bignum."
 (defmethod union ((bs1 bounded-set) (bs2 bounded-set) &key)
   (let ((u1 (bounded-set-universe bs1))
 	(u2 (bounded-set-universe bs2)))
-    (unless (or (eq u1 u2) (equal? u1 u2))
+    (unless (equal? u1 u2)
       (error "Can't take the union of two bounded-sets with different universes"))
     (make-bounded-set-internal u1 (logior (bounded-set-bitmap bs1) (bounded-set-bitmap bs2)))))
 
 (defmethod intersection ((bs1 bounded-set) (bs2 bounded-set) &key)
   (let ((u1 (bounded-set-universe bs1))
 	(u2 (bounded-set-universe bs2)))
-    (unless (or (eq u1 u2) (equal? u1 u2))
+    (unless (equal? u1 u2)
       (error "Can't take the intersection of two bounded-sets with different universes"))
     (make-bounded-set-internal u1
 			       (logand (bounded-set-bitmap bs1) (bounded-set-bitmap bs2)))))
@@ -142,7 +142,7 @@ Null if there is no such bit.  `n' may be a bignum."
 (defmethod set-difference ((bs1 bounded-set) (bs2 bounded-set) &key)
   (let ((u1 (bounded-set-universe bs1))
 	(u2 (bounded-set-universe bs2)))
-    (unless (or (eq u1 u2) (equal? u1 u2))
+    (unless (equal? u1 u2)
       (error "Can't take the set-difference of two bounded-sets with different universes"))
     (make-bounded-set-internal u1
 			       (logandc2 (bounded-set-bitmap bs1) (bounded-set-bitmap bs2)))))
@@ -150,14 +150,14 @@ Null if there is no such bit.  `n' may be a bignum."
 (defmethod subset? ((bs1 bounded-set) (bs2 bounded-set))
   (let ((u1 (bounded-set-universe bs1))
 	(u2 (bounded-set-universe bs2)))
-    (unless (or (eq u1 u2) (equal? u1 u2))
+    (unless (equal? u1 u2)
       (error "Can't do `subset?' on two bounded-sets with different universes"))
     (zerop (logandc2 (bounded-set-bitmap bs1) (bounded-set-bitmap bs2)))))
 
 (defmethod disjoint? ((bs1 bounded-set) (bs2 bounded-set))
   (let ((u1 (bounded-set-universe bs1))
 	(u2 (bounded-set-universe bs2)))
-    (unless (or (eq u1 u2) (equal? u1 u2))
+    (unless (equal? u1 u2)
       (error "Can't do `disjoint?' on two bounded-sets with different universes"))
     (zerop (logand (bounded-set-bitmap bs1) (bounded-set-bitmap bs2)))))
 
@@ -185,6 +185,6 @@ Null if there is no such bit.  `n' may be a bignum."
 	    bits-comp
 	  uni-comp)))))  ; in case it's `:unequal'
 
-(defmethod convert ((to-type (eql 'set)) (bs bounded-set) &key)
+(define-convert-methods (set fset2:set) ((bs bounded-set) &key)
   (bounded-set-contents bs))
 
