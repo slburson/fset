@@ -32,13 +32,13 @@ Null if there is no such bit.  `n' may be a bignum."
   (if (typep n 'fixnum)
       (let ((n (logandc2 n (1- (the fixnum (ash 1 start-bit))))))
 	(and (plusp n) (least-1-bit n)))
-    ;; We scan the bignum in fixnum-sized chunks.
-    (let ((chunk-len (integer-length most-positive-fixnum))
+    ;; We scan the bignum in chunks, word-sized on 64-bit SBCL, fixnum-sized otherwise.
+    (let ((chunk-len #+(and sbcl 64-bit) 64
+		     #-(and sbcl 64-bit) (integer-length most-positive-fixnum))
 	  (n-len (gen integer-length n))
 	  ((start-chunk start-bit (floor start-bit chunk-len))))
       (do ((chunk-base (* start-chunk chunk-len) (+ chunk-base chunk-len))
-	   (start-bit start-bit 0)
-	   (n-chunks (ceiling n-len chunk-len)))
+	   (start-bit start-bit 0))
 	  ((> chunk-base n-len) nil)
 	(let ((cur-chunk (ldb (byte (- chunk-len start-bit) (+ chunk-base start-bit)) n)))
 	  (when (plusp cur-chunk)
