@@ -1,3 +1,14 @@
+@ignore
+
+© 2026 Scott L. Burson
+
+This document is published under the Creative Commons
+@uref{https://creativecommons.org/licenses/by-nc-sa/4.0/, CC BY-NC-SA 4.0} license.  This license
+enables reusers to distribute, remix, adapt, and build upon the material in any medium or format for
+noncommercial purposes only, and only so long as attribution is given to the creator.  If you remix,
+adapt, or build upon the material, you must license the modified material under identical terms.
+@end ignore
+
 @node FSet Data Structures
 @chapter FSet Data Structures
 

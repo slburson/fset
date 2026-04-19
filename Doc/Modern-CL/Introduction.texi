@@ -1,5 +1,34 @@
+@ignore
+
+© 2026 Scott L. Burson
+
+This document is published under the Creative Commons
+@uref{https://creativecommons.org/licenses/by-nc-sa/4.0/, CC BY-NC-SA 4.0} license.  This license
+enables reusers to distribute, remix, adapt, and build upon the material in any medium or format for
+noncommercial purposes only, and only so long as attribution is given to the creator.  If you remix,
+adapt, or build upon the material, you must license the modified material under identical terms.
+@end ignore
+
 @node Introduction and Obligatory Hype
 @unnumbered Introduction and Obligatory Hype
+
+FSet is a functional, set-theoretic collections library for Common Lisp.  @dfn{Functional} means
+that all update operations return a new collection rather than modifying an existing one in place.
+Don't be daunted by the term ``set-theoretic''!  It just means that the collections have clean
+semantics, and may be nested arbitrarily with no additional programmer effort — for instance, sets
+may contain sets, maps may be keyed by sets, @i{etc.}
+
+FSet is designed to be an excellent @emph{default} choice for collections in Common Lisp programs:
+you can use them in practically all cases where you need a collection.  It has a wide API, with
+sets, maps, bags (multisets), seqs (sequences), binary relations, tuples, and more; and lots of
+useful operations on these types.  FSet is very much intended to be useful for general programming;
+I believe that functional collections are superior from a software engineering perspective, leading
+to more elegant and reliable code.  (The same thesis drove Rich Hickey's design of Clojure.)
+
+Along with supporting and encouraging the use of functional collections, FSet also seeks to bring
+Common Lisp up to date, adding to it data structures invented since the language was designed.
+These data structures greatly expand the space of algorithms that can be written in an elegant
+functional style and still run efficiently.
 
 This book has two intended audiences.  The larger one is Common Lisp programmers, or people who at
 least have been learning the language, who want to explore the benefits of modern functional collections.  

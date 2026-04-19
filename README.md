@@ -2,15 +2,15 @@
 
 FSet is a functional, set-theoretic collections library for Common Lisp.
 _Functional_ means that all update operations return a new collection rather than
-modifying an existing one in place.  Don't be frightened by the term _set-theoretic_!
+modifying an existing one in place.  Don't be daunted by the term _set-theoretic_!
 It just means that collections have clean semantics, and may be nested arbitrarily
 with no additional programmer effort — for instance, sets may contain sets, maps may
 be keyed by sets, etc.
 
 FSet is designed to be an excellent _default_ choice for collections in Common Lisp
 programs: you can use them in practically all cases where you need a collection.  It
-has a wide API, with sets, maps, bags, seqs (sequences), binary relations, tuples,
-and more; and lots of useful operations on these types.
+has a wide API, with sets, maps, bags (multisets), seqs (sequences), binary
+relations, tuples, and more; and lots of useful operations on these types.
 
 NEW!  My e-book, [Modern Common Lisp with
 FSet](https://fset.common-lisp.dev/Modern-CL/Top_html/index.html), is now live!  It

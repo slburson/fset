@@ -1,3 +1,14 @@
+@ignore
+
+© 2026 Scott L. Burson
+
+This document is published under the Creative Commons
+@uref{https://creativecommons.org/licenses/by-nc-sa/4.0/, CC BY-NC-SA 4.0} license.  This license
+enables reusers to distribute, remix, adapt, and build upon the material in any medium or format for
+noncommercial purposes only, and only so long as attribution is given to the creator.  If you remix,
+adapt, or build upon the material, you must license the modified material under identical terms.
+@end ignore
+
 @node FSet API Reference
 @chapter FSet API Reference
 
@@ -3954,5 +3965,5 @@ unions, intersections, and set-differences between bounded sets which all have t
 To get maximum performance, make sure you use only one instance of each universe set (it can be
 either a @code{ch-set} or a @code{wb-set}), which you use to create the bounded sets.  The
 operations have to first check that the two sets have the same universe, and this check is much
-faster if they're @code{eq} than if they're distinct but equal.  
+faster if they're @code{eq} than if they're distinct but equal.
 

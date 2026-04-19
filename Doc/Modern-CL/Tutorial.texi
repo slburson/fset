@@ -1,3 +1,14 @@
+@ignore
+
+© 2026 Scott L. Burson
+
+This document is published under the Creative Commons
+@uref{https://creativecommons.org/licenses/by-nc-sa/4.0/, CC BY-NC-SA 4.0} license.  This license
+enables reusers to distribute, remix, adapt, and build upon the material in any medium or format for
+noncommercial purposes only, and only so long as attribution is given to the creator.  If you remix,
+adapt, or build upon the material, you must license the modified material under identical terms.
+@end ignore
+
 @node FSet Tutorial
 @section FSet Tutorial
 
@@ -14,7 +25,9 @@ you are already using Quicklisp, just do
 This tutorial presents FSet 2; you should be using v2.4.0 or later.  If, at the time you read this,
 Quicklisp is still on v2.2.0, I strongly recommend getting the latest release from either
 @uref{https://gitlab.common-lisp.net/fset/fset, Common-Lisp.net} or
-@uref{https://github.com/slburson/fset, GitHub}.  If you clone the repo into
+@uref{https://github.com/slburson/fset, GitHub}.  (You will also need the latest Misc-Extensions,
+again from @uref{https://gitlab.common-lisp.net/misc-extensions/misc-extensions, Common-Lisp.net} or
+@uref{https://github.com/slburson/misc-extensions, GitHub}.)  If you clone the repo into
 @code{~/quicklisp/local-projects/}, Quicklisp will use it automatically.  To find out what version
 Quicklisp is providing, you can do
 
@@ -123,7 +136,7 @@ this general form:
 
 @example
 (let ((workset (some-set)))
-  (loop while (not (empty? workset))
+  (loop while (not (empty? workset)) do
     (let ((x (arb workset)))
       (setq workset (less workset x))
       (some-operation-on x)

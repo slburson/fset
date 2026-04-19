@@ -1,3 +1,14 @@
+@ignore
+
+© 2026 Scott L. Burson
+
+This document is published under the Creative Commons
+@uref{https://creativecommons.org/licenses/by-nc-sa/4.0/, CC BY-NC-SA 4.0} license.  This license
+enables reusers to distribute, remix, adapt, and build upon the material in any medium or format for
+noncommercial purposes only, and only so long as attribution is given to the creator.  If you remix,
+adapt, or build upon the material, you must license the modified material under identical terms.
+@end ignore
+
 @node Examples
 @chapter Examples
 
@@ -75,7 +86,7 @@ side-effect).  First, here's one way it might be written in plain CL:
 (defun map-graph-nodes-cl-1 (fun graph)
   (let ((seen (make-hash-table :test 'eq))
         (workset (list (graph-start graph))))
-    (loop while workset
+    (loop while workset do
       (let ((node (pop workset)))
         (unless (gethash node seen)
           (funcall fun node)
@@ -102,7 +113,7 @@ to fix this, but the code gets more verbose:
   (let ((seen (make-hash-table :test 'eq))
         (workset (make-hash-table :test 'eq)))
     (setf (gethash (graph-start graph) workset) t)
-    (loop while (plusp (hash-table-count workset))
+    (loop while (plusp (hash-table-count workset)) do
       (let ((node (block arb
                     (maphash (lambda (k v)
                                (declare (ignore v))
@@ -126,7 +137,7 @@ Here's what it looks like using FSet --- elegant @emph{and} fast:
 (defun map-graph-nodes-fset (fun graph)
   (let ((seen (@href{Macro set, set}))
         (workset (@href{Macro set, set} (graph-start graph))))
-    (loop while (@href{Function nonempty?, nonempty?} workset)
+    (loop while (@href{Function nonempty?, nonempty?} workset) do
       (let ((node (@href{Method arb (set), arb} workset)))
         (@href{Macro excludef, excludef} workset node)
         (unless (@href{Method contains? (set), contains?} seen node)
