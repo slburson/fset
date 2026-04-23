@@ -5622,6 +5622,13 @@ This is the default implementation of seqs in FSet."
   (n-values 1 (call-selected wb-seq-tree-size wb-ht-seq-tree-size
 			     (wb-seq-contents s))))
 
+(defun filled-seq (size initial-element &key (default nil default?) no-default?)
+  (make-wb-seq (wb-seq-tree-fill size initial-element)
+	       (fset2-default default? default no-default?)))
+(defun filled-wb-seq (size initial-element &key (default nil default?) no-default?)
+  (make-wb-seq (wb-seq-tree-fill size initial-element)
+	       (fset2-default default? default no-default?)))
+
 (define-wb-seq-method char-seq? ((s wb-seq))
   (let ((size chars? (call-selected wb-seq-tree-size wb-ht-seq-tree-size
 				    (wb-seq-contents s))))

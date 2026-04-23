@@ -68,6 +68,7 @@
 	   #:filter #:filter-pairs #:partition
 	   #:image #:reduce #:domain #:range #:updated #:update
 	   #:with-default #:default
+	   #:filled-seq #:filled-wb-seq
 	   #:non-char-seq-error #:non-char-seq-error-seq
 	   #:map-union #:map-intersection #:map-difference-2 #:map-image
 	   #:restrict #:restrict-not #:compose #:map-default
@@ -216,6 +217,7 @@
 	   #:filter #:filter-pairs #:partition
 	   #:image #:reduce #:domain #:range #:updated #:update
 	   #:with-default #:without-default #:default #:clear-default
+	   #:filled-seq #:filled-wb-seq
 	   #:lookup-error #:map-domain-error #:map-domain-error-map #:map-domain-error-key
 	   #:seq-bounds-error #:seq-bounds-error-seq #:seq-bounds-error-index
 	   #:tuple-key-unbound-error #:tuple-key-unbound-error-tuple #:tuple-key-unbound-error-key
