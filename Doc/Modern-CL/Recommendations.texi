@@ -281,7 +281,13 @@ use it.
 On first reading, it appears that pairs, and therefore lists, are immutable, so that lists are
 indeed a functional type.  That would be great --- but then one reads farther and finds the
 @code{mutable-pairs} library, which brings in @code{set-car!} and @code{set-cdr!}, which operate on
-the same pair type.  So you can't absolutely count on your lists not getting mutated.
+the same pair type.  So you can't absolutely count on your lists not getting mutated (unless they're
+constants in the source code; those are required to be protected).
+
+@dots{} Aaaand it turns out there's a @code{mutable-strings} library as well.  Again, there's only
+one string type; loading this library doesn't define a new type, but causes the existing one to
+become mutable.  (And again, an exception is made for string constants in source code.)  At least
+now we can see a use for @code{string-copy}.
 
 Like CL, Scheme has a ``deep equality'' predicate @code{equal?}.  This is very similar to CL's
 @code{equal}, except that it compares vectors by content, even though they're mutable.
@@ -292,9 +298,10 @@ Like CL, Scheme has a ``deep equality'' predicate @code{equal?}.  This is very s
 
 @uref{https://racket-lang.org/, Racket} improves on Scheme by making immutable and mutable pairs
 distinct types, the latter being constructed with @code{mcons}, accessed with @code{mcar}, @i{etc.}
-Racket also has both immutable and mutable strings, vectors, and hash tables.  Bravo!  But of its
-immutable types, only hash tables have any functional update operators; the others are merely
-protected from mutation.
+Similarly for mutable and immutable strings.  Racket also has both immutable and mutable vectors and
+hash tables; and @dfn{treelists}, which are functional sequences implemented as RRB-trees.  Bravo!
+But of its immutable types, only hash tables and treelists have any functional update operators; the
+others are merely protected from mutation.
 
 Racket also has an equality predicate, @code{equal-always?}, that compares immutable objects of the
 same type by content, and mutable ones by identity, as I have argued one should.  However, its use
