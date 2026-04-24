@@ -1091,11 +1091,10 @@ map under @var{fn}.
 @deffnx Method {reduce (symbol map)} @ fn m @r{&key} key @r{(@var{initial-value} nil)}
 Calls @var{fn} repeatedly with three arguments, a state variable and the next key/value pair of
 @var{m}, storing the result of each call back into the state variable, and finally returning that
-result.  If @var{initial-value} is supplied, it is used as the initial value of the state variable.
-Otherwise: if @var{m} is nonempty, the initial value is the first element; if @var{m} is empty, the
-result of @code{reduce} is obtained by calling @var{fn} with no arguments.  In all cases, if
-@var{key} is provided, it is called on each key/value pair and the resulting two values used in
-place of the pair.  (Time complexity depends on the behavior of @var{fn}.)
+result.  @var{initial-value} is required in this case; it is used as the initial value of the state
+variable.  In all cases, if @var{key} is provided, it is called on each key/value pair and the
+resulting two values used in place of the pair.  (Time complexity depends on the behavior of
+@var{fn}.)
 @end deffn
 
 @deffn Method {compose (map map)} @ m1 m2
