@@ -6590,6 +6590,8 @@ different seq implementations; it is not for public use.  `vec-fn' and
   (funcall fn v))
 
 (define-methods (lookup fset2:lookup) ((fn symbol) (v t))
+  (unless (fboundp fn)
+    (error "You have invoked LOOKUP on ~S, but it's not fbound" fn))
   (funcall fn v))
 
 (defmethod convert ((to-type (eql 'string)) (s sequence) &key)
