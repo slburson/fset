@@ -18,7 +18,7 @@
 
 ;;; Copy class definitions from `fset:' symbols to `fset2:' symbols that shadow them,
 ;;; so `defmethod', `typep', etc. will work without package prefixes.
-(dolist (sym '(set map wb-map ch-map seq wb-seq replay-map wb-replay-map ch-replay-map))
+(dolist (sym '(set bag map wb-map ch-map seq wb-seq replay-map wb-replay-map ch-replay-map))
   (let ((fset2-sym (intern (string sym) :fset2)))
     ;; Calling `(setf find-class)' isn't sufficient, in CCL and LispWorks, to make `typep' work.
     ;; This is arguably a bug, but the spec isn't clear.  Anyway, eval'ing `deftype' seems safe.
