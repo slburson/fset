@@ -1993,6 +1993,13 @@ the seq's @href{Map and Seq Defaults, default}; if @var{no-default?} is true, th
 default.
 @end defun
 
+@defun filled-seq size initial-element @r{&key} @r{(@var{default} nil)} no-default?
+@defunx filled-wb-seq size initial-element @r{&key} @r{(@var{default} nil)} no-default?
+Constructor function.  Returns a @code{wb-seq} of size @var{size}, in which every element is
+@var{initial-element}.  If @var{default} is supplied, that will be the seq's @href{Map and Seq
+Defaults, default}; if @var{no-default?} is true, the seq will have no default.
+@end defun
+
 @anchor{Macro seq}
 @defmac seq @r{&rest} subforms
 @defmacx wb-seq @r{&rest} subforms
