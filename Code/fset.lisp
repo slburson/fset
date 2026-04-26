@@ -4015,9 +4015,6 @@ different bag implementations; it is not for public use.  `elt-fn' and
   (gmap (:result ch-bag-pairs :compare-fn-name compare-fn-name)
 	nil (:arg bag-pairs b)))
 
-(defmethod convert ((to-type (eql 'fset2:bag)) (b ch-bag) &key)
-  (convert 'ch-bag b))
-
 (defmethod convert ((to-type (eql 'ch-bag)) (b ch-bag) &key compare-fn-name)
   (let ((prototype (empty-ch-bag compare-fn-name))
 	((hsorg (ch-bag-org prototype))
