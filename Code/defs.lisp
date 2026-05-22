@@ -48,7 +48,7 @@
 	   #:define-equality-slots #:define-comparison-slots #:define-hash-function
 	   #:unwrap-equivalent-node ; custom comparison functions may have to call this
 	   #:hash-value #:hash-value-fixnum #:zero #:hash-mix #:hash-mixf #:hash-multiply
-	   #:identity-equality-mixin #:identity-ordering-mixin
+	   #:identity-equality-mixin #:identity-ordering-mixin #:identity-equality-struct
 	   #:define-cross-type-compare-methods
 	   #:compare-lexicographically #:compare-lists-lexicographically #:compare-strings-lexicographically
 	   #:compare-vectors-lexicographically #:compare-seqs-lexicographically
@@ -197,7 +197,7 @@
 	   #:define-equality-slots #:define-comparison-slots #:define-hash-function
 	   #:unwrap-equivalent-node ; custom comparison functions may have to call this
 	   #:hash-value #:hash-value-fixnum #:zero #:hash-mix #:hash-mixf #:hash-multiply
-	   #:identity-equality-mixin
+	   #:identity-equality-mixin #:identity-equality-struct
 	   #:define-cross-type-compare-methods
 	   #:compare-lexicographically #:compare-lists-lexicographically #:compare-strings-lexicographically
 	   #:compare-vectors-lexicographically #:compare-seqs-lexicographically
