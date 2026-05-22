@@ -12,6 +12,7 @@
 
 ;;; For SBCL, these declarations must come after all methods on these generic functions
 ;;; in order to take effect in user code.
+(declaim (ftype (function (t) fixnum) size))
 (declaim (ftype (function (t &key &allow-other-keys) function) iterator))
 (declaim (ftype (function (t &key (:from-end? t) &allow-other-keys) function) fun-iterator))
 

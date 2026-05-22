@@ -91,7 +91,7 @@
 	   #:unionf #:intersectf #:set-differencef #:map-unionf #:map-intersectf #:imagef #:updatef #:composef
 	   #:define-tuple-key #:def-tuple-key #:get-tuple-key
 	   #:tuple-key #:tuple-key-name #:tuple-key-type #:tuple-key?
-	   #:tuple-merge
+	   #:tuple-merge #:tuple-key-default
 	   #:fset-setup-readtable #:*fset-readtable*
 	   #:fset-setup-rereading-readtable #:*fset-rereading-readtable*
 	   #:$ #:% 			; for the 'map' and 'bag' constructor macros
@@ -242,7 +242,7 @@
 	   #:includef #:excludef #:unionf #:intersectf #:set-differencef
 	   #:map-unionf #:map-intersectf #:imagef #:updatef #:composef #:map-imagef
 	   #:define-tuple-key #:get-tuple-key #:tuple-key #:tuple-key-name #:tuple-key-type #:tuple-key?
-	   #:tuple-merge
+	   #:tuple-merge #:tuple-key-default
 	   #:fset-setup-readtable #:*fset-readtable*
 	   #:fset-setup-rereading-readtable #:*fset-rereading-readtable*
 	   #:$ #:% 			; for the 'map' and 'bag' constructor macros
