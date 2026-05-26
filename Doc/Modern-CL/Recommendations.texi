@@ -100,8 +100,8 @@ designers:
 
 @itemize
 @item
-@href{Map and Seq Defaults, Defaults} associated with maps and seqs.  This not a difficult feature
-to add; the only complications show up in operations like @href{Method map-union (map map),
+@href{Map and Seq Defaults, Defaults} associated with maps and seqs.  This is not a difficult
+feature to add; the only complications show up in operations like @href{Method map-union (map map),
 @code{map-union}} that arguably need to do something sensible with the defaults of their operands
 (though, simply ignoring them might be a viable option).
 @item
@@ -138,7 +138,7 @@ collections implementations I have looked at allow strict weak orderings, though
 @node Critiques of FSet
 @section Critiques of FSet
 
-Before I critique other languages and  libraries, I think it's only fair to say a little about what
+Before I critique other languages and libraries, I think it's only fair to say a little about what
 aspects of FSet I would @emph{not} encourage others to duplicate.
 
 @subheading WB-trees are obsolete
@@ -161,7 +161,7 @@ worth looking at the alternatives.
 
 For seqs, it appears that a better choice would be Phil Bagwell and Tiark Rompf's
 @uref{https://infoscience.epfl.ch/server/api/core/bitstreams/e5d662ea-1e8d-4dda-b917-8cbb8bb40bf9/content,
-relaxed-radix B-trees} (RRB-trees).  These were invented for Clojure, because its oriiginal
+relaxed-radix B-trees} (RRB-trees).  These were invented for Clojure, because its original
 functional vector type had poor time complexity for insertion and concatenation.  They should have
 noticeably better indexing performance than FSet's @code{wb-seq}, at the cost of making insertion,
 subsequencing, and concatenation more expensive (these are all constant-factor differences; the time
@@ -402,7 +402,7 @@ that's valuable, to me it's only one of several desirable qualities of functiona
 @node Python
 @subsection Python
 
-Python's built-in types include @code{frozenset} , which is immutable in the same sense as the Guava
+Python's built-in types include @code{frozenset}, which is immutable in the same sense as the Guava
 collections.  It has union and intersection indicated by @code{|} and @code{&}, which seems a bit
 terse to me (there are also methods called @code{union} and @code{intersection}).  Curiously, it
 defines the comparison operators (@code{<} @i{etc.}) as subset/superset tests, which of course

@@ -21,7 +21,7 @@ FSet provides a plethora of ways to iterate over a collection once you have crea
 @item the @code{at-index} operation
 @item the versatile GMap macro (described below)
 @item the popular Iterate macro
-@item there's even a third-party library, @uref{https://github.com/fosskers/transducers, CL-Transducers}, with  FSet support
+@item there's even a third-party library, @uref{https://github.com/fosskers/transducers, CL-Transducers}, with FSet support
 @end itemize
 
 Just to give a taste of these, here's an example.  Suppose @code{nums} holds a seq of numbers, and
@@ -296,7 +296,7 @@ here; see the source.
 
 In sum --- I know, there are other iteration macros out there that you're already familiar with; you
 may be understandably unenthusiastic about learning another one.  It's certainly not
-@emph{necessary} to use GMap along witih FSet.  But the two do fit together nicely, and GMap has a
+@emph{necessary} to use GMap along with FSet.  But the two do fit together nicely, and GMap has a
 simple and familiar conceptual model, as I've just explained.  I hope you'll give it a try.
 
 @hrule{}
@@ -316,8 +316,8 @@ Yields successive elements of @var{list}.
 @end deffn
 
 @deffn {GMap arg type} improper-list list
-Yields the successive elements of `list`, which may be improper; any non-cons tail terminates the
-iteration.
+Yields the successive elements of @var{list}, which may be improper; any non-cons tail terminates
+the iteration.
 @end deffn
 
 @deffn {GMap arg type} alist alist
@@ -377,8 +377,8 @@ a fixnum.  @var{start} and @var{stop} may be supplied to select a subsequence of
 
 @deffn {GMap arg type} string str @r{&key} start stop incr
 Yields elements of string @var{str}.  @var{start} and @var{stop} may be supplied to select a
-subsequence of @var{vec}; @var{incr} may be supplied (it must be positive) to select every second
-element @i{etc.}  For performance, you may prefer @var{simple-string}.
+subsequence of @var{str}; @var{incr} may be supplied (it must be positive) to select every second
+element @i{etc.}  For performance, you may prefer @code{simple-string}.
 @end deffn
 
 @deffn {GMap arg type} simple-string str @r{&key} start stop incr
@@ -396,12 +396,12 @@ more elements at each step.
 
 @deffn {GMap arg type} file-chars pathname @r{&key} element-type external-format
 Yields the characters of the file named by @var{pathname}.  @var{element-type} and
-@var{external-format}, if supplied, are passed to @var{open}.
+@var{external-format}, if supplied, are passed to @code{open}.
 @end deffn
 
 @deffn {GMap arg type} file-lines pathname @r{&key} skip-initial external-format
 Yields the lines of the file named by @var{pathname}.  If @var{skip-initial} is given, it is the
-number of initial lines to skip.  @var{external-format}, if supplied, is passed to @var{open}.
+number of initial lines to skip.  @var{external-format}, if supplied, is passed to @code{open}.
 @end deffn
 
 @c --------------------------------------------------------------------------------
@@ -446,7 +446,7 @@ last value.  Does not work as an operand of @code{values}.  (Generalizes @code{c
 
 @deffn {GMap result type} or
 If one of the values is true, terminates the iteration and returns it; otherwise, returns false.
-(Does not work as an operand of @code{values}.  (Generalizes @code{cl:some}.)
+Does not work as an operand of @code{values}.  (Generalizes @code{cl:some}.)
 @end deffn
 
 @deffn {GMap result type} sum @r{&key} filterp
@@ -472,7 +472,7 @@ supplied, the value with the maximum key (if that's not unique, returns the firs
 @end example
 returns the (first) pair of @var{alist} with the maximum @var{cdr}.
 
-If @var{key} is @var{:second-value}, the second value of the mapped function is used; for example,
+If @var{key} is @code{:second-value}, the second value of the mapped function is used; for example,
 @example
 (gmap (:result max :key :second-value) nil (:arg alist an-alist))
 @end example
@@ -489,7 +489,7 @@ supplied (or survived filtering).  Example:
 @end example
 returns the (first) pair of @var{alist} with the minimum @code{cdr}.
 
-If @var{key} is @var{:second-value}, the second value of the mapped function is used; for example,
+If @var{key} is @code{:second-value}, the second value of the mapped function is used; for example,
 @example
 (gmap (:result min :key :second-value) nil (:arg alist an-alist))
 @end example
@@ -519,9 +519,9 @@ function being mapped, that says whether to include it in the result (@var{filte
 Constructs a string containing the results.  If @var{use-string} is supplied, the argument will be
 filled with the results and returned; if @var{fill-pointer} is true and @var{adjustable} is true, it
 must have a fill pointer and be adjustable, and values will be appended to it with
-@var{vector-push-extend}; if @var{fill-pointer} is true and @var{adjustable} is false, it must have
-a fill pointer, and values will be appended to it with @var{vector-push}; otherwise, the vector is
-assumed to be simple and must be large enough to hold the results.  (Recall that @var{vector-push}
+@code{vector-push-extend}; if @var{fill-pointer} is true and @var{adjustable} is false, it must have
+a fill pointer, and values will be appended to it with @code{vector-push}; otherwise, the vector is
+assumed to be simple and must be large enough to hold the results.  (Recall that @code{vector-push}
 has no effect if the vector is full.)
 
 If @var{use-string} is not supplied, a string will be constructed and returned; if @var{length} is
@@ -561,7 +561,7 @@ Yields the values returned by @var{it}, which must be an FSet @href{Stateful Ite
 iterator}.
 @end deffn
 
-@deffn {GMap arg type} fun-sequence @ @r{&key} from-end?
+@deffn {GMap arg type} fun-sequence fun-iterable @r{&key} from-end?
 Yields the elements of @var{fun-iterable}, which can be an FSet seq, set, or bag.  If
 @var{:from-end?} is true, iterates in reverse order.  (Uses a @href{Functional Iterators, functional
 iterator}.  There's no reason to use this unless you want the @var{from-end?} behavior.)
@@ -660,13 +660,13 @@ Returns the intersection of the sets (or bags), optionally filtered by @var{filt
 are supplied, returns the full set; see @href{Function full-set, @code{full-set}}.)
 @end deffn
 
-@deffn {GMap result type} map @ @r{&key} filter @r{(}default @r{@code{nil})} no-default?
+@deffn {GMap result type} map @ @r{&key} filterp @r{(}default @r{@code{nil})} no-default?
 Consumes two values from the mapped function; returns a CHAMP map of the pairs.  @var{filterp}, if
 supplied, must take two arguments.  If @var{default} is supplied, that will be the map's @href{Map
 and Seq Defaults, default}; if @var{no-default?} is true, the map will have no default.
 @end deffn
 
-@deffn {GMap result type} ch-map @ @r{&key} filter @r{(@var{default} @code{nil})} no-default? key-compare-fn-name val-compare-fn-name
+@deffn {GMap result type} ch-map @ @r{&key} filterp @r{(@var{default} @code{nil})} no-default? key-compare-fn-name val-compare-fn-name
 Consumes two values from the mapped function; returns a CHAMP map of the pairs.  @var{filterp}, if
 supplied, must take two arguments.  @var{default} will be the map's @href{Map and Seq Defaults,
 default}; but if @var{no-default?} is true, the map will have no default.  @var{key-compare-fn-name} and
@@ -674,12 +674,12 @@ default}; but if @var{no-default?} is true, the map will have no default.  @var{
 for keys and values respectively (these default to @code{compare}).
 @end deffn
 
-@deffn {GMap result type} wb-map @ @r{&key} filter @r{(@var{default} @code{nil})} no-default? key-compare-fn-name val-compare-fn-name
-Consumes two values from the mapped function; returns a CHAMP map of the pairs.  @var{filterp}, if
+@deffn {GMap result type} wb-map @ @r{&key} filterp @r{(@var{default} @code{nil})} no-default? key-compare-fn-name val-compare-fn-name
+Consumes two values from the mapped function; returns a WB-map of the pairs.  @var{filterp}, if
 supplied, must take two arguments.  @var{default} will be the map's @href{Map and Seq Defaults,
-default}; but if @var{no-default?} is true, the map will have no default.  @var{key-compare-fn-name} and
-@var{val-compare-fn-name}, if supplied, must be symbols naming the comparison functions to be used
-for keys and values respectively (these default to @code{compare}).
+default}; but if @var{no-default?} is true, the map will have no default.  @var{key-compare-fn-name}
+and @var{val-compare-fn-name}, if supplied, must be symbols naming the comparison functions to be
+used for keys and values respectively (these default to @code{compare}).
 @end deffn
 
 @deffn {GMap result type} map-union @r{&key @var{val-fn} (@var{default} @code{nil})} filterp
@@ -775,13 +775,13 @@ Returns a WB-tree replay-set of the values, optionally filtered by @var{filterp}
 @var{compare-fn-name} can be supplied to specify a custom ordering.
 @end deffn
 
-@deffn {GMap result type} replay-map @ @r{&key} filter @r{@var{default} @code{nil})} no-default? key-compare-fn-name val-compare-fn-name
+@deffn {GMap result type} replay-map @ @r{&key} filter @r{(@var{default} @code{nil})} no-default? key-compare-fn-name val-compare-fn-name
 Consumes two values from the mapped function; returns a CHAMP map of the pairs.  @var{filterp}, if
 supplied, must take two arguments.  If @var{default} is supplied, that will be the map's @href{Map
 and Seq Defaults, default}; if @var{no-default?} is true, the map will have no default.
 @end deffn
 
-@deffn {GMap result type} ch-replay-map @ @r{&key} filter @r{@var{default} @code{nil})} no-default?
+@deffn {GMap result type} ch-replay-map @ @r{&key} filter @r{(@var{default} @code{nil})} no-default?
 Consumes two values from the mapped function; returns a CHAMP map of the pairs.  @var{filterp}, if
 supplied, must take two arguments.  If @var{default} is supplied, that will be the map's @href{Map
 and Seq Defaults, default}; if @var{no-default?} is true, the map will have no default.
@@ -789,7 +789,7 @@ and Seq Defaults, default}; if @var{no-default?} is true, the map will have no d
 comparison functions to be used for keys and values respectively (these default to @code{compare}).
 @end deffn
 
-@deffn {GMap result type} wb-replay-map @ @r{&key} filter @r{@var{default} @code{nil})} no-default?
+@deffn {GMap result type} wb-replay-map @ @r{&key} filter @r{(@var{default} @code{nil})} no-default?
 Consumes two values from the mapped function; returns a WB-tree map of the pairs.  @var{filterp}, if
 supplied, must take two arguments.  If @var{default} is supplied, that will be the map's @href{Map
 and Seq Defaults, default}; if @var{no-default?} is true, the map will have no default.
@@ -877,7 +877,7 @@ Yields the pairs of @var{map}, binding @var{key} to each key and @var{value} to 
 @deffn {Iterate clause} {for @var{var} in-seq @var{seq}} @ @r{&optional} @r{from} from @r{upfrom} upfrom @
         @r{downfrom} downfrom @r{to} to @r{downto} downto @r{above} above @r{below} below @
         @r{by} step @r{with-index} with-index
-Yields the elements of @var{seq}.  The index range can be specified with @var{from}/@var{uptrom} or
+Yields the elements of @var{seq}.  The index range can be specified with @var{from}/@var{upfrom} or
 @var{downfrom}, and/or @var{to}, @var{downto}, @var{above}, or @var{below}.  @var{step}, if
 supplied, gives the index step.
 @end deffn
@@ -954,7 +954,7 @@ Map-unions maps into a result map (@pxref{Method map-union (map map)}).  If @var
 provided, it is used to combine values corresponding to the same key; the default is to overwrite
 the value from the earlier map with the later value.  If @var{init-val} is provided, the result will
 be of the same type and organization; otherwise, it will be of the same type and organization as the
-first set received, unless the iteration terminates without executing this clause at all, in which
+first map received, unless the iteration terminates without executing this clause at all, in which
 case the result will be the empty @code{ch-map}.
 @end deffn
 
@@ -962,7 +962,7 @@ case the result will be the empty @code{ch-map}.
 Map-intersects maps into a result map (@pxref{Method map-intersection (map map)}).  If @var{val-fn}
 is provided, it is used to combine values corresponding to the same key; the default is to overwrite
 the value from the earlier map with the later value.  The result will be of the same type and
-organization as the first set received, unless the iteration terminates without executing this
+organization as the first map received, unless the iteration terminates without executing this
 clause at all, in which case the result will be @code{nil}.
 
 [Discussion: in the case of intersecting zero maps, there's nothing reasonable this could return,

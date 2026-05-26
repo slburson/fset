@@ -115,7 +115,7 @@ you have an existing, customized readtable that you want to add FSet reader macr
 
 The syntax accepted by the rereading reader macros is, naturally, the same as that produced by
 printing; see the @href{Print syntax table, table above}.  The syntax accepted by the constructor
-reading macros is very similar, except that (as of this writing) they do not accept comparison
+reader macros is very similar, except that (as of this writing) they do not accept comparison
 functions or defaults.  They also accept the syntax @code{#$@var{expr}}; it reads as @code{($
 @var{expr})}, which is interpreted by the constructor macros as a union or splice, that treats the
 value of @var{expr} as a sub-collection of the same kind and uses its elements or pairs.
@@ -204,7 +204,7 @@ print, but of course you can normally write them in lowercase in source code).  
 
 @itemize
 @item
-For each key that you want to access in your program, write an `fset2:define-tuple-key` form.
+For each key that you want to access in your program, write an @code{fset2:define-tuple-key} form.
 @item
 To @code{with-parser} or @code{make-parser}, pass @code{:object-type 'tuple}; for
 @code{:key-package}, the package containing the tuple key names; and for @code{:key-prefix} and
@@ -250,7 +250,7 @@ The returned parser should be closed after use; see @code{close-parser}, and mac
 @code{with-parser} which closes it automatically.
 
 If @var{allow-multiple-content} is true, the input may contain multiple top-level JSON values, which
-you can read by calling @var{parse-top-level} multiple times.
+you can read by calling @code{parse-top-level} multiple times.
 
 JSON arrays are returned as FSet seqs; JSON objects are returned according to @var{object-type},
 which can be @code{replay-map}, @code{map}, or @code{tuple} (symbols in package @code{fset2}).  If

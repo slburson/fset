@@ -49,9 +49,9 @@ FSet provides four major types: sets, maps, seqs, and bags.  Sets are the most b
 unordered collection of unique elements.  (FSet imposes an ordering, but this is a standard ordering
 FSet uses for its own purposes, and can't be changed for a particular set instance.)  Maps are
 perhaps the most useful: a map, like a hash table, associates each of a set of keys with a unique
-value.  Seqs are FSet's sequences; I use a shortened form of the word "sequence" because
+value.  Seqs are FSet's sequences; I use a shortened form of the word ``sequence'' because
 @code{sequence} is, of course, already a CL type name.  And finally, bags (another term is
-"multisets") are somewhat like sets except that a bag remembers the number of times each element has
+``multisets'') are somewhat like sets except that a bag remembers the number of times each element has
 been added to it.
 
 The examples assume one is typing to a REPL.  User input is shown in bold.  To follow along, which I
@@ -163,7 +163,7 @@ T
 
 Constructing literal sets by repeated applications of @code{with} gets tedious, so FSet provides a
 constructor macro which is simply called @code{set}.  (We have shadowed @code{cl:set}, which is
-archaic anyway, in the @code{fset-user} package.) For example:
+archaic anyway, in the @code{fset2-user} package.) For example:
 
 @example
 > @b{(set)}
@@ -325,7 +325,7 @@ M5
 As you see, when two of the maps included with @code{$} have pairs with the same key, the one on the
 right wins.
 
-The `map` macro also gives you a convenient way to specify the default for a map:
+The @code{map} macro also gives you a convenient way to specify the default for a map:
 
 @example
 > @b{(defparameter m6 (map ('e 5) :default 0))}
@@ -376,9 +376,9 @@ M8
 > @b{(defparameter m9 (map ('b (set "x")) ('c (set "y")) :default (set)))}
 M9
 > m9
-##@{| (B ##@{ "x "@}) (C ##@{" y" @}) |@}/##@{ @}
+##@{| (B ##@{ "x" @}) (C ##@{ "y" @}) |@}/##@{ @}
 > @b{(map-union m8 m9 #'union)}
-##@{| (A ##@{ 1 @}) (B ##@{ 2 "x "@}) (C ##@{ "y "@}) |@}/##@{ @}
+##@{| (A ##@{ 1 @}) (B ##@{ 2 "x" @}) (C ##@{ "y" @}) |@}/##@{ @}
 > @b{(map-intersection m8 m9 #'union)}
 ##@{| (B ##@{ 2 "x" @}) |@}/##@{ @}
 @end example

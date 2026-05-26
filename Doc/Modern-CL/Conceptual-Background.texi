@@ -59,7 +59,7 @@ Here we see a case where assignment creates an alias to a mutable object, so tha
 object are visible through the alias.  This example demonstrates @dfn{reference semantics}.
 
 Interestingly, to have reference semantics, a type must be aliasing (meaning that assignment creates
-an alias) @emph{and} mutable.  C++, for instancee, has collection types that are mutable but not
+an alias) @emph{and} mutable.  C++, for instance, has collection types that are mutable but not
 aliasing:
 
 @example
@@ -119,7 +119,7 @@ example:
 @example
     (let* ((a (list 4))
           (b a))
-      (push a 3))   ; b is unchanged
+      (push 3 a))   ; b is unchanged
 @end example
 
 Here the @code{push} form expands to @code{(setq a (cons 3 a))}, which obviously doesn't touch
@@ -290,7 +290,7 @@ methods.  Consider a single root method and all the subclass methods that overri
 set of methods that forms a generic function.
 @item
 CLOS supports multiple dispatch.  Each method on a generic function has a list of @dfn{specializers}
-defining a list of parameter types on which the method is appiicable.  Invocation of a generic
+defining a list of parameter types on which the method is applicable.  Invocation of a generic
 function on a list of arguments (conceptually) scans the methods of the generic function, to find
 the method whose specializers best match the types of the arguments, then dispatches to that method.
 (A caching mechanism makes this much cheaper, in practice, than it sounds.)

@@ -27,7 +27,7 @@ It is possible to use your own comparison and hashing functions, but it's rarely
 @item
 When you come to the point of wanting to place instances of user-defined classes in FSet
 collections, you will have to give FSet some information about how to compare and hash them.  At
-that point,  you should read, at least, @ref{User-Defined Classes}.
+that point, you should read, at least, @ref{User-Defined Classes}.
 @end itemize
 
 Advanced users, along with language and library designers, will probably find this chapter worth
@@ -61,7 +61,7 @@ taken by their tree nodes, with little or no impact on time performance.
 FSet has WB-tree implementations of sets, maps, bags, and seqs, named @code{wb-set}, @code{wb-map},
 @code{wb-bag}, and @code{wb-seq} respectively.  Point updates --- inserting an element or pair,
 removing one, updating the value associated with a map key, @i{etc.} --- take O(log @i{n}) time.  On
-seqs, subsequence and concatenation also take O(log @i{n}) time.  Operatiions that combine two trees
+seqs, subsequence and concatenation also take O(log @i{n}) time.  Operations that combine two trees
 in some way --- @code{union}, @code{intersection}, @i{etc.} --- take O(@i{n}) time in general,
 though under certain specific circumstances this can be reduced to O(log @i{n}).
 
@@ -266,7 +266,7 @@ of the other, then the collections compare @code{:unequal} also.  More on this b
 
 @defun equal? a b
 @code{equal?} is the FSet generalization of @code{cl:equal}.  All it does is to call @code{compare}
-on its argumens, and return true if the result is @code{:equal}.  @code{equal?} behaves identically
+on its arguments, and return true if the result is @code{:equal}.  @code{equal?} behaves identically
 to @code{cl:equal} on the built-in CL types, with one exception: on vectors other than bit-vectors,
 @code{cl:equal} compares them by identity (@code{eq}), but @code{equal?} compares the contents.  (On
 bit-vectors, both compare the contents.)
@@ -551,7 +551,7 @@ completely custom comparison function for use with the WB collections, you shoul
 the following properties:
 
 @table @asis
-@item Irreflexivity
+@item irreflexivity
 For our purposes, this just means that the function returns @code{:equal} (not @code{:less} or
 @code{:greater}) on equal arguments.
 @item asymmetry
@@ -708,7 +708,7 @@ case of lists and vectors, you can optionally supply a function to compare their
 @defunx compare-lists-lexicographically a b @r{&optional} @r{(@var{val-compare-fn} #'compare)}
 @defunx compare-vectors-lexicographically a b @r{&optional} @r{(@var{val-compare-fn} #'compare)}
 @defunx compare-seqs-lexicographically a b @r{&optional} @r{(@var{val-compare-fn} #'compare)}
-Non-generic functions to compare strings. lists. or vectors lexicographically.  Use when you know
+Non-generic functions to compare strings, lists, or vectors lexicographically.  Use when you know
 the type and you want to avoid the generic function dispatch overhead (which is, however, only
 rarely noticeable).  In the case of lists and vectors, you can optionally supply a function to
 compare the individual values (elements) with.

@@ -19,9 +19,10 @@ adapt, or build upon the material, you must license the modified material under 
 This document contains no LLM-generated text --- zero, zip, nada.  (Yes, I do use em-dashes and
 semicolons; yes, I have written every one myself.)
 
-For errors noticed or other suggestions, please file issues on
-@uref{https://gitlab.common-lisp.net/fset/fset/-/work_items, Common-Lisp.Net's GitLab instance} or
-@uref{https://github.com/slburson/fset/issues, GitHub}.
+The FSet source code can be found at @uref{https://gitlab.common-lisp.net/fset/fset,
+Common-Lisp.Net's GitLab instance} or @uref{https://github.com/slburson/fset, GitHub}.  If you
+notice any errors in this book or have any other suggestions, please file issues at one of those two
+sites.
 
 
 @c ================================================================================
@@ -34,7 +35,7 @@ For errors noticed or other suggestions, please file issues on
 @end ifhtml
 
 @ifnothtml
-@macro href{text, reference}
+@macro href{reference, text}
 \text\ (@pxref{\reference\})
 @end macro
 @end ifnothtml
@@ -131,7 +132,7 @@ FSet Collection Types
   Complement Sets
   The Bleeding Edge
     List Relations and Query Registries
-     Interval Sets
+    Interval Sets
     Bounded Sets
 Iterating over FSet Collections
   The @code{do-} Macros

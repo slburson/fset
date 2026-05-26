@@ -18,14 +18,15 @@ specifies the target type of the conversion, and the second argument being the c
 converted.  (This is the opposite order from @code{cl:coerce}.)  Many methods have additional
 keyword parameters to further specify details of the conversion.
 
-When @code{to-type} is one of the abstract types -- @code{set}, @code{bag}, @code{map} @i{etc.} -- the
-only guarantee is that @code{convert} will return an instance of the requested type.  The choices of
-implementation and organization are up to FSet, and there's no option to request a specific
-organization.  In contrast, when @code{to-type} is one of the concrete types -- @code{wb-set},
-@code{ch-set}, @code{wb-map}, @i{etc.} -- the @code{convert} method accepts keyword arguments specifying
-the organization (e.g.  @code{compare-fn-name}), and guarantees to return a collection of that type
-and organization; including the case where no organization is specified, in which @code{convert} is
-guaranteed to return a collection of the default organization (the one using @code{fset:compare}).
+When @code{to-type} is one of the abstract types --- @code{set}, @code{bag}, @code{map} @i{etc.} ---
+the only guarantee is that @code{convert} will return an instance of the requested type.  The
+choices of implementation and organization are up to FSet, and there's no option to request a
+specific organization.  In contrast, when @code{to-type} is one of the concrete types ---
+@code{wb-set}, @code{ch-set}, @code{wb-map}, @i{etc.} --- the @code{convert} method accepts keyword
+arguments specifying the organization (e.g.  @code{compare-fn-name}), and guarantees to return a
+collection of that type and organization; including the case where no organization is specified, in
+which @code{convert} is guaranteed to return a collection of the default organization (the one using
+@code{fset:compare}).
 
 Method summary:
 
@@ -126,7 +127,7 @@ Method summary:
 @item 2-relation @tab 2-relation @tab 0
 @item ch-2-relation @tab ch-2-relation @tab 0, 16
 @item wb-2-relation @tab wb-2-relation @tab 0, 16
-@item 2-relation @tab set @tab 6, 2
+@item 2-relation @tab set @tab 2, 6
 @item ch-2-relation @tab set @tab 6, 16
 @item wb-2-relation @tab set @tab 6, 16
 @item set @tab ch-2-relation @tab 2, 5
@@ -262,12 +263,12 @@ Has keyword parameter @var{compare-fn-name}.  If nonnull, must be a symbol, the 
 function to be used.  The returned set will be converted, if necessary, to use the specified
 function, or to use @code{compare} if one is not specified.
 @item @ilc{16}
-Has keyword parameters @var{key-compare-fn-name} band @var{val-compare-fn-name}.  If nonnull, these
+Has keyword parameters @var{key-compare-fn-name} and @var{val-compare-fn-name}.  If nonnull, these
 must be symbols, the names of the key and value comparison functions, respectively, to be used.  The
 returned map will be converted, if necessary, to use the specified functions, or to use
 @code{compare} for those not specified.
 @item @ilc{17}
-Has keyword parameter @var{autokey?}.  if true, then any keys of the map that are not instances of
+Has keyword parameter @var{autokey?}.  If true, then any keys of the map that are not instances of
 @code{tuple-key} are automatically converted to such instances using @href{Function get-tuple-key,
 @code{get-tuple-key}}.
 @item @ilc{18}
@@ -281,7 +282,7 @@ Has keyword parameter @var{default}, which specifies the default of the result; 
 default is @code{nil}.  Also has keyword parameter @var{no-default?} to specify no default.
 @item @ilc{20}
 Has keyword parameter @var{default}, which specifies the default of the result; if not supplied, the
-default is the same as that of the argument.  Also has keyword parameter @var{no-default?}  to
+default is the same as that of the argument.  Also has keyword parameter @var{no-default?} to
 specify no default.
 @item @ilc{21}
 @code{sequence} here refers to a CL sequence -- either a list or a vector, unless the implementation

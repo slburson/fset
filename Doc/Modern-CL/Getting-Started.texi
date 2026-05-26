@@ -49,10 +49,6 @@ just use an explicit @code{fset2:} prefix on FSet symbols.  (The older @code{fse
 provided for compatibility with codebases that have been using it, but I don't recommend it for new
 code.)
 
-This is clearly desirable for FSet-heavy code (see the @code{defpackage :fset2-user} form in
-@code{defs.lisp} for an example of how to do this, including a list of symbols you will need to
-@code{shadowing-import} from either @code{fset2} or @code{cl}).
-
 @hrule{}
 
 
@@ -120,10 +116,11 @@ than @code{mapcar}.  But maps are probably the most important FSet type; not imp
 idiomatic FSet code less pleasant.
 
 What I do, and recommend, is to import @code{fset2:map}, and then use @href{GMap, my GMap macro} as
-an even more general replacement for @code{cl:map}.  If you don't want to do that, one alternative
-is to use the implementation-specific types/constructor macros @code{ch-map} and @code{wb-map}; at
-least those names are shorter than including the package prefix on @code{fset2:map}, and of course
-they don't shadow anything from CL.
+an even more general replacement for @code{cl:map}.  But if you don't want to import
+@code{fset2:map}, one alternative is, in your code, to reference the implementation-specific
+types/constructor macros @code{ch-map} and @code{wb-map} instead; at least those names are shorter
+than including the package prefix on @code{fset2:map}, and of course they don't shadow anything from
+CL.
 
 @item @code{union}, @code{intersection}, @code{set-difference}
 These are generic functions, with methods for lists that invoke the CL builtins.  I recommend
@@ -140,7 +137,7 @@ sequence or an FSet seq.  These differ from the CL builtins in two ways: they wo
 than lists, and @code{last} returns the last @emph{element} of its argument, unlike @code{cl:last},
 which returns the last @emph{cons} (the cons whose @code{car} is the last element).  See
 @ref{Divergences from Common Lisp} for further discussion.  I recommend importing them, though if
-you have any existing calls to CL @code{last}. you'll have to either change them to @code{lastcons}
+you have any existing calls to CL @code{last}, you'll have to either change them to @code{lastcons}
 (which is a better name anyway; FSet exports this) or add an explicit @code{cl:} qualifier.
 
 @anchor{Shadowed CL sequence operations}
@@ -197,8 +194,8 @@ general (though experienced CLers are probably using some similar macro already)
 well, have a look --- maybe you'll see something you like.
 
 @anchor{Macro mvlet}
-@defmac nvlet (binding-clause@dots{}) declaration@dots{} @r{&body} form@dots{}
-@defmacx nvlet* (binding-clause@dots{}) declaration@dots{} @r{&body} form@dots{}
+@defmac mvlet (binding-clause@dots{}) declaration@dots{} @r{&body} form@dots{}
+@defmacx mvlet* (binding-clause@dots{}) declaration@dots{} @r{&body} form@dots{}
 @defmacx nlet (binding-clause@dots{}) declaration@dots{} @r{&body} form@dots{}
 Exported from package @code{misc-extensions.new-let}.
 
@@ -325,15 +322,15 @@ probably-unintelligible compiler error.  Just delete the @code{#'}.
 @defmac deflex var @r{&optional} val doc
 Declares @code{var} as a global lexical (non-special) variable, and if @code{val} is supplied and
 @code{var} is not already bound, initializes it to @code{val}.  @code{doc}, if supplied, is taken as
-a documentation string.  If the same name is later locally bound (@i{e.g.}  witih @code{let}), that
+a documentation string.  If the same name is later locally bound (@i{e.g.} with @code{let}), that
 will create a new lexical variable, with no effect on the global one.
 @end defmac
 
-@defmac deflex-reinit var val  @r{&optional} doc
+@defmac deflex-reinit var val @r{&optional} doc
 Declares @code{var} as a global lexical (non-special) variable and sets it to @code{val}; so if
-@code{var} was already initialized, this reinitializes it, unlike plain @code{deflex}..  @code{doc},
+@code{var} was already initialized, this reinitializes it, unlike plain @code{deflex}.  @code{doc},
 if supplied, is taken as a documentation string.  If the same name is later locally bound (@i{e.g.}
-witih @code{let}), that will create a new lexical variable, with no effect on the global one.
+with @code{let}), that will create a new lexical variable, with no effect on the global one.
 @end defmac
 
 @defmac isetq var val@dots{}
@@ -365,7 +362,7 @@ you have to scroll all the way to the bottom to find the initial values of the r
 (``reversed @code{labels}''), which puts the initial call first as a single subform, then takes the
 function-binding clauses as its @code{&body} parameter, saving seven columns of indentation.
 
-The effect on code layout is simiiar to that of the @code{named-let} macro that some people use, but
+The effect on code layout is similar to that of the @code{named-let} macro that some people use, but
 it's more general as it can define multiple local functions.
 
 There are also @code{rflet} and @code{rmacrolet}, but they're rarely useful.

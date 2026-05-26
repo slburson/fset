@@ -15,7 +15,7 @@ adapt, or build upon the material, you must license the modified material under 
 [NOTE: I am hoping to expand this chapter considerably in the future.  But this is a start.]
 
 In these examples, you can spot references to FSet macros and functions, because I have linked them
-to  their definitions.
+to their definitions.
 
 @hrule{}
 
@@ -147,6 +147,7 @@ Here's what it looks like using FSet --- elegant @emph{and} fast:
                   (node-successors node)))))))
 @end example
 
+
 @c ================================================================================
 @node Case Study: CL-Cont
 @section Case Study: CL-Cont
@@ -219,7 +220,7 @@ collections, neither the @code{unwind-protect} nor the copy is necessary.
 Here's what I would do to clean this up with FSet.
 
 First, delete the code in the first example box above: the @code{defstruct} of @code{call/cc-context},
-along with functions @code{copy-hash-table} and @code{copy-transformer-context}.
+along with functions @code{copy-hash-table} and @code{copy-transformation-context}.
 
 Then replace those definitions with these:
 @example
@@ -255,7 +256,8 @@ these:
 
 Third, make similar changes to the two other places where @code{unwind-protect} is being used.
 
-And fourth and finally, simply replace calls to @code{copy-transformer-context} by their argument.
+And fourth and finally, simply replace calls to @code{copy-transformation-context} by their
+argument.
 
 
 

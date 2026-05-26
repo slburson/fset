@@ -31,13 +31,13 @@ These data structures greatly expand the space of algorithms that can be written
 functional style and still run efficiently.
 
 This book has two intended audiences.  The larger one is Common Lisp programmers, or people who at
-least have been learning the language, who want to explore the benefits of modern functional collections.  
+least have been learning the language, who want to explore the benefits of modern functional collections.
 
-There's a second audience, however, I also hope to reach, consisting not of people who expect to use
-Common Lisp or FSet, but rather designers of other languages and/or libraries for those languages.
-I refer such readers to the chapters @ref{Conceptual Background} and @ref{Recommendations for
-Language Designers}; the other chapters will still be worth reading, I think, but of less
-importance.
+There's a second audience, however, that I also hope to reach, consisting not of people who expect
+to use Common Lisp or FSet, but rather designers of other languages and/or libraries for those
+languages.  I refer such readers to the chapters @ref{Conceptual Background} and
+@ref{Recommendations for Language Designers}; the other chapters will still be worth reading, I
+think, but of less importance.
 
 For those who may want to actually use FSet, though, this book does assume some basic proficiency in
 Common Lisp; I don't recommend it as a first text for those learning the language.  You will need to
@@ -112,7 +112,7 @@ collections; arrays already existed, of course, but they were of fixed size.  Th
 the first heterogeneously-typed collections, in that the elements did not all have to be of the same
 type; they could be symbols, numbers, or, recursively, other lists.
 
-And, lists were among the first functional collections.  By "functional" I mean that collections are
+And, lists were among the first functional collections.  By ``functional'' I mean that collections are
 not modified in place; operations we might normally think of as modifying an existing collection
 instead produce a new one with the requested change applied.  (I'll say more about this property
 below.)
@@ -166,6 +166,7 @@ The interfaces are general, easy to use, and include all commonly desired functi
 
 @item
 The implementation is well integrated with Common Lisp.
+
 @item
 Every operation is reasonably fast in a constant-factor sense, considering that updates are
 functional (and thus inevitably more expensive than imperative updates).

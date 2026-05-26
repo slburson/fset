@@ -344,7 +344,7 @@ for string manipulation.
 @c &&& Rather think I should also have a defmac for this in the API reference, to which at least
 @c some of the current refs should point (though it should in turn point here).
 
-Common Lisp is a "Lisp-2", meaning a two-namespace Lisp in which a given name can have both a
+Common Lisp is a ``Lisp-2'', meaning a two-namespace Lisp in which a given name can have both a
 function binding and a value binding.  In a Lisp-1, like Scheme, it would be nice to set the FSet
 types up as objects that could be called as functions as well as having the various operations
 invoked on them (some object systems for other Lisps have supported this, such as that of
@@ -390,7 +390,7 @@ Common Lisp provides a general, extensible macro, @code{setf}, which takes an ex
 evaluated normally, and updates the place so it holds the value.  Exactly what this means depends on
 the place expression.
 
-There are, for our  purposes, two kinds of place expressions: those that are directly assignable, and
+There are, for our purposes, two kinds of place expressions: those that are directly assignable, and
 those that use what I'll call a ``functional accessor''.  Directly assignable places include
 variables (the most common example), as well as invocations of built-in accessors such as @code{car}
 or @code{aref}, slot accessors on user-defined classes, and function calls for which a @code{setf}
