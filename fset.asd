@@ -54,7 +54,9 @@ See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
   :perform (test-op (o c) (symbol-call :fset :run-test-suite 200))
   :components
   ((:module "Code"
-	    :components ((:file "testing")))))
+	    :components
+	    ((:file "testing-0")
+	     (:file "testing-1")))))
 
 (defsystem :FSet/Iterate
   :description "FSet definitions for the Iterate macro."
