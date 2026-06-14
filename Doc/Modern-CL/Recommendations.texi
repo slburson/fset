@@ -413,7 +413,8 @@ supported.
 Python's strings and tuples are also immutable.  Clearly attention was paid to preventing the
 possibility of mutating a set element or map key --- good to see.
 
-I see no sign of an immutable map class in the base library (there's no @code{frozendict}).
+I see no sign of an immutable map class in the base library (@strike{there's no @code{frozendict}}
+UPDATE: @code{frozendict} has been added in Python 2.15).
 
 However, there is a library called Pyrsistent that seems popular and provides functional sets, maps,
 bags, and sequences.  It has something called ``evolvers'' which appear to be what Clojure and

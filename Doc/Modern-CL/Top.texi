@@ -1,4 +1,5 @@
 @settitle Modern Common Lisp with FSet
+@documentlanguage en_US
 
 @node Top
 @top Modern Common Lisp with FSet
@@ -48,6 +49,33 @@ sites.
 @c ``InLine Comment'' (comment text is brace-delimited rather than newline-delimited)
 @macro ilc{stuff}
 @end macro
+
+@ifhtml
+@macro strike{text}
+@c This comment line prevents ``@html should only appear at the beginning of a line'' warnings.
+@html
+<s>
+@end html
+\text\
+@html
+</s>
+@end html
+@end macro
+@end ifhtml
+
+@iftex
+@macro strike{text}
+@math{\text{\textless{}span style="text-decoration:line-through;"\textgreater{}\text}\textless{}/span\textgreater{}}
+@end macro
+@end iftex
+
+@ifnothtml
+@ifnottex
+@macro strike{text}
+[[\text\]]
+@end macro
+@end ifnottex
+@end ifnothtml
 
 @c ``hrule'': A horizontal rule in HTML.
 @macro hrule{}
