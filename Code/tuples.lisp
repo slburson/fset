@@ -108,7 +108,7 @@
 	    (:copier nil))
   "A class of functional tuples represented as vectors with dynamically-
 reordered key vectors.  This is the default implementation of tuples in FSet."
-  ;; A `Tuple-Desc'.
+  ;; A `tuple-desc'.
   (descriptor nil :read-only t)
   ;; A vector of value chunks (vectors) (all these vectors being simple).
   (contents nil :read-only t)
@@ -261,12 +261,14 @@ checked."
 
 (defstruct (tuple-desc
 	     (:constructor make-tuple-desc-internal (key-set pairs lock serial-number)))
+  ;; Serial number (used for `reorder-map-map').
+  (serial-number 0 :type fixnum :read-only t)
   ;; The set (as an FSet ch-set) of `tuple-key's for which tuples using this index
   ;; contain values.
   (key-set nil :read-only t)
   ;; The pair vector, which contains two copies of the pair sequence, each pair
-  ;; represented as a fixnum: the key number is in the low-order `Tuple-Key-Number-
-  ;; Size' bits, and the value index is in the next `Tuple-Value-Index-Size' bits.
+  ;; represented as a fixnum: the key number is in the low-order `tuple-key-number-
+  ;; size' bits, and the value index is in the next `tuple-value-index-size' bits.
   (pairs (vector) :type simple-vector :read-only t)
   ;; The reorder lock.
   (lock nil :read-only t)
@@ -275,21 +277,17 @@ checked."
   ;; element is `nil' if the chunk is unchanged, else it is a vector of indices
   ;; into the source tuple (where an index of `nil' indicates an insertion).  (mutable)
   (reorder-map-map (empty-ch-map nil 'tuple-desc-compare 'eql-compare))
-  ;; Cache used by `Tuple-With': for each key not in this descriptor but that has been
+  ;; Cache used by `tuple-with': for each key not in this descriptor but that has been
   ;; added to tuples with this descriptor, the descriptor for the new tuple.  (mutable)
   (next-desc-map (empty-ch-map nil 'key-compare 'eql-compare))
-  ;; Serial number (used for `Reorder-Map-Map').
-  (serial-number 0 :type fixnum :read-only t))
+  ;; Similarly for `tuple-less'.
+  (prev-desc-map (empty-ch-map nil 'key-compare 'eql-compare)))
 
-(deflex +tuple-desc-next-serial-number+ 0)
-
-(deflex +tuple-desc-next-serial-number-lock+ (make-lock))
+(define-atomic-series +tuple-desc-next-serial-number+)
 
 (defun make-tuple-desc (key-set pairs)
   (make-tuple-desc-internal key-set pairs (make-lock)
-			    (with-lock (+tuple-desc-next-serial-number-lock+)
-			      (prog1 +tuple-desc-next-serial-number+
-				(incf +tuple-desc-next-serial-number+)))))
+			    (increment-atomic-series +tuple-desc-next-serial-number+)))
 
 (deflex +tuple-descriptor-map+ (empty-ch-map))
 
@@ -314,7 +312,7 @@ checked."
 
 ;;; Urgh, Allegro doesn't obey inline declarations, so we use a macro for this.
 ;;; This takes its argument doubled for the convenience of the common case (lookup).
-;;; &&& These numbers are SWAGs and may be too small.  See `Tuple-Reorder-Keys'.
+;;; &&& These numbers are SWAGs and may be too small.  See `tuple-reorder-keys'.
 (defmacro tuple-window-size (nkeys*2)
   (let ((nkeys*2-var (gensymx #:nkeys*2-)))
     `(let ((,nkeys*2-var ,nkeys*2))
@@ -396,8 +394,9 @@ don't worry about locking it, either.")
 			  ;;; we come through here.
 			  (not (= 0 (logand (tuple-random-value) tuple-reorder-frequency))))
 		(tuple-reorder-keys tuple i))
-	      (return-from tuple-lookup (values t val)))))))
-    (values nil nil)))
+	      ;; Third value is valid only if this is called with `no-reorder?' true.
+	      (return-from tuple-lookup (values t val pr)))))))
+    (values nil nil nil)))
 
 (defun tuple-reorder-keys (tuple idx)
   (declare (optimize (speed 3) (safety 0)))
@@ -483,8 +482,10 @@ don't worry about locking it, either.")
 	  (error "Tuple too long (limit ~D pairs in this implementation)."
 		 (ash 1 tuple-value-index-size)))
 	(let ((new-desc new-key-set
-		(let ((nd (lookup (tuple-desc-next-desc-map old-desc) key)))
-		  (if nd (values nd (tuple-desc-key-set nd))
+		;; Avoiding GF dispatch on this lookup.  (We expect it to usually succeed.)
+		(let ((nd? nd (ch-map-tree-lookup (ch-map-contents (tuple-desc-next-desc-map old-desc)) key
+						  #'key-hash-value #'key-compare)))
+		  (if nd? (values nd (tuple-desc-key-set nd))
 		    (let ((nks (with (tuple-desc-key-set old-desc) key))
 			  ;; The read memory barrier pairs with the write memory barrier below;
 			  ;; it ensures that the reads done by the `lookup' see any relevant writes.
@@ -495,21 +496,20 @@ don't worry about locking it, either.")
 			(setf (lookup (tuple-desc-next-desc-map old-desc) key) nd))
 		      (values nd nks)))))
 	      ((nkeys (size new-key-set))
-	       ((window-size (tuple-window-size (* nkeys 2)))))
-	      (old-pairs (tuple-desc-pairs old-desc)))
+	       ((window-size (tuple-window-size (* nkeys 2))))))
 	  (declare (type (unsigned-byte #.tuple-value-index-size) nkeys))
 	  (unless new-desc
 	    ;; Lock out reorderings while we do this.  One might think we also need a
-	    ;; lock to protect `+Tuple-Descriptor-Map+', but actually it doesn't hurt
+	    ;; lock to protect `+tuple-descriptor-map+', but actually it doesn't hurt
 	    ;; anything if we lose an occasional entry -- some tuples will use a
 	    ;; descriptor not in the map, but nothing goes wrong as a consequence.
 	    (with-lock ((tuple-desc-lock old-desc))
-	      (let ((new-pairs (make-array (* 2 nkeys)))
+	      (let ((old-pairs (tuple-desc-pairs old-desc))
+		    (new-pairs (make-array (* 2 nkeys)))
 		    (key-num (tuple-key-number key))
 		    ;; The new value goes at the end.
 		    ((new-pr (logior key-num (ash (1- nkeys) tuple-key-number-size)))))
 		(declare (fixnum key-num))
-		(setq new-desc (make-tuple-desc new-key-set new-pairs))
 		;; The new pair goes just outside the window, if the window is full.
 		(dotimes (i (min (1- nkeys) window-size))
 		  (setf (svref new-pairs i) (svref old-pairs i)))
@@ -535,7 +535,8 @@ don't worry about locking it, either.")
 			(declare (fixnum j))
 			(setf (svref new-pairs (+ j 2)) (svref old-pairs j))))
 		  (declare (fixnum i pr lim))
-		  (setf (svref new-pairs (1+ i)) pr))))
+		  (setf (svref new-pairs (1+ i)) pr))
+		(setq new-desc (make-tuple-desc new-key-set new-pairs))))
 	    ;; Technically, we need a memory barrier to make sure the new map value
 	    ;; is fully constructed before being made available to other threads.
 	    (setq +tuple-descriptor-map+
@@ -543,32 +544,84 @@ don't worry about locking it, either.")
 		      (with +tuple-descriptor-map+ new-key-set new-desc)
 		    (write-memory-barrier)))
 	    (setf (lookup (tuple-desc-next-desc-map old-desc) key) new-desc))
-	  (let ((reorder-map (tuple-get-reorder-map old-desc new-desc))
-		(old-chunks (dyn-tuple-contents tuple)))
-	    (do ((i 0 (1+ i))
-		 (n nkeys (- n tuple-value-chunk-size))
-		 (reorder-map reorder-map (cdr reorder-map))
-		 (new-chunks nil))
-		((<= n 0)
-		 (let ((prev-hash (dyn-tuple-hash-value tuple))
-		       ((new-hash (and prev-hash (hash-mix prev-hash (key-hash-value key)
-							   (hash-value-fixnum val))))))
-		   (if (cdr new-chunks)
-		       (make-dyn-tuple new-desc (coerce (nreverse new-chunks) 'vector) new-hash)
-		     (make-dyn-tuple new-desc (car new-chunks) new-hash))))
-	      (declare (fixnum i n))
-	      (if (null (car reorder-map))
-		  (push (if (<= (1- nkeys) tuple-value-chunk-size) old-chunks
-			  (svref old-chunks i))
-			new-chunks)
-		(let ((chunk-len (min n tuple-value-chunk-size))
-		      ((new-chunk (make-array chunk-len))))
-		  (dotimes (i chunk-len)
-		    (let ((old-idx (svref (car reorder-map) i)))
-		      (setf (svref new-chunk i)
-			    (if old-idx (tuple-contents-ref (1- nkeys) old-chunks old-idx)
-			      val))))
-		  (push new-chunk new-chunks))))))))))
+	  (let ((prev-hash (dyn-tuple-hash-value tuple))
+		((new-hash (and prev-hash (hash-mix prev-hash (key-hash-value key)
+						    (hash-value-fixnum val))))))
+	    (tuple-reformat-contents tuple old-desc new-desc new-hash val)))))))
+
+(defun tuple-less (tuple key)
+  (declare (optimize (debug 3)))
+  (let ((val val? (tuple-lookup tuple key)))
+    (if (not val?)
+	tuple
+      (let ((old-desc (dyn-tuple-descriptor tuple))
+	    ((new-desc new-key-set
+	       (let ((nd? nd (ch-map-tree-lookup (ch-map-contents (tuple-desc-prev-desc-map old-desc)) key
+						 #'key-hash-value #'key-compare)))
+		 (if nd (values nd (tuple-desc-key-set nd))
+		   (let ((nks (less (tuple-desc-key-set old-desc) key))
+			 ((nd (lookup (prog1 +tuple-descriptor-map+
+					(read-memory-barrier))
+				      nks))))
+		     (when nd?
+		       (setf (lookup (tuple-desc-prev-desc-map old-desc) key) nd))
+		     (values nd nks)))))
+	     ((nkeys (size new-key-set)))))
+	(declare (type (unsigned-byte #.tuple-value-index-size) nkeys))
+	(unless new-desc
+	  (with-lock ((tuple-desc-lock old-desc))
+	    (let ((val? val old-pr (tuple-lookup tuple key t))
+		  ((old-val-idx (ash old-pr (- tuple-key-number-size))))
+		  (old-pairs (tuple-desc-pairs old-desc))
+		  (new-pairs (make-array (* 2 nkeys)))
+		  (key-num (tuple-key-number key))
+		  (new-i 0))
+	      (declare (ignore val? val))
+	      (dotimes (old-i (length old-pairs))
+		(let ((pr (svref old-pairs old-i)))
+		  (unless (= (logand pr tuple-key-number-mask) key-num)
+		    (let ((val-idx (ash pr (- tuple-key-number-size))))
+		      (setf (svref new-pairs new-i)
+			    (if (< val-idx old-val-idx) pr
+			      (logior (logand pr tuple-key-number-mask)
+				      (ash (1- val-idx) tuple-key-number-size))))
+		      (incf new-i)))))
+	      (setq new-desc (make-tuple-desc new-key-set new-pairs))))
+	  (setq +tuple-descriptor-map+
+		(prog1
+		    (with +tuple-descriptor-map+ new-key-set new-desc)
+		  (write-memory-barrier)))
+	  (setf (lookup (tuple-desc-prev-desc-map old-desc) key) new-desc))
+	(let ((old-hash (dyn-tuple-hash-value tuple))
+	      ((new-hash (and old-hash (hash-unmix old-hash (key-hash-value key) (hash-value-fixnum val))))))
+	  (tuple-reformat-contents tuple old-desc new-desc new-hash))))))
+
+(defun tuple-reformat-contents (tuple old-desc new-desc hash-value &optional new-val)
+  (let ((reorder-map (tuple-get-reorder-map old-desc new-desc))
+	(old-nkeys (size (tuple-desc-key-set old-desc)))
+	(new-nkeys (size (tuple-desc-key-set new-desc)))
+	(old-chunks (dyn-tuple-contents tuple)))
+    (do ((i 0 (1+ i))
+	 (n new-nkeys (- n tuple-value-chunk-size))
+	 (reorder-map reorder-map (cdr reorder-map))
+	 (new-chunks nil))
+	((<= n 0)
+	 (if (cdr new-chunks)
+	     (make-dyn-tuple new-desc (coerce (nreverse new-chunks) 'vector) hash-value)
+	   (make-dyn-tuple new-desc (car new-chunks) hash-value)))
+      (declare (fixnum i n))
+      (if (null (car reorder-map))
+	  (push (if (<= old-nkeys tuple-value-chunk-size) old-chunks
+		  (svref old-chunks i))
+		new-chunks)
+	(let ((chunk-len (min n tuple-value-chunk-size))
+	      ((new-chunk (make-array chunk-len))))
+	  (dotimes (i chunk-len)
+	    (let ((old-idx (svref (car reorder-map) i)))
+	      (setf (svref new-chunk i)
+		    (if old-idx (tuple-contents-ref old-nkeys old-chunks old-idx)
+		      new-val))))
+	  (push new-chunk new-chunks))))))
 
 (defun tuple-get-reorder-map (old-desc new-desc)
   ;; Again, we don't bother with locking -- it doesn't hurt if we occasionally
@@ -578,25 +631,41 @@ don't worry about locking it, either.")
 	    (tuple-make-reorder-map old-desc new-desc))))
 
 (defun tuple-make-reorder-map (old-desc new-desc)
-  ;(declare (optimize (speed 3) (safety 0)))
+  (declare (optimize (speed 3) (safety 0)))
   (let ((old-pairs (tuple-desc-pairs old-desc))
 	(new-size (size (tuple-desc-key-set new-desc)))
 	(new-pairs (tuple-desc-pairs new-desc))
-	((new-nchunks (ceiling new-size tuple-value-chunk-size)))
+	((new-nchunks (ceiling new-size tuple-value-chunk-size))
+	 (key-by-idx (make-array new-size)))
 	(result nil))
+    ;; Initialize `key-by-idx' to contain, for each index within the tuple, the corresponding key number.
+    (dotimes (i new-size)
+      (let ((pr (svref new-pairs (+ i new-size))))
+	(setf (svref key-by-idx (ash pr (- tuple-key-number-size)))
+	      (logand pr tuple-key-number-mask))))
     (dotimes (ichunk new-nchunks)
       (let ((chunk (make-array (min tuple-value-chunk-size
 				    (- new-size (* ichunk tuple-value-chunk-size)))))
 	    (changed? nil))
 	(dotimes (i (length chunk))
 	  (let ((new-idx (+ (* ichunk tuple-value-chunk-size) i))
-		((new-pr (cl:find new-idx new-pairs
-				  :key #'(lambda (pr)
-					   (ash pr (- tuple-key-number-size)))))
-		 ((old-pr (cl:find (logand new-pr tuple-key-number-mask)
-				   old-pairs
-				   :key #'(lambda (pr)
-					    (logand pr tuple-key-number-mask))))
+		(old-size (size (tuple-desc-key-set old-desc)))
+		((new-key (the fixnum (svref key-by-idx new-idx)))
+		 ;; Since the second half of the pair vector is in key order, we can do binary
+		 ;; search to find the pair.
+		 ((old-pr (do ((lo old-size)
+			       (hi (1- (* 2 old-size))))
+			      ((< hi lo) nil)
+			    (declare (fixnum lo hi))
+			    (let ((mid (floor (+ lo hi) 2))
+				  ((old-pr (the fixnum (svref old-pairs mid)))
+				   ((old-key (logand old-pr tuple-key-number-mask)))))
+			      (cond ((< old-key new-key)
+				     (setq lo (1+ mid)))
+				    ((> old-key new-key)
+				     (setq hi (1- mid)))
+				    (t
+				     (return old-pr))))))
 		  ((old-idx (and old-pr (ash old-pr (- tuple-key-number-size))))))))
 	    (unless (eql old-idx new-idx)
 	      (setq changed? t))
@@ -642,9 +711,9 @@ When done, returns `value'."
 	   ;; We use the second copy of the pairs, which won't change underneath us.
 	   (let ((,pr-var (the fixnum (svref ,pairs-var (+ ,idx-var ,size-var))))
 		 ((,val-idx-var (ash ,pr-var (- tuple-key-number-size)))
-		  ((,key-var (lookup +tuple-key-seq+
-				     (logand ,pr-var tuple-key-number-mask)))
-		   (,value-var (tuple-contents-ref ,size-var ,contents-var ,val-idx-var)))))
+		  (,key-var (lookup +tuple-key-seq+
+				    (logand ,pr-var tuple-key-number-mask)))
+		  ((,value-var (tuple-contents-ref ,size-var ,contents-var ,val-idx-var)))))
 	     . ,body))
 	 ,value-form))))
 
@@ -653,6 +722,21 @@ When done, returns `value'."
 	   (type function elt-fn value-fn))
   (do-dyn-tuple-pairs (x y tup (funcall value-fn))
     (funcall elt-fn x y)))
+
+(defmethod at-index ((tup dyn-tuple) idx)
+  (let ((desc (dyn-tuple-descriptor tup))
+	((pairs (tuple-desc-pairs desc))
+	 ((nkeys (ash (length pairs) -1)))))
+    (unless (and (>= idx 0) (< idx nkeys))
+      (error 'simple-type-error :datum idx :expected-type `(integer 0 (,nkeys))
+				:format-control "Index ~D out of bounds on ~A"
+				:format-arguments (list idx tup)))
+    (let ((contents (dyn-tuple-contents tup))
+	  (pr (the fixnum (svref pairs (+ idx nkeys))))
+	  ((val-idx (ash pr (- tuple-key-number-size)))
+	   (key (lookup +tuple-key-seq+ (logand pr tuple-key-number-mask)))
+	   ((val (tuple-contents-ref nkeys contents val-idx)))))
+      (values key val))))
 
 (defun print-dyn-tuple (tuple stream level)
   (declare (ignore level))
@@ -669,6 +753,7 @@ When done, returns `value'."
   ;; If the key sets are equal, the values are compared in key order, which is the order
   ;; in which the keys were created in the session.  If the key sets aren't equal, we just
   ;; use the result of comparing them.
+  ;; This gets the same result as if we converted them to wb-maps before comparing.
   (let ((desc1 (dyn-tuple-descriptor tup1))
 	(desc2 (dyn-tuple-descriptor tup2))
 	((key-set-1 (tuple-desc-key-set desc1))
@@ -708,6 +793,17 @@ When done, returns `value'."
   (check-three-arguments value? 'with 'tuple)
   (check-type key tuple-key)
   (tuple-with tuple key value))
+
+(defmethod less ((tuple dyn-tuple) key &optional (value nil value?))
+  (declare (ignore value))
+  (check-two-arguments value? 'less 'tuple)
+  (check-type key tuple-key)
+  (tuple-less tuple key))
+
+(defmethod contains? ((tuple dyn-tuple) key &optional (value nil value?))
+  (declare (ignore value))
+  (check-two-arguments value? 'contains? 'tuple)
+  (n-values 1 (tuple-lookup tuple key)))
 
 (define-condition fset2:tuple-key-unbound-error (fset2:lookup-error)
     ((tuple :initarg :tuple :reader fset2:tuple-key-unbound-error-tuple)

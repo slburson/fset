@@ -54,6 +54,9 @@ or `:unequal', this function returns the same hash value."))
 (defmethod hash-value ((x identity-ordering-mixin))
   (hash-mix (class-hash-value x) (slot-value x 'serial-number)))
 
+(defmethod hash-value ((x identity-equality-struct))
+  (identity-equality-struct-serial-number x))
+
 (defmethod hash-value ((s null))
   #32Rnil) ; = 24149.
 

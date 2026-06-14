@@ -130,6 +130,22 @@ This is the right choice for the vast majority of mutable classes."
   (compare-slots obj1 obj2 'serial-number))
 
 
+(define-atomic-series identity-equality-struct-next-serial-number)
+
+(defstruct (identity-equality-struct
+	     (:constructor nil)
+	     (:predicate identity-equality-struct?)
+	     (:copier nil))
+  "A structure class that can be used as a superclass \(via the `:include'
+option to `defstruct'\), as a convenient way to get identity-equality
+semantics on a user-defined structure class."
+  (serial-number (increment-atomic-series identity-equality-struct-next-serial-number)
+   :type integer :read-only t))
+
+(defmethod compare ((obj1 identity-equality-struct) (obj2 identity-equality-struct))
+  (compare-slots obj1 obj2 #'identity-equality-struct-serial-number))
+
+
 ;;; ================================================================================
 ;;; Compare methods
 

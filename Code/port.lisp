@@ -326,16 +326,16 @@
 ;;;   LispWorks (most), 32-bit:		29
 ;;; CADR, LMI Lambda:			24
 
-(defconstant Tuple-Value-Index-Size
+(defconstant tuple-value-index-size
   (floor (+ 5 (integer-length most-positive-fixnum)) 3)
   "This limits the number of key/value pairs in any tuple.")
 
-(defconstant Tuple-Key-Number-Size
-  (- (integer-length most-positive-fixnum) Tuple-Value-Index-Size)
+(defconstant tuple-key-number-size
+  (- (integer-length most-positive-fixnum) tuple-value-index-size)
   "This limits the number of tuple-keys that can exist in a session.")
 
-(defconstant Tuple-Key-Number-Mask
-  (1- (ash 1 Tuple-Key-Number-Size)))
+(defconstant tuple-key-number-mask
+  (1- (ash 1 tuple-key-number-size)))
 
 
 ;;; ----------------

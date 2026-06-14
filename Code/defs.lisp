@@ -48,7 +48,7 @@
 	   #:define-equality-slots #:define-comparison-slots #:define-hash-function
 	   #:unwrap-equivalent-node ; custom comparison functions may have to call this
 	   #:hash-value #:hash-value-fixnum #:zero #:hash-mix #:hash-mixf #:hash-multiply
-	   #:identity-equality-mixin #:identity-ordering-mixin
+	   #:identity-equality-mixin #:identity-ordering-mixin #:identity-equality-struct
 	   #:define-cross-type-compare-methods
 	   #:compare-lexicographically #:compare-lists-lexicographically #:compare-strings-lexicographically
 	   #:compare-vectors-lexicographically #:compare-seqs-lexicographically
@@ -91,7 +91,7 @@
 	   #:unionf #:intersectf #:set-differencef #:map-unionf #:map-intersectf #:imagef #:updatef #:composef
 	   #:define-tuple-key #:def-tuple-key #:get-tuple-key
 	   #:tuple-key #:tuple-key-name #:tuple-key-type #:tuple-key?
-	   #:tuple-merge
+	   #:tuple-merge #:tuple-key-default
 	   #:fset-setup-readtable #:*fset-readtable*
 	   #:fset-setup-rereading-readtable #:*fset-rereading-readtable*
 	   #:$ #:% 			; for the 'map' and 'bag' constructor macros
@@ -197,7 +197,7 @@
 	   #:define-equality-slots #:define-comparison-slots #:define-hash-function
 	   #:unwrap-equivalent-node ; custom comparison functions may have to call this
 	   #:hash-value #:hash-value-fixnum #:zero #:hash-mix #:hash-mixf #:hash-multiply
-	   #:identity-equality-mixin
+	   #:identity-equality-mixin #:identity-equality-struct
 	   #:define-cross-type-compare-methods
 	   #:compare-lexicographically #:compare-lists-lexicographically #:compare-strings-lexicographically
 	   #:compare-vectors-lexicographically #:compare-seqs-lexicographically
@@ -242,7 +242,7 @@
 	   #:includef #:excludef #:unionf #:intersectf #:set-differencef
 	   #:map-unionf #:map-intersectf #:imagef #:updatef #:composef #:map-imagef
 	   #:define-tuple-key #:get-tuple-key #:tuple-key #:tuple-key-name #:tuple-key-type #:tuple-key?
-	   #:tuple-merge
+	   #:tuple-merge #:tuple-key-default
 	   #:fset-setup-readtable #:*fset-readtable*
 	   #:fset-setup-rereading-readtable #:*fset-rereading-readtable*
 	   #:$ #:% 			; for the 'map' and 'bag' constructor macros
