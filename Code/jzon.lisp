@@ -1,4 +1,13 @@
-(in-package :fset/jzon)
+;;; -*- Mode: Lisp; Package: FSet; Syntax: ANSI-Common-Lisp -*-
+
+;;; File: jzon.lisp
+;;; Contents: FSet interface to the Jzon JSON parser/printer
+;;;
+;;; This file is part of FSet.  Copyright (c) 2007-2025 Scott L. Burson.
+;;; FSet is licensed under the 2-clause BSD license; see LICENSE.
+;;; This license provides NO WARRANTY.
+
+(in-package :fset.jzon)
 
 
 ;;; Exported insted of `jzon:json-element'.

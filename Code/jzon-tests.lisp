@@ -1,11 +1,20 @@
-(in-package :FSet/Jzon/Test)
+;;; -*- Mode: Lisp; Package: FSet; Syntax: ANSI-Common-Lisp -*-
+
+;;; File: jzon-tests.lisp
+;;; Contents: Tests for FSet/JZon
+;;;
+;;; This file is part of FSet.  Copyright (c) 2007-2025 Scott L. Burson.
+;;; FSet is licensed under the 2-clause BSD license; see LICENSE.
+;;; This license provides NO WARRANTY.
+
+(in-package :FSet.Jzon.Test)
 
 (define-tuple-key +json-color+ :type (or null string))
 (define-tuple-key +json-sizes+ :default (seq) :type seq)
 (define-tuple-key +json-sizes-list+ :default '() :type list)
 (define-tuple-key +json-visible?+ :default nil :type boolean)
 
-(defmethod coerce-tuple-key (key (pkg (eql :fset/jzon/test)))
+(defmethod coerce-tuple-key (key (pkg (eql :fset.jzon.test)))
   (let ((str (symbol-name (tuple-key-name key))))
     ;; Strip leading "+JSON-" and trailing "+", and downcase
     (string-downcase (subseq str 6 (1- (length str))))))

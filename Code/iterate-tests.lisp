@@ -7,7 +7,7 @@
 ;;; FSet is licensed under the 2-clause BSD license; see LICENSE.
 ;;; This license provides NO WARRANTY.
 
-(in-package :fset/iterate/test)
+(in-package :fset.iterate.test)
 
 (defun test-fset/iterate ()
   (format t "Testing FSet/Iterate...")

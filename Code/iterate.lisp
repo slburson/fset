@@ -7,7 +7,7 @@
 ;;; FSet is licensed under the 2-clause BSD license; see LICENSE.
 ;;; This license provides NO WARRANTY.
 
-(in-package :fset/iterate)
+(in-package :fset.iterate)
 
 ;;; Both FSet and Iterate export a `with', and we would prefer not to write a package prefix
 ;;; on either of them.  Fortunately, we can have this particular piece of cake and eat it too,

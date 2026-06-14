@@ -127,8 +127,8 @@ value of @var{expr} as a sub-collection of the same kind and uses its elements o
 
 FSet supports JSON printing and parsing by extending the existing
 @uref{https://github.com/Zulu-Inuoe/jzon, Jzon} library.  The support is in a separate system,
-FSet/Jzon, to avoid adding a dependency if you're not using it; to load it, do @code{ql:quickload
-"fset/jzon"}.
+FSet/Jzon, to avoid adding a dependency if you're not using it; to load it, do @code{(ql:quickload
+"fset/jzon")}.  It provides package @code{fset.jzon}.
 
 FSet/Jzon parses JSON into FSet collections --- JSON arrays parse into FSet seqs, and by default,
 JSON objects parse into FSet replay maps --- and can also print these in JSON format.  Two other
@@ -274,19 +274,19 @@ Other parsing-related symbols re-exported from Jzon are: @code{json-atom}, @code
 @node JSON Printing
 @subsection JSON Printing
 
-For printing, FSet/Jzon mostly just re-exports symbols from Jzon; you invoke the printer in the same
-way, but methods have been added to print the FSet collections that the parser can produce.  So the
-tree you supply can contain anything that Jzon knows how to print, possibly with FSet collections
-mixed in.  The printing-related Jzon symbols re-exported are: @code{stringify},
-@code{json-write-error}, @code{json-write-limit-error}, @code{json-recursive-write-error},
-@code{coerced-fields}, @code{coerce-key}, @code{writer}, @code{make-writer}, @code{close-writer},
-and @code{with-writer}.
+For printing, package @code{fset.jzon} mostly just re-exports symbols from Jzon; you invoke the
+printer in the same way, but methods have been added to print the FSet collections that the parser
+can produce.  So the tree you supply can contain anything that Jzon knows how to print, possibly
+with FSet collections mixed in.  The printing-related Jzon symbols re-exported are:
+@code{stringify}, @code{json-write-error}, @code{json-write-limit-error},
+@code{json-recursive-write-error}, @code{coerced-fields}, @code{coerce-key}, @code{writer},
+@code{make-writer}, @code{close-writer}, and @code{with-writer}.
 
 The one new printing-related function concerns tuple keys.  As noted above, you may wish, when
 parsing JSON objects into tuples, to wrap the key strings with a prefix and/or suffix before
-interning them.  When printing, you will probably want to strip these off.  FSet/Jzon exports the
-generic function @code{coerce-tuple-key} (see below), which gives you a package-specific way to do
-that.
+interning them.  When printing, you will probably want to strip these off.  Package @code{fset.jzon}
+exports the generic function @code{coerce-tuple-key} (see below), which gives you a package-specific
+way to do that.
 
 Jzon has three different ways it can print @code{nil}, depending on the type of the class slot
 holding the value: @code{[]} for a list; @code{false} for a boolean; or @code{null} for all other

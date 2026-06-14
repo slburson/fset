@@ -822,10 +822,11 @@ for keys and values respectively (these default to @code{compare}).
 @section Iterate
 
 Iterate support is provided by a separate ASDF system, FSet/Iterate, so as not to pull in Iterate as
-a dependency if you're not using it.  To load it, do @code{(ql:quickload "fset/iterate")}.
+a dependency if you're not using it.  To load it, do @code{(ql:quickload "fset/iterate")}.  It
+provides package @code{fset.iterate}.
 
-There are two symbol collisions between packages @code{fset/iterate} and @code{iterate} that you
-will need to deal with.  One is relatively straightforward: @code{fset/iterate} exports a different
+There are two symbol collisions between packages @code{fset.iterate} and @code{iterate} that you
+will need to deal with.  One is relatively straightforward: @code{fset.iterate} exports a different
 version of @code{unioning}; see the description below.
 
 The other has to do with the symbol @code{with}.  Astonishingly, though both FSet and Iterate export
@@ -851,7 +852,7 @@ Iterate support:
 
 @example
   (:shadowing-import-from :fset2 #:with)
-  (:shadowing-import-from :fset/iterate #:unioning)
+  (:shadowing-import-from :fset.iterate #:unioning)
 @end example
 
 Here are the clauses and accumulators defined by FSet/Iterate:
@@ -928,9 +929,9 @@ and organization; otherwise, it will be of the same type and organization as the
 unless the iteration terminates without executing this clause at all, in which case the result will
 be the empty @code{ch-set}.
 
-(My recommendation is for @code{fset/iterate:unioning} to shadow @code{iter:unioning} as described
+(My recommendation is for @code{fset.iterate:unioning} to shadow @code{iter:unioning} as described
 above; but it's up to you whether to accept it.  Since you're using FSet, you probably want to avoid
-unioning lists, which takes quadratic time.  However, FSet's version doesn't support the @code{at}
+unioning lists, which may take quadratic time.  However, FSet's version doesn't support the @code{at}
 keyword, nor does it normally offer the ordering guarantee that @code{iter:unioning} does, although
 you can get that effect by supplying @code{initial-value (replay-set)} and binding @code{expr} to
 replay sets.)

@@ -1,6 +1,8 @@
 (in-package :cl-user)
 
-(defpackage :FSet/Jzon
+(defpackage :FSet.Jzon
+  (:nicknames :fset/jzon    ; the old name
+	      :com.sympoiesis.fset.jzon)
   (:use :cl :new-let)
   (:shadowing-import-from :new-let #:let #:cond)
   (:shadowing-import-from :fset2 #:set #:map)
@@ -26,10 +28,13 @@
 	   #:writer #:make-writer #:close-writer #:with-writer)
   (:local-nicknames (#:jzon #:com.inuoe.jzon)))
 
-(defpackage :FSet/Jzon/Test
+(defpackage :FSet.Jzon.Test
+  (:nicknames :fset/jzon/test     ; the old name
+	      :com.sympoiesis.fset.jzon.test)
   (:use :cl :new-let :fset/jzon)
   (:shadowing-import-from :new-let #:let #:cond)
   (:shadowing-import-from :fset2 #:set #:map)
   (:import-from :fset2
 		#:equal? #:seq #:replay-map #:tuple #:push-last #:@ #:includef #:define-tuple-key
-		#:do-seq #:do-map #:do-tuple #:tuple-key-name))
+		#:do-seq #:do-map #:do-tuple #:tuple-key-name)
+  (:export #:test-fset/jzon))

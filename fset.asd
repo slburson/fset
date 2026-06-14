@@ -72,7 +72,7 @@ See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
 (defsystem :FSet/Iterate/test
   :description "Test system for FSet/Iterate"
   :depends-on (:fset/iterate)
-  :perform (test-op (o c) (symbol-call :fset/iterate/test :test-fset/iterate))
+  :perform (test-op (o c) (symbol-call :fset.iterate.test :test-fset/iterate))
   :components ((:module "Code"
 		:serial t
 		:components ((:file "iterate-tests")))))
@@ -93,7 +93,7 @@ See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
 (defsystem :FSet/Jzon/test
   :description "Test system for FSet/Iterate"
   :depends-on (:fset/jzon)
-  :perform (test-op (o c) (symbol-call :fset/jzon/test :test-fset/jzon))
+  :perform (test-op (o c) (symbol-call :fset.jzon.test :test-fset/jzon))
   :components ((:module "Code"
 		:serial t
 		:components ((:file "jzon-tests")))))

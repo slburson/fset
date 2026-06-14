@@ -9,8 +9,9 @@
 
 (in-package :fset)
 
-(defpackage :FSet/Iterate
-  (:nicknames :com.sympoiesis.fset/iterate)
+(defpackage :fset.iterate
+  (:nicknames :fset/iterate :com.sympoiesis.fset/iterate     ; the old names
+	      :com.sympoiesis.fset.iterate)
   (:use :cl :fset2 :iterate :new-let)
   (:shadowing-import-from :fset2
 			  ;; Exported by Iterate
@@ -41,8 +42,9 @@
 	   #:unioning #:intersecting #:concating #:map-unioning #:map-intersecting))
 
 
-(defpackage :FSet/Iterate/Test
-  (:nicknames :com.sympoiesis.fset/iterate/test)
+(defpackage :FSet.Iterate.Test
+  (:nicknames :fset/iterate/test :com.sympoiesis.fset/iterate/test  ; the old names
+	      :com.sympoiesis.fset.iterate.test)
   (:use :cl :fset2 :iterate :fset/iterate :new-let)
   (:shadowing-import-from :fset2
 			  ;; Exported by Iterate
@@ -62,4 +64,5 @@
 			  #:some #:every #:notany #:notevery
 			  #:search #:mismatch)
   (:shadowing-import-from :new-let #:let #:cond)
-  (:shadowing-import-from :fset/iterate #:unioning))
+  (:shadowing-import-from :fset/iterate #:unioning)
+  (:export #:test-fset/iterate))
