@@ -185,6 +185,19 @@
   (defmacro write-memory-barrier ()
     'nil))
 
+#+cl-amiga
+(progn
+  (defun make-lock (&optional name)
+    (declare (ignore name))
+    nil)
+  (defmacro with-lock ((lock &key (wait? t)) &body body)
+    (declare (ignore lock wait?))
+    `(progn . ,body))
+  (defmacro read-memory-barrier ()
+    'nil)
+  (defmacro write-memory-barrier ()
+    'nil))
+
 
 #+(and ecl (not threads))
 (progn
@@ -393,6 +406,10 @@
   (code-char (+ code (ash bits 8))))
 
 #+ecl
+(defun make-char (code bits)
+  (code-char (+ code (ash bits 8))))
+
+#+cl-amiga
 (defun make-char (code bits)
   (code-char (+ code (ash bits 8))))
 
