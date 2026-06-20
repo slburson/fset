@@ -432,9 +432,17 @@ FSet has several operations that combine two collections into a third: @href{Met
 (map map), @code{map-union}}, @href{Method map-intersection (map map), @code{map-intersection}},
 @href{Method union (bag bag), bag @code{union}}, @href{Method intersection (bag bag), bag
 @code{intersection}}, @href{Method bag-sum (bag bag), @code{bag-sum}}, and @href{Method bag-product
-(bag bag), @code{bag-product}}.  All of these implement @dfn{left preference}: for any case where
-equal elements or map keys appear in both collections, the result will use the one from the left
-operand.  This also applies to equal values associated with a given map key.
+(bag bag), @code{bag-product}}.
+
+All of these implement @dfn{left preference}: for any case where @emph{equal} elements or map keys
+appear in both collections, the result will use the instance from the left operand.  This also
+applies to @emph{equal} values associated with a given map key.  i'm emphasizing ``equal'' here,
+because it's important to understand that the left preference rule is not about what value is
+returned, in the sense of values that FSet can distinguish.  Rather, it's about what @emph{instance}
+is chosen to represent a value @emph{in the cases where FSet is given values that compare equal}.
+That is, it applies only when the argument collections contain distinct Lisp objects (distinguished
+by @code{eq}) that nonetheless compare equal.  If that situation doesn't arise in your code, left
+preference will have no effect.
 
 The motivation for FSet offering this guarantee has to do with the fact that if you're using
 @code{define-equality-slots} for your class, there's no requirement that you include all the slots

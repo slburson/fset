@@ -982,6 +982,18 @@ Implements @href{Left Preference, left preference}: for any pair of equal keys i
 result contains the instance that was in @var{m1}; the associated value, if the two values are
 equal, is also that in @var{m1}.
 
+@cartouche
+@quotation Note
+There is a potential for confusion here between left preference and the behavior of the default
+@var{val-fn}, which chooses the value from the @emph{right} argument (@var{m2}) when two keys are
+equal.  The rules are actually not in conflict, but they might sound as if they are.  When computing
+a result pair for two argument pairs with equal keys, FSet checks whether the associated values are
+also equal.  If so, then it doesn't even call @var{val-fn}; it invokes the idempotence assumption
+mentioned above and simply uses the instance from the left argument, according to the left
+preference rule.  Only if the values are @emph{unequal} does it call @var{val-fn}.
+@end quotation
+@end cartouche
+
 @href{Notes on Time Complexity, Normally O(@i{n})}.
 @end deffn
 
@@ -1003,7 +1015,8 @@ corresponding key.
 
 Implements @href{Left Preference, left preference}: for any pair of equal keys in the two maps, the
 result contains the instance that was in @var{m1}; the associated value, if the two values are
-equal, is also that in @var{m1}.
+equal, is also that in @var{m1}.  (See the Note under @href{Method map-union (map map),
+@code{map-union}}.)
 
 @href{Notes on Time Complexity, Normally O(@i{n})}.
 @end deffn
