@@ -1088,6 +1088,28 @@
       (test (equal? (image '+ (ch-map (1 2) (4 6)))
                     (ch-map (3 nil) (10 nil))))
 
+      (test (equal? (restrict (map (1 'foo) (2 'bar)) (set)) (map)))
+      (test (equal? (restrict (map) (set 1 2)) (map)))
+      (test (equal? (restrict (map (1 'foo) (2 'bar)) (set 1)) (map (1 'foo))))
+      (test (equal? (restrict-not (map (1 'foo) (2 'bar)) (set)) (map (1 'foo) (2 'bar))))
+      (test (equal? (restrict-not (map) (set 1 2)) (map)))
+      (test (equal? (restrict-not (map (1 'foo) (2 'bar)) (set 1)) (map (2 'bar))))
+
+      (test (equal? (restrict (ch-map (1 'foo) (2 'bar)) (ch-set)) (ch-map)))
+      (test (equal? (restrict (ch-map) (ch-set 1 2)) (ch-map)))
+      (test (equal? (restrict (ch-map (1 'foo) (2 'bar)) (ch-set 1)) (ch-map (1 'foo))))
+      (test (equal? (restrict-not (ch-map (1 'foo) (2 'bar)) (ch-set)) (ch-map (1 'foo) (2 'bar))))
+      (test (equal? (restrict-not (ch-map) (ch-set 1 2)) (ch-map)))
+      (test (equal? (restrict-not (ch-map (1 'foo) (2 'bar)) (ch-set 1)) (ch-map (2 'bar))))
+
+      ;; Mixed implementations
+      (test (equal? (restrict (ch-map (1 'foo) (2 'bar)) (set)) (ch-map)))
+      (test (equal? (restrict (ch-map) (set 1 2)) (ch-map)))
+      (test (equal? (restrict (ch-map (1 'foo) (2 'bar)) (set 1)) (ch-map (1 'foo))))
+      (test (equal? (restrict-not (ch-map (1 'foo) (2 'bar)) (set)) (ch-map (1 'foo) (2 'bar))))
+      (test (equal? (restrict-not (ch-map) (set 1 2)) (ch-map)))
+      (test (equal? (restrict-not (ch-map (1 'foo) (2 'bar)) (set 1)) (ch-map (2 'bar))))
+
       (test (equal (reduce #'+ (map (1 2) (10 18)) :initial-value 0) 31))
       (test (equal (reduce #'+ (map (1 2) (10 18)) :initial-value 17) 48))
       (test (equal (reduce '+ (map (1 2) (10 18)) :initial-value 1) 32))
