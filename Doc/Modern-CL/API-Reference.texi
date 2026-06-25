@@ -535,7 +535,7 @@ not affect the persistent one.
 
 This operation has two modes, depending on @var{copy?}.  If @var{copy?} is false (the default), it
 takes O(1) time; but subsequent modifications to the transient will behave performance-wise as if a
-new transient had been created.  If @var{copy?}  is true, the operation takes O(n) time, but
+new transient had been created.  If @var{copy?}  is true, the operation takes O(@i{n}) time, but
 subsequent modifications to the transient will run at full speed.  Copying the collection also
 compacts it, so it uses less heap space.
 @end deffn
@@ -1278,7 +1278,7 @@ not affect the persistent one.
 
 This operation has two modes, depending on @var{copy?}.  If @var{copy?} is false (the default), it
 takes O(1) time; but subsequent modifications to the transient will behave performance-wise as if a
-new transient had been created.  If @var{copy?}  is true, the operation takes O(n) time, but
+new transient had been created.  If @var{copy?}  is true, the operation takes O(@i{n}) time, but
 subsequent modifications to the transient will run at full speed.  Copying the collection also
 compacts it, so it uses less heap space.
 @end deffn
@@ -1858,7 +1858,7 @@ not affect the persistent one.
 
 This operation has two modes, depending on @var{copy?}.  If @var{copy?} is false (the default), it
 takes O(1) time; but subsequent modifications to the transient will behave performance-wise as if a
-new transient had been created.  If @var{copy?}  is true, the operation takes O(n) time, but
+new transient had been created.  If @var{copy?}  is true, the operation takes O(@i{n}) time, but
 subsequent modifications to the transient will run at full speed.  Copying the collection also
 compacts it, so it uses less heap space.
 @end deffn
@@ -2813,7 +2813,7 @@ not affect the persistent one.
 
 This operation has two modes, depending on @var{copy?}.  If @var{copy?} is false (the default), it
 takes O(1) time; but subsequent modifications to the transient will behave performance-wise as if a
-new transient had been created.  If @var{copy?}  is true, the operation takes O(n) time, but
+new transient had been created.  If @var{copy?}  is true, the operation takes O(@i{n}) time, but
 subsequent modifications to the transient will run at full speed.  Copying the collection also
 compacts it, so it uses less heap space.
 @end deffn
@@ -3161,7 +3161,7 @@ not affect the persistent one.
 
 This operation has two modes, depending on @var{copy?}.  If @var{copy?} is false (the default), it
 takes O(1) time; but subsequent modifications to the transient will behave performance-wise as if a
-new transient had been created.  If @var{copy?}  is true, the operation takes O(n) time, but
+new transient had been created.  If @var{copy?}  is true, the operation takes O(@i{n}) time, but
 subsequent modifications to the transient will run at full speed.  Copying the collection also
 compacts it, so it uses less heap space.
 @end deffn
@@ -3361,12 +3361,12 @@ of @var{r}.  Amortized O(log @i{n}).
 @end deffn
 
 @deffn Method {domain (2-relation)} @ r
-Returns the domain of @var{r}, that is, the set of keys it maps to at least one value.  O(n).
+Returns the domain of @var{r}, that is, the set of keys it maps to at least one value.  O(@i{n}).
 @end deffn
 
 @deffn Method {range (2-relation)} @ r
 Constructs inverse.  Returns the range of @var{r}, that is, the set of values to which at least one
-key is mapped.  Amortized O(n).
+key is mapped.  Amortized O(@i{n}).
 @end deffn
 
 @deffn Method {with (2-relation)} @ r x y
@@ -3407,7 +3407,7 @@ value.  O(@i{n}).
 @anchor{Method conflicts (2-relation)}
 @deffn Method {conflicts (2-relation)} @ r
 Returns a 2-relation containing those pairs of @var{r} for which the key is mapped to more than one
-value.  O(n).
+value.  O(@i{n}).
 
 (The use case for this operation is when you expect the relation to be a function, or nearly so;
 perhaps you plan to @href{Generic Function @code{convert}, convert} it to a map.  If @var{r} is a
@@ -3652,23 +3652,38 @@ The set of keys in @var{tup}.  O(1).
 Returns a new dynamic tuple that contains all pairs of @var{tup} whose key is not @var{k}, and also
 maps @var{k} to @var{v}.  If @var{tup} already maps @var{k} to a value @code{equal?} to @var{v},
 returns @var{tup} itself.  If @var{k} was created with a type, checks that @var{v} is of that type,
-signalling a @code{tuple-value-type-error} if not.  O(n) in the worst case, but under @href{Dynamic
+signalling a @code{tuple-value-type-error} if not.  O(@i{n}) in the worst case, but under @href{Dynamic
 tuple performance, reasonable assumptions}, typically O(1) in practice.
+@end deffn
+
+@deffn Method {less (tuple)} @ tup k
+Returns a new dynamic tuple that contains all pairs of @var{tup} whose key is not @var{k}.  O(@i{n}).
 @end deffn
 
 @deffn Method {lookup (tuple)} @ tup k
 If @var{tup} contains key @var{k}, returns the associated value.  Otherwise, if @var{k} has a
-default, returns that default.  Otherwise, signals a @code{tuple-key-unbound-error}.  O(n) in the
-worst case, but under @href{Dynamic tuple performance, reasonable assumptions}, typically O(1) in
-practice.
+default, returns that default.  Otherwise, signals a @code{tuple-key-unbound-error}.  O(@i{n}) in
+the worst case, but under @href{Dynamic tuple performance, reasonable assumptions}, typically O(1)
+in practice.
 @end deffn
 
-@deffn Method {tuple-merge (tuple tuple)} @ tup1 tup2
+@deffn Method {contains? (tuple)} @ tup k
+Returns true iff @var{tup} has a pair with key @var{k}.  O(@i{n}) in the worst case, but under
+@href{Dynamic tuple performance, reasonable assumptions}, typically O(1) in practice.
+@end deffn
+
+@deffn Method {at-index (tuple)} @ tup idx
+Returns the pair at index @var{idx} within the ordering of @var{tup}.  @var{rank} must be in [0
+.. size(@var{tup})); otherwise, signals an error of type @code{simple-type-error}.  O(log @i{dk})
+where @i{dk} is the number of defined keys.
+@end deffn
+
+@deffn Method {tuple-merge (tuple tuple)} @ tup1 tup2 @r{&optional} val-fn
 Returns a new tuple containing all the keys of @var{tuple1} and @var{tuple2}, where the value for
 each key contained in only one tuple is the value from that tuple, and the value for each key
 contained in both tuples is the result of calling @var{val-fn} on the value from @var{tuple1} and
 the value from @var{tuple2}.  @var{val-fn} defaults to simply returning its second argument, so the
-entries in @var{tuple2} simply shadow those in @var{tuple1}.  O(n).
+entries in @var{tuple2} simply shadow those in @var{tuple1}.  O(@i{n}).
 @end deffn
 
 

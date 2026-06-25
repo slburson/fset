@@ -392,14 +392,34 @@ each equality slot.
 @node Reference Types
 @subsection Reference Types
 
+@tindex identity-equality-mixin
+@findex defclass
+For a mutable reference type, I strongly recommend that you distinguish instances by identity rather
+than by content.  FSet provides two convenient ways to do this, depending on whether your class is a
+standard class (defined by @code{defclass}) or a structure class (@code{defstruct}).  For a standard
+class, all you have to do is to include @code{identity-equality-mixin} as a superclass; FSet handles
+the rest.
+
+@findex defstruct
+For a structure class, you can similarly specify @code{identity-equality-struct} to the
+@code{:include} option in the @code{defstruct} form:
+
+@example
+(defstruct (frob
+	     (:include identity-equality-struct))
+  size
+  color
+  location)
+@end example
+
 @findex define-atomic-series
 @findex increment-atomic-series
-@findex defstruct
-For a mutable reference type, I strongly recommend that you distinguish instances by identity rather
-than by content.  If it's a structure type --- defined by @code{defstruct} --- I recommend adding an
-explicit @code{id} slot and supplying that to @code{define-equality-slots}.  For convenience in
-doing this, FSet exports @code{define-atomic-series} and @code{increment-atomic-series}.  Here's an
-example of their use:
+Since structure classes support only single inheritance, if you have a tree of such classes related
+by inheritance, this inclusion will have to be placed on the root class of the tree.  If that's not
+possible for some reason — perhaps the root class is in another codebase, which you can't alter —
+there is another way.  You can add an explicit @code{id} slot and supply that to
+@code{define-equality-slots}.  For convenience in doing this, FSet exports
+@code{define-atomic-series} and @code{increment-atomic-series}.  Here's an example:
 
 @example
 (define-atomic-series next-frob-id)
@@ -408,7 +428,6 @@ example of their use:
 	     (:constructor make-frob (size color location
 				      &aux (id (increment-atomic-series next-frob-id)))))
   id
-  size
   color
   location)
 
@@ -417,11 +436,6 @@ example of their use:
 
 Every time @code{make-frob} is called, the @code{id} of the result will be initialized to the next
 integer in the series.
-
-@tindex identity-equality-mixin
-@findex defclass
-If your mutable reference type is a standard class --- defined by @code{defclass} --- it's even
-easier: just include @code{identity-equality-mixin} as a superclass; FSet handles the rest.
 
 @c --------------------------------------------------------------------------------
 @node Left Preference
@@ -913,10 +927,17 @@ Dynamic tuples are implemented quite unlike any other FSet type.  Each key is as
 Each descriptor contains a vector of pairs of integers, implemented as bytes (bitfields) of a
 fixnum; one integer is the key number, and the other is the index of the value in tuples using this
 descriptor.  Lookup is done by linear search through the vector for a pair whose key number matches
-the key being looked for.  For small tuples, cache effects make this quite fast.  For large ones
-(more than eight keys), FSet does something clever: it dynamically reorders the descriptor vector so
-that frequently-used keys tend to migrate toward the front.  If the frequency of access of the
-different keys follows something like a power-law distribution, with some keys being accessed much
-more frequently than others --- not an unreasonable assumption --- then searches for keys beyond the
-first eight or so will be relatively rare.
+the key being looked for.  For small tuples, cache effects make this quite fast.  For larger ones,
+FSet does something clever: it dynamically reorders the descriptor vector so that frequently-used
+keys tend to migrate toward the front.  If the frequency of access of the different keys follows
+something like a power-law distribution, with some keys being accessed much more frequently than
+others --- not an unreasonable assumption --- then searches for keys beyond the first few will be
+relatively rare.
 
+Also, even though the linear search means that tuple operations tend to have O(@i{n}) time
+complexity in the size of the tuple, this is much less likely to be an issue than it may initially
+sound.  Where the sizes of maps are often directly related to the size of the input that a program
+is processing, tuple sizes are practically always independent of the size of the input; a larger
+input will typically cause more tuple @emph{instances} to be consed, but the size of each one won't
+change.  (Do you add more slots to your CLOS objects as the input gets large?  That would be very
+unusual.)  So the time complexity of your program as a whole won't be affected.
