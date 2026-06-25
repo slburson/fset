@@ -577,6 +577,7 @@ don't worry about locking it, either.")
 		  (key-num (tuple-key-number key))
 		  (new-i 0))
 	      (declare (ignore val? val))
+	      ;; &&& We could try harder to maximize the number of shared chunks.
 	      (dotimes (old-i (length old-pairs))
 		(let ((pr (svref old-pairs old-i)))
 		  (unless (= (logand pr tuple-key-number-mask) key-num)
@@ -723,21 +724,6 @@ When done, returns `value'."
   (do-dyn-tuple-pairs (x y tup (funcall value-fn))
     (funcall elt-fn x y)))
 
-(defmethod at-index ((tup dyn-tuple) idx)
-  (let ((desc (dyn-tuple-descriptor tup))
-	((pairs (tuple-desc-pairs desc))
-	 ((nkeys (ash (length pairs) -1)))))
-    (unless (and (>= idx 0) (< idx nkeys))
-      (error 'simple-type-error :datum idx :expected-type `(integer 0 (,nkeys))
-				:format-control "Index ~D out of bounds on ~A"
-				:format-arguments (list idx tup)))
-    (let ((contents (dyn-tuple-contents tup))
-	  (pr (the fixnum (svref pairs (+ idx nkeys))))
-	  ((val-idx (ash pr (- tuple-key-number-size)))
-	   (key (lookup +tuple-key-seq+ (logand pr tuple-key-number-mask)))
-	   ((val (tuple-contents-ref nkeys contents val-idx)))))
-      (values key val))))
-
 (defun print-dyn-tuple (tuple stream level)
   (declare (ignore level))
   (pprint-logical-block (stream nil :prefix "#~<")
@@ -832,19 +818,23 @@ When done, returns `value'."
 (defmethod size ((tuple dyn-tuple))
   (size (tuple-desc-key-set (dyn-tuple-descriptor tuple))))
 
+;;; Old name, never documented and now deprecated.
 (defmethod at-rank ((tup dyn-tuple) rank)
+  (at-index tup rank))
+
+(defmethod at-index ((tup dyn-tuple) idx)
   (let ((desc (dyn-tuple-descriptor tup))
-	((size (size (tuple-desc-key-set desc)))
-	 (pairs (tuple-desc-pairs desc)))
-	(contents (dyn-tuple-contents tup)))
-    (unless (and (>= rank 0) (< rank size))
-      (error 'simple-type-error :datum rank :expected-type `(integer 0 (,size))
-	     :format-control "Rank ~D out of bounds on ~A"
-	     :format-arguments (list rank tup)))
-    ;; We use the second copy of the pairs, which won't change underneath us.
-    (let ((pr (svref pairs (+ rank size))))
+	((pairs (tuple-desc-pairs desc))
+	 ((nkeys (ash (length pairs) -1)))))
+    (unless (and (>= idx 0) (< idx nkeys))
+      (error 'simple-type-error :datum idx :expected-type `(integer 0 (,nkeys))
+				:format-control "Index ~D out of bounds on ~A"
+				:format-arguments (list idx tup)))
+    (let ((contents (dyn-tuple-contents tup))
+	  ;; We use the second copy of the pairs, which won't change underneath us.
+	  (pr (the fixnum (svref pairs (+ idx nkeys)))))
       (values (lookup +tuple-key-seq+ (logand pr tuple-key-number-mask))
-	      (tuple-contents-ref size contents (ash pr (- tuple-key-number-size)))))))
+	      (tuple-contents-ref nkeys contents (ash pr (- tuple-key-number-size)))))))
 
 (defgeneric tuple-merge (tuple1 tuple2 &optional val-fn)
   (:documentation "Returns a new tuple containing all the keys of `tuple1' and `tuple2',

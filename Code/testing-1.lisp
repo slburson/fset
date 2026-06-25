@@ -1146,7 +1146,13 @@
 	  (unless (equal? v (lookup tup k))
 	    (error "Tuple `lookup' failed on iteration ~D" i)))
 	(unless (eq (compare prev-tup tup) (compare prev-m m))
-	  (error "Tuple `compare' failed on iteration ~D" i))))))
+	  (error "Tuple `compare' failed on iteration ~D" i))
+	(let ((ii 0))
+	  (do-tuple (k v tup)
+	    (let ((kk vv (at-index tup ii)))
+	      (unless (and (eq k kk) (eq v vv))
+		(error "Tuple `at-index' failed on iteration ~D:~D (~S vs. ~S)" i ii k kk)))
+	    (incf ii)))))))
 
 
 ;;; ================================================================================
