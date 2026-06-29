@@ -632,7 +632,9 @@ don't worry about locking it, either.")
 	    (tuple-make-reorder-map old-desc new-desc))))
 
 (defun tuple-make-reorder-map (old-desc new-desc)
-  (declare (optimize (speed 3) (safety 0)))
+  ;; Safety 0 tickles a bug in ARM64 codegen in SBCL 2.6.5 and probably earlier.
+  (declare (optimize (speed 3) (safety #+(and sbcl arm64) 1
+				       #-(and sbcl arm64) 0)))
   (let ((old-pairs (tuple-desc-pairs old-desc))
 	(new-size (the fixnum (size (tuple-desc-key-set new-desc))))
 	(new-pairs (tuple-desc-pairs new-desc))
@@ -641,7 +643,7 @@ don't worry about locking it, either.")
 	(result nil))
     ;; Initialize `key-by-idx' to contain, for each index within the tuple, the corresponding key number.
     (dotimes (i new-size)
-      (let ((pr (svref new-pairs (+ i new-size))))
+      (let ((pr (the fixnum (svref new-pairs (+ i new-size)))))
 	(setf (svref key-by-idx (ash pr (- tuple-key-number-size)))
 	      (logand pr tuple-key-number-mask))))
     (dotimes (ichunk new-nchunks)
