@@ -188,7 +188,7 @@ sets are printed as \"#{= ... }\"."
   (let ((result 0)
 	(i 0)
 	(mult 1))
-    (do-wb-seq-tree-members (x (replay-set-ordering rs))
+    (do-wb-set-tree-members (x (wb-replay-set-contents rs))
       (hash-mixf result (hash-multiply mult (hash-value-fixnum x)))
       (setq mult (hash-multiply mult 13))
       (when (= (incf i) 32)
@@ -970,6 +970,17 @@ or `no-default?' is true."
 	  (:unequal
 	    (error "Can't compare wb-maps with uninterned compare-fn-names with same symbol-name")))))))
 
+(defmethod hash-value ((rm wb-replay-map))
+  (let ((result 0)
+	(i 0)
+	(mult 1))
+    (do-wb-map-tree-pairs (k v (wb-replay-map-contents rm))
+      (hash-mixf result (hash-multiply mult (hash-mix (hash-value-fixnum k) (hash-value-fixnum v))))
+      (setq mult (hash-multiply mult 13))
+      (when (= (incf i) 32)
+	(return)))
+    result))
+
 (defmethod with ((m wb-replay-map) key &optional (value nil value?))
   (check-three-arguments value? 'with 'wb-replay-map)
   (let ((contents (wb-replay-map-contents m))
@@ -1370,6 +1381,13 @@ or `no-default?' is true."
 		     (convert 'ch-replay-map map2 :key-compare-fn-name m1-kcfn-name :val-compare-fn-name m1-vcfn-name)))
 	  (:unequal
 	    (error "Can't compare ch-replay-maps with uninterned compare-fn-names with same symbol-name")))))))
+
+(defmethod hash-value ((rm ch-replay-map))
+  ;; Doing it this way means we'll have collisions if the contents are equal but the orderings are
+  ;; different, but that doesn't seem like a likely case, and this is much faster than hashing the ordering.
+  (let ((tree (ch-replay-map-contents rm)))
+    (hash-mix (ch-map-tree-key-hash tree)
+	      (ch-map-tree-value-hash tree (hash-map-org-val-hash-fn (ch-replay-map-org rm))))))
 
 (defmethod with ((m ch-replay-map) key &optional (value nil value?))
   (check-three-arguments value? 'with 'ch-replay-map)
