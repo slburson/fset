@@ -75,6 +75,41 @@ Personally, I would write it using @href{GMap, GMap}:
 
 
 @c ================================================================================
+@node Interactive Data Analysis
+@section Interactive Data Analysis
+
+FSet, particularly with @href{GMap, GMap}, can be very handy for just poking around a pile of data
+in your Lisp image.  The details will depend very much on what you're looking at, but here are some
+examples I've used.
+
+One day I was working with a program that computed a list of pairs of symbols and numbers.  The
+symbols were supposed to be unique within the list, so that it would represent a mapping, but
+because of a bug, there were some cases where a single symbol was paired with more than one number.
+I wanted to know which symbols this happened with.  With over 2600 entries, the list was too large to
+eyeball to look for the duplicates.  Instead, I used FSet:
+
+@example
+FSET2-USER> (@href{Method domain (2-relation), domain} (@href{Method conflicts (2-relation),
+conflicts} (@href{Generic Function @code{convert}, convert} '@href{Binary Relations, 2-relation} @i{large-alist})))
+##@{ :ATTR-B :ATEN-COMPLEX :ATTR-P :ATTR-N :ATTR-X :ATTR-K :ATTR-Q :ATTR-M
+      :ATTR-R :ATTR-V :ATTR-A :ATTR-S @}
+@end example
+
+As you see, this elegant one-liner produces the set of duplicated symbols.  The @code{conflicts}
+call is doing most of the work here; it boils the initial binary relation, produced by the
+@code{convert} call, down to another binary relation that contains only pairs whose keys map to more
+than one value.  @code{domain} then boils that down further to just the set of keys.
+
+On another occasion, a program had built a hash table mapping symbols to integers, and I wanted to
+see the distribution of the integers.  I did this:
+
+@example
+FSET2-USER> (gmap (:result bag) (fn (_k v) v) (:arg hash-table @i{hash-table}))
+##@{% #%(1 117) #%(2 3) #%(4 3) #%(8 547) #%(16 2) %@}
+@end example
+
+
+@c ================================================================================
 @node Graph Walking
 @section Graph Walking
 

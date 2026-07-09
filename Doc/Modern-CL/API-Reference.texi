@@ -3360,6 +3360,7 @@ implementation (WB or CHAMP) as @var{r}, and its comparison function is the key 
 of @var{r}.  Amortized O(log @i{n}).
 @end deffn
 
+@anchor{Method domain (2-relation)}
 @deffn Method {domain (2-relation)} @ r
 Returns the domain of @var{r}, that is, the set of keys it maps to at least one value.  O(@i{n}).
 @end deffn
