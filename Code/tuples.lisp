@@ -117,6 +117,115 @@ reordered key vectors.  This is the default implementation of tuples in FSet."
 
 (define-cross-type-compare-methods dyn-tuple)
 
+(defmacro define-tuple-class (name-and-opts &body body)
+  "Experimental feature!  Not recommended for general use yet."
+  (let ((name opts (if (symbolp name-and-opts) (values name-and-opts nil)
+		     (values (car name-and-opts) (cdr name-and-opts))))
+	(doc-string slot-descs (if (stringp (car body)) (values (car body) (cdr body))
+				 (values nil body)))
+	((ctor-name ctor-has-params? ctor-lambda-list
+	   (let ((opt (assoc ':constructor opts)))
+	     (if (and opt (cdr opt))
+		 (if (cddr opt)
+		     (values (cadr opt) t (caddr opt))
+		   (values (cadr opt) nil nil))
+	       (values (intern (format nil "~A-~A" ':make name) *package*) nil nil))))
+	 (slots (mapcar (fn (sd) (if (consp sd) (car sd) sd)) slot-descs))
+	 (conc-name (let ((conc-name-opt (assoc ':conc-name opts)))
+		      (if conc-name-opt
+			  (or (cadr conc-name-opt) "")
+			(format nil "~A-" name))))
+	 ((ctor-params (if ctor-has-params? (parse-boa-lambda-list ctor-lambda-list)
+			 slots))
+	  (keep-accessors (mapcar (fn (sd) (intern (format nil "~A~A" conc-name (car sd)) *package*))
+				  (remove-if-not (fn (sd) (and (consp sd)
+							       (getf (cddr sd) ':keep-on-update)))
+						 slot-descs))))
+	 ((opts (remove ':constructor opts :key #'car))
+	  ((superclass (cadr (assoc ':include opts)))
+	   (opts (remove ':include opts :key #'car))))
+	 (internal-ctor (intern (format nil "~A-~A" '%raw-make name) *package*))
+	 (printer-name (intern (format nil "~A-~A" '%print name) *package*))
+	 (update-name (intern (format nil "~A-~A" '%update name) *package*))
+	 (rest-param (gensymx #:rest-))))
+    (dolist (opt '(:type))
+      (when (find opt opts :key #'car)
+	(error "`define-tuple-class' does not accept the `~S' option" opt)))
+    (when superclass
+      (unless (subtypep superclass 'dyn-tuple)
+	(error "The superclass of a tuple class (specified with `:include') must be~%another tuple class, not ~A"
+	       superclass))
+      (setq keep-accessors (append (get superclass 'tuple-keep-accessors) keep-accessors)))
+    `(progn
+       ;; We define the print-function first so `defstruct' doesn't complain that it doesn't exist.
+       ,@(and ctor-name (null (assoc ':print-function opts)) (null (assoc ':print-object opts))
+	      `((defun ,printer-name (tuple stream level)
+		  (declare (ignore level))
+		  (print-tuple-class-instance tuple stream ',name
+					      ',(mapcar (fn (s) (cons (intern (symbol-name s) (symbol-package ':foo))
+								      s))
+							slots)))))
+       (defstruct (,name
+		    (:include ,(or superclass 'dyn-tuple))
+		    (:constructor ,internal-ctor (descriptor contents hash-value
+						       . ,(if ctor-has-params? ctor-lambda-list
+							    (and ctor-name `(&key . ,slots)))))
+		    ,@(and ctor-name  (null (assoc ':print-function opts)) (null (assoc ':print-object opts))
+		           `((:print-function ,printer-name)))
+		    . ,opts)
+	 ,@(and doc-string `(,doc-string))
+	 . ,(mapcar (fn (sd) (if (consp sd)
+				 (if (cdr sd)
+				     (list* (car sd) (cadr sd) (remove-property ':keep-on-update (cddr sd)))
+				   sd)
+			       sd))
+		    slot-descs))
+       ,@(and ctor-name
+	      (if ctor-has-params?
+		  ;; &&& Add `defaults' (or ?) as an optional parameter at the end?
+		  `((defun ,ctor-name ,ctor-lambda-list
+		      (,internal-ctor (dyn-tuple-descriptor (empty-dyn-tuple)) (vector) nil
+				      . ,ctor-params)))
+		`((defun ,ctor-name (&rest ,rest-param)
+		    (apply #',internal-ctor (dyn-tuple-descriptor (empty-dyn-tuple)) (vector) nil
+			   ,rest-param)))))
+       ,@(and ctor-name
+	      `((defun ,update-name (instance descriptor contents hash-value)
+		  (declare (optimize (speed 3) (safety 1))
+			   (ignorable instance))
+		  (let ((new-instance (,internal-ctor descriptor contents hash-value)))
+		    ,@(mapcar (fn (acc) `(setf (,acc new-instance) (,acc instance)))
+			      keep-accessors)
+		    new-instance))
+		;; &&& Alternative: add `with' etc. methods directly on `name', passing the updater in
+		;; to `tuple-with' etc.  Makes it harder for the user to fuck up by frobbing the plist.
+		(setf (get ',name 'tuple-updater) #',update-name)))
+       ;; Constructor macro.
+       ,@(and ctor-name
+	      `((defmacro ,name (&rest pairs)
+		  (rlabels (rec pairs '(,ctor-name))
+		    (rec (pairs form)
+		      (if (null pairs) form
+			(rec (cdr pairs) `(with ,form ,(caar pairs) ,(cadar pairs)))))))))
+       (setf (get ',name 'tuple-keep-accessors) ',keep-accessors)
+       ',name)))
+
+;; Gaaah, `remf' is destructive
+(defun remove-property (indicator plist)
+  (and plist
+       (if (eq (car plist) indicator)
+	   (cddr plist)
+	 (list* (car plist) (cadr plist)
+		(remove-property indicator (cddr plist))))))
+
+(declaim (inline update-tuple))
+(defun update-tuple (tuple descriptor contents hash-value)
+  (declare (optimize (speed 3)))
+  (let ((class-name (class-name (class-of tuple))))
+    (if (eq class-name 'dyn-tuple)
+	(make-dyn-tuple descriptor contents hash-value)
+      (funcall (the function (get class-name 'tuple-updater))
+	       tuple descriptor contents hash-value))))
 
 (defstruct (tuple-key
 	    (:constructor make-tuple-key (name default number &optional type type-check-fn))
@@ -470,12 +579,12 @@ don't worry about locking it, either.")
 					      (hash-unmix (hash-value-fixnum val)
 							  (hash-value-fixnum prev-val))))))))
 	      (setf (svref new-chunk val-idx) val)
-	      (if single-chunk? (make-dyn-tuple desc new-chunk new-hash)
+	      (if single-chunk? (update-tuple tuple desc new-chunk new-hash)
 		(progn
 		  (dotimes (i (length contents))
 		    (setf (svref new-contents i) (svref contents i)))
 		  (setf (svref new-contents ichunk) new-chunk)
-		  (make-dyn-tuple desc new-contents new-hash))))))
+		  (update-tuple tuple desc new-contents new-hash))))))
       (let ((old-desc (dyn-tuple-descriptor tuple)))
 	(unless (< (the fixnum (size (tuple-desc-key-set old-desc)))
 		   (1- (ash 1 tuple-value-index-size)))
@@ -608,8 +717,8 @@ don't worry about locking it, either.")
 	 (new-chunks nil))
 	((<= n 0)
 	 (if (cdr new-chunks)
-	     (make-dyn-tuple new-desc (coerce (nreverse new-chunks) 'vector) hash-value)
-	   (make-dyn-tuple new-desc (car new-chunks) hash-value)))
+	     (update-tuple tuple new-desc (coerce (nreverse new-chunks) 'vector) hash-value)
+	   (update-tuple tuple new-desc (car new-chunks) hash-value)))
       (declare (fixnum i n))
       (if (null (car reorder-map))
 	  (push (if (<= old-nkeys tuple-value-chunk-size) old-chunks
@@ -735,6 +844,22 @@ When done, returns `value'."
       (pprint-newline ':fill stream)
       (write (list (tuple-key-name key) val) :stream stream))
     (format stream " >")))
+
+(defun print-tuple-class-instance (tuple stream class slots)
+  (pprint-logical-block (stream nil :prefix (format nil "#~~< ~@[~S~]" class)
+				    :suffix " >")
+    (do-tuple (key val tuple)
+      (pprint-pop)
+      (write-char #\Space stream)
+      (pprint-newline ':fill stream)
+      (write (list (tuple-key-name key) val) :stream stream))
+    (dolist (slot slots)
+      (pprint-pop)
+      (write-char #\Space stream)
+      (pprint-newline ':fill stream)
+      (write (car slot) :stream stream)
+      (write-char #\Space stream)
+      (write (slot-value tuple (cdr slot)) :stream stream))))
 
 (defmethod compare ((tup1 dyn-tuple) (tup2 dyn-tuple))
   ;; The ordering this imposes is not easily described, but is stable within a session.
@@ -936,6 +1061,46 @@ of calling `val-fn' on the value from `tuple1' and the value from `tuple2'.
 (defmethod make-load-form ((key tuple-key) &optional environment)
   (declare (ignore environment))
   `(get-tuple-key ',(tuple-key-name key) ',(tuple-key-default key)))
+
+
+(defun parse-boa-lambda-list (lambda-list)
+  (rlabels (normal lambda-list)
+    (normal (lambda-list)
+      (and lambda-list
+	   (or (check-keyword lambda-list)
+	       (cons (car lambda-list) (normal (cdr lambda-list))))))
+    (parse-&optional (lambda-list)
+      (and lambda-list
+	   (or (check-keyword lambda-list)
+	       (cons (if (consp (car lambda-list)) (caar lambda-list) (car lambda-list))
+		     (parse-&optional (cdr lambda-list))))))
+    (parse-&key (lambda-list)
+      (and lambda-list
+	   (or (check-keyword lambda-list)
+	       (cons (if (consp (car lambda-list))
+			 (if (consp (caar lambda-list)) (cadaar lambda-list)
+			   (caar lambda-list))
+		       (car lambda-list))
+		     (parse-&key (cdr lambda-list))))))
+    (parse-&rest (lambda-list)
+      (if lambda-list
+	  (cons (car lambda-list)
+		(and (cdr lambda-list)
+		     (or (check-keyword (cdr lambda-list))
+			 (error "Multiple `&rest' parameters not allowed"))))
+	(error "Missing `&rest' parameter")))
+    (parse-&aux (lambda-list)
+      (and lambda-list
+	   (if (check-keyword lambda-list)
+	       (error "`~A' is not allowed after `&aux'" (car lambda-list))
+	     (cons (car lambda-list)
+		   (parse-&aux (cdr lambda-list))))))
+    (check-keyword (lambda-list)
+      (case (car lambda-list)
+	(&optional (parse-&optional (cdr lambda-list)))
+	(&key (parse-&key (cdr lambda-list)))
+	(&rest (parse-&rest (cdr lambda-list)))
+	(&aux (parse-&aux (cdr lambda-list)))))))
 
 
 ;;; ================================================================================
