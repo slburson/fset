@@ -1189,7 +1189,8 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
 		     (if (eql #\[ (peek-char nil stream nil nil t))
 			 (progn
 			   (read-char stream t nil t)
-			   (let ((stuff (read-delimited-list #\] stream t)))
+			   (let ((*package* (symbol-package 'wb-map))
+				 ((stuff (read-delimited-list #\] stream t))))
 			     (unless (equal stuff '(no default))
 			       (error "Unexpected map default syntax")))
 			   (values pairs 'no-default key-cfn-name val-cfn-name))
@@ -1246,7 +1247,8 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
 	  (if (eql #\[ (peek-char nil stream nil nil t))
 	      (progn
 		(read-char stream t nil t)
-		(let ((stuff (read-delimited-list #\] stream t)))
+		(let ((*package* (symbol-package 'wb-seq))
+		      ((stuff (read-delimited-list #\] stream t))))
 		  (unless (equal stuff '(no default))
 		    (error "Unexpected seq default syntax")))
 		(fset2:without-default seq))
