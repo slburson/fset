@@ -1084,6 +1084,59 @@ contains the pairs <1, a>, <1, b>, <2, a>, and <2, b>."
       (recur subforms empty-form))))
 
 
+(defmacro bijection (&rest args)
+  "Constructs a bijection of the default implementation according to the supplied
+argument subforms.  Each argument subform can be a list of the form (`key-expr'
+`value-expr'), denoting a mapping from the value of `key-expr' to the value of
+`value-expr'; or a list of the form ($ `expression'), in which case the
+expression must evaluate to a bijection, all of whose mappings will be
+included in the result."
+  (expand-bijection-constructor-form 'bijection 'empty-bijection args))
+
+(defmacro ch-bijection (&rest args)
+  "Constructs a ch-bijection according to the supplied argument subforms.
+Each argument subform can be a list of the form (`key-expr' `value-expr'),
+denoting a mapping from the value of `key-expr' to the value of `value-expr';
+or a list of the form ($ `expression'), in which case the expression must
+evaluate to a bijection, all of whose mappings will be included in the
+result."
+  (expand-bijection-constructor-form 'ch-bijection 'empty-ch-bijection args))
+
+(defmacro ch-custom-bijection (key-compare-fn-name val-compare-fn-name &rest args)
+  "Constructs a ch-bijection with a custom ordering, according to the supplied
+argument subforms.  `key-compare-fn-name' and `val-compare-fn-name' must be
+symbols naming the comparison functions to be used for keys and values
+respectively.  Each argument subform can be a list of the form \(`key-expr'
+`value-expr'\), denoting a mapping from the value of `key-expr' to the value of
+`value-expr'; or a list of the form ($ `expression'), in which case the
+expression must evaluate to a bijection, all of whose mappings will be included
+in the result."
+  (expand-bijection-constructor-form 'ch-bijection 'empty-ch-bijection args
+				      key-compare-fn-name val-compare-fn-name))
+
+
+(defun expand-bijection-constructor-form (type-name empty-fn subforms
+					  &optional key-compare-fn-name val-compare-fn-name)
+  (let ((empty-form `(,empty-fn . ,(and (or key-compare-fn-name val-compare-fn-name)
+					`(:key-compare-fn-name ,key-compare-fn-name
+					  :val-compare-fn-name ,val-compare-fn-name)))))
+    (rlabels (recur subforms empty-form)
+      (recur (subforms result)
+	(if (null subforms) result
+	  (let ((subform (car subforms)))
+	    (cond ((not (and (listp subform)
+			     (= (length subform) 2)))
+		   (error "Subforms for ~S must all be pairs expressed as 2-element~@
+			   lists, or ($ x) subforms -- not ~S"
+			  type-name subform))
+		  ((eq (car subform) '$)
+		   (error "Bijection splicing not implemented yet"))
+		  (t
+		   (recur (cdr subforms)
+			  `(with ,result ,(car subform) ,(cadr subform)))))))))))
+
+
+
 ;;; ================================================================================
 ;;; Reader macros
 

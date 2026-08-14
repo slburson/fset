@@ -1931,6 +1931,24 @@ the iteration order."
 	     ,then)
 	 ,else))))
 
+(defmacro if-same-ch-bijection-orgs ((b1 b2 hmorg-var) then else)
+  (let ((b1-var (gensymx #:b1-))
+	(b2-var (gensymx #:b2-))
+	(hmorg1-var (gensymx #:hmorg1-))
+	(hmorg2-var (gensymx #:hmorg2-)))
+    `(let ((,b1-var ,b1)
+	   (,b2-var ,b2)
+	   ((,hmorg1-var (ch-bijection-org ,b1-var))
+	    (,hmorg2-var (ch-bijection-org ,b2-var))))
+       (if (or (eq ,hmorg1-var ,hmorg2-var)
+	       (and (eq (hash-map-org-key-hash-fn ,hmorg1-var) (hash-map-org-key-hash-fn ,hmorg2-var))
+		    (eq (hash-map-org-key-compare-fn ,hmorg1-var) (hash-map-org-key-compare-fn ,hmorg2-var))
+		    (eq (hash-map-org-val-hash-fn ,hmorg1-var) (hash-map-org-val-hash-fn ,hmorg2-var))
+		    (eq (hash-map-org-val-compare-fn ,hmorg1-var) (hash-map-org-val-compare-fn ,hmorg2-var))))
+	   (let ((,hmorg-var ,hmorg1-var))
+	     ,then)
+	 ,else))))
+
 
 ;;; Boilerplate macros.  The free references to and bindings of fixed names are intentional.
 

@@ -13,7 +13,7 @@
 See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
 "
   :author "Scott L. Burson <Scott@sympoiesis.com>"
-  :version "2.4.7"
+  :version "2.5.0"
   :homepage "https://gitlab.common-lisp.net/fset/fset/-/wikis/home"
   :source-control "https://github.com/slburson/fset"
   :license "BSD-2-Clause"
@@ -37,6 +37,7 @@ See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
 	     (:file "tuples")
 	     (:file "interval")
 	     (:file "relations")
+	     (:file "bijections")
 	     (:file "complement-sets")
 	     (:file "bounded-sets")
 	     (:file "transients")

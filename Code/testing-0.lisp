@@ -3006,7 +3006,19 @@
     (test (funcall (fun-iterator (ch-map)) ':empty?))
     (test (funcall (fun-iterator (ch-set) :from-end? t) ':empty?))
     (test (funcall (fun-iterator (ch-bag) :from-end? t) ':empty?))
-    (test (funcall (fun-iterator (ch-map) :from-end? t) ':empty?))))
+    (test (funcall (fun-iterator (ch-map) :from-end? t) ':empty?))
+
+    ;; Lexi-sets
+    (test (equal? (convert 'seq (wb-lexi-set "cc" "bbb" "aaaa" "d"))
+		  (seq "aaaa" "bbb" "cc" "d")))
+    (test (equal? (convert 'seq (wb-lexi-set '("cc") '("bbb") '("aaaa") '("d")))
+		  (seq '("aaaa") '("bbb") '("cc") '("d"))))
+
+    ;; Bijections
+    (let ((b (bijection ('a 0) ('b 7) ('c 13))))
+      (test (equal? (@ b 'b) 7))
+      (test (handler-case (progn (with b 'd 0) nil)
+	      (bijection-constraint-violation () t))))))
 
 ;;; Outlined so SBCL constant propagation doesn't do the test at compile time.
 (defun hash-mix-func (a b)

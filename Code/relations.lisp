@@ -913,16 +913,16 @@ values."
 
 (defmethod domain-contains? ((rel ch-2-relation) x)
   (let ((org (ch-2-relation-org rel)))
-    ;; Wrap in `(not (null ...))' so we don't expose the internal set tree.
-    (not (null (ch-map-tree-lookup (ch-2-relation-map0 rel) x
-				   (hash-map-org-key-hash-fn org) (hash-map-org-key-compare-fn org))))))
+    ;; Return only the first value, so we don't expose the internal set tree.
+    (values (ch-map-tree-lookup (ch-2-relation-map0 rel) x
+				(hash-map-org-key-hash-fn org) (hash-map-org-key-compare-fn org)))))
 
 (defmethod range-contains? ((rel ch-2-relation) x)
   (ch-2-relation-get-inverse rel)
   (let ((org (ch-2-relation-org rel)))
-    ;; Wrap in `(not (null ...))' so we don't expose the internal set tree.
-    (not (null (ch-map-tree-lookup (ch-2-relation-map1 rel) x
-				   (hash-map-org-key-hash-fn org) (hash-map-org-key-compare-fn org))))))
+    ;; Return only the first value, so we don't expose the internal set tree.
+    (values (ch-map-tree-lookup (ch-2-relation-map1 rel) x
+				(hash-map-org-key-hash-fn org) (hash-map-org-key-compare-fn org)))))
 
 (define-methods (lookup fset2:lookup) ((rel ch-2-relation) x)
   "Returns the set of values that the relation pairs `x' with."
@@ -996,11 +996,13 @@ values."
   (ch-2-relation-get-inverse rel)
   (make-ch-2-relation (ch-2-relation-size rel) (ch-2-relation-map1 rel)
 		      (ch-2-relation-map0 rel)
-		      (let ((org (ch-2-relation-org rel)))
-			(make-hash-map-org (hash-map-org-val-compare-fn-name org) (hash-map-org-val-compare-fn org)
-					   (hash-map-org-val-hash-fn org)
-					   (hash-map-org-key-compare-fn-name org) (hash-map-org-key-compare-fn org)
-					   (hash-map-org-key-hash-fn org)))))
+		      (hash-map-org-inverse (ch-2-relation-org rel))))
+
+(defun hash-map-org-inverse (org)
+  (make-hash-map-org (hash-map-org-val-compare-fn-name org) (hash-map-org-val-compare-fn org)
+		     (hash-map-org-val-hash-fn org)
+		     (hash-map-org-key-compare-fn-name org) (hash-map-org-key-compare-fn org)
+		     (hash-map-org-key-hash-fn org)))
 
 (defmethod with ((rel ch-2-relation) x &optional (y nil y?))
   ;; Try to provide a little support for the cons representation of pairs.

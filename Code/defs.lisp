@@ -119,6 +119,9 @@
 	   #:query-registry #:empty-query-registry #:empty-ch-query-registry #:with-query #:less-query
 	   #:all-queries #:do-all-queries #:lookup-multi #:forward-key #:lookup-restricted
 	   #:lookup-multi-restricted
+	   ;; Bijections
+	   #:bijection #:bijection? #:ch-bijection #:ch-bijection? #:ch-custom-bijection
+	   #:empty-bijection #:empty-ch-bijection #:bijection-constraint-violation #:bijection-domain-error
 
 	   ;; Transients
 	   #:transient-collection #:transient-collection?
@@ -272,6 +275,9 @@
 	   #:query-registry #:empty-query-registry #:empty-ch-query-registry #:with-query #:less-query
 	   #:all-queries #:do-all-queries #:lookup-multi #:forward-key #:lookup-restricted
 	   #:lookup-multi-restricted
+	   ;; Bijections
+	   #:bijection #:bijection? #:ch-bijection #:ch-bijection? #:ch-custom-bijection
+	   #:empty-bijection #:empty-ch-bijection #:bijection-constraint-violation #:bijection-domain-error
 
 	   ;; Transients
 	   #:transient-collection #:transient-collection?
