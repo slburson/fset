@@ -46,10 +46,10 @@ you want to compute their sum.  Here are the ways you could do it:
 (let ((sum 0))
   (dotimes (i (size nums) sum)
     (incf sum (at-index nums i))))
-@r{;;; using GMap}
-(gmap (:result sum) :id (:arg seq nums))
 @r{;;; using Iterate}
 (iter (for n in-seq nums) (sum n))
+@r{;;; using GMap}
+(gmap (:result sum) :id (:arg seq nums))
 @r{;;; using CL-Transducers}
 (transduce #'pass #'+ nums)
 @end example
@@ -98,6 +98,46 @@ do-bag, @code{do-bag}}, @href{Macro do-bag-pairs, @code{do-bag-pairs}}, @href{Ma
 @code{dolist}: they iterate in a procedural style, binding one or two variables to the elements or
 pairs of the collection and executing the body.  Optionally, an expression can be supplied for the
 value of the entire form; otherwise, they return @code{nil}.
+
+There are also some generic procedural macros, implemented using the stateful iterators (see below).
+@code{do-elements} and @code{do-pairs} take the collection and call @code{iterator} on it.
+@code{do-iterator} and @code{do-pair-iterator} take the iterator itself, so you have to call
+@code{iterator} explicitly; one reason you might want to do this is to pass keyword arguments to
+@code{iterator}.
+
+@defmac do-elements @r{(@var{var} @var{iterable} &optional @var{value}) &body} body
+For each element of @var{iterable}, binds @var{var} to it and executes @var{body}.  When done,
+returns @var{value} if supplied, otherwise @code{nil}.
+@end defmac
+
+@defmac do-pairs @r{(@var{var-a} @var{var-b} @var{iterable} &optional @var{value}) &body} body
+For each pair of @var{iterable}, binds @var{var-a} and @var{var-b} to it and executes @var{body}.
+When done, returns @var{value} if supplied, otherwise @code{nil}.
+@end defmac
+
+@defmac do-iterator @r{(@var{var} @var{iter} &optional @var{value}) &body} body
+Here @var{iter} is any object that implements the FSet @href{Stateful Iterators, stateful iterator}
+protocol.  For each value returned by @var{iter}, binds @var{var} to it and executes @var{body}.
+When done, returns @var{value} if supplied, otherwise @code{nil}.
+@end defmac
+
+@defmac do-pair-iterator @r{(@var{var-a} @var{var-b} @var{iter} &optional @var{value}) &body} body
+Here @var{iter} is any object that implements the FSet @href{Stateful Iterators, stateful iterator}
+protocol.  For each pair returned by of @var{iter} (as two values), binds @var{var-a} and
+@var{var-b} to the values and executes @var{body}.  When done, returns @var{value} if supplied,
+otherwise @code{nil}.
+@end defmac
+
+@defmac do-seq-chunks @r{(@var{var} @var{seq} &optional @var{value}) &body} body
+Internally, a seq is represented as a tree whose leaves are ``chunks'', each either a
+@code{simple-vector} or a @code{simple-string}.  This macro binds @var{var} to successive chunks of
+@var{seq} and executes @var{body}.  When done, returns @var{value} if supplied, otherwise
+@code{nil}.
+
+This can be more efficient than @code{do-seq} in cases where each chunk can be processed as a whole;
+for example, if @code{write-string} were being called, instead of writing each character to the
+stream separately.
+@end defmac
 
 @c ================================================================================
 @node Stateful Iterators
