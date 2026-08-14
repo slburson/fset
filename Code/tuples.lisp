@@ -118,13 +118,36 @@ reordered key vectors.  This is the default implementation of tuples in FSet."
 (define-cross-type-compare-methods dyn-tuple)
 
 (defmacro define-tuple-class (name-and-opts &body body)
-  "Experimental feature!  Not recommended for general use yet."
+  "A tuple class is a subclass of `fset:dyn-tuple', for which we arrange that
+operations `with' and `less' return a new instance of the same class.  A tuple
+class can have ordinary slots; the values of these are copied to the new
+instance, unless their declarations are marked with `:discard-on-copy t'.
+As usual, ordinary slots are mutable unless marked with `:read-only t'.
+Tuple classes are structure classes, and thus support only single inheritance.
+
+The syntax of `define-tuple-class' is very similar to that of `defstruct'.
+Restrictions:
+- if the `:include' clause is supplied, it must name either `dyn-tuple' or
+  another tuple class
+- only one `:constructor' clause is accepted, and it must not say `:constructor
+  nil'
+- the `:type' option is not accepted
+
+If no `:print-function' or `:print-method' option is supplied, a default
+print-function will be used.
+
+Along with the constructor function, a constructor macro will be defined,
+with the same name as the tuple class.  Its syntax will be the same as
+that of `dyn-tuple'."
   (let ((name opts (if (symbolp name-and-opts) (values name-and-opts nil)
 		     (values (car name-and-opts) (cdr name-and-opts))))
 	(doc-string slot-descs (if (stringp (car body)) (values (car body) (cdr body))
 				 (values nil body)))
 	((ctor-name ctor-has-params? ctor-lambda-list
 	   (let ((opt (assoc ':constructor opts)))
+	     ;; TIL: you can have more than one constructor in a `defstruct'!  We don't handle that case.
+	     (when (> (count-if (fn (opt) (eq (car opt) ':constructor)) opts) 1)
+	       (error "`define-tuple-class' allows only one `:constructor' clause"))
 	     (if (and opt (cdr opt))
 		 (if (cddr opt)
 		     (values (cadr opt) t (caddr opt))
@@ -138,75 +161,79 @@ reordered key vectors.  This is the default implementation of tuples in FSet."
 	 ((ctor-params (if ctor-has-params? (parse-boa-lambda-list ctor-lambda-list)
 			 slots))
 	  (keep-accessors (mapcar (fn (sd) (intern (format nil "~A~A" conc-name (car sd)) *package*))
-				  (remove-if-not (fn (sd) (and (consp sd)
-							       (getf (cddr sd) ':keep-on-update)))
-						 slot-descs))))
+				  (remove-if (fn (sd) (and (consp sd)
+							   (getf (cddr sd) ':discard-on-copy)))
+					     slot-descs))))
 	 ((opts (remove ':constructor opts :key #'car))
 	  ((superclass (cadr (assoc ':include opts)))
 	   (opts (remove ':include opts :key #'car))))
-	 (internal-ctor (intern (format nil "~A-~A" '%raw-make name) *package*))
-	 (printer-name (intern (format nil "~A-~A" '%print name) *package*))
+	 ((internal-ctor (intern (format nil "%~A" ctor-name) *package*)))
+	 (printer-name (and (null (assoc ':print-function opts)) (null (assoc ':print-object opts))
+			    (intern (format nil "~A-~A" '%print name) *package*)))
 	 (update-name (intern (format nil "~A-~A" '%update name) *package*))
 	 (rest-param (gensymx #:rest-))))
-    (dolist (opt '(:type))
-      (when (find opt opts :key #'car)
-	(error "`define-tuple-class' does not accept the `~S' option" opt)))
+    (unless ctor-name
+      (error "`define-tuple-class' doesn't accept `(:constructor nil)'"))
+    (when (find ':type opts :key #'car)
+      (error "`define-tuple-class' does not accept the `:type' option"))
     (when superclass
       (unless (subtypep superclass 'dyn-tuple)
 	(error "The superclass of a tuple class (specified with `:include') must be~%another tuple class, not ~A"
 	       superclass))
       (setq keep-accessors (append (get superclass 'tuple-keep-accessors) keep-accessors)))
     `(progn
-       ;; We define the print-function first so `defstruct' doesn't complain that it doesn't exist.
-       ,@(and ctor-name (null (assoc ':print-function opts)) (null (assoc ':print-object opts))
+       (defstruct (,name
+		    (:include ,(or superclass 'dyn-tuple))
+		    (:constructor ,internal-ctor (descriptor contents hash-value
+						       . ,(if ctor-has-params? ctor-lambda-list
+							    `(&key . ,slots))))
+		    ,@(and printer-name
+		           `((:print-function ,printer-name)))
+		    . ,opts)
+	 ,@(and doc-string `(,doc-string))
+	 . ,(mapcar (fn (sd) (if (consp sd)
+				 (if (cdr sd)
+				     (list* (car sd) (cadr sd) (remove-property ':discard-on-copy (cddr sd)))
+				   sd)
+			       sd))
+		    slot-descs))
+       ,@(and printer-name
 	      `((defun ,printer-name (tuple stream level)
 		  (declare (ignore level))
 		  (print-tuple-class-instance tuple stream ',name
 					      ',(mapcar (fn (s) (cons (intern (symbol-name s) (symbol-package ':foo))
 								      s))
 							slots)))))
-       (defstruct (,name
-		    (:include ,(or superclass 'dyn-tuple))
-		    (:constructor ,internal-ctor (descriptor contents hash-value
-						       . ,(if ctor-has-params? ctor-lambda-list
-							    (and ctor-name `(&key . ,slots)))))
-		    ,@(and ctor-name  (null (assoc ':print-function opts)) (null (assoc ':print-object opts))
-		           `((:print-function ,printer-name)))
-		    . ,opts)
-	 ,@(and doc-string `(,doc-string))
-	 . ,(mapcar (fn (sd) (if (consp sd)
-				 (if (cdr sd)
-				     (list* (car sd) (cadr sd) (remove-property ':keep-on-update (cddr sd)))
-				   sd)
-			       sd))
-		    slot-descs))
-       ,@(and ctor-name
-	      (if ctor-has-params?
-		  ;; &&& Add `defaults' (or ?) as an optional parameter at the end?
-		  `((defun ,ctor-name ,ctor-lambda-list
-		      (,internal-ctor (dyn-tuple-descriptor (empty-dyn-tuple)) (vector) nil
-				      . ,ctor-params)))
-		`((defun ,ctor-name (&rest ,rest-param)
-		    (apply #',internal-ctor (dyn-tuple-descriptor (empty-dyn-tuple)) (vector) nil
-			   ,rest-param)))))
-       ,@(and ctor-name
-	      `((defun ,update-name (instance descriptor contents hash-value)
-		  (declare (optimize (speed 3) (safety 1))
-			   (ignorable instance))
-		  (let ((new-instance (,internal-ctor descriptor contents hash-value)))
-		    ,@(mapcar (fn (acc) `(setf (,acc new-instance) (,acc instance)))
-			      keep-accessors)
-		    new-instance))
-		;; &&& Alternative: add `with' etc. methods directly on `name', passing the updater in
-		;; to `tuple-with' etc.  Makes it harder for the user to fuck up by frobbing the plist.
-		(setf (get ',name 'tuple-updater) #',update-name)))
+       ,@(if ctor-has-params?
+	     `((defun ,ctor-name ,ctor-lambda-list
+		 (,internal-ctor (dyn-tuple-descriptor (empty-dyn-tuple)) (vector) nil
+				 . ,ctor-params)))
+	   `((defun ,ctor-name (&rest ,rest-param)
+	       (apply #',internal-ctor (dyn-tuple-descriptor (empty-dyn-tuple)) (vector) nil
+		      ,rest-param))))
+       (defun ,update-name (instance descriptor contents hash-value)
+	 (declare (optimize (speed 3) (safety 1))
+		  (ignorable instance))
+	 (let ((new-instance (,internal-ctor descriptor contents hash-value)))
+	   ,@(mapcar (fn (acc) `(setf (,acc new-instance) (,acc instance)))
+		     keep-accessors)
+	   new-instance))
+       (setf (get ',name 'tuple-updater) #',update-name)
        ;; Constructor macro.
-       ,@(and ctor-name
-	      `((defmacro ,name (&rest pairs)
-		  (rlabels (rec pairs '(,ctor-name))
-		    (rec (pairs form)
-		      (if (null pairs) form
-			(rec (cdr pairs) `(with ,form ,(caar pairs) ,(cadar pairs)))))))))
+       (defmacro ,name (&rest pairs)
+	 ,(format nil "Constructs a `~(~A~)' according to the supplied argument subforms.  Each~@
+		       argument subform can be a list of the form (`key-expr' `value-expr'), denoting~@
+		       a mapping from the value of `key-expr' to the value of `value-expr'; or a list~@
+		       of the form ($ `expression'), in which case the expression must evaluate to a~@
+		       tuple, denoting all its mappings.  The result is constructed from the denoted~@
+		       mappings in left-to-right order; so if a given key is supplied by more than one~@
+		       argument subform, its associated value will be given by the rightmost such~@
+		       subform."
+		  name)
+	 (rlabels (rec pairs '(,ctor-name))
+	   (rec (pairs form)
+	     (if (null pairs) form
+	       (rec (cdr pairs) `(with ,form ,(caar pairs) ,(cadar pairs)))))))
        (setf (get ',name 'tuple-keep-accessors) ',keep-accessors)
        ',name)))
 

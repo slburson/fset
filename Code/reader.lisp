@@ -369,7 +369,7 @@ argument subforms."
     (labels ((add-splice-args (splice-args result)
 	       (if (null splice-args) result
 		 (if (= (length (car splice-args)) 2)
-		     `(bag-sum ,(cadar splice-args)
+		     `(bag-sum (or ,(cadar splice-args) (bag))
 			       ,(add-splice-args (cdr splice-args) result))
 		   (error "A splice-arg to the `~S' macro must be of the form~@
 			   ($ <sub-bag>) -- not ~S"
@@ -613,11 +613,8 @@ rightmost such subform."
 			     type-name (car args)))
 		     ((eq (caar args) '$)
 		      (if (eq result empty-form)
-			  (recur (cdr args) (cadar args))
-			(recur (cdr args) `(let ((submap ,(cadar args))
-						 (result ,result))
-					     (if submap (map-union result submap)
-					       result)))))
+			  (recur (cdr args) `(or ,(cadar args) (,empty-fn)))
+			(recur (cdr args) `(map-union ,result (or ,(cadar args) (,empty-fn))))))
 		     (t
 		      (recur (cdr args) `(with ,result ,(caar args) ,(cadar args)))))))
       (recur args empty-form))))
@@ -798,10 +795,13 @@ value will be given by the rightmost such subform."
 	(cond ((eq arg ':default) (pop args))
 	      ((eq arg ':no-default))
 	      ((and (listp arg) (eq (car arg) '$))
-	       (let ((tmp (gensymx #:tmp-)))
-		 (setq result `(let ((,tmp ,result))
-				 (do-map (x y ,(cadr arg))
-				   (includef ,tmp x y))
+	       (let ((tmp (gensymx #:tmp-))
+		     (splice (gensymx #:splice-)))
+		 (setq result `(let ((,tmp ,result)
+				     (,splice ,(cadr arg)))
+				 (when ,splice
+				   (do-map (x y ,splice)
+				     (includef ,tmp x y)))
 				 ,tmp))))
 	      (t
 	       (setq result `(with ,result ,(car arg) ,(cadr arg)))))))))
@@ -917,7 +917,7 @@ expression must evaluate to a tuple, denoting all its mappings.  The result is
 constructed from the denoted mappings in left-to-right order; so if a given key
 is supplied by more than one argument subform, its associated value will be
 given by the rightmost such subform."
-  (expand-tuple-constructor-form 'tuple args))
+  (expand-tuple-constructor-form 'tuple args 'empty-tuple))
 
 (defmacro dyn-tuple (&rest args)
   "Constructs a dyn-tuple according to the supplied argument subforms.  Each
@@ -928,9 +928,9 @@ tuple, denoting all its mappings.  The result is constructed from the denoted
 mappings in left-to-right order; so if a given key is supplied by more than one
 argument subform, its associated value will be given by the rightmost such
 subform."
-  (expand-tuple-constructor-form 'dyn-tuple args))
+  (expand-tuple-constructor-form 'dyn-tuple args 'empty-dyn-tuple))
 
-(defun expand-tuple-constructor-form (type-name args)
+(defun expand-tuple-constructor-form (type-name args empty-fn)
   (labels ((recur (args result)
 	     (cond ((null args) result)
 		   ((not (and (listp (car args))
@@ -939,14 +939,12 @@ subform."
 			    lists, or ($ x) subforms -- not ~S"
 			   type-name (car args)))
 		   ((eq (caar args) '$)
-		    (if (equal result (ecase type-name
-					(tuple `(empty-tuple))
-					(dyn-tuple `(empty-dyn-tuple))))
-			(recur (cdr args) (cadar args))
-		      (recur (cdr args) `(tuple-merge ,result ,(cadar args)))))
+		    (if (equal result `(,empty-fn))
+			(recur (cdr args) `(or ,(cadar args) (tuple)))
+		      (recur (cdr args) `(tuple-merge ,result (or ,(cadar args) (tuple))))))
 		   (t
 		    (recur (cdr args) `(with ,result ,(caar args) ,(cadar args)))))))
-    (recur args `(empty-tuple))))
+    (recur args `(,empty-fn))))
 
 
 (defmacro 2-relation (&rest args)
