@@ -344,7 +344,7 @@ semantics on a user-defined structure class."
        (default ':equal))
       ((or (atom a) (atom b))
        (if (eql a b) default
-	 (let ((comp (funcall val-compare-fn a b)))
+	 (let ((comp (compare a b)))
 	   (if (eq comp ':equal) default comp))))
     (when (eq a b)			; we could get lucky
       (return default))
@@ -437,16 +437,27 @@ and thus of types named by those symbols.")
 
 
 ;;; ================================================================================
-;;; Lexicographic comparison of sequences
+;;; Lexicographic comparison
 
 ;;; User code that specifically wants lexicographic comparison can call this
 ;;; in the `compare' method for the user type in question.
-(defgeneric compare-lexicographically (a b &key)
-  (:documentation
-    "Returns the result of a lexicographic comparison of `a' and `b', which
-can be strings, vectors, lists, or seqs."))
 
-(defmethod compare-lexicographically ((a string) (b string) &key)
+(defun compare-lexicographically (a b &rest other-args)
+  "The old name of `compare-lexi', retained for compatibility."
+  (apply #'compare-lexi a b other-args))
+
+(defgeneric compare-lexi (a b &key)
+  (:documentation
+    "If `a' and `b' are of the same type, and are strings, symbols, vectors, lists,
+or seqs, compares them lexicographically (in dictionary order); otherwise,
+compares them with the usual FSet function `compare'.  For lists, vectors, and
+seqs, compares their elements with `val-compare-fn' (a keyword parameter of
+those methods), which defaults to `compare-lexi'."))
+
+(defmethod compare-lexi ((a t) (b t) &key)
+  (compare a b))
+
+(defmethod compare-lexi ((a string) (b string) &key)
   (compare-strings-lexicographically a b))
 
 (defun compare-strings-lexicographically (a b)
@@ -472,13 +483,40 @@ can be strings, vectors, lists, or seqs."))
 	    (cond ((char< ca cb) (return ':less))
 		  ((char> ca cb) (return ':greater)))))))))
 
-(defmethod compare-lexicographically ((a list) (b list) &key (val-compare-fn #'compare))
+(defmethod compare-lexi ((a package) (b package) &key)
+  ;; The same as `compare' on packages, except that it compares their names with `compare-lexi'.
+  (if (eq a b)
+      ':unequal
+    (flet ((pkg-name (pkg)
+	     (or (gethash pkg +package-original-name+)
+		 (setf (gethash pkg +package-original-name+)
+		       (package-name pkg)))))
+      (let ((a-name (pkg-name a))
+	    (b-name (pkg-name b))
+	    ((comp (compare-lexi a-name b-name))))
+	(if (eq comp ':equal)
+	    ':unequal
+	  comp)))))
+
+(defmethod compare-lexi ((a symbol) (b symbol) &key)
+  (if (eq a b) ':equal
+    ;; Here we compare the symbol-names first, because that's what people normally see.
+    (let ((comp (compare-strings-lexicographically (symbol-name a) (symbol-name b))))
+      (if (eq comp ':equal)
+	  (let ((pkg-comp (compare-lexi (symbol-package a) (symbol-package b))))
+	    (if (or (eq pkg-comp ':equal) (eq pkg-comp ':unequal))
+		;; See comment in `compare' method for symbols.
+		':unequal
+	      pkg-comp))
+	comp))))
+
+(defmethod compare-lexi ((a list) (b list) &key (val-compare-fn #'compare-lexi))
   (compare-lists-lexicographically a b val-compare-fn))
 
-(defmethod compare-lexicographically ((a vector) (b vector) &key (val-compare-fn #'compare))
+(defmethod compare-lexi ((a vector) (b vector) &key (val-compare-fn #'compare-lexi))
   (compare-vectors-lexicographically a b val-compare-fn))
 
-(defun compare-vectors-lexicographically (a b &optional (val-compare-fn #'compare))
+(defun compare-vectors-lexicographically (a b &optional (val-compare-fn #'compare-lexi))
   (declare (type function val-compare-fn))
   (if (eq a b)
       ':equal

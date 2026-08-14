@@ -2072,6 +2072,7 @@ if it changed, if `transient-id' is supplied."
 	n))))
 
 (defun ch-map-tree-lookup (tree key key-hash-fn key-cmp-fn &optional (depth 0))
+  "On success, returns `t', the value, and the key found."
   (ch-map/bag-tree-lookup tree key key-hash-fn key-cmp-fn depth #'wb-map-tree-lookup))
 
 (defun ch-map/bag-tree-lookup (tree key key-hash-fn key-cmp-fn depth collision-fn)

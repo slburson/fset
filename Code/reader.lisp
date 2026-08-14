@@ -168,6 +168,14 @@ in which case the expression must evaluate to a set, all of whose elements
 become elements of the result set."
   (expand-set-constructor-form 'wb-set 'empty-wb-set args compare-fn-name))
 
+(defmacro wb-lexi-set (&rest args)
+  "Constructs a wb-set ordered by `compare-lexi', according to the supplied
+argument subforms.  Each argument subform can be an expression, whose value
+will be an element of the result set; or a list of the form ($ `expression'),
+in which case the expression must evaluate to a set, all of whose elements
+become elements of the result set."
+  (expand-set-constructor-form 'wb-set 'empty-wb-set args ''compare-lexi))
+
 (defmacro ch-set (&rest args)
   "Constructs a ch-set according to the supplied argument subforms.  Each
 argument subform can be an expression, whose value will be an element of the
@@ -308,6 +316,18 @@ given by the value of `expression2'.  That is, the multiplicity of each element
 of the result bag is the sum of its multiplicities as supplied by each of the
 argument subforms."
   (expand-bag-constructor-form 'wb-bag 'empty-wb-bag args compare-fn-name))
+
+(defmacro wb-lexi-bag (&rest args)
+  "Constructs a wb-bag ordered by `compare-lexi', according to the supplied
+argument subforms.  Each argument subform can be an expression, whose value will
+be added to the bag with multiplicity 1; or a list of the form ($ `expression'),
+in which case the expression must evaluate to a bag (or a set), which is
+bag-summed into the result; or a list of the form (% `expression1'
+`expression2') (called a \"multi-arg\"), which indicates that the value of
+`expression1' is bag-summed into the result with multiplicity given by the value
+of `expression2'.  That is, the multiplicity of each element of the result bag
+is the sum of its multiplicities as supplied by each of the argument subforms."
+  (expand-bag-constructor-form 'wb-bag 'empty-wb-bag args ''compare-lexi))
 
 (defmacro ch-bag (&rest args)
   "Constructs a ch-bag according to the supplied argument subforms.  Each
@@ -465,6 +485,37 @@ the denoted mappings in left-to-right order; so if a given key is supplied by
 more than one argument subform, its associated value will be given by the
 rightmost such subform."
   (expand-map-constructor-form 'fset2:wb-map 'fset2:empty-wb-map args key-compare-fn-name val-compare-fn-name))
+
+(defmacro wb-lexi-map (&rest args)
+  "Constructs a wb-map ordered by `compare-lexi', according to the supplied
+argument subforms.  Each argument subform can be a list of the form (`key-expr'
+`value-expr'), denoting a mapping from the value of `key-expr' to the value of
+`value-expr'; or a list of the form ($ `expression'), in which case the
+expression must evaluate to a map, denoting all its mappings; or the symbol
+`:default', in which case the next argument subform is a form whose value will
+become the map's default.  As a convenience, if a subform is ($ `expression')
+and the expression evaluates to `nil', it will be treated as an empty map.  The
+result is constructed from the denoted mappings in left-to-right order; so if a
+given key is supplied by more than one argument subform, its associated value
+will be given by the rightmost such subform."
+  (expand-map-constructor-form 'wb-map 'empty-wb-map args ''compare-lexi))
+(defmacro fset2:wb-lexi-map (&rest args)
+  "Constructs a wb-map ordered by `compare-lexi', according to the supplied
+argument subforms.  Each argument subform can be a list of the form (`key-expr'
+`value-expr'), denoting a mapping from the value of `key-expr' to the value of
+`value-expr'; or a list of the form ($ `expression'), in which case the
+expression must evaluate to a map, denoting all its mappings; or the symbol
+`:default' followed by a form; or the symbol `:no-default'.  If `:default' is
+supplied, the map's default is the value of the subsequent form; if
+`:no-default' is supplied, the map has no default; if neither, the map's default
+is `nil'.
+
+As a convenience, if a subform is ($ `expression') and the expression evaluates
+to `nil', it will be treated as an empty map.  The result is constructed from
+the denoted mappings in left-to-right order; so if a given key is supplied by
+more than one argument subform, its associated value will be given by the
+rightmost such subform."
+  (expand-map-constructor-form 'fset2:wb-map 'fset2:empty-wb-map args ''compare-lexi))
 
 (defmacro ch-map (&rest args)
   "Constructs a ch-map according to the supplied argument subforms.  Each

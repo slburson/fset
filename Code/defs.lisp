@@ -41,7 +41,7 @@
 	   #:ch-set #:ch-bag #:ch-map
 	   #:replay-set #:replay-set? #:wb-replay-set #:wb-replay-set? #:ch-replay-set #:ch-replay-set?
 	   #:replay-map #:replay-map? #:wb-replay-map #:wb-replay-map? #:ch-replay-map #:ch-replay-map?
-	   #:wb-custom-set #:wb-custom-bag #:wb-custom-map
+	   #:wb-custom-set #:wb-custom-bag #:wb-custom-map #:wb-lexi-set #:wb-lexi-map #:wb-lexi-bag
 	   #:ch-custom-set #:ch-custom-bag #:ch-custom-map
 	   #:wb-custom-replay-set #:wb-custom-replay-map #:ch-custom-replay-set #:ch-custom-replay-map
 	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal #:hash-slots #:eql-compare
@@ -51,7 +51,7 @@
 	   #:identity-equality-mixin #:identity-ordering-mixin #:identity-equality-struct
 	   #:define-cross-type-compare-methods
 	   #:compare-lexicographically #:compare-lists-lexicographically #:compare-strings-lexicographically
-	   #:compare-vectors-lexicographically #:compare-seqs-lexicographically
+	   #:compare-vectors-lexicographically #:compare-seqs-lexicographically #:compare-lexi
 	   #:empty? #:nonempty? #:size #:set-size #:arb
 	   #:contains? #:domain-contains? #:range-contains? #:member? #:multiplicity
 	   #:empty-set #:empty-set-like #:empty-bag #:empty-bag-like #:empty-map #:empty-map-like
@@ -85,8 +85,9 @@
 	   #:substitute #:substitute-if #:substitute-if-not
 	   #:some #:every #:notany #:notevery
 	   #:search #:mismatch
-	   #:convert #:iterator #:fun-iterator
-	   #:do-set #:do-bag #:do-bag-pairs #:do-map #:do-map-domain #:do-seq #:do-tuple
+	   #:convert #:convert-like #:iterator #:fun-iterator
+	   #:do-set #:do-bag #:do-bag-pairs #:do-map #:do-map-domain #:do-seq #:do-seq-chunks #:do-tuple
+	   #:do-elements #:do-pairs #:do-iterator #:do-pair-iterator
 	   #:adjoinf #:removef #:includef #:excludef
 	   #:unionf #:intersectf #:set-differencef #:map-unionf #:map-intersectf #:imagef #:updatef #:composef
 	   #:define-tuple-key #:def-tuple-key #:get-tuple-key
@@ -170,7 +171,7 @@
   (:import-from :fset #:erapmoc)  ; internal, for testing
   ;; These are shadowed `fset:' symbols, with different definitions in `fset2:'.
   (:shadow ;; Names shadowed from `fset:' to implement FSet2 semantics
-	   #:set #:bag #:map #:wb-map #:wb-custom-map #:ch-map #:ch-custom-map #:seq #:wb-seq
+	   #:set #:bag #:map #:wb-map #:wb-custom-map #:wb-lexi-map #:ch-map #:ch-custom-map #:seq #:wb-seq
 	   #:replay-map #:wb-replay-map #:wb-custom-replay-map #:ch-replay-map #:ch-custom-replay-map
 	   #:empty-set #:empty-bag #:empty-map #:empty-wb-map #:empty-ch-map #:empty-seq #:empty-wb-seq
 	   #:rank #:define-tuple-key #:get-tuple-key #:bag-pairs #:map-to-sets
@@ -190,7 +191,7 @@
 	   #:ch-set #:ch-bag #:ch-map
 	   #:replay-set #:replay-set? #:wb-replay-set #:wb-replay-set? #:ch-replay-set #:ch-replay-set?
 	   #:replay-map #:replay-map? #:wb-replay-map #:wb-replay-map? #:ch-replay-map #:ch-replay-map?
-	   #:wb-custom-set #:wb-custom-bag #:wb-custom-map
+	   #:wb-custom-set #:wb-custom-bag #:wb-custom-map #:wb-lexi-set #:wb-lexi-bag #:wb-lexi-map
 	   #:ch-custom-set #:ch-custom-bag #:ch-custom-map
 	   #:wb-custom-replay-set #:wb-custom-replay-map #:ch-custom-replay-set #:ch-custom-replay-map
 	   #:equal? #:compare #:compare-slots #:compare-slots-no-unequal #:hash-slots #:eql-compare
@@ -200,7 +201,7 @@
 	   #:identity-equality-mixin #:identity-equality-struct
 	   #:define-cross-type-compare-methods
 	   #:compare-lexicographically #:compare-lists-lexicographically #:compare-strings-lexicographically
-	   #:compare-vectors-lexicographically #:compare-seqs-lexicographically
+	   #:compare-vectors-lexicographically #:compare-seqs-lexicographically #:compare-lexi
 	   #:empty? #:nonempty? #:size #:set-size #:arb
 	   #:contains? #:domain-contains? #:range-contains? #:member? #:multiplicity
 	   #:empty-set #:empty-set-like #:empty-bag #:empty-bag-like #:empty-map #:empty-map-like
@@ -237,8 +238,9 @@
 	   #:substitute #:substitute-if #:substitute-if-not
 	   #:some #:every #:notany #:notevery
 	   #:search #:mismatch
-	   #:convert #:iterator #:fun-iterator
-	   #:do-set #:do-bag #:do-bag-pairs #:do-map #:do-map-domain #:do-seq #:do-tuple
+	   #:convert #:convert-like #:iterator #:fun-iterator
+	   #:do-set #:do-bag #:do-bag-pairs #:do-map #:do-map-domain #:do-seq #:do-seq-chunks #:do-tuple
+	   #:do-elements #:do-pairs #:do-iterator #:do-pair-iterator
 	   #:includef #:excludef #:unionf #:intersectf #:set-differencef
 	   #:map-unionf #:map-intersectf #:imagef #:updatef #:composef #:map-imagef
 	   #:define-tuple-key #:get-tuple-key #:tuple-key #:tuple-key-name #:tuple-key-type #:tuple-key?

@@ -904,6 +904,19 @@ Notes:
     FSet 2: also has keyword parameter `no-default?' to specify no default.
 22. O(1), provided the organization is unchanged."))
 
+(defgeneric convert-like (like-this sequence)
+  (:documentation
+    "Converts `sequence' to be of the same type as `like-this', which can be
+a list, string, vector, or seq.")
+  (:method ((like-this list) sequence)
+    (convert 'list sequence))
+  (:method ((like-this string) sequence)
+    (convert 'string sequence))
+  (:method ((like-this vector) sequence)
+    (convert 'vector sequence))
+  (:method ((like-this seq) sequence)
+    (convert 'seq sequence)))
+
 
 ;;; ================================================================================
 ;;; Iterators
@@ -5947,7 +5960,7 @@ This is the default implementation of seqs in FSet."
 	      ':unequal
 	    ':equal))))))
 
-(defun compare-seqs-lexicographically (a b &optional (val-compare-fn #'compare))
+(defun compare-seqs-lexicographically (a b &optional (val-compare-fn #'compare-lexi))
   (wb-seq-tree-compare-lexicographically (wb-seq-contents a) (wb-seq-contents b) val-compare-fn))
 
 (defmethod hash-value ((s wb-seq))
@@ -5963,7 +5976,7 @@ This is the default implementation of seqs in FSet."
 	(return)))
     result))
 
-(defmethod compare-lexicographically ((s1 wb-seq) (s2 wb-seq) &key (val-compare-fn #'compare))
+(defmethod compare-lexi ((s1 wb-seq) (s2 wb-seq) &key (val-compare-fn #'compare))
   (wb-seq-tree-compare (wb-seq-contents s1) (wb-seq-contents s2) val-compare-fn
 		       :lexicographic? t))
 

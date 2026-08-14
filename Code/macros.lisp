@@ -881,6 +881,20 @@ executes `body'.  When done, returns `value'.
        (let ((,var (funcall ,it-var :get)))
 	 . ,body))))
 
+(defmacro do-pairs ((var-a var-b iterable &optional value) &body body)
+  "Here `iterable' is any object for which there is a method on `iterator', q.v.,
+Calls `iterator' on `iterable', passing no keyword arguments, to obtain an
+iterator.  Binds `var-a' and `var-b' to the successive pairs returned by the
+iterator as two values, and executes `body'.  When done, returns `value'.
+
+\(To pass keyword arguments to the `iterator' call, use `do-pair-iterator'.\)"
+  (let ((it-var (gensymx #:it-)))
+    `(do ((,it-var (iterator ,iterable)))
+	 ((funcall ,it-var ':done?)
+	  ,value)
+       (let ((,var-a ,var-b (funcall ,it-var :get)))
+	 . ,body))))
+
 (defmacro do-iterator ((var iter &optional value) &body body)
   "Here `iter' is any object that conforms to the FSet stateful iterator
 protocol; these are normally constructed by calling `iterator', q.v.
