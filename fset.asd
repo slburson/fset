@@ -42,10 +42,19 @@ See: https://gitlab.common-lisp.net/fset/fset/-/wikis/home
 	     (:file "bounded-sets")
 	     (:file "transients")
 	     (:file "post")
-	     #+swank
-	     (:file "swank")
              #+lispworks
              (:file "lispworks-inspect")))))
+
+(defsystem :FSet/Swank
+  :description "Improved Swank support for FSet"
+  :author "Scott L. Burson <Scott@sympoiesis.com>"
+  :homepage "https://gitlab.common-lisp.net/fset/fset/-/wikis/home"
+  :source-control "https://github.com/slburson/fset"
+  :license "BSD-2-Clause"
+  :depends-on ("fset" "swank")
+  :components ((:module "Code"
+                :serial t
+                :components ((:file "swank")))))
 
 (defsystem :FSet/test
   :description "Test system for FSet"
